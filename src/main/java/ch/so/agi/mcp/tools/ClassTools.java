@@ -1,7 +1,7 @@
 package ch.so.agi.mcp.tools;
 
-import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
+import org.springaicommunity.mcp.annotation.McpTool;
+import org.springaicommunity.mcp.annotation.McpToolParam;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
@@ -13,14 +13,14 @@ import java.util.Map;
 @Component
 public class ClassTools {
 
-  @Tool(name = "createClassSnippet",
+  @McpTool(name = "createClassSnippet",
         description = "Erzeugt eine CLASS-Definition. Params: name (required), isAbstract, extendsFQN, oidDecl, attrLines (list of attribute lines).")
   public Map<String,Object> createClass(
-      @ToolParam(description = "Klassenname", required = true) String name,
-      @ToolParam(description = "Abstrakt?") @Nullable Boolean isAbstract,
-      @ToolParam(description = "EXTENDS (vollqualifiziert)") @Nullable String extendsFqn,
-      @ToolParam(description = "OID-Definition, z. B. 'OID AS UUIDOID'") @Nullable String oidDecl,
-      @ToolParam(description = "Attribut-Zeilen (roher ILI-Text)") @Nullable List<String> attrLines
+      @McpToolParam(description = "Klassenname", required = true) String name,
+      @McpToolParam(description = "Abstrakt?") @Nullable Boolean isAbstract,
+      @McpToolParam(description = "EXTENDS (vollqualifiziert)") @Nullable String extendsFqn,
+      @McpToolParam(description = "OID-Definition, z. B. 'OID AS UUIDOID'") @Nullable String oidDecl,
+      @McpToolParam(description = "Attribut-Zeilen (roher ILI-Text)") @Nullable List<String> attrLines
   ) {
       var nv = NameValidator.ascii(); 
       nv.validateIdent(name, "Class name");

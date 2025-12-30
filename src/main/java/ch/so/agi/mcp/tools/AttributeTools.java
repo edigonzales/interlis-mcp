@@ -4,7 +4,7 @@ import ch.so.agi.mcp.model.*;
 import ch.so.agi.mcp.model.AttributeLineRequest.Collection;
 import ch.so.agi.mcp.util.NameValidator;
 
-import org.springframework.ai.tool.annotation.Tool;
+import org.springaicommunity.mcp.annotation.McpTool;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -15,7 +15,7 @@ public class AttributeTools {
    * Input: AttributeLineRequest (name, mandatory?, collection?, typeSpec oneOf).
    * Output: AttributeLineResponse with a single ILI line.
    */
-  @Tool(
+  @McpTool(
       name = "createAttributeLineV2",
       description = """
         Create a single INTERLIS attribute line with strict typing.

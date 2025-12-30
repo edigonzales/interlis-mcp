@@ -1,7 +1,7 @@
 package ch.so.agi.mcp.tools;
 
-import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
+import org.springaicommunity.mcp.annotation.McpTool;
+import org.springaicommunity.mcp.annotation.McpToolParam;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
@@ -19,16 +19,16 @@ public class ModelTools {
   private final Clock clock;
   public ModelTools(Clock clock) { this.clock = clock; }
 
-  @Tool(
+  @McpTool(
       name = "createModelSnippet",
       description = "Erzeugt ein INTERLIS-2 Modellgerüst. Params: name (required), lang (default 'de'), version (default 'today'), uri (default 'https://example.org/<name>'), imports (default ['INTERLIS'])."
   )
   public Map<String, Object> createModelSnippet(
-      @ToolParam(description = "Modellname (Bezeichner ohne Leerzeichen)", required = true) String name,
-      @ToolParam(description = "Sprachcode, z. B. 'de' oder 'en'") @Nullable String lang,
-      @ToolParam(description = "URI des Modells") @Nullable String uri,
-      @ToolParam(description = "Version im Format YYYY-MM-DD") @Nullable String version,
-      @ToolParam(description = "Zusätzliche Imports (z. B. 'GeometryCHLV95_V1')") @Nullable List<String> imports
+      @McpToolParam(description = "Modellname (Bezeichner ohne Leerzeichen)", required = true) String name,
+      @McpToolParam(description = "Sprachcode, z. B. 'de' oder 'en'") @Nullable String lang,
+      @McpToolParam(description = "URI des Modells") @Nullable String uri,
+      @McpToolParam(description = "Version im Format YYYY-MM-DD") @Nullable String version,
+      @McpToolParam(description = "Zusätzliche Imports (z. B. 'GeometryCHLV95_V1')") @Nullable List<String> imports
   ) {
       
       var nv = NameValidator.ascii();

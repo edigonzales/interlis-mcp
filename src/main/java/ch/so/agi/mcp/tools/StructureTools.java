@@ -1,7 +1,7 @@
 package ch.so.agi.mcp.tools;
 
-import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
+import org.springaicommunity.mcp.annotation.McpTool;
+import org.springaicommunity.mcp.annotation.McpToolParam;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
@@ -11,15 +11,15 @@ import java.util.Map;
 @Component
 public class StructureTools {
 
-  @Tool(
+  @McpTool(
       name = "createStructureSnippet",
       description = "Erzeugt eine STRUCTURE-Definition (keine OID/TID). Params: name (required), isAbstract?, extendsFqn?, attrLines?"
   )
   public Map<String, Object> createStructure(
-      @ToolParam(description = "Strukturname", required = true) String name,
-      @ToolParam(description = "Abstrakt?") @Nullable Boolean isAbstract,
-      @ToolParam(description = "EXTENDS (vollqualifiziert)") @Nullable String extendsFqn,
-      @ToolParam(description = "Attribut-Zeilen (roher ILI-Text)") @Nullable List<String> attrLines
+      @McpToolParam(description = "Strukturname", required = true) String name,
+      @McpToolParam(description = "Abstrakt?") @Nullable Boolean isAbstract,
+      @McpToolParam(description = "EXTENDS (vollqualifiziert)") @Nullable String extendsFqn,
+      @McpToolParam(description = "Attribut-Zeilen (roher ILI-Text)") @Nullable List<String> attrLines
   ) {
     boolean abs = isAbstract != null && isAbstract;
     String header = "STRUCTURE " + name

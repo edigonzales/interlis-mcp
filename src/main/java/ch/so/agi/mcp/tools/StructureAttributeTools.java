@@ -1,7 +1,7 @@
 package ch.so.agi.mcp.tools;
 
-import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
+import org.springaicommunity.mcp.annotation.McpTool;
+import org.springaicommunity.mcp.annotation.McpToolParam;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
@@ -21,17 +21,17 @@ public class StructureAttributeTools {
    *  - addresses : LIST OF Demo.Core.Address;
    *  - kontakt : MANDATORY Demo.Core.Contact;
    */
-  @Tool(
+  @McpTool(
       name = "createStructureAttributeLine",
       description = "Create an attribute of STRUCTURE type. " +
                     "Params: name (required), structureFqn (required), " +
                     "mandatory (default false), collection (NONE|LIST_OF|BAG_OF, default NONE)."
   )
   public Map<String, Object> createStructureAttributeLine(
-      @ToolParam(description = "Attribute name", required = true) String name,
-      @ToolParam(description = "Fully-qualified STRUCTURE name, e.g., 'Demo.Core.Address'", required = true) String structureFqn,
-      @ToolParam(description = "MANDATORY flag (default false)") @Nullable Boolean mandatory,
-      @ToolParam(description = "Collection kind (NONE|LIST_OF|BAG_OF)") @Nullable Collection collection
+      @McpToolParam(description = "Attribute name", required = true) String name,
+      @McpToolParam(description = "Fully-qualified STRUCTURE name, e.g., 'Demo.Core.Address'", required = true) String structureFqn,
+      @McpToolParam(description = "MANDATORY flag (default false)") @Nullable Boolean mandatory,
+      @McpToolParam(description = "Collection kind (NONE|LIST_OF|BAG_OF)") @Nullable Collection collection
   ) {
     if (name == null || name.isBlank()) {
       throw new IllegalArgumentException("Attribute 'name' is required.");
