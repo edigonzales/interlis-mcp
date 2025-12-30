@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 public class AttributeTools {
 
   /**
-   * New, strict version that prevents illegal types like bare "NUMERIC".
+   * New, strict version that supports numeric ranges and simple NUMERIC variants.
    * Input: AttributeLineRequest (name, mandatory?, collection?, typeSpec oneOf).
    * Output: AttributeLineResponse with a single ILI line.
    */
@@ -19,10 +19,11 @@ public class AttributeTools {
       name = "createAttributeLineV2",
       description = """
         Create a single INTERLIS attribute line with strict typing.
-        Use either typeSpec.domainFqn or typeSpec.baseType (TEXT, NUM_RANGE, BOOLEAN, COORD, POLYLINE, SURFACE_SIMPLE).
+        Use either typeSpec.domainFqn or typeSpec.baseType (TEXT, NUMERIC, NUM_RANGE, BOOLEAN, COORD, POLYLINE, SURFACE_SIMPLE).
         Examples:
         - TEXT: {"baseType":{"kind":"TEXT","length":120}}
         - NUM_RANGE: {"baseType":{"kind":"NUM_RANGE","min":0.0,"max":100.0,"unitFqn":"INTERLIS.percent"}}
+        - NUMERIC with refSys: {"baseType":{"kind":"NUMERIC","unitFqn":"INTERLIS.deg","refSysFqn":"MyModel.AngleRef","circular":true}}
         - Domain: {"domainFqn":"Demo.Farbe"}
         """
   )
@@ -59,11 +60,7 @@ public class AttributeTools {
         rhs = switch (bt.getKind()) {
           case TEXT -> (bt.getLength() == null) ? "TEXT" : "TEXT*" + bt.getLength();
           case MTEXT -> (bt.getLength() == null) ? "MTEXT" : "MTEXT*" + bt.getLength();
-          case NUM_RANGE -> {
-            String unitPart = (bt.getUnitFqn() != null && !bt.getUnitFqn().isBlank())
-                ? " [" + bt.getUnitFqn().trim() + "]" : "";
-            yield bt.getMin() + " .. " + bt.getMax() + unitPart;
-          }
+          case NUMERIC, NUM_RANGE -> numericFragment(bt);
           case BOOLEAN -> "BOOLEAN";
           case COORD -> "COORD";
           case POLYLINE -> "POLYLINE";
@@ -82,5 +79,31 @@ public class AttributeTools {
 
     String line = req.getName().trim() + " : " + prefix + collectionPrefix + rhs + ";";
     return new AttributeLineResponse(line);
+  }
+
+  private String numericFragment(BaseType bt) {
+    var sb = new StringBuilder("NUMERIC");
+    if (bt.getKind() == BaseType.Kind.NUM_RANGE) {
+      sb.append(" ").append(bt.getMin()).append(" .. ").append(bt.getMax());
+    }
+
+    if (bt.getUnitFqn() != null && !bt.getUnitFqn().isBlank()) {
+      sb.append(" [").append(bt.getUnitFqn().trim()).append("]");
+    }
+
+    boolean hasRefSys = bt.getRefSysFqn() != null && !bt.getRefSysFqn().isBlank();
+    boolean circular = Boolean.TRUE.equals(bt.getCircular());
+    if (hasRefSys || circular) {
+      sb.append(" {");
+      if (hasRefSys) {
+        sb.append("REFSYS ").append(bt.getRefSysFqn().trim());
+        if (circular) sb.append(" CIRCULAR");
+      } else {
+        sb.append("CIRCULAR");
+      }
+      sb.append("}");
+    }
+
+    return sb.toString();
   }
 }

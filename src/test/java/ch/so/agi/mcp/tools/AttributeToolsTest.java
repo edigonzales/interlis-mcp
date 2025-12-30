@@ -47,7 +47,7 @@ class AttributeToolsTest {
 
         AttributeLineResponse response = attributeTools.createAttributeLine(request);
 
-        assertEquals("hoehe : MANDATORY LIST OF 0.0 .. 100.0 [INTERLIS.m];", response.getIliSnippet());
+        assertEquals("hoehe : MANDATORY LIST OF NUMERIC 0.0 .. 100.0 [INTERLIS.m];", response.getIliSnippet());
     }
 
     @Test
@@ -63,5 +63,60 @@ class AttributeToolsTest {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> attributeTools.createAttributeLine(request));
         assertTrue(ex.getMessage().contains("Attribute name"));
+    }
+
+    @Test
+    void createAttributeLineV2_formatsBareNumeric() {
+        AttributeLineRequest request = new AttributeLineRequest();
+        request.setName("winkel");
+
+        BaseType baseType = new BaseType();
+        baseType.setKind(BaseType.Kind.NUMERIC);
+
+        TypeSpec spec = new TypeSpec();
+        spec.setBaseType(baseType);
+        request.setTypeSpec(spec);
+
+        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+
+        assertEquals("winkel : NUMERIC;", response.getIliSnippet());
+    }
+
+    @Test
+    void createAttributeLineV2_formatsNumericWithUnitAndRefSysCircular() {
+        AttributeLineRequest request = new AttributeLineRequest();
+        request.setName("azimut");
+
+        BaseType baseType = new BaseType();
+        baseType.setKind(BaseType.Kind.NUMERIC);
+        baseType.setUnitFqn("INTERLIS.deg");
+        baseType.setRefSysFqn("MyModel.AngleRef");
+        baseType.setCircular(true);
+
+        TypeSpec spec = new TypeSpec();
+        spec.setBaseType(baseType);
+        request.setTypeSpec(spec);
+
+        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+
+        assertEquals("azimut : NUMERIC [INTERLIS.deg] {REFSYS MyModel.AngleRef CIRCULAR};", response.getIliSnippet());
+    }
+
+    @Test
+    void createAttributeLineV2_formatsNumericWithCircularOnly() {
+        AttributeLineRequest request = new AttributeLineRequest();
+        request.setName("phase");
+
+        BaseType baseType = new BaseType();
+        baseType.setKind(BaseType.Kind.NUMERIC);
+        baseType.setCircular(true);
+
+        TypeSpec spec = new TypeSpec();
+        spec.setBaseType(baseType);
+        request.setTypeSpec(spec);
+
+        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+
+        assertEquals("phase : NUMERIC {CIRCULAR};", response.getIliSnippet());
     }
 }
