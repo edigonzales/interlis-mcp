@@ -5,6 +5,7 @@ import ch.so.agi.mcp.model.AttributeLineRequest.Collection;
 import ch.so.agi.mcp.util.NameValidator;
 
 import org.springaicommunity.mcp.annotation.McpTool;
+import org.springaicommunity.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -27,7 +28,9 @@ public class AttributeTools {
         - Domain: {"domainFqn":"Demo.Farbe"}
         """
   )
-  public AttributeLineResponse createAttributeLine(AttributeLineRequest req) {
+  public AttributeLineResponse createAttributeLine(
+      @McpToolParam(description = "Structured attribute definition (name, mandatory, collection, typeSpec oneOf)", required = true)
+      AttributeLineRequest req) {
     // ---- basic checks
     if (req.getName() == null || req.getName().isBlank()) {
       throw new IllegalArgumentException("Attribute 'name' is required.");
