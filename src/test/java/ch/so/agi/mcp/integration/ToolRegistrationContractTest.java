@@ -13,18 +13,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.definition.ToolDefinition;
-import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
-
-import ch.so.agi.mcp.model.AttributeLineV2Response;
-import ch.so.agi.mcp.tools.AttributeTools;
 
 @SpringBootTest(properties = "spring.main.allow-bean-definition-overriding=true")
 class ToolRegistrationContractTest {
@@ -39,7 +32,7 @@ class ToolRegistrationContractTest {
         Arrays.stream(toolCallbackProvider.getToolCallbacks())
             .collect(Collectors.toMap(cb -> cb.getToolDefinition().name(), Function.identity()));
 
-    assertThat(callbacksByName).containsKeys("createModelSnippet", "createSnippet");
+    assertThat(callbacksByName).containsKeys("createModelSnippet");
 
     ToolCallback createModelSnippet = callbacksByName.get("createModelSnippet");
     ToolDefinition snippetDefinition = createModelSnippet.getToolDefinition();
@@ -64,18 +57,7 @@ class ToolRegistrationContractTest {
     assertThat(properties.path("imports").path("description").asText())
         .isEqualTo("Zusätzliche Imports (z. B. 'GeometryCHLV95_V1')");
 
-    ToolCallback aliasSnippet = callbacksByName.get("createSnippet");
-    ToolDefinition aliasDefinition = aliasSnippet.getToolDefinition();
-    JsonNode aliasSchema = objectMapper.readTree(aliasDefinition.inputSchema());
-    List<String> aliasRequired =
-        aliasSchema.path("required").isMissingNode()
-            ? List.of()
-            : iterableToList(aliasSchema.path("required"));
-    assertThat(aliasRequired).contains("name");
-    assertThat(aliasSchema.path("properties").has("name")).isTrue();
-    assertThat(aliasDefinition.description()).contains("Deprecated alias");
-
-    String requestJson = createSnippetRequest();
+    String requestJson = createModelSnippetRequest();
     String responseJson = createModelSnippet.call(requestJson);
     JsonNode response = objectMapper.readTree(responseJson);
 
@@ -88,7 +70,7 @@ class ToolRegistrationContractTest {
     assertThat(response.path("cursorHint").path("col").asInt()).isEqualTo(0);
   }
 
-  private String createSnippetRequest() throws Exception {
+  private String createModelSnippetRequest() throws Exception {
     ObjectNode root = objectMapper.createObjectNode();
     root.put("name", "TestModel");
     root.put("lang", "de");
@@ -106,26 +88,5 @@ class ToolRegistrationContractTest {
     return StreamSupport.stream(arrayNode.spliterator(), false)
         .map(JsonNode::asText)
         .collect(Collectors.toList());
-  }
-
-  @TestConfiguration
-  static class OverrideAttributeToolsConfig {
-
-    @Bean
-    @Primary
-    AttributeTools attributeTools() {
-      return new AttributeTools() {
-        @Override
-        @Tool(
-            name = "createAttributeLineLegacy",
-            description =
-                "Deprecated legacy tool. Please use createAttributeLineV2. "
-                    + "This legacy endpoint rejects bare NUMERIC and unknown types."
-        )
-        public AttributeLineV2Response createAttributeLineLegacy(String name, String type) {
-          return super.createAttributeLineLegacy(name, type);
-        }
-      };
-    }
   }
 }

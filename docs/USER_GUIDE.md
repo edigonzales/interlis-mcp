@@ -87,7 +87,6 @@ The server registers all tools in `ToolsConfig` and advertises itself as an STDI
     - Text kinds accept optional `length`.
   Returns the attribute line and default cursor hint `{line:0, col:0}`.
 - **`createStructureAttributeLine`** – Emit an attribute referencing a `STRUCTURE`. Parameters: `name`, `structureFqn`, optional `mandatory`, and optional `collection` (`NONE`, `LIST_OF`, `BAG_OF`).
-- **Deprecated** – `createAttributeLine` and `createSnippet` exist for backward compatibility and immediately throw a descriptive error advising you to use the newer variants.
 
 ### Constraint helpers
 - **`createUniqueConstraint`** – Wrap attribute names in a `CONSTRAINTS` block with `UNIQUE`.
