@@ -17,7 +17,7 @@ public class AttributeTools {
    * Output: AttributeLineResponse with a single ILI line.
    */
   @McpTool(
-      name = "createAttributeLineV2",
+      name = "createAttributeLine",
       description = """
         Create a single INTERLIS attribute line with strict typing.
         Use either typeSpec.domainFqn or typeSpec.baseType (TEXT, NUMERIC, NUM_RANGE, BOOLEAN, COORD, POLYLINE, SURFACE_SIMPLE).
