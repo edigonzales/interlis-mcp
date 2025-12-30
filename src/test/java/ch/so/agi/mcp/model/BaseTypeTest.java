@@ -13,7 +13,6 @@ class BaseTypeTest {
         assertDoesNotThrow(baseType::validate);
     }
 
-   // @Disabled
     @Test
     void validate_rejectsTextWithInvalidLength() {
         BaseType baseType = new BaseType();
@@ -30,6 +29,47 @@ class BaseTypeTest {
         baseType.setMin(5.0);
         baseType.setMax(10.0);
         assertDoesNotThrow(baseType::validate);
+    }
+
+    @Test
+    void validate_numericAllowsBare() {
+        BaseType baseType = new BaseType();
+        baseType.setKind(BaseType.Kind.NUMERIC);
+        assertDoesNotThrow(baseType::validate);
+    }
+
+    @Test
+    void validate_numericRejectsBounds() {
+        BaseType baseType = new BaseType();
+        baseType.setKind(BaseType.Kind.NUMERIC);
+        baseType.setMin(0.0);
+        baseType.setMax(10.0);
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, baseType::validate);
+        assertTrue(ex.getMessage().contains("NUMERIC must not define 'min'/'max'"));
+    }
+
+    @Test
+    void validate_numericRangeRejectsCircular() {
+        BaseType baseType = new BaseType();
+        baseType.setKind(BaseType.Kind.NUM_RANGE);
+        baseType.setMin(0.0);
+        baseType.setMax(5.0);
+        baseType.setCircular(true);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, baseType::validate);
+        assertTrue(ex.getMessage().contains("circular"));
+    }
+
+    @Test
+    void validate_numericRangeRejectsRefSys() {
+        BaseType baseType = new BaseType();
+        baseType.setKind(BaseType.Kind.NUM_RANGE);
+        baseType.setMin(0.0);
+        baseType.setMax(5.0);
+        baseType.setRefSysFqn("Model.Topic.RefSys");
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, baseType::validate);
+        assertTrue(ex.getMessage().contains("refSysFqn"));
     }
 
     @Test
