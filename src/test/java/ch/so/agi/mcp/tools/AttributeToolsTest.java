@@ -1,8 +1,8 @@
 package ch.so.agi.mcp.tools;
 
-import ch.so.agi.mcp.model.AttributeLineV2Request;
-import ch.so.agi.mcp.model.AttributeLineV2Request.Collection;
-import ch.so.agi.mcp.model.AttributeLineV2Response;
+import ch.so.agi.mcp.model.AttributeLineRequest;
+import ch.so.agi.mcp.model.AttributeLineRequest.Collection;
+import ch.so.agi.mcp.model.AttributeLineResponse;
 import ch.so.agi.mcp.model.BaseType;
 import ch.so.agi.mcp.model.TypeSpec;
 import org.junit.jupiter.api.Test;
@@ -15,13 +15,13 @@ class AttributeToolsTest {
 
     @Test
     void createAttributeLineV2_usesDomainWhenPresent() {
-        AttributeLineV2Request request = new AttributeLineV2Request();
+        AttributeLineRequest request = new AttributeLineRequest();
         request.setName("farbe");
         TypeSpec spec = new TypeSpec();
         spec.setDomainFqn("Demo.Core.Farbe");
         request.setTypeSpec(spec);
 
-        AttributeLineV2Response response = attributeTools.createAttributeLineV2(request);
+        AttributeLineResponse response = attributeTools.createAttributeLineV2(request);
 
         assertEquals("farbe : Demo.Core.Farbe;", response.getIliSnippet());
         assertEquals(0, response.getCursorHint().get("line"));
@@ -30,7 +30,7 @@ class AttributeToolsTest {
 
     @Test
     void createAttributeLineV2_formatsBaseTypeRange() {
-        AttributeLineV2Request request = new AttributeLineV2Request();
+        AttributeLineRequest request = new AttributeLineRequest();
         request.setName("hoehe");
         request.setMandatory(true);
         request.setCollection(Collection.LIST_OF);
@@ -45,14 +45,14 @@ class AttributeToolsTest {
         spec.setBaseType(baseType);
         request.setTypeSpec(spec);
 
-        AttributeLineV2Response response = attributeTools.createAttributeLineV2(request);
+        AttributeLineResponse response = attributeTools.createAttributeLineV2(request);
 
         assertEquals("hoehe : MANDATORY LIST OF 0.0 .. 100.0 [INTERLIS.m];", response.getIliSnippet());
     }
 
     @Test
     void createAttributeLineV2_rejectsInvalidAttributeName() {
-        AttributeLineV2Request request = new AttributeLineV2Request();
+        AttributeLineRequest request = new AttributeLineRequest();
         request.setName("1invalid");
         TypeSpec spec = new TypeSpec();
         BaseType baseType = new BaseType();

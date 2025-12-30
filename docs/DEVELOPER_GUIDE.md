@@ -39,10 +39,10 @@ Spring AI converts incoming MCP JSON-RPC payloads into method arguments and seri
 
 ## Data contracts
 For attribute creation the server uses rich DTOs:
-- `AttributeLineV2Request` carries the attribute name, optional mandatory flag, optional collection, and a mutually exclusive `typeSpec`.
+- `AttributeLineRequest` carries the attribute name, optional mandatory flag, optional collection, and a mutually exclusive `typeSpec`.
 - `TypeSpec` enforces that either `domainFqn` or `baseType` is provided.
 - `BaseType` supplies strong validation for numeric ranges, text lengths, and supported primitive kinds.
-- `AttributeLineV2Response` standardizes the returned snippet and cursor hint map.
+- `AttributeLineResponse` standardizes the returned snippet and cursor hint map.
 Re-use these classes when introducing new tools that work with attributes to stay consistent with existing validation logic.
 
 ## Docker packaging

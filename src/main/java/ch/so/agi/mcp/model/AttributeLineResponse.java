@@ -2,13 +2,13 @@ package ch.so.agi.mcp.model;
 
 import java.util.Map;
 
-public class AttributeLineV2Response {
+public class AttributeLineResponse {
   private String iliSnippet;
   private Map<String,Integer> cursorHint;
 
-  public AttributeLineV2Response() {}
+  public AttributeLineResponse() {}
 
-  public AttributeLineV2Response(String iliSnippet) {
+  public AttributeLineResponse(String iliSnippet) {
     this.iliSnippet = iliSnippet;
     this.cursorHint = Map.of("line", 0, "col", 0);
   }

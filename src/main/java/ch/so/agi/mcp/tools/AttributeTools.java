@@ -1,7 +1,7 @@
 package ch.so.agi.mcp.tools;
 
 import ch.so.agi.mcp.model.*;
-import ch.so.agi.mcp.model.AttributeLineV2Request.Collection;
+import ch.so.agi.mcp.model.AttributeLineRequest.Collection;
 import ch.so.agi.mcp.util.NameValidator;
 
 import org.springframework.ai.tool.annotation.Tool;
@@ -12,8 +12,8 @@ public class AttributeTools {
 
   /**
    * New, strict version that prevents illegal types like bare "NUMERIC".
-   * Input: AttributeLineV2Request (name, mandatory?, collection?, typeSpec oneOf).
-   * Output: AttributeLineV2Response with a single ILI line.
+   * Input: AttributeLineRequest (name, mandatory?, collection?, typeSpec oneOf).
+   * Output: AttributeLineResponse with a single ILI line.
    */
   @Tool(
       name = "createAttributeLineV2",
@@ -26,7 +26,7 @@ public class AttributeTools {
         - Domain: {"domainFqn":"Demo.Farbe"}
         """
   )
-  public AttributeLineV2Response createAttributeLineV2(AttributeLineV2Request req) {
+  public AttributeLineResponse createAttributeLineV2(AttributeLineRequest req) {
     // ---- basic checks
     if (req.getName() == null || req.getName().isBlank()) {
       throw new IllegalArgumentException("Attribute 'name' is required.");
@@ -81,22 +81,6 @@ public class AttributeTools {
     };
 
     String line = req.getName().trim() + " : " + prefix + collectionPrefix + rhs + ";";
-    return new AttributeLineV2Response(line);
-  }
-
-  /**
-   * Optional: keep the old tool name as a strict adapter that FAILS on illegal strings.
-   * If you must keep legacy shape {name, type, ...}, you can parse and forward.
-   * Here we recommend returning a helpful error instead of guessing.
-   */
-  @Tool(
-      name = "createAttributeLine",
-      description = "Deprecated legacy tool. Please use createAttributeLineV2. " +
-                    "This legacy endpoint rejects bare NUMERIC and unknown types."
-  )
-  public AttributeLineV2Response createAttributeLineLegacy(String name, String type) {
-    throw new IllegalArgumentException(
-        "Deprecated: use createAttributeLineV2 with a 'typeSpec'. " +
-        "Bare 'NUMERIC' is not valid in INTERLIS; use baseType.NUM_RANGE with min/max or a domainFqn.");
+    return new AttributeLineResponse(line);
   }
 }

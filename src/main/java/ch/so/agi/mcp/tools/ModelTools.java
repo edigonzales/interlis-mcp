@@ -57,13 +57,4 @@ public class ModelTools {
     );
   }
 
-  /** Deprecated alias kept for backward compatibility */
-  @Deprecated
-  @Tool(name = "createSnippet", description = "Deprecated alias of createModelSnippet.")
-  public Map<String, Object> createSnippetAlias(
-      String name, @Nullable String lang, @Nullable String uri,
-      @Nullable String version, @Nullable List<String> imports
-  ) {
-    return createModelSnippet(name, lang, uri, version, imports);
-  }
 }

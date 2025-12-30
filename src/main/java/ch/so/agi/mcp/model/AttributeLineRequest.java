@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.validation.constraints.Pattern;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class AttributeLineV2Request {
+public class AttributeLineRequest {
 
   public enum Collection { NONE, LIST_OF, BAG_OF }
 
