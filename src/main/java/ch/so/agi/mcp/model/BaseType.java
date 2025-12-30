@@ -13,10 +13,10 @@ public class BaseType {
   private Double min;
   private Double max;
 
-  @Pattern(regexp = "^([A-Za-z][A-Za-z0-9_]*)(\\\\.[A-Za-z][A-Za-z0-9_]*)*$", message = "FQN must be dot-separated identifiers")
+  @Pattern(regexp = "^([A-Za-z][A-Za-z0-9_]*)(\\.[A-Za-z][A-Za-z0-9_]*)*$", message = "FQN must be dot-separated identifiers")
   private String unitFqn;
 
-  @Pattern(regexp = "^([A-Za-z][A-Za-z0-9_]*)(\\\\.[A-Za-z][A-Za-z0-9_]*)*$", message = "FQN must be dot-separated identifiers")
+  @Pattern(regexp = "^([A-Za-z][A-Za-z0-9_]*)(\\.[A-Za-z][A-Za-z0-9_]*)*$", message = "FQN must be dot-separated identifiers")
   private String refSysFqn;
 
   private Boolean circular;
