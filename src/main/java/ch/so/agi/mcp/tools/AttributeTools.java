@@ -26,7 +26,7 @@ public class AttributeTools {
         - Domain: {"domainFqn":"Demo.Farbe"}
         """
   )
-  public AttributeLineResponse createAttributeLineV2(AttributeLineRequest req) {
+  public AttributeLineResponse createAttributeLine(AttributeLineRequest req) {
     // ---- basic checks
     if (req.getName() == null || req.getName().isBlank()) {
       throw new IllegalArgumentException("Attribute 'name' is required.");

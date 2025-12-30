@@ -21,7 +21,7 @@ class AttributeToolsTest {
         spec.setDomainFqn("Demo.Core.Farbe");
         request.setTypeSpec(spec);
 
-        AttributeLineResponse response = attributeTools.createAttributeLineV2(request);
+        AttributeLineResponse response = attributeTools.createAttributeLine(request);
 
         assertEquals("farbe : Demo.Core.Farbe;", response.getIliSnippet());
         assertEquals(0, response.getCursorHint().get("line"));
@@ -45,7 +45,7 @@ class AttributeToolsTest {
         spec.setBaseType(baseType);
         request.setTypeSpec(spec);
 
-        AttributeLineResponse response = attributeTools.createAttributeLineV2(request);
+        AttributeLineResponse response = attributeTools.createAttributeLine(request);
 
         assertEquals("hoehe : MANDATORY LIST OF 0.0 .. 100.0 [INTERLIS.m];", response.getIliSnippet());
     }
@@ -61,7 +61,7 @@ class AttributeToolsTest {
         request.setTypeSpec(spec);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> attributeTools.createAttributeLineV2(request));
+                () -> attributeTools.createAttributeLine(request));
         assertTrue(ex.getMessage().contains("Attribute name"));
     }
 }
