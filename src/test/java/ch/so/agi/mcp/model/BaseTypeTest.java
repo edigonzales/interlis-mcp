@@ -1,10 +1,14 @@
 package ch.so.agi.mcp.model;
 
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class BaseTypeTest {
+
+    private static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();
 
     @Test
     void validate_allowsTextWithoutLength() {
@@ -87,5 +91,21 @@ class BaseTypeTest {
         BaseType baseType = new BaseType();
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, baseType::validate);
         assertTrue(ex.getMessage().contains("baseType.kind"));
+    }
+
+    @Test
+    void validate_unitFqnAcceptsDotSeparated() {
+        BaseType baseType = new BaseType();
+        baseType.setUnitFqn("Model.Part");
+
+        assertTrue(VALIDATOR.validate(baseType).isEmpty());
+    }
+
+    @Test
+    void validate_unitFqnRejectsBackslashSeparator() {
+        BaseType baseType = new BaseType();
+        baseType.setUnitFqn("Model\\Part");
+
+        assertFalse(VALIDATOR.validate(baseType).isEmpty());
     }
 }

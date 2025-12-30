@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Pattern;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class TypeSpec {
 
-  @Pattern(regexp = "^([A-Za-z][A-Za-z0-9_]*)(\\\\.[A-Za-z][A-Za-z0-9_]*)*$", message = "FQN must be dot-separated identifiers")
+  @Pattern(regexp = "^([A-Za-z][A-Za-z0-9_]*)(\\.[A-Za-z][A-Za-z0-9_]*)*$", message = "FQN must be dot-separated identifiers")
   private String domainFqn;
   private BaseType baseType;
 
