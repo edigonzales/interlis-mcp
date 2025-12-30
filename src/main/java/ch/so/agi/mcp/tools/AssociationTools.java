@@ -1,7 +1,7 @@
 package ch.so.agi.mcp.tools;
 
-import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
+import org.springaicommunity.mcp.annotation.McpTool;
+import org.springaicommunity.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
 import ch.so.agi.mcp.util.NameValidator;
@@ -18,11 +18,11 @@ public class AssociationTools {
     public String card; // e.g. {1}, {0..1}, {1..*}
   }
 
-  @Tool(name = "createAssociationSnippet",
+  @McpTool(name = "createAssociationSnippet",
         description = "Erzeugt eine ASSOCIATION. Params: name (required), roles (2+ Rollen mit name,classFQN,card).")
   public Map<String,Object> createAssociation(
-      @ToolParam(description = "Assoziationsname", required = true) String name,
-      @ToolParam(description = "Rollen (mindestens 2)", required = true) List<Role> roles
+      @McpToolParam(description = "Assoziationsname", required = true) String name,
+      @McpToolParam(description = "Rollen (mindestens 2)", required = true) List<Role> roles
   ) {
       
       var nv = NameValidator.ascii();
