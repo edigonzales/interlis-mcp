@@ -1,13 +1,16 @@
 package ch.so.agi.mcp.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Pattern;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class TypeSpec {
 
   @Pattern(regexp = "^([A-Za-z][A-Za-z0-9_]*)(\\.[A-Za-z][A-Za-z0-9_]*)*$", message = "FQN must be dot-separated identifiers")
+  @JsonProperty(required = false)
   private String domainFqn;
+  @JsonProperty(required = false)
   private BaseType baseType;
 
   public String getDomainFqn() { return domainFqn; }
