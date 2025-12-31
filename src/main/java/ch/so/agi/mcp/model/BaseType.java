@@ -1,6 +1,7 @@
 package ch.so.agi.mcp.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Pattern;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -8,17 +9,24 @@ public class BaseType {
 
   public enum Kind { TEXT, MTEXT, NUMERIC, NUM_RANGE, BOOLEAN, COORD, POLYLINE, SURFACE_SIMPLE }
 
+  @JsonProperty(required = true)
   private Kind kind;
+  @JsonProperty(required = false)
   private Integer length;
+  @JsonProperty(required = false)
   private Double min;
+  @JsonProperty(required = false)
   private Double max;
 
   @Pattern(regexp = "^([A-Za-z][A-Za-z0-9_]*)(\\.[A-Za-z][A-Za-z0-9_]*)*$", message = "FQN must be dot-separated identifiers")
+  @JsonProperty(required = false)
   private String unitFqn;
 
   @Pattern(regexp = "^([A-Za-z][A-Za-z0-9_]*)(\\.[A-Za-z][A-Za-z0-9_]*)*$", message = "FQN must be dot-separated identifiers")
+  @JsonProperty(required = false)
   private String refSysFqn;
 
+  @JsonProperty(required = false)
   private Boolean circular;
 
   public Kind getKind() { return kind; }
