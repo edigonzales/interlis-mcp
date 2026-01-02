@@ -16,8 +16,8 @@ public class TopicTools {
         description = "Erzeugt einen TOPIC-Block. Params: name (required), oidType (e.g. 'OID AS UUIDOID'), isAbstract (default false).")
   public Map<String,Object> createTopic(
       @McpToolParam(description = "Topic-Name", required = true) String name,
-      @McpToolParam(description = "OID-Definition, z. B. 'OID AS UUIDOID'") @Nullable String oidType,
-      @McpToolParam(description = "Abstrakter Topic?") @Nullable Boolean isAbstract
+      @McpToolParam(description = "OID-Definition, z. B. 'OID AS UUIDOID'", required = false) @Nullable String oidType,
+      @McpToolParam(description = "Abstrakter Topic?", required = false) @Nullable Boolean isAbstract
   ) {
       var nv = NameValidator.ascii(); 
       nv.validateIdent(name, "Topic name");

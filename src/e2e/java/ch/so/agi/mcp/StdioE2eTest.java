@@ -112,11 +112,13 @@ public class StdioE2eTest {
         // ---- 3) tools/call createModelSnippet ----
         String today = LocalDate.now().toString();
         String argsJson = "{"
-                + "\"name\":\"DemoModel\","
-                + "\"lang\":\"de\","
-                + "\"uri\":\"https://example.org/DemoModel\","
-                + "\"version\":\"" + today + "\","
-                + "\"imports\":[\"INTERLIS\"]"
+                + "\"name\":\"DemoModel\"," 
+                + "\"lang\":\"de\"," 
+                + "\"uri\":\"https://example.org/DemoModel\"," 
+                + "\"version\":\"" + today + "\"," 
+                + "\"iliVersion\":\"2.4\"," 
+                + "\"imports\":[\"INTERLIS\"]," 
+                + "\"includeSolothurnHeader\":false"
                 + "}";
 
         String createModelCall =
@@ -134,6 +136,8 @@ public class StdioE2eTest {
 
         String createResp = waitForResponseWithId(createModelId, 10_000);
         assertNotNull(createResp, "Did not receive createModelSnippet response");
+        assertTrue(createResp.contains("INTERLIS 2.4"),
+                "createModelSnippet response should contain 'INTERLIS 2.4' but was: " + createResp);
         assertTrue(createResp.contains("MODEL DemoModel (de)"),
                 "createModelSnippet response should contain 'MODEL DemoModel (de)' but was: " + createResp);
     }

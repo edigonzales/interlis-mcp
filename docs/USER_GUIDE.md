@@ -63,7 +63,7 @@ Ensure `stdin_open` remains true and no TTY is allocated so the MCP JSON-RPC str
 The server registers all tools in `ToolsConfig` and advertises itself as an STDIO, tool-capable MCP endpoint. Each tool returns an object that at least contains `iliSnippet` (the generated INTERLIS fragment) and, where applicable, a `cursorHint` map indicating where to place the caret in editors.
 
 ### Model and topic helpers
-- **`createModelSnippet`** – Generate a model skeleton (`MODEL … END`). Parameters: `name` (required), optional `lang`, `uri`, `version`, and additional `imports`. Defaults fill in `lang="de"`, `version=today`, and `uri=https://example.org/<name>`. Returns `iliSnippet` and a cursor hint pointing to the import section.
+- **`createModelSnippet`** – Generate a model skeleton (`MODEL … END`). Parameters: `name` (required), optional `lang`, `uri`, `version`, `iliVersion` (default `2.4`), `includeSolothurnHeader` (default `false`), and additional `imports`. Defaults fill in `lang="de"`, `version=today`, and `uri=https://example.org/<name>`. Returns `iliSnippet` and a cursor hint pointing to the import section.
 - **`createTopicSnippet`** – Produce a `TOPIC` block. Parameters: `name` (required), optional `oidType` declaration, and `isAbstract` flag. Returns snippet with placeholder comment for classes.
 
 ### Domains and units
