@@ -2,6 +2,7 @@
 
 
 ## todo
+- diff vs komplett vs. inline -> siehe chatgpt
 - Wie unterbindet man, dass er "NUMERIC" als Attributtyp mitschickt? Wie kann man die Attributtypen grundsätzlich robuster gestalten?
 - sanitize name 
 - sanitize reservierte Wörter
