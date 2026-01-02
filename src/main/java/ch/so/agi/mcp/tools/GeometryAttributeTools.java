@@ -37,7 +37,9 @@ public class GeometryAttributeTools {
       @McpToolParam(description = "CHBase-Geometrien verwenden", required = false) @Nullable Boolean chbase,
       @McpToolParam(description = "INTERLIS Sprachversion (2.3 oder 2.4)", required = false) @Nullable String iliVersion,
       @McpToolParam(description = "Geometrietyp, z. B. SURFACE (Default)", required = false) @Nullable String geometryType,
-      @McpToolParam(description = "Linienzug ist DIRECTED (nur Polyline/MultiPolyline)", required = false) @Nullable Boolean directed
+      @McpToolParam(description = "Linienzug ist DIRECTED (nur Polyline/MultiPolyline)", required = false) @Nullable Boolean directed,
+      @McpToolParam(description = "Attribut ist MANDATORY", required = false) @Nullable Boolean mandatory,
+      @McpToolParam(description = "Collection: LIST OF oder BAG OF", required = false) @Nullable String collection
   ) {
     var nv = NameValidator.ascii();
     nv.validateIdent(attributeName, "Attribute name");
@@ -79,11 +81,12 @@ public class GeometryAttributeTools {
     List<String> domains = new ArrayList<>();
     List<String> notes = new ArrayList<>();
     String attributeLine;
+    String attributePrefix = buildAttributePrefix(attributeName.trim(), mandatory, collection);
 
     if (useChBase) {
       String modelName = "2.3".equals(ili) ? "GeometryCHLV95_V1" : "GeometryCHLV95_V2";
       imports.add(modelName);
-      attributeLine = attributeName.trim() + " :" + buildChBaseGeometry(modelName, geom, dim, useArcs, overlapMeters, ili, isDirected) + ";";
+      attributeLine = attributePrefix + buildChBaseGeometry(modelName, geom, dim, useArcs, overlapMeters, ili, isDirected) + ";";
     } else {
       imports.add("INTERLIS");
       String coordDomainName = "Coord" + dim;
@@ -93,7 +96,7 @@ public class GeometryAttributeTools {
       notes.add("Domain nach IMPORTS einfügen");
       notes.add("Tolerance ist in Metern interpretiert");
 
-      attributeLine = buildGeometryAttribute(attributeName.trim(), geom, coordDomainName, useArcs, overlapMeters, isDirected);
+      attributeLine = buildGeometryAttribute(attributePrefix, geom, coordDomainName, useArcs, overlapMeters, isDirected);
     }
 
     return Map.of(
@@ -122,12 +125,12 @@ public class GeometryAttributeTools {
     return canonical;
   }
 
-  private String buildGeometryAttribute(String attributeName, String geom, String coordDomainName, boolean useArcs, BigDecimal overlapMeters, boolean directed) {
+  private String buildGeometryAttribute(String attributePrefix, String geom, String coordDomainName, boolean useArcs, BigDecimal overlapMeters, boolean directed) {
     String lineForm = useArcs ? "WITH (STRAIGHTS, ARCS)" : "WITH (STRAIGHTS)";
     String overlap = overlapMeters.stripTrailingZeros().toPlainString();
     String directedPrefix = (directed && isLineGeometry(geom, false)) ? "DIRECTED " : "";
 
-    return attributeName + " : " + directedPrefix + geom + " " + lineForm + "\n        VERTEX " + coordDomainName + "\n        WITHOUT OVERLAPS > " + overlap + ";";
+    return attributePrefix + directedPrefix + geom + " " + lineForm + "\n        VERTEX " + coordDomainName + "\n        WITHOUT OVERLAPS > " + overlap + ";";
   }
 
   private String buildChBaseGeometry(String modelName, String geom, int dimension, boolean useArcs, BigDecimal overlapMeters, String iliVersion, boolean directed) {
@@ -191,6 +194,23 @@ public class GeometryAttributeTools {
     String suffix = useArcs ? (directed ? "MultiDirectedLine" : "MultiLine")
         : (directed ? "MultiDirectedLineWithoutArcs" : "MultiLineWithoutArcs");
     return modelName + "." + suffix;
+  }
+
+  private String buildAttributePrefix(String attributeName, @Nullable Boolean mandatory, @Nullable String collectionRaw) {
+    String mandatoryPrefix = Boolean.TRUE.equals(mandatory) ? "MANDATORY " : "";
+    String collectionPrefix = normalizeCollection(collectionRaw);
+    return attributeName + " : " + mandatoryPrefix + collectionPrefix;
+  }
+
+  private String normalizeCollection(@Nullable String collectionRaw) {
+    if (collectionRaw == null || collectionRaw.isBlank()) return "";
+    String key = collectionRaw.trim().toUpperCase(Locale.ROOT).replace(' ', '_');
+    return switch (key) {
+      case "LIST", "LIST_OF" -> "LIST OF ";
+      case "BAG", "BAG_OF" -> "BAG OF ";
+      case "", "NONE" -> "";
+      default -> throw new IllegalArgumentException("collection must be LIST OF, BAG OF oder leer.");
+    };
   }
 
   private boolean isLineGeometry(String geom, boolean chbase) {
