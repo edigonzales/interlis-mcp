@@ -26,6 +26,7 @@ java {
 
 repositories { 
     mavenCentral() 
+    maven { url "https://jars.sogeo.services/mirror" }
 }
 
 ext {
@@ -43,6 +44,10 @@ dependencies {
     implementation "org.springframework.boot:spring-boot-starter"
     implementation "org.springframework.boot:spring-boot-starter-validation"
     implementation "org.springframework:spring-web"
+    implementation "ch.ehi:ehibasics:1.4.1"
+    implementation "ch.interlis:ili2c-core:5.6.8"
+    implementation "ch.interlis:ili2c-tool:5.6.8"
+    implementation "ch.interlis:iox-ili:1.24.4"
     testImplementation "org.springframework.boot:spring-boot-starter-test"
         
     e2eImplementation 'org.springframework.boot:spring-boot-starter-test'
