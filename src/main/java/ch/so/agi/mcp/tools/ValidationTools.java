@@ -37,7 +37,7 @@ public class ValidationTools {
   )
   public Map<String, Object> validateIliModel(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
-      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition, z. B. 'https://models.interlis.ch;https://geo.so.ch/models'")
+      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition, z. B. 'https://models.interlis.ch;https://geo.so.ch/models'", required = false)
       @Nullable String modelRepositories
   ) {
     if (modelText == null || modelText.isBlank()) {

@@ -17,9 +17,9 @@ public class StructureTools {
   )
   public Map<String, Object> createStructure(
       @McpToolParam(description = "Strukturname", required = true) String name,
-      @McpToolParam(description = "Abstrakt?") @Nullable Boolean isAbstract,
-      @McpToolParam(description = "EXTENDS (vollqualifiziert)") @Nullable String extendsFqn,
-      @McpToolParam(description = "Attribut-Zeilen (roher ILI-Text)") @Nullable List<String> attrLines
+      @McpToolParam(description = "Abstrakt?", required = false) @Nullable Boolean isAbstract,
+      @McpToolParam(description = "EXTENDS (vollqualifiziert)", required = false) @Nullable String extendsFqn,
+      @McpToolParam(description = "Attribut-Zeilen (roher ILI-Text)", required = false) @Nullable List<String> attrLines
   ) {
     boolean abs = isAbstract != null && isAbstract;
     String header = "STRUCTURE " + name

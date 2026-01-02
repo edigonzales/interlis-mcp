@@ -42,12 +42,12 @@ public class ModelTools {
   )
   public Map<String, Object> createModelSnippet(
       @McpToolParam(description = "Modellname (Bezeichner ohne Leerzeichen)", required = true) String name,
-      @McpToolParam(description = "Sprachcode, z. B. 'de' oder 'en'") @Nullable String lang,
-      @McpToolParam(description = "URI des Modells") @Nullable String uri,
-      @McpToolParam(description = "Version im Format YYYY-MM-DD") @Nullable String version,
-      @McpToolParam(description = "INTERLIS Sprachversion (z. B. '2.3' oder '2.4')") @Nullable String iliVersion,
-      @McpToolParam(description = "Zusätzliche Imports (z. B. 'GeometryCHLV95_V1')") @Nullable List<String> imports,
-      @McpToolParam(description = "Fügt einen Solothurn-Header oberhalb des Snippets ein") @Nullable Boolean includeSolothurnHeader
+      @McpToolParam(description = "Sprachcode, z. B. 'de' oder 'en'", required = false) @Nullable String lang,
+      @McpToolParam(description = "URI des Modells", required = false) @Nullable String uri,
+      @McpToolParam(description = "Version im Format YYYY-MM-DD", required = false) @Nullable String version,
+      @McpToolParam(description = "INTERLIS Sprachversion (z. B. '2.3' oder '2.4')", required = false) @Nullable String iliVersion,
+      @McpToolParam(description = "Zusätzliche Imports (z. B. 'GeometryCHLV95_V1')", required = false) @Nullable List<String> imports,
+      @McpToolParam(description = "Fügt einen Solothurn-Header oberhalb des Snippets ein", required = false) @Nullable Boolean includeSolothurnHeader
   ) {
       
       var nv = NameValidator.ascii();
