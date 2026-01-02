@@ -5,8 +5,8 @@ import org.springaicommunity.mcp.annotation.McpToolParam;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
-import java.util.Locale;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -107,4 +107,5 @@ public class DomainTools {
     String format = "%." + decimals + "f";
     return String.format(Locale.ROOT, format, value);
   }
+
 }
