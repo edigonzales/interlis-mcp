@@ -36,13 +36,14 @@ class ModelToolsIntegrationTest {
 
     @Test
     void createModelSnippet_usesDefaultsFromSpringContext() {
-        Map<String, Object> result = modelTools.createModelSnippet("TestModel", null, null, null, null);
+        Map<String, Object> result = modelTools.createModelSnippet("TestModel", null, null, null, null, null, null);
 
-        String expectedSnippet = "MODEL TestModel (de) AT \"https://example.org/testmodel\" VERSION \"2024-04-01\" =\n" +
+        String expectedSnippet = "INTERLIS 2.4;\n\n" +
+                "MODEL TestModel (de) AT \"https://example.org/testmodel\" VERSION \"2024-04-01\" =\n" +
                 "  IMPORTS UNQUALIFIED INTERLIS;\n\n" +
                 "END TestModel.\n";
         assertEquals(expectedSnippet, result.get("iliSnippet"));
-        assertEquals(Map.of("line", 2, "col", 0), result.get("cursorHint"));
+        assertEquals(Map.of("line", 4, "col", 0), result.get("cursorHint"));
     }
 
     @Test
@@ -52,10 +53,13 @@ class ModelToolsIntegrationTest {
                 " en ",
                 " https://example.com/demo ",
                 "2023-12-31",
-                List.of("GeometryCHLV95_V1", "Units")
+                "2.3",
+                List.of("GeometryCHLV95_V1", "Units"),
+                null
         );
 
-        String expectedSnippet = "MODEL DemoModel (en) AT \"https://example.com/demo\" VERSION \"2023-12-31\" =\n" +
+        String expectedSnippet = "INTERLIS 2.3;\n\n" +
+                "MODEL DemoModel (en) AT \"https://example.com/demo\" VERSION \"2023-12-31\" =\n" +
                 "  IMPORTS UNQUALIFIED GeometryCHLV95_V1, Units;\n\n" +
                 "END DemoModel.\n";
         assertEquals(expectedSnippet, result.get("iliSnippet"));
