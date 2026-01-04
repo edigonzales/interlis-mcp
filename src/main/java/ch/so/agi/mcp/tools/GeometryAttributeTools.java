@@ -8,9 +8,12 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Component
 public class GeometryAttributeTools {
@@ -107,13 +110,42 @@ public class GeometryAttributeTools {
     );
   }
 
+  @McpTool(
+      name = "listGeometryTypes",
+      description = "Liste alle unterstützten Geometrietypen pro INTERLIS-Sprachversion und Modell (Standard/CHBase)."
+  )
+  public Map<String, Object> listGeometryTypes() {
+    Map<String, Object> interlis = Map.of(
+        "2.3", new ArrayList<>(interlisGeometryTypes("2.3")),
+        "2.4", new ArrayList<>(interlisGeometryTypes("2.4"))
+    );
+
+    Map<String, Object> chBase = Map.of(
+        "2.3", new ArrayList<>(chBaseGeometryTypes("2.3")),
+        "2.4", new ArrayList<>(chBaseGeometryTypes("2.4"))
+    );
+
+    return Map.of(
+        "INTERLIS", interlis,
+        "CHBase", chBase
+    );
+  }
+
   private void validateGeometryType(String geom, String ili) {
-    List<String> allowed = "2.3".equals(ili)
-        ? List.of("POLYLINE", "SURFACE", "AREA")
-        : List.of("POLYLINE", "SURFACE", "AREA", "MULTIPOLYLINE", "MULTISURFACE", "MULTIAREA");
+    List<String> allowed = interlisGeometryTypes(ili);
     if (!allowed.contains(geom)) {
       throw new IllegalArgumentException("Geometrietyp nicht erlaubt für INTERLIS " + ili + ": " + geom);
     }
+  }
+
+  private List<String> interlisGeometryTypes(String ili) {
+    if ("2.3".equals(ili)) {
+      return List.of("POLYLINE", "SURFACE", "AREA");
+    }
+    if ("2.4".equals(ili)) {
+      return List.of("POLYLINE", "SURFACE", "AREA", "MULTIPOLYLINE", "MULTISURFACE", "MULTIAREA");
+    }
+    throw new IllegalArgumentException("iliVersion must be '2.3' oder '2.4'.");
   }
 
   private String normalizeGeometryTypeForChBase(String geomKey, String ili) {
@@ -221,8 +253,13 @@ public class GeometryAttributeTools {
     return geom.equals("POLYLINE") || geom.equals("MULTIPOLYLINE") || geom.equals("LINE") || geom.equals("MULTILINE");
   }
 
+  private Set<String> chBaseGeometryTypes(String ili) {
+    Map<String, String> raw = "2.3".equals(ili) ? chBase23() : chBase24();
+    return new LinkedHashSet<>(raw.values());
+  }
+
   private Map<String, String> chBase23() {
-    Map<String, String> map = new java.util.HashMap<>();
+    Map<String, String> map = new LinkedHashMap<>();
     map.put("SURFACE", "Surface");
     map.put("AREA", "Area");
     map.put("LINE", "Line");
@@ -236,7 +273,7 @@ public class GeometryAttributeTools {
   }
 
   private Map<String, String> chBase24() {
-    Map<String, String> map = new java.util.HashMap<>();
+    Map<String, String> map = new LinkedHashMap<>();
     map.put("COORD", "Coord");
     map.put("COORD2", "Coord");
     map.put("COORD3", "Coord");
