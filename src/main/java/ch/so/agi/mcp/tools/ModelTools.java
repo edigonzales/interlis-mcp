@@ -31,7 +31,7 @@ public class ModelTools {
       "!!@ technicalContact=mailto:agi@bd.so.ch\n" +
       "!!@ title=\"a title\"\n" +
       "!!@ shortDescription=\"a short description\"\n" +
-      "!!@ tags=\"foo,bar,fubar\"\n";
+      "!!@ tags=\"de:Gebäude,fr:Bâtiment,fubar\"\n";
 
   private final Clock clock;
   public ModelTools(Clock clock) { this.clock = clock; }
