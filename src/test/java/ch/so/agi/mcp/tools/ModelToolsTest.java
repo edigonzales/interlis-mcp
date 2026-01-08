@@ -32,7 +32,7 @@ class ModelToolsTest {
 
         String expectedSnippet = "INTERLIS 2.4;\n\n"
                 + "MODEL TestModel (de) AT \"https://example.org/testmodel\" VERSION \"2024-05-01\" =\n"
-                + "  IMPORTS UNQUALIFIED INTERLIS;\n\n"
+                + "\n"
                 + "END TestModel.\n";
 
         assertEquals(expectedSnippet, result.get("iliSnippet"));
@@ -57,14 +57,15 @@ class ModelToolsTest {
 
         String expectedSnippet = "INTERLIS 2.3;\n\n"
                 + "MODEL TrimModel (en) AT \"https://data.example/TrimModel\" VERSION \"2024-01-31\" =\n"
-                + "  IMPORTS UNQUALIFIED INTERLIS, GeometryCHLV95_V1;\n\n"
+                + "  IMPORTS INTERLIS;\n"
+                + "  IMPORTS GeometryCHLV95_V1;\n\n"
                 + "END TrimModel.\n";
 
         assertEquals(expectedSnippet, result.get("iliSnippet"));
 
         @SuppressWarnings("unchecked")
         Map<String, Integer> cursorHint = (Map<String, Integer>) result.get("cursorHint");
-        assertEquals(Map.of("line", 4, "col", 0), cursorHint);
+        assertEquals(Map.of("line", 6, "col", 0), cursorHint);
     }
 
     @Test
@@ -111,11 +112,10 @@ class ModelToolsTest {
                 !!@ technicalContact=mailto:agi@bd.so.ch
                 !!@ title="a title"
                 !!@ shortDescription="a short description"
-                !!@ tags="foo,bar,fubar"
+                !!@ tags="de:Gebäude,fr:Bâtiment,fubar"
                 INTERLIS 2.4;
 
                 MODEL HeaderModel (de) AT "https://example.org/headermodel" VERSION "2024-05-01" =
-                  IMPORTS UNQUALIFIED INTERLIS;
 
                 END HeaderModel.
                 """.stripIndent();
@@ -144,6 +144,35 @@ class ModelToolsTest {
 
         assertEquals(
                 "iliVersion must be either '2.3' or '2.4'. Got: '2.5'.",
+                ex.getMessage()
+        );
+    }
+
+    @Test
+    @DisplayName("createImportLine defaults to qualified import")
+    void createImportLineDefaultsToQualified() {
+        String line = modelTools.createImportLine("ModelA", null);
+
+        assertEquals("IMPORTS ModelA;", line);
+    }
+
+    @Test
+    @DisplayName("createImportLine renders unqualified import when requested")
+    void createImportLineUnqualified() {
+        String line = modelTools.createImportLine("ModelA", false);
+
+        assertEquals("IMPORTS UNQUALIFIED ModelA;", line);
+    }
+
+    @Test
+    @DisplayName("createImportLine validates model name")
+    void createImportLineValidatesModelName() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                modelTools.createImportLine("Invalid-Model", true)
+        );
+
+        assertEquals(
+                "Model name must match [A-Za-z][A-Za-z0-9_]* (starts with a letter, then letters/digits/underscore). Got: 'Invalid-Model'.",
                 ex.getMessage()
         );
     }

@@ -58,11 +58,12 @@ class ToolRegistrationContractTest {
         .isEqualTo(
             "INTERLIS 2.3;\n\n"
                 + "MODEL TestModel (de) AT \"https://example.org/test\" VERSION \"2024-01-31\" =\n"
-                + "  IMPORTS UNQUALIFIED INTERLIS, GeometryCHLV95_V1;\n\n"
+                + "  IMPORTS INTERLIS;\n"
+                + "  IMPORTS GeometryCHLV95_V1;\n\n"
                 + "END TestModel.\n");
     @SuppressWarnings("unchecked")
     Map<String, Object> cursorHint = (Map<String, Object>) structured.get("cursorHint");
-    assertThat(cursorHint).containsEntry("line", 4).containsEntry("col", 0);
+    assertThat(cursorHint).containsEntry("line", 6).containsEntry("col", 0);
   }
 
   private Map<String, Object> createModelSnippetRequest() {
