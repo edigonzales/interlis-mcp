@@ -102,8 +102,13 @@ public class GeometryAttributeTools {
       attributeLine = buildGeometryAttribute(attributePrefix, geom, coordDomainName, useArcs, overlapMeters, isDirected);
     }
 
+    List<String> importLines = new ArrayList<>();
+    for (String model : imports) {
+      importLines.add("IMPORTS " + model + ";");
+    }
+
     return Map.of(
-        "importsToAdd", imports,
+        "importLinesToAdd", importLines,
         "domainsToAdd", domains,
         "attributeLine", attributeLine,
         "notes", notes
