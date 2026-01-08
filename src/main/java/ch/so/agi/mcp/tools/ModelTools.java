@@ -85,6 +85,25 @@ public class ModelTools {
     );
   }
 
+  @McpTool(
+      name = "createImportLine",
+      description = "Erzeugt eine einzelne IMPORTS-Zeile. Params: modelName (required), qualified (default true)."
+  )
+  public String createImportLine(
+      @McpToolParam(description = "Modellname (Bezeichner ohne Leerzeichen)", required = true) String modelName,
+      @McpToolParam(description = "Qualified import (default true)") @Nullable Boolean qualified
+  ) {
+    if (modelName == null || modelName.isBlank()) {
+      throw new IllegalArgumentException("Model name is required.");
+    }
+
+    String trimmedName = modelName.trim();
+    NameValidator.ascii().validateIdent(trimmedName, "Model name");
+    String qualifier = Boolean.FALSE.equals(qualified) ? " UNQUALIFIED" : "";
+
+    return "IMPORTS" + qualifier + " " + trimmedName + ";";
+  }
+
   private String buildSolothurnBanner() {
     String today = LocalDate.now(clock.withZone(ZURICH)).format(ISO_DAY);
     return String.format(SOLOTHURN_BANNER_TEMPLATE, today);
