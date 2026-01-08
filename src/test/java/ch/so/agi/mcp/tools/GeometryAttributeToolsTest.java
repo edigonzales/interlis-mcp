@@ -17,8 +17,8 @@ class GeometryAttributeToolsTest {
         "attr2", 2, true, new BigDecimal("2"), false, "2.4", "SURFACE", false, null, null);
 
     assertEquals("attr2 : SURFACE WITH (STRAIGHTS, ARCS)\n        VERTEX Coord2\n        WITHOUT OVERLAPS > 0.002;", result.get("attributeLine"));
-    assertEquals(1, ((java.util.List<?>) result.get("importsToAdd")).size());
-    assertTrue(((java.util.List<?>) result.get("importsToAdd")).contains("INTERLIS"));
+    assertEquals(1, ((java.util.List<?>) result.get("importLinesToAdd")).size());
+    assertTrue(((java.util.List<?>) result.get("importLinesToAdd")).contains("IMPORTS INTERLIS;"));
     assertEquals(1, ((java.util.List<?>) result.get("domainsToAdd")).size());
     assertEquals(2, ((java.util.List<?>) result.get("notes")).size());
   }
@@ -29,7 +29,7 @@ class GeometryAttributeToolsTest {
         "geom", 2, false, null, true, "2.4", "SURFACE", false, null, null);
 
     assertEquals("geom : GeometryCHLV95_V2.MultiSurfaceWithoutArcs;", result.get("attributeLine"));
-    assertTrue(((java.util.List<?>) result.get("importsToAdd")).contains("GeometryCHLV95_V2"));
+    assertTrue(((java.util.List<?>) result.get("importLinesToAdd")).contains("IMPORTS GeometryCHLV95_V2;"));
     assertTrue(((java.util.List<?>) result.get("domainsToAdd")).isEmpty());
   }
 
