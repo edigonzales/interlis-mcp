@@ -17,10 +17,10 @@ public class ClassTools {
         description = "Erzeugt eine CLASS-Definition. Params: name (required), isAbstract, extendsFQN, oidDecl, attrLines (list of attribute lines).")
   public Map<String,Object> createClass(
       @McpToolParam(description = "Klassenname", required = true) String name,
-      @McpToolParam(description = "Abstrakt?") @Nullable Boolean isAbstract,
-      @McpToolParam(description = "EXTENDS (vollqualifiziert)") @Nullable String extendsFqn,
-      @McpToolParam(description = "OID-Definition, z. B. 'OID AS UUIDOID'") @Nullable String oidDecl,
-      @McpToolParam(description = "Attribut-Zeilen (roher ILI-Text)") @Nullable List<String> attrLines
+      @McpToolParam(description = "Abstrakt?", required = false) @Nullable Boolean isAbstract,
+      @McpToolParam(description = "EXTENDS (vollqualifiziert)", required = false) @Nullable String extendsFqn,
+      @McpToolParam(description = "OID-Definition, z. B. 'OID AS UUIDOID'", required = true) @Nullable String oidDecl,
+      @McpToolParam(description = "Attribut-Zeilen (roher ILI-Text)", required = true) @Nullable List<String> attrLines
   ) {
       var nv = NameValidator.ascii(); 
       nv.validateIdent(name, "Class name");
