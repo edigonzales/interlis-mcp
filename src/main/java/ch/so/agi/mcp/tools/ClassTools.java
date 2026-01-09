@@ -19,8 +19,8 @@ public class ClassTools {
       @McpToolParam(description = "Klassenname", required = true) String name,
       @McpToolParam(description = "Abstrakt?", required = false) @Nullable Boolean isAbstract,
       @McpToolParam(description = "EXTENDS (vollqualifiziert)", required = false) @Nullable String extendsFqn,
-      @McpToolParam(description = "OID-Definition, z. B. 'OID AS UUIDOID'", required = true) @Nullable String oidDecl,
-      @McpToolParam(description = "Attribut-Zeilen (roher ILI-Text)", required = true) @Nullable List<String> attrLines
+      @McpToolParam(description = "OID-Definition, z. B. 'OID AS INTERLIS.UUIDOID'", required = false) @Nullable String oidDecl,
+      @McpToolParam(description = "Attribut-Zeilen (roher ILI-Text)", required = false) @Nullable List<String> attrLines
   ) {
       var nv = NameValidator.ascii(); 
       nv.validateIdent(name, "Class name");
