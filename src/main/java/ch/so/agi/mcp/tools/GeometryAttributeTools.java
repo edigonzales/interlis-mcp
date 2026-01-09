@@ -123,13 +123,14 @@ public class GeometryAttributeTools {
       @McpToolParam(description = "INTERLIS Sprachversion (2.3 oder 2.4)", required = false) @Nullable String iliVersion
   ) {
     String ili = normalizeIliVersion(iliVersion);
+    String modelName = "2.3".equals(ili) ? "GeometryCHLV95_V1" : "GeometryCHLV95_V2";
     List<Map<String, String>> entries = new ArrayList<>();
     interlisGeometryTypes(ili).forEach(type -> entries.add(Map.of(
         "name", type,
         "model", "INTERLIS"
     )));
     chBaseGeometryTypes(ili).forEach(type -> entries.add(Map.of(
-        "name", type,
+        "name", modelName + "." + type,
         "model", "CHBase"
     )));
     return Map.of(
