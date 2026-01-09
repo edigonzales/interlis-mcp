@@ -64,11 +64,11 @@ public class GeometryAttributeTools {
       throw new IllegalArgumentException("iliVersion must be '2.3' oder '2.4'.");
     }
 
-    String geomInput = (geometryType == null || geometryType.isBlank()) ? "SURFACE" : geometryType.trim();
-    String geomKey = geomInput.toUpperCase(Locale.ROOT);
-    String geom = useChBase ? normalizeGeometryTypeForChBase(geomKey, ili) : geomKey;
+    String geom = (geometryType == null || geometryType.isBlank())
+        ? (useChBase ? "Surface" : "SURFACE")
+        : geometryType.trim();
     if (!useChBase) {
-      validateGeometryType(geom, ili);
+      geom = geom.toUpperCase(Locale.ROOT);
     }
 
     boolean isDirected = Boolean.TRUE.equals(directed);
@@ -89,7 +89,8 @@ public class GeometryAttributeTools {
     if (useChBase) {
       String modelName = "2.3".equals(ili) ? "GeometryCHLV95_V1" : "GeometryCHLV95_V2";
       imports.add(modelName);
-      attributeLine = attributePrefix + buildChBaseGeometry(modelName, geom, dim, useArcs, overlapMeters, ili, isDirected) + ";";
+      String qualifiedType = qualifyChBaseGeometry(geom, modelName);
+      attributeLine = attributePrefix + qualifiedType + ";";
     } else {
       imports.add("INTERLIS");
       String coordDomainName = "Coord" + dim;
@@ -147,13 +148,6 @@ public class GeometryAttributeTools {
     return ili;
   }
 
-  private void validateGeometryType(String geom, String ili) {
-    List<String> allowed = interlisGeometryTypes(ili);
-    if (!allowed.contains(geom)) {
-      throw new IllegalArgumentException("Geometrietyp nicht erlaubt für INTERLIS " + ili + ": " + geom);
-    }
-  }
-
   private List<String> interlisGeometryTypes(String ili) {
     if ("2.3".equals(ili)) {
       return List.of("POLYLINE", "SURFACE", "AREA");
@@ -164,15 +158,6 @@ public class GeometryAttributeTools {
     throw new IllegalArgumentException("iliVersion must be '2.3' oder '2.4'.");
   }
 
-  private String normalizeGeometryTypeForChBase(String geomKey, String ili) {
-    Map<String, String> allowed = "2.3".equals(ili) ? chBase23() : chBase24();
-    String canonical = allowed.get(geomKey);
-    if (canonical == null) {
-      throw new IllegalArgumentException("Geometrietyp für CHBase nicht erlaubt: " + geomKey);
-    }
-    return canonical;
-  }
-
   private String buildGeometryAttribute(String attributePrefix, String geom, String coordDomainName, boolean useArcs, BigDecimal overlapMeters, boolean directed) {
     String lineForm = useArcs ? "WITH (STRAIGHTS, ARCS)" : "WITH (STRAIGHTS)";
     String overlap = overlapMeters.stripTrailingZeros().toPlainString();
@@ -181,67 +166,16 @@ public class GeometryAttributeTools {
     return attributePrefix + directedPrefix + geom + " " + lineForm + "\n        VERTEX " + coordDomainName + "\n        WITHOUT OVERLAPS > " + overlap + ";";
   }
 
-  private String buildChBaseGeometry(String modelName, String geom, int dimension, boolean useArcs, BigDecimal overlapMeters, String iliVersion, boolean directed) {
-    String upperGeom = geom.toUpperCase(Locale.ROOT);
-
-    if ("COORD".equals(upperGeom)) {
-      return dimension == 3 ? modelName + ".Coord3" : modelName + ".Coord2";
+  private String qualifyChBaseGeometry(String geom, String modelName) {
+    String trimmed = geom.trim();
+    String baseName = trimmed.contains(".") ? trimmed.substring(trimmed.lastIndexOf('.') + 1) : trimmed;
+    if ("COORD".equalsIgnoreCase(baseName)) {
+      throw new IllegalArgumentException("CHBase bietet nur Coord2 oder Coord3.");
     }
-    if ("MULTIPOINT".equals(upperGeom)) {
-      return dimension == 3 ? modelName + ".MultiPoint3D" : modelName + ".MultiPoint";
+    if (trimmed.contains(".")) {
+      return trimmed;
     }
-
-    if ("2.3".equals(iliVersion)) {
-      if ("AREA".equals(upperGeom) && overlapMeters.compareTo(new BigDecimal("0.002")) == 0) {
-        return modelName + ".AreaWithOverlaps2mm";
-      }
-      if ("SURFACE".equals(upperGeom) && overlapMeters.compareTo(new BigDecimal("0.002")) == 0) {
-        return modelName + ".SurfaceWithOverlaps2mm";
-      }
-      return switch (upperGeom) {
-        case "SURFACE" -> modelName + ".Surface";
-        case "AREA" -> modelName + ".Area";
-        case "LINE" -> modelName + ".Line";
-        case "DIRECTEDLINE" -> modelName + ".DirectedLine";
-        case "LINEWITHALTITUDE" -> modelName + ".LineWithAltitude";
-        case "DIRECTEDLINEWITHALTITUDE" -> modelName + ".DirectedLineWithAltitude";
-        default -> throw new IllegalArgumentException("Geometrietyp nicht unterstützt für CHBase 2.3: " + geom);
-      };
-    }
-
-    boolean arcsAllowed = useArcs;
-    return switch (upperGeom) {
-      case "SURFACE" -> arcsAllowed ? modelName + ".MultiSurface" : modelName + ".MultiSurfaceWithoutArcs";
-      case "AREA" -> arcsAllowed ? modelName + ".Area" : modelName + ".AreaWithoutArcs";
-      case "LINE", "POLYLINE" -> selectLine(modelName, dimension, useArcs, directed);
-      case "MULTIPOLYLINE", "MULTILINE" -> selectMultiLine(modelName, useArcs, directed);
-      case "MULTISURFACE" -> arcsAllowed ? modelName + ".MultiSurface" : modelName + ".MultiSurfaceWithoutArcs";
-      case "MULTIAREA" -> arcsAllowed ? modelName + ".Area" : modelName + ".AreaWithoutArcs";
-      case "MULTIDIRECTEDLINE" -> selectMultiLine(modelName, useArcs, true);
-      default -> throw new IllegalArgumentException("Geometrietyp nicht unterstützt: " + geom);
-    };
-  }
-
-  private String selectLine(String modelName, int dimension, boolean useArcs, boolean directed) {
-    String suffix;
-    if (dimension == 3) {
-      suffix = useArcs ? "LineWithAltitude" : "LineWithAltitudeWithoutArcs";
-      if (directed) {
-        suffix = useArcs ? "DirectedLineWithAltitude" : "DirectedLineWithAltitudeWithoutArcs";
-      }
-    } else {
-      suffix = useArcs ? "Line" : "LineWithoutArcs";
-      if (directed) {
-        suffix = useArcs ? "DirectedLine" : "DirectedLineWithoutArcs";
-      }
-    }
-    return modelName + "." + suffix;
-  }
-
-  private String selectMultiLine(String modelName, boolean useArcs, boolean directed) {
-    String suffix = useArcs ? (directed ? "MultiDirectedLine" : "MultiLine")
-        : (directed ? "MultiDirectedLineWithoutArcs" : "MultiLineWithoutArcs");
-    return modelName + "." + suffix;
+    return modelName + "." + trimmed;
   }
 
   private String buildAttributePrefix(String attributeName, @Nullable Boolean mandatory, @Nullable String collectionRaw) {
@@ -263,7 +197,8 @@ public class GeometryAttributeTools {
 
   private boolean isLineGeometry(String geom, boolean chbase) {
     if (chbase) {
-      String upper = geom.toUpperCase(Locale.ROOT);
+      String baseName = geom.contains(".") ? geom.substring(geom.lastIndexOf('.') + 1) : geom;
+      String upper = baseName.toUpperCase(Locale.ROOT);
       return upper.contains("LINE");
     }
     return geom.equals("POLYLINE") || geom.equals("MULTIPOLYLINE") || geom.equals("LINE") || geom.equals("MULTILINE");
@@ -290,9 +225,8 @@ public class GeometryAttributeTools {
 
   private Map<String, String> chBase24() {
     Map<String, String> map = new LinkedHashMap<>();
-    map.put("COORD", "Coord");
-    map.put("COORD2", "Coord");
-    map.put("COORD3", "Coord");
+    map.put("COORD2", "Coord2");
+    map.put("COORD3", "Coord3");
     map.put("MULTIPOINT", "MultiPoint");
     map.put("MULTIPOINT2", "MultiPoint");
     map.put("MULTIPOINT3", "MultiPoint3D");
