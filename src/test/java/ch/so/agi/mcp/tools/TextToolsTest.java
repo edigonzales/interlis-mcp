@@ -2,8 +2,8 @@ package ch.so.agi.mcp.tools;
 
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -13,20 +13,49 @@ class TextToolsTest {
   private final TextTools textTools = new TextTools();
 
   @Test
-  void listTextFunctions_returnsFunctionsForBothVersions() {
-    Map<String, Object> result = textTools.listTextFunctions();
+  void listTextFunctions_defaultsToLatestVersion() {
+    Map<String, Object> result = textTools.listTextFunctions(null);
 
-    assertTrue(result.containsKey("2.3"));
-    assertTrue(result.containsKey("2.4"));
+    assertEquals("2.4", result.get("iliVersion"));
 
     @SuppressWarnings("unchecked")
-    List<String> v23 = (List<String>) result.get("2.3");
-    @SuppressWarnings("unchecked")
-    List<String> v24 = (List<String>) result.get("2.4");
+    var functions = (Iterable<Map<String, String>>) result.get("functions");
 
-    assertEquals(24, v23.size());
-    assertEquals(24, v24.size());
-    assertTrue(v23.contains("substring(val: TEXT; beginIndex: NUMERIC; endIndex: NUMERIC): TEXT"));
-    assertTrue(v24.contains("compareToIgnoreCaseM(a: MTEXT; b: MTEXT): NUMERIC"));
+    long count = countEntries(functions);
+    assertEquals(24, count);
+    assertTrue(streamHasFunction(functions, "compareToIgnoreCaseM(a: MTEXT; b: MTEXT)", "NUMERIC"));
+  }
+
+  @Test
+  void listTextFunctions_supportsExplicitVersion() {
+    Map<String, Object> result = textTools.listTextFunctions("2.3");
+
+    assertEquals("2.3", result.get("iliVersion"));
+
+    @SuppressWarnings("unchecked")
+    var functions = (Iterable<Map<String, String>>) result.get("functions");
+
+    long count = countEntries(functions);
+    assertEquals(24, count);
+    assertTrue(streamHasFunction(functions, "substring(val: TEXT; beginIndex: NUMERIC; endIndex: NUMERIC)", "TEXT"));
+  }
+
+  private long countEntries(Iterable<Map<String, String>> functions) {
+    long count = 0;
+    for (Map<String, String> entry : functions) {
+      if (!entry.isEmpty()) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  private boolean streamHasFunction(Iterable<Map<String, String>> functions, String function, String returns) {
+    for (Map<String, String> entry : functions) {
+      if (Objects.equals(function, entry.get("function")) && Objects.equals(returns, entry.get("returns"))) {
+        return true;
+      }
+    }
+    return false;
   }
 }

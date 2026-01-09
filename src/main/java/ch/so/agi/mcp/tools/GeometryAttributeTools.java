@@ -117,23 +117,33 @@ public class GeometryAttributeTools {
 
   @McpTool(
       name = "listGeometryTypes",
-      description = "Liste alle unterstützten Geometrietypen pro INTERLIS-Sprachversion und Modell (Standard/CHBase)."
+      description = "Liste alle unterstützten Geometrietypen für die gewünschte INTERLIS-Sprachversion und Modell (INTERLIS/CHBase)."
   )
-  public Map<String, Object> listGeometryTypes() {
-    Map<String, Object> interlis = Map.of(
-        "2.3", new ArrayList<>(interlisGeometryTypes("2.3")),
-        "2.4", new ArrayList<>(interlisGeometryTypes("2.4"))
-    );
-
-    Map<String, Object> chBase = Map.of(
-        "2.3", new ArrayList<>(chBaseGeometryTypes("2.3")),
-        "2.4", new ArrayList<>(chBaseGeometryTypes("2.4"))
-    );
-
+  public Map<String, Object> listGeometryTypes(
+      @McpToolParam(description = "INTERLIS Sprachversion (2.3 oder 2.4)", required = false) @Nullable String iliVersion
+  ) {
+    String ili = normalizeIliVersion(iliVersion);
+    List<Map<String, String>> entries = new ArrayList<>();
+    interlisGeometryTypes(ili).forEach(type -> entries.add(Map.of(
+        "name", type,
+        "model", "INTERLIS"
+    )));
+    chBaseGeometryTypes(ili).forEach(type -> entries.add(Map.of(
+        "name", type,
+        "model", "CHBase"
+    )));
     return Map.of(
-        "INTERLIS", interlis,
-        "CHBase", chBase
+        "iliVersion", ili,
+        "types", entries
     );
+  }
+
+  private String normalizeIliVersion(@Nullable String iliVersion) {
+    String ili = (iliVersion == null || iliVersion.isBlank()) ? "2.4" : iliVersion.trim();
+    if (!"2.3".equals(ili) && !"2.4".equals(ili)) {
+      throw new IllegalArgumentException("iliVersion must be '2.3' oder '2.4'.");
+    }
+    return ili;
   }
 
   private void validateGeometryType(String geom, String ili) {
