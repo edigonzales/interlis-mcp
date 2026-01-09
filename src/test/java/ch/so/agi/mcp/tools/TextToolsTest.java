@@ -23,7 +23,7 @@ class TextToolsTest {
 
     long count = countEntries(functions);
     assertEquals(24, count);
-    assertTrue(streamHasFunction(functions, "compareToIgnoreCaseM(a: MTEXT; b: MTEXT)", "NUMERIC"));
+    assertTrue(streamHasFunction(functions, "Text_V2.compareToIgnoreCaseM(a: MTEXT; b: MTEXT)", "NUMERIC"));
   }
 
   @Test
@@ -37,7 +37,7 @@ class TextToolsTest {
 
     long count = countEntries(functions);
     assertEquals(24, count);
-    assertTrue(streamHasFunction(functions, "substring(val: TEXT; beginIndex: NUMERIC; endIndex: NUMERIC)", "TEXT"));
+    assertTrue(streamHasFunction(functions, "Text.substring(val: TEXT; beginIndex: NUMERIC; endIndex: NUMERIC)", "TEXT"));
   }
 
   private long countEntries(Iterable<Map<String, String>> functions) {

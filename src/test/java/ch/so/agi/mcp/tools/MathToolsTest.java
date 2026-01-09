@@ -23,7 +23,7 @@ class MathToolsTest {
 
     long count = countEntries(functions);
     assertEquals(30, count);
-    assertTrue(streamHasFunction(functions, "avg(attributePath: TEXT)", "NUMERIC"));
+    assertTrue(streamHasFunction(functions, "Math_V2.avg(attributePath: TEXT)", "NUMERIC"));
   }
 
   @Test
@@ -37,7 +37,7 @@ class MathToolsTest {
 
     long count = countEntries(functions);
     assertEquals(30, count);
-    assertTrue(streamHasFunction(functions, "atan2(ordinate: NUMERIC; abscissa: NUMERIC)", "NUMERIC"));
+    assertTrue(streamHasFunction(functions, "Math.atan2(ordinate: NUMERIC; abscissa: NUMERIC)", "NUMERIC"));
   }
 
   private long countEntries(Iterable<Map<String, String>> functions) {
