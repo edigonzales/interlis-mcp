@@ -13,10 +13,10 @@ import java.util.Map;
 public class TopicTools {
 
   @McpTool(name = "createTopicSnippet",
-        description = "Erzeugt einen TOPIC-Block. Params: name (required), oidType (e.g. 'OID AS UUIDOID'), isAbstract (default false).")
+        description = "Erzeugt einen TOPIC-Block. Params: name (required), oidType (e.g. 'OID AS INTERLIS.UUIDOID'), isAbstract (default false).")
   public Map<String,Object> createTopic(
       @McpToolParam(description = "Topic-Name", required = true) String name,
-      @McpToolParam(description = "OID-Definition, z. B. 'OID AS UUIDOID'", required = false) @Nullable String oidType,
+      @McpToolParam(description = "OID-Definition, z. B. 'OID AS INTERLIS.UUIDOID'", required = false) @Nullable String oidType,
       @McpToolParam(description = "Abstrakter Topic?", required = false) @Nullable Boolean isAbstract
   ) {
       var nv = NameValidator.ascii(); 

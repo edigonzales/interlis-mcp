@@ -26,7 +26,7 @@ class GeometryAttributeToolsTest {
   @Test
   void ensureGeometryDependencies_usesChbaseModels() {
     Map<String, Object> result = geometryAttributeTools.ensureGeometryDependencies(
-        "geom", 2, false, null, true, "2.4", "SURFACE", false, null, null);
+        "geom", 2, false, null, true, "2.4", "GeometryCHLV95_V2.MultiSurfaceWithoutArcs", false, null, null);
 
     assertEquals("geom : GeometryCHLV95_V2.MultiSurfaceWithoutArcs;", result.get("attributeLine"));
     assertTrue(((java.util.List<?>) result.get("importLinesToAdd")).contains("IMPORTS GeometryCHLV95_V2;"));
@@ -44,7 +44,7 @@ class GeometryAttributeToolsTest {
   @Test
   void ensureGeometryDependencies_supportsChbaseCoord() {
     Map<String, Object> result = geometryAttributeTools.ensureGeometryDependencies(
-        "pos", 3, false, null, true, "2.4", "COORD", false, null, null);
+        "pos", 3, false, null, true, "2.4", "GeometryCHLV95_V2.Coord3", false, null, null);
 
     assertEquals("pos : GeometryCHLV95_V2.Coord3;", result.get("attributeLine"));
     assertTrue(((java.util.List<?>) result.get("domainsToAdd")).isEmpty());

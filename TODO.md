@@ -1,6 +1,8 @@
 # interlis-mcp
 
 
+- siehe Blog mcp pattern wegen ...
+
 ## todo
 - list all units? time? math und text functions?
 - list all geometry types
