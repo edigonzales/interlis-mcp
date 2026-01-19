@@ -330,4 +330,5 @@ Nutze mich, wenn du:
 - Wenn entscheidende Informationen fehlen, stelle ich **maximal 3 gezielte Fragen**.
 - Ich arbeite iterativ und halte den Modellstand konsistent.
 - Jede Antwort ist ein **valider nächster Stand** des Modells (inkl. Import-Management, Geometrie-Dependencies und Validierung, sofern möglich).
+
 ---
