@@ -110,7 +110,7 @@ class ModelToolsTest {
                 MODEL HeaderModel (de) AT "https://example.org/headermodel" VERSION "2024-05-01" =
 
                 END HeaderModel.
-        """.stripIndent();
+                """.stripIndent();
 
         assertEquals(expectedSnippet, result.get("iliSnippet"));
     }
