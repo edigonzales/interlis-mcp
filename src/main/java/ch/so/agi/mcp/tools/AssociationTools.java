@@ -19,10 +19,10 @@ public class AssociationTools {
   }
 
   @McpTool(name = "createAssociationSnippet",
-        description = "Erzeugt eine ASSOCIATION. Params: name (required), roles (2+ Rollen mit name,classFQN,card).")
+        description = "Erzeugt eine ASSOCIATION. Params: name (required), roles (2+ Rollen mit name,classFQN,card). card ist die Kardinalität in INTERLIS-Notation, z.B. {1}, {0..1}, {1..*}.")
   public Map<String,Object> createAssociation(
       @McpToolParam(description = "Assoziationsname", required = true) String name,
-      @McpToolParam(description = "Rollen (mindestens 2)", required = true) List<Role> roles
+      @McpToolParam(description = "Rollen (mindestens 2) mit name,classFQN,card; card ist die Kardinalität in INTERLIS-Notation, z.B. {1}, {0..1}, {1..*}.", required = true) List<Role> roles
   ) {
       
       var nv = NameValidator.ascii();
