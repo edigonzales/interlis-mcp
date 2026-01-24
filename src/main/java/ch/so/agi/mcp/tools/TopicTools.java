@@ -27,6 +27,6 @@ public class TopicTools {
     String oid = (oidType != null && !oidType.isBlank()) ? "  " + oidType.trim() + ";\n" : "";
     String snippet = header + "\n" + oid + "  !! Klassen/Assoziationen hier\nEND " + name + ";";
 
-    return Map.of("iliSnippet", snippet, "cursorHint", Map.of("line", 1, "col", 2));
+    return Map.of("iliSnippet", snippet);
   }
 }

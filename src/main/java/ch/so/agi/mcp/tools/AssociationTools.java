@@ -36,6 +36,6 @@ public class AssociationTools {
       sb.append("  ").append(r.name).append(" -- ").append(r.card).append(" ").append(r.classFQN).append(";\n");
     }
     sb.append("END ").append(name).append(";");
-    return Map.of("iliSnippet", sb.toString(), "cursorHint", Map.of("line", 1, "col", 2));
+    return Map.of("iliSnippet", sb.toString());
   }
 }

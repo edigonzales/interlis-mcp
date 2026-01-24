@@ -39,6 +39,6 @@ public class StructureTools {
     }
 
     sb.append("END ").append(name).append(";");
-    return Map.of("iliSnippet", sb.toString(), "cursorHint", Map.of("line", 1, "col", 2));
+    return Map.of("iliSnippet", sb.toString());
   }
 }

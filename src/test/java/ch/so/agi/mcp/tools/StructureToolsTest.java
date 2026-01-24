@@ -25,7 +25,6 @@ class StructureToolsTest {
                 "  plz : 4 .. 5;",
                 "END Adresse;"
         ), response.get("iliSnippet"));
-        assertEquals(Map.of("line", 1, "col", 2), response.get("cursorHint"));
     }
 
     @Test
@@ -39,4 +38,3 @@ class StructureToolsTest {
         ), response.get("iliSnippet"));
     }
 }
-

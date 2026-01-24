@@ -22,8 +22,6 @@ class DomainToolsTest {
                 45000.000 .. 310000.000 [INTERLIS.m],
                 ROTATION 2 -> 1;""",
         result.get("iliSnippet"));
-    assertEquals(1, ((Map<?, ?>) result.get("cursorHint")).get("line"));
-    assertEquals(2, ((Map<?, ?>) result.get("cursorHint")).get("col"));
   }
 
   @Test

@@ -44,7 +44,7 @@ public class ClassTools {
       sb.append("  !! Attribute hier\n");
     }
     sb.append("END ").append(name).append(";");
-    return Map.of("iliSnippet", sb.toString(), "cursorHint", Map.of("line", 1, "col", 2));
+    return Map.of("iliSnippet", sb.toString());
   }
 
 //  @Tool(name = "createAttributeLine",
@@ -63,6 +63,6 @@ public class ClassTools {
 //    String base = (domainFqn != null && !domainFqn.isBlank()) ? domainFqn.trim() : type.trim();
 //    String mand = (mandatory != null && mandatory) ? "MANDATORY " : "";
 //    String line = name + " : " + mand + col + base + ";";
-//    return Map.of("iliSnippet", line, "cursorHint", Map.of("line", 0, "col", 0));
+//    return Map.of("iliSnippet", line);
 //  }
 }

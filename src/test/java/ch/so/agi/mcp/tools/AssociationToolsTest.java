@@ -32,7 +32,6 @@ class AssociationToolsTest {
                 "  to -- {0..*} Mod.Topic.Target;",
                 "END Link;"
         ), response.get("iliSnippet"));
-        assertEquals(Map.of("line", 1, "col", 2), response.get("cursorHint"));
     }
 
     @Test
@@ -54,4 +53,3 @@ class AssociationToolsTest {
         assertTrue(ex.getMessage().contains("Association role name"));
     }
 }
-

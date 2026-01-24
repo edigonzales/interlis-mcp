@@ -19,7 +19,6 @@ class ConstraintToolsTest {
                 "CONSTRAINTS",
                 "  UNIQUE (name, lage);"
         ), response.get("iliSnippet"));
-        assertEquals(Map.of("line", 1, "col", 2), response.get("cursorHint"));
     }
 
     @Test
@@ -31,7 +30,6 @@ class ConstraintToolsTest {
                 "  SET CONSTRAINT",
                 "    AREA->STANDORT->count() > 0;"
         ), response.get("iliSnippet"));
-        assertEquals(Map.of("line", 2, "col", 4), response.get("cursorHint"));
     }
 
     @Test
@@ -44,4 +42,3 @@ class ConstraintToolsTest {
         ), response.get("iliSnippet"));
     }
 }
-

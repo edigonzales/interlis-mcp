@@ -50,8 +50,7 @@ public class StructureAttributeTools {
 
     String line = name.trim() + " : " + prefix + colPrefix + structureFqn.trim() + ";";
     return Map.of(
-        "iliSnippet", line,
-        "cursorHint", Map.of("line", 0, "col", 0)
+        "iliSnippet", line
     );
   }
 }

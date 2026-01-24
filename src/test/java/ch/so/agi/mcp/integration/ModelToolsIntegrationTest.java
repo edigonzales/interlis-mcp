@@ -43,7 +43,6 @@ class ModelToolsIntegrationTest {
                 "\n" +
                 "END TestModel.\n";
         assertEquals(expectedSnippet, result.get("iliSnippet"));
-        assertEquals(Map.of("line", 4, "col", 0), result.get("cursorHint"));
     }
 
     @Test

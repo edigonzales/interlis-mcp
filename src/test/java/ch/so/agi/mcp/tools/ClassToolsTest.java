@@ -29,7 +29,6 @@ class ClassToolsTest {
                 "END Baum;"
         );
         assertEquals(expected, response.get("iliSnippet"));
-        assertEquals(Map.of("line", 1, "col", 2), response.get("cursorHint"));
     }
 
     @Test
@@ -58,4 +57,3 @@ class ClassToolsTest {
         assertTrue(ex.getMessage().contains("EXTENDS FQN"));
     }
 }
-

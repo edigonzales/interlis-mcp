@@ -21,7 +21,7 @@ public class DomainTools {
   ) {
     String inner = items.stream().map(String::trim).collect(Collectors.joining(", "));
     String snippet = "DOMAIN\n  " + name + " = (" + inner + ");";
-    return Map.of("iliSnippet", snippet, "cursorHint", Map.of("line", 1, "col", 2));
+    return Map.of("iliSnippet", snippet);
   }
 
   @McpTool(name = "createNumericDomainSnippet",
@@ -35,7 +35,7 @@ public class DomainTools {
     String range = min.trim() + " .. " + max.trim();
     String unit = (unitFqn != null && !unitFqn.isBlank()) ? " [" + unitFqn.trim() + "]" : "";
     String snippet = "DOMAIN\n  " + name + " = " + range + unit + ";";
-    return Map.of("iliSnippet", snippet, "cursorHint", Map.of("line", 1, "col", 2));
+    return Map.of("iliSnippet", snippet);
   }
 
   @McpTool(name = "createUnitSnippet",
@@ -46,7 +46,7 @@ public class DomainTools {
       @McpToolParam(description = "Basis-Einheit, z. B. INTERLIS.m", required = true) String base
   ) {
     String snippet = "UNIT\n  " + name + " = " + kind.trim() + " [" + base.trim() + "];";
-    return Map.of("iliSnippet", snippet, "cursorHint", Map.of("line", 1, "col", 2));
+    return Map.of("iliSnippet", snippet);
   }
 
   @McpTool(name = "createCoordDomainSnippet",
@@ -72,7 +72,7 @@ public class DomainTools {
     }
 
     String snippet = buildCoordDomain(trimmedName, coordDimension, fractionDigits);
-    return Map.of("iliSnippet", snippet, "cursorHint", Map.of("line", 1, "col", 2));
+    return Map.of("iliSnippet", snippet);
   }
 
   private String buildCoordDomain(String name, int dimension, int decimals) {
