@@ -18,7 +18,7 @@ public class ConstraintTools {
   ) {
     String inner = attrs.stream().map(String::trim).collect(Collectors.joining(", "));
     String snippet = "CONSTRAINTS\n  UNIQUE (" + inner + ");";
-    return Map.of("iliSnippet", snippet, "cursorHint", Map.of("line", 1, "col", 2));
+    return Map.of("iliSnippet", snippet);
   }
 
   @McpTool(name = "createMandatoryConstraint",
@@ -27,7 +27,7 @@ public class ConstraintTools {
       @McpToolParam(description = "boolescher Ausdruck", required = true) String expr
   ) {
     String snippet = "CONSTRAINTS\n  MANDATORY CONSTRAINT " + expr.trim() + ";";
-    return Map.of("iliSnippet", snippet, "cursorHint", Map.of("line", 1, "col", 2));
+    return Map.of("iliSnippet", snippet);
   }
 
   @McpTool(name = "createSetConstraint",
@@ -36,7 +36,7 @@ public class ConstraintTools {
       @McpToolParam(description = "Mengen-Ausdruck", required = true) String expr
   ) {
     String snippet = "CONSTRAINTS\n  SET CONSTRAINT\n    " + expr.trim() + ";";
-    return Map.of("iliSnippet", snippet, "cursorHint", Map.of("line", 2, "col", 4));
+    return Map.of("iliSnippet", snippet);
   }
 
   @McpTool(name = "createPresentIfConstraint",
@@ -46,7 +46,7 @@ public class ConstraintTools {
       @McpToolParam(description = "Bedingung", required = true) String cond
   ) {
     String snippet = "CONSTRAINTS\n  PRESENT " + attr.trim() + " IF " + cond.trim() + ";";
-    return Map.of("iliSnippet", snippet, "cursorHint", Map.of("line", 1, "col", 2));
+    return Map.of("iliSnippet", snippet);
   }
 
   @McpTool(name = "createValueRangeConstraint",
@@ -56,7 +56,7 @@ public class ConstraintTools {
       @McpToolParam(description = "Range, z. B. '0.0 .. 4000.0'", required = true) String range
   ) {
     String snippet = "CONSTRAINTS\n  VALUE " + attr.trim() + " IN " + range.trim() + ";";
-    return Map.of("iliSnippet", snippet, "cursorHint", Map.of("line", 1, "col", 2));
+    return Map.of("iliSnippet", snippet);
   }
 
   @McpTool(name = "createExistenceConstraint",
@@ -67,6 +67,6 @@ public class ConstraintTools {
   ) {
     String inner = classFqns.stream().map(String::trim).collect(Collectors.joining(", "));
     String snippet = "CONSTRAINTS\n  EXISTENCE CONSTRAINT " + refAttr.trim() + " REQUIRED IN " + inner + ";";
-    return Map.of("iliSnippet", snippet, "cursorHint", Map.of("line", 1, "col", 2));
+    return Map.of("iliSnippet", snippet);
   }
 }

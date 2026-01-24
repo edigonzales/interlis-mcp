@@ -82,8 +82,7 @@ public class ModelTools {
             _iliVersion, name, _lang, _uri, _version, importLines, name);
 
     return Map.of(
-        "iliSnippet", snippet,
-        "cursorHint", Map.of("line", cursorLine, "col", 0)
+        "iliSnippet", snippet
     );
   }
 

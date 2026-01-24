@@ -24,8 +24,6 @@ class AttributeToolsTest {
         AttributeLineResponse response = attributeTools.createAttributeLine(request);
 
         assertEquals("farbe : Demo.Core.Farbe;", response.getIliSnippet());
-        assertEquals(0, response.getCursorHint().get("line"));
-        assertEquals(0, response.getCursorHint().get("col"));
     }
 
     @Test

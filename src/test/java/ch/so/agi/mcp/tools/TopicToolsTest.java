@@ -20,7 +20,6 @@ class TopicToolsTest {
                 "  !! Klassen/Assoziationen hier",
                 "END Geo;"
         ), response.get("iliSnippet"));
-        assertEquals(Map.of("line", 1, "col", 2), response.get("cursorHint"));
     }
 
     @Test
@@ -30,4 +29,3 @@ class TopicToolsTest {
         assertTrue(response.get("iliSnippet").toString().startsWith("TOPIC Verkehr (ABSTRACT) ="));
     }
 }
-

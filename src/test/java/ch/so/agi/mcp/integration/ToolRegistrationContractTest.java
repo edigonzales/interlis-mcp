@@ -61,9 +61,6 @@ class ToolRegistrationContractTest {
                 + "  IMPORTS INTERLIS;\n"
                 + "  IMPORTS GeometryCHLV95_V1;\n\n"
                 + "END TestModel.\n");
-    @SuppressWarnings("unchecked")
-    Map<String, Object> cursorHint = (Map<String, Object>) structured.get("cursorHint");
-    assertThat(cursorHint).containsEntry("line", 6).containsEntry("col", 0);
   }
 
   private Map<String, Object> createModelSnippetRequest() {

@@ -36,10 +36,6 @@ class ModelToolsTest {
                 + "END TestModel.\n";
 
         assertEquals(expectedSnippet, result.get("iliSnippet"));
-
-        @SuppressWarnings("unchecked")
-        Map<String, Integer> cursorHint = (Map<String, Integer>) result.get("cursorHint");
-        assertEquals(Map.of("line", 4, "col", 0), cursorHint);
     }
 
     @Test
@@ -62,10 +58,6 @@ class ModelToolsTest {
                 + "END TrimModel.\n";
 
         assertEquals(expectedSnippet, result.get("iliSnippet"));
-
-        @SuppressWarnings("unchecked")
-        Map<String, Integer> cursorHint = (Map<String, Integer>) result.get("cursorHint");
-        assertEquals(Map.of("line", 6, "col", 0), cursorHint);
     }
 
     @Test
@@ -90,7 +82,7 @@ class ModelToolsTest {
     }
 
     @Test
-    @DisplayName("createModelSnippet builds Solothurn header with Zurich date and updates cursor hint")
+    @DisplayName("createModelSnippet builds Solothurn header with Zurich date")
     void createModelSnippetAddsSolothurnHeader() {
         Map<String, Object> result = modelTools.createModelSnippet(
                 "HeaderModel",
@@ -121,10 +113,6 @@ class ModelToolsTest {
                 """.stripIndent();
 
         assertEquals(expectedSnippet, result.get("iliSnippet"));
-
-        @SuppressWarnings("unchecked")
-        Map<String, Integer> cursorHint = (Map<String, Integer>) result.get("cursorHint");
-        assertEquals(Map.of("line", 14, "col", 0), cursorHint);
     }
 
     @Test
