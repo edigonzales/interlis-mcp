@@ -1,0 +1,72 @@
+- id: MDE-001
+  title: Modellzweck bewusst klaeren
+  severity: INFO
+  appliesTo: ANY
+  checkKind: MANUAL
+  sourceUrl: https://github.com/sogis/modellbasierte-datenerfassung-handbuch
+  sourceSection: Modelltypen
+  rationale: Erfassungs-, Publikations- und Validierungsmodelle haben unterschiedliche Ziele.
+  recommendation: Klaere vor dem Modellieren, ob das Modell der Erfassung, Publikation oder Validierung dient.
+- id: MDE-010
+  title: Publikationsmodelle flach halten
+  severity: WARNING
+  appliesTo: PUBLICATION
+  checkKind: AUTOMATED
+  sourceUrl: https://github.com/sogis/modellbasierte-datenerfassung-handbuch
+  sourceSection: Publikationsmodell
+  rationale: Publikationsmodelle sollen fuer einfache Darstellung und Abfrage optimiert sein.
+  recommendation: Vermeide ASSOCIATIONs in Publikationsmodellen und fuehre relevante Informationen in flache Zielklassen zusammen.
+- id: MDE-011
+  title: Publikationsmodell-Inhalte ableitbar halten
+  severity: INFO
+  appliesTo: PUBLICATION
+  checkKind: MANUAL
+  sourceUrl: https://github.com/sogis/modellbasierte-datenerfassung-handbuch
+  sourceSection: Publikationsmodell
+  rationale: Publikationsmodell-Inhalte sollen automatisiert aus Erfassungsmodellen oder anderen Quellen ableitbar sein.
+  recommendation: Dokumentiere die Herleitung jeder Publikationsklasse und jedes nicht direkt uebernommene Attribut.
+- id: MDE-020
+  title: Vollstaendiges Modell mit ili2c validieren
+  severity: ERROR
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://github.com/sogis/modellbasierte-datenerfassung-handbuch
+  sourceSection: Modellablage und Qualitaetssicherung
+  rationale: Ein Modell darf erst weiterverwendet werden, wenn es mit dem offiziellen Compiler pruefbar ist.
+  recommendation: Fuehre validateIliModel aus und behebe alle ERROR-Meldungen.
+- id: MDE-030
+  title: LV95/CHLV95-Geometriekonvention pruefen
+  severity: WARNING
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://github.com/sogis/modellbasierte-datenerfassung-handbuch
+  sourceSection: Geometrien
+  rationale: Geometriemodelle in der kantonalen GDI sollen ihre LV95/CHLV95-Konvention eindeutig machen.
+  recommendation: Verwende erkennbare LV95/CHLV95-Imports, Domains oder CRS-Metaangaben fuer Geometrieattribute.
+- id: MDE-040
+  title: Fachliche Regeln nicht erfinden
+  severity: WARNING
+  appliesTo: ANY
+  checkKind: MANUAL
+  sourceUrl: https://github.com/sogis/modellbasierte-datenerfassung-handbuch
+  sourceSection: Modellierungsregeln
+  rationale: Kardinalitaeten, Rollen und Constraints sind fachliche Aussagen.
+  recommendation: Frage nach oder dokumentiere Annahmen, bevor fachliche Kardinalitaeten, Rollen oder Constraints modelliert werden.
+- id: MDE-050
+  title: Erfassungsmodelle normalisiert modellieren
+  severity: INFO
+  appliesTo: CAPTURE
+  checkKind: MANUAL
+  sourceUrl: https://github.com/sogis/modellbasierte-datenerfassung-handbuch
+  sourceSection: Erfassungsmodell
+  rationale: Erfassungsmodelle dienen der Nachfuehrung und sollen Redundanz vermeiden.
+  recommendation: Pruefe, ob wiederholte Werte als Beziehungen, Strukturen oder Domains modelliert werden sollten.
+- id: MDE-060
+  title: Modell-Metaattribute pruefen
+  severity: INFO
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://github.com/sogis/modellbasierte-datenerfassung-handbuch
+  sourceSection: Modellablage
+  rationale: Titel, Kurzbeschreibung und technischer Kontakt helfen bei Ablage, Betrieb und Wiederverwendung.
+  recommendation: Ergaenze title, shortDescription und technicalContact als Modell-Metaattribute, sofern sie fehlen.

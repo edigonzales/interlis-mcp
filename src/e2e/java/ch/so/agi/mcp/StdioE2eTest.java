@@ -80,7 +80,10 @@ public class StdioE2eTest {
                 "createAttributeLine",
                 "createEnumTreeDomainSnippet",
                 "createMetaAttributeBlock",
-                "renameModelElement");
+                "renameModelElement",
+                "analyzeIliModel",
+                "checkModelingRules",
+                "findSimilarModels");
 
         String today = LocalDate.now().toString();
         String argsJson = "{"
@@ -303,6 +306,52 @@ public class StdioE2eTest {
         assertErrorToolResponse(response, "createMetaAttributeBlock", "Duplicate meta attribute");
     }
 
+    @Test
+    void resources_prompts_and_agenticTools_overStdio() throws Exception {
+        initializeSession();
+
+        String resources = listResources(3);
+        assertContainsAll(resources,
+                "interlis://knowledge/handbook-rules",
+                "interlis://knowledge/agent-workflow",
+                "interlis://knowledge/model-corpus-index");
+
+        String handbook = readResource(4, "interlis://knowledge/handbook-rules");
+        assertContainsAll(handbook, "MDE-010", "MDE-020", "Modellzweck");
+
+        String prompts = listPrompts(5);
+        assertContainsAll(prompts,
+                "interlis-modeling-agent",
+                "review-interlis-model",
+                "extend-interlis-model");
+
+        String reviewPrompt = getPrompt(6, "review-interlis-model", "{\"modelPurpose\":\"PUBLICATION\"}");
+        assertContainsAll(reviewPrompt, "analyzeIliModel", "checkModelingRules", "validateIliModel", "PUBLICATION");
+
+        String modelText = """
+                INTERLIS 2.4;
+
+                MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
+                  TOPIC Topic =
+                    CLASS Thing =
+                      name : TEXT*20;
+                    END Thing;
+                  END Topic;
+                END Demo.
+                """;
+
+        String argsJson = "{"
+                + "\"modelText\":" + jsonString(modelText) + ","
+                + "\"modelPurpose\":\"PUBLICATION\""
+                + "}";
+
+        String analysis = callTool(7, "analyzeIliModel", argsJson);
+        assertSuccessfulToolResponse(analysis, "analyzeIliModel", "valid", "true", "classes", "Thing");
+
+        String ruleCheck = callTool(8, "checkModelingRules", argsJson);
+        assertSuccessfulToolResponse(ruleCheck, "checkModelingRules", "validForAutomatedRules", "manualChecks", "MDE-060");
+    }
+
     // ---- helpers ----
 
     private void initializeSession() throws Exception {
@@ -327,11 +376,7 @@ public class StdioE2eTest {
 
         String initResp = waitForResponseWithId(initId, 10_000);
         assertNotNull(initResp, "Did not receive initialize response");
-        assertContainsAll(initResp, "serverInfo", "\"tools\"", "\"version\":\"" + EXPECTED_PROJECT_VERSION + "\"");
-        assertFalse(initResp.contains("\"resources\""),
-                "initialize response should not advertise resource capabilities but was: " + initResp);
-        assertFalse(initResp.contains("\"prompts\""),
-                "initialize response should not advertise prompt capabilities but was: " + initResp);
+        assertContainsAll(initResp, "serverInfo", "\"tools\"", "\"resources\"", "\"prompts\"", "\"version\":\"" + EXPECTED_PROJECT_VERSION + "\"");
         assertFalse(initResp.contains("\"completions\""),
                 "initialize response should not advertise completion capabilities but was: " + initResp);
 
@@ -342,6 +387,47 @@ public class StdioE2eTest {
         send("{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"method\":\"tools/list\"}");
         String response = waitForResponseWithId(id, 10_000);
         assertNotNull(response, "Did not receive tools/list response");
+        return response;
+    }
+
+    private String listResources(int id) throws Exception {
+        send("{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"method\":\"resources/list\"}");
+        String response = waitForResponseWithId(id, 10_000);
+        assertNotNull(response, "Did not receive resources/list response");
+        return response;
+    }
+
+    private String readResource(int id, String uri) throws Exception {
+        send("{"
+                + "\"jsonrpc\":\"2.0\","
+                + "\"id\":" + id + ","
+                + "\"method\":\"resources/read\","
+                + "\"params\":{\"uri\":\"" + uri + "\"}"
+                + "}");
+        String response = waitForResponseWithId(id, 10_000);
+        assertNotNull(response, "Did not receive resources/read response");
+        return response;
+    }
+
+    private String listPrompts(int id) throws Exception {
+        send("{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"method\":\"prompts/list\"}");
+        String response = waitForResponseWithId(id, 10_000);
+        assertNotNull(response, "Did not receive prompts/list response");
+        return response;
+    }
+
+    private String getPrompt(int id, String promptName, String argumentsJson) throws Exception {
+        send("{"
+                + "\"jsonrpc\":\"2.0\","
+                + "\"id\":" + id + ","
+                + "\"method\":\"prompts/get\","
+                + "\"params\":{"
+                + "\"name\":\"" + promptName + "\","
+                + "\"arguments\":" + argumentsJson
+                + "}"
+                + "}");
+        String response = waitForResponseWithId(id, 10_000);
+        assertNotNull(response, "Did not receive prompts/get response");
         return response;
     }
 

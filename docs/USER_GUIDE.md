@@ -31,11 +31,13 @@ Do not allocate a TTY. MCP uses STDIN and STDOUT directly.
 
 ## Runtime Characteristics
 - Transport: STDIO
-- Capability set: `tools` plus runtime `logging`
+- Capability set: `tools`, `resources`, `prompts`, plus runtime `logging`
 - Negotiated MCP protocol in current smoke tests: `2025-06-18`
 - Server metadata:
   - `name = interlis-mcp`
   - `version = Gradle-Buildversion`
+
+Configured local model examples can be exposed by setting `interlis.knowledge.model-paths` to a comma-separated list of `.ili` files or directories. Directories are scanned recursively. The MVP search is lexical and local only.
 
 For local builds the version is typically `0.0.LOCALBUILD`. CI builds expose the version calculated from the existing Gradle versioning script.
 
@@ -79,6 +81,22 @@ Example `mcp.json` entry:
 ```
 
 ## Tool Reference
+
+### MCP Resources
+- `interlis://knowledge/handbook-rules`
+  Markdown summary of the curated INTERLIS modeling rules versioned in this repository.
+- `interlis://knowledge/agent-workflow`
+  Compact workflow for modeling, validating, reviewing, and iterating.
+- `interlis://knowledge/model-corpus-index`
+  Markdown index of `.ili` files found through `interlis.knowledge.model-paths`.
+
+### MCP Prompts
+- `interlis-modeling-agent`
+  General agent instruction for INTERLIS modeling.
+- `review-interlis-model`
+  Review prompt requiring `analyzeIliModel`, `checkModelingRules`, and `validateIliModel`.
+- `extend-interlis-model`
+  Controlled extension workflow for existing models.
 
 ### Snippet Generators Returning `{ "iliSnippet": ... }`
 - `createModelSnippet`
@@ -337,6 +355,16 @@ Example `createClassSnippet` payload:
 ### Validation, Geometry, And Lookup Tools
 - `validateIliModel`
   Returns `{ "valid": boolean, "messages": [...] }`.
+- `analyzeIliModel`
+  Returns structural metadata for a full model: `valid`, `messages`, `iliVersion`, `models`, `imports`, `topics`, `classes`, `structures`, `domains`, `associations`, `attributes`, `metaAttributes`, and `summaryMarkdown`.
+- `listModelingRules`
+  Returns the curated rules with `id`, `title`, `severity`, `appliesTo`, and `checkKind`.
+- `checkModelingRules`
+  Returns `validForAutomatedRules`, automated `findings`, and separate `manualChecks`. Set `modelPurpose` to `CAPTURE`, `PUBLICATION`, `VALIDATION`, or `UNKNOWN`.
+- `indexConfiguredModels`
+  Scans configured local `.ili` paths and returns indexed files, ignored files, and errors.
+- `findSimilarModels`
+  Searches configured local `.ili` files using lexical terms from `query` and/or `modelText`.
 - `ensureGeometryDependencies`
   Returns:
   - `importLinesToAdd`
@@ -362,6 +390,8 @@ Example `createClassSnippet` payload:
 - Send exactly the argument shape shown by `tools/list`.
 - Optional parameters are omitted rather than sent as empty strings when possible.
 - Use `validateIliModel` on full `MODEL ... END` content, not on isolated snippets.
+- For model reviews, call `analyzeIliModel`, then `checkModelingRules`, then `validateIliModel`.
+- For publication models, call `checkModelingRules` with `"modelPurpose": "PUBLICATION"` so association checks are active.
 - Use `ensureGeometryDependencies` before manually composing geometry attributes into a model.
 - For comments use `iliDoc`; do not send free `!!` comment lines.
 - For actual INTERLIS meta attributes use `metaAttributes`, not `iliDoc`.

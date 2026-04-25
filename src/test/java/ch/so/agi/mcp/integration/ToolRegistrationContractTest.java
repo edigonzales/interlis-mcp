@@ -205,8 +205,13 @@ class ToolRegistrationContractTest {
     expectations.put("ensureGeometryDependencies", schema(Set.of("attributeName"),
         Set.of("dimension", "arcs", "overlapMm", "chbase", "iliVersion", "geometryType", "directed", "mandatory", "collection")));
     expectations.put("formatIliModel", schema(Set.of("modelText"), Set.of("modelRepositories")));
+    expectations.put("analyzeIliModel", schema(Set.of("modelText"), Set.of("modelRepositories", "modelPurpose")));
+    expectations.put("checkModelingRules", schema(Set.of("modelText"), Set.of("modelPurpose", "modelRepositories", "ruleIds")));
+    expectations.put("findSimilarModels", schema(Set.of(), Set.of("query", "modelText", "modelPurpose", "limit")));
+    expectations.put("indexConfiguredModels", schema(Set.of(), Set.of()));
     expectations.put("listGeometryTypes", schema(Set.of(), Set.of("iliVersion")));
     expectations.put("listMathFunctions", schema(Set.of(), Set.of("iliVersion")));
+    expectations.put("listModelingRules", schema(Set.of(), Set.of()));
     expectations.put("listTextFunctions", schema(Set.of(), Set.of("iliVersion")));
     expectations.put("renameModelElement", schema(Set.of("modelText", "elementFqn", "newName"), Set.of("expectedKind", "modelRepositories")));
     expectations.put("sanitizeIdentifier", schema(Set.of("value"), Set.of()));
