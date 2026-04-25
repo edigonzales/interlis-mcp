@@ -16,6 +16,10 @@ public class AttributeLineRequest {
   private Boolean mandatory;
   @JsonProperty(required = false)
   private Collection collection;
+  @JsonProperty(required = false)
+  private String iliDoc;
+  @JsonProperty(required = false)
+  private java.util.List<MetaAttributeSpec> metaAttributes;
   @JsonProperty(required = true)
   private TypeSpec typeSpec;
 
@@ -27,6 +31,12 @@ public class AttributeLineRequest {
 
   public Collection getCollection() { return collection; }
   public void setCollection(Collection collection) { this.collection = collection; }
+
+  public String getIliDoc() { return iliDoc; }
+  public void setIliDoc(String iliDoc) { this.iliDoc = iliDoc; }
+
+  public java.util.List<MetaAttributeSpec> getMetaAttributes() { return metaAttributes; }
+  public void setMetaAttributes(java.util.List<MetaAttributeSpec> metaAttributes) { this.metaAttributes = metaAttributes; }
 
   public TypeSpec getTypeSpec() { return typeSpec; }
   public void setTypeSpec(TypeSpec typeSpec) { this.typeSpec = typeSpec; }

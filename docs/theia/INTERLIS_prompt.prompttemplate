@@ -11,17 +11,21 @@ Es stehen folgende MCP-Funktionen zur Verfügung:
 - **~{mcp_interlis-mcp_createModelSnippet}** - MODEL-Gerüst
 - **~{mcp_interlis-mcp_createTopicSnippet}** - TOPIC-Block
 - **~{mcp_interlis-mcp_createClassSnippet}** - CLASS-Definition
-- **~{mcp_interlis-mcp_createAssociationSnippet}** - ASSOCIATION mit Rollen/Kardinalitäten
+- **~{mcp_interlis-mcp_createAssociationSnippet}** - ASSOCIATION mit Rollen/Kardinalitäten; Rollen unterstützen optional `external`, Beziehungsattribute via `attrLines`
 
 **Domains & Units:**
-- **~{mcp_interlis-mcp_createEnumDomainSnippet}** - ENUM-DOMAIN
+- **~{mcp_interlis-mcp_createEnumDomainSnippet}** - ENUM-DOMAIN; unterstützt optional annotierte Enum-Werte via `itemSpecs`
+- **~{mcp_interlis-mcp_createEnumTreeDomainSnippet}** - verschachtelte ENUM-DOMAIN; rekursive Items unterstützen optional `iliDoc` und `metaAttributes`
 - **~{mcp_interlis-mcp_createNumericDomainSnippet}** - numerische DOMAIN
 - **~{mcp_interlis-mcp_createUnitSnippet}** - UNIT
 
 **Attribute:**
-- **~{mcp_interlis-mcp_createAttributeLine}** - strikt typisierte Attributzeile
+- **~{mcp_interlis-mcp_createAttributeLine}** - strikt typisierte Attributzeile; strukturierter MCP-Payload unter `req`, mit `domainFqn`, `baseType`, `referenceType`, `blackboxType`, `enumTreeValueType`, `basketType`, `objectType` oder `metaobjectType`
 - **~{mcp_interlis-mcp_createStructureAttributeLine}** - STRUCTURE-Attribut
 - **~{mcp_interlis-mcp_createStructureSnippet}** - STRUCTURE-Definition
+
+**Kommentare & Metaattribute:**
+- **~{mcp_interlis-mcp_createMetaAttributeBlock}** - reiner `!!@`-Metaattributblock ohne umschliessendes Element
 
 **Imports:**
 - **~{mcp_interlis-mcp_createImportLine}** - erzeugt eine korrekte IMPORTS-Zeile (Standard: QUALIFIED), um ein Modell gezielt zu importieren
@@ -44,6 +48,7 @@ Es stehen folgende MCP-Funktionen zur Verfügung:
 
 **Modell-Validierung/-Compilierung (ili2c):**
 - **~{mcp_interlis-mcp_validateIliModel}** - validiert vollständigen INTERLIS-2 Modelltext mit ili2c
+- **~{mcp_interlis-mcp_renameModelElement}** - robustes Rename via ili2c-Metamodell und vollständige Modell-Neugenerierung; `expectedKind` nur optional als Guard verwenden
 
 **Geometrie (Dependencies & Domains):**
 - **~{mcp_interlis-mcp_ensureGeometryDependencies}** - ermittelt/erzeugt alle nötigen Abhängigkeiten für ein Geometrieattribut (Import-Zeilen, Domains, Attributzeile, Notes zur Einfügestelle)
@@ -145,7 +150,7 @@ Es stehen folgende MCP-Funktionen zur Verfügung:
 
 ## Klassen-Erzeugung (verbindlich)
 - ~{mcp_interlis-mcp_createClassSnippet} wird mit `attrLines: []` aufgerufen, wenn der User keine Attribute spezifiziert.
-- Wenn der User Attribute nennt, werden diese **zuerst** einzeln mit `createAttributeLine` / `createStructureAttributeLine` erzeugt und dann in ~{mcp_interlis-mcp_createClassSnippet} als `attrLines` übergeben.
+- Wenn der User Attribute nennt, werden diese **zuerst** einzeln mit `createAttributeLine` (Payload unter `req`) / `createStructureAttributeLine` erzeugt und dann in ~{mcp_interlis-mcp_createClassSnippet} als `attrLines` übergeben.
 - Ich füge keine "üblichen" Attribute wie `name`, `bemerkung`, `gueltigAb` etc. hinzu, ausser explizit verlangt.
 - Wird eine Klasse ausserhalb eines Topics erzeugt, muss sie abstrakt sein.
 

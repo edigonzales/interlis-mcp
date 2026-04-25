@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.5.9'
+    id 'org.springframework.boot' version '4.1.0-M4'
     id 'io.spring.dependency-management' version '1.1.7'
 }
 
@@ -26,11 +26,12 @@ java {
 
 repositories { 
     mavenCentral() 
-    maven { url "https://jars.sogeo.services/mirror" }
+    maven { url = "https://repo.spring.io/milestone" }
+    maven { url = "https://jars.sogeo.services/mirror" }
 }
 
 ext {
-    set('springAiVersion', "1.1.2")
+    set('springAiVersion', "2.0.0-M4")
 }
 
 configurations {
@@ -43,7 +44,7 @@ dependencies {
     implementation "org.springframework.ai:spring-ai-starter-mcp-server"
     implementation "org.springframework.boot:spring-boot-starter"
     implementation "org.springframework.boot:spring-boot-starter-validation"
-    implementation "org.springframework:spring-web"
+    implementation "org.jspecify:jspecify:1.0.0"
     implementation "ch.ehi:ehibasics:1.4.1"
     implementation "ch.interlis:ili2c-core:5.6.8"
     implementation "ch.interlis:ili2c-tool:5.6.8"
@@ -65,6 +66,20 @@ tasks.named('test') {
     }
 }
 
+tasks.named('processResources') {
+    inputs.property('mcpServerVersion', project.version.toString())
+    filesMatching('application.properties') {
+        expand(mcpServerVersion: project.version.toString())
+    }
+}
+
+tasks.withType(Test).configureEach {
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    systemProperty 'expectedProjectVersion', project.version.toString()
+}
+
 bootJar { 
     archiveFileName = 'interlis-mcp.jar' 
 }
@@ -72,6 +87,7 @@ bootJar {
 tasks.register('e2eTest', Test) {
     description = 'Runs end-to-end tests.'
     group = 'verification'
+    dependsOn tasks.bootJar
     testClassesDirs = sourceSets.e2e.output.classesDirs
     classpath = sourceSets.e2e.runtimeClasspath
     shouldRunAfter tasks.test

@@ -1,11 +1,13 @@
 package ch.so.agi.mcp.tools;
 
-import org.springaicommunity.mcp.annotation.McpTool;
-import org.springaicommunity.mcp.annotation.McpToolParam;
-import org.springframework.lang.Nullable;
-import org.springframework.stereotype.Component;
-
+import ch.so.agi.mcp.model.MetaAttributeSpec;
+import ch.so.agi.mcp.util.AnnotationRenderer;
+import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
+import org.springframework.ai.mcp.annotation.McpTool;
+import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.stereotype.Component;
 
 @Component
 public class StructureAttributeTools {
@@ -25,13 +27,15 @@ public class StructureAttributeTools {
       name = "createStructureAttributeLine",
       description = "Create an attribute of STRUCTURE type. " +
                     "Params: name (required), structureFqn (required), " +
-                    "mandatory (default false), collection (NONE|LIST_OF|BAG_OF, default NONE)."
+                    "mandatory (default false), collection (NONE|LIST_OF|BAG_OF, default NONE), iliDoc, metaAttributes."
   )
   public Map<String, Object> createStructureAttributeLine(
       @McpToolParam(description = "Attribute name", required = true) String name,
       @McpToolParam(description = "Fully-qualified STRUCTURE name, e.g., 'Demo.Core.Address'", required = true) String structureFqn,
-      @McpToolParam(description = "MANDATORY flag (default false)") @Nullable Boolean mandatory,
-      @McpToolParam(description = "Collection kind (NONE|LIST_OF|BAG_OF)") @Nullable Collection collection
+      @McpToolParam(description = "MANDATORY flag (default false)", required = false) @Nullable Boolean mandatory,
+      @McpToolParam(description = "Collection kind (NONE|LIST_OF|BAG_OF)", required = false) @Nullable Collection collection,
+      @McpToolParam(description = "IliDoc-Blockkommentar direkt vor dem Attribut", required = false) @Nullable String iliDoc,
+      @McpToolParam(description = "INTERLIS-Metaattribute direkt vor dem Attribut", required = false) @Nullable List<MetaAttributeSpec> metaAttributes
   ) {
     if (name == null || name.isBlank()) {
       throw new IllegalArgumentException("Attribute 'name' is required.");
@@ -50,7 +54,7 @@ public class StructureAttributeTools {
 
     String line = name.trim() + " : " + prefix + colPrefix + structureFqn.trim() + ";";
     return Map.of(
-        "iliSnippet", line
+        "iliSnippet", AnnotationRenderer.renderAnnotations(iliDoc, metaAttributes) + line
     );
   }
 }

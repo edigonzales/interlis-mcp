@@ -1,9 +1,9 @@
 package ch.so.agi.mcp.tools;
 
 import ch.so.agi.mcp.util.NameValidator;
-import org.springaicommunity.mcp.annotation.McpTool;
-import org.springaicommunity.mcp.annotation.McpToolParam;
-import org.springframework.lang.Nullable;
+import org.jspecify.annotations.Nullable;
+import org.springframework.ai.mcp.annotation.McpTool;
+import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -95,7 +95,7 @@ public class GeometryAttributeTools {
       imports.add("INTERLIS");
       String coordDomainName = "Coord" + dim;
       nv.validateIdent(coordDomainName, "Coord domain name");
-      String coordSnippet = (String) domainTools.createCoordDomainSnippet(coordDomainName, dim, null).get("iliSnippet");
+      String coordSnippet = (String) domainTools.createCoordDomainSnippet(coordDomainName, dim, null, null, null).get("iliSnippet");
       domains.add(coordSnippet);
       notes.add("Domain nach IMPORTS einfügen");
       notes.add("Tolerance ist in Metern interpretiert");

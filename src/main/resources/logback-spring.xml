@@ -8,7 +8,10 @@
     </encoder>
   </appender>
 
-  <root level="INFO">
+  <logger name="org.springframework.context.support.PostProcessorRegistrationDelegate$BeanPostProcessorChecker" level="ERROR"/>
+  <logger name="io.modelcontextprotocol.server.McpAsyncServer" level="ERROR"/>
+
+  <root level="WARN">
     <appender-ref ref="STDERR"/>
   </root>
 

@@ -1,110 +1,367 @@
 # User Guide
 
-This guide explains how to start the `interlis-mcp` server, connect it to common MCP clients, and call the INTERLIS tooling functions it exposes.
+This guide explains how to run `interlis-mcp`, connect it to MCP clients, and call the available tools with the correct payload shapes.
 
 ## Prerequisites
-- Java 21 runtime (Gradle automatically provisions a Java 21 toolchain for builds). 
-- Optional: Docker if you prefer containerized execution.
+- Java 21 runtime for builds and for running the JAR
+- Optional: Docker
 
-## Starting the server
+## Start The Server
 
-### Build and run with Gradle
-1. Compile the executable JAR:
-   ```bash
-   ./gradlew bootJar
-   ```
-2. Launch the STDIO MCP server:
-   ```bash
-   java -jar build/libs/interlis-mcp.jar
-   ```
-   Keep the process attached to your terminal. MCP clients communicate with the server through standard input and output streams.
+### Packaged JAR
+```bash
+./gradlew bootJar
+java -jar build/libs/interlis-mcp.jar
+```
 
-### Run straight from Gradle (development)
-During development you can start the server without building the JAR:
+If your default `java` is not Java 21, use the explicit Java 21 binary path.
+
+### Development Mode
 ```bash
 ./gradlew bootRun
 ```
-Gradle will launch the Spring Boot application in STDIO mode using the configuration from `src/main/resources/application.properties`.
 
-### Run with Docker
-Follow the Docker instructions from the project README:
+### Docker
 ```bash
 ./gradlew buildAndPushMultiArchImage
 docker run --rm -i interlis-mcp
 ```
-Ensure `stdin_open` remains true and no TTY is allocated so the MCP JSON-RPC stream stays intact.
 
-## Connecting clients
+Do not allocate a TTY. MCP uses STDIN and STDOUT directly.
+
+## Runtime Characteristics
+- Transport: STDIO
+- Capability set: `tools` plus runtime `logging`
+- Negotiated MCP protocol in current smoke tests: `2025-06-18`
+- Server metadata:
+  - `name = interlis-mcp`
+  - `version = Gradle-Buildversion`
+
+For local builds the version is typically `0.0.LOCALBUILD`. CI builds expose the version calculated from the existing Gradle versioning script.
+
+## Connect Clients
 
 ### Claude Desktop
-1. Start the server locally (JAR, Gradle, or Docker).
-2. Open **Claude Desktop → Settings → Developer → Local MCP servers → Edit Config**.
-3. Add an entry to your `claude_desktop_config.json` similar to:
-   ```json
-   {
-      "mcpServers" : {
-          "interlis-mcp": {
-              "command" : "/Users/stefan/.sdkman/candidates/java/21.0.4-graal/bin/java",
-              "args": ["-jar", "/Users/stefan/sources/mcp-interlis/build/libs/interlis-mcp.jar"],
-              "env": {
-                  "JAVA_TOOL_OPTIONS": "-Xms512m -Xmx512m"
-              }
-          } 
+Add a server entry to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "interlis-mcp": {
+      "command": "/path/to/java-21/bin/java",
+      "args": [
+        "-jar",
+        "/Users/stefan/sources/interlis-mcp/build/libs/interlis-mcp.jar"
+      ],
+      "env": {
+        "JAVA_TOOL_OPTIONS": "-Xms512m -Xmx512m"
       }
-   }m
-   ```
-4. Claude can now call the registered tools whenever it needs snippets or validation logic.
+    }
+  }
+}
+```
 
-### Visual Studio Code
-1. Use the `MCP: Add Server` command and follow the instructions.
-2. A `mcp.json` file will be openend at the end where you can validate the mcp server settings.
+### VS Code
+Example `mcp.json` entry:
 
-## Tool reference
-The server registers all tools in `ToolsConfig` and advertises itself as an STDIO, tool-capable MCP endpoint. Each tool returns an object that at least contains `iliSnippet` (the generated INTERLIS fragment) and, where applicable, a `cursorHint` map indicating where to place the caret in editors.
+```json
+{
+  "servers": {
+    "interlis-mcp": {
+      "command": "/path/to/java-21/bin/java",
+      "args": [
+        "-jar",
+        "/Users/stefan/sources/interlis-mcp/build/libs/interlis-mcp.jar"
+      ]
+    }
+  }
+}
+```
 
-### Model and topic helpers
-- **`createModelSnippet`** – Generate a model skeleton (`MODEL … END`). Parameters: `name` (required), optional `lang`, `uri`, `version`, `iliVersion` (default `2.4`), `includeSolothurnHeader` (default `false`), and additional `imports`. Defaults fill in `lang="de"`, `version=today`, and `uri=https://example.org/<name>`. Returns `iliSnippet` and a cursor hint pointing to the import section.
-- **`createTopicSnippet`** – Produce a `TOPIC` block. Parameters: `name` (required), optional `oidType` declaration, and `isAbstract` flag. Returns snippet with placeholder comment for classes.
+## Tool Reference
 
-### Domains and units
-- **`createEnumDomainSnippet`** – Emit a `DOMAIN` definition with enumerated items. Provide `name` and an ordered list of `items`.
-- **`createNumericDomainSnippet`** – Emit a `DOMAIN` for numeric ranges with optional unit (`unitFqn`). Requires `name`, `min`, and `max`.
-- **`createUnitSnippet`** – Define a custom unit by specifying `name`, `kind` (e.g., `LENGTH`), and base unit (`INTERLIS.m`, etc.).
+### Snippet Generators Returning `{ "iliSnippet": ... }`
+- `createModelSnippet`
+  Builds a `MODEL` skeleton with optional `lang`, `uri`, `version`, `iliVersion`, `imports`, `includeSolothurnHeader`, `iliDoc`, and `metaAttributes`.
+- `createTopicSnippet`
+  Builds a `TOPIC` block and accepts optional `iliDoc` and `metaAttributes`.
+- `createClassSnippet`
+  Builds a `CLASS` block with optional `isAbstract`, `extendsFqn`, `oidDecl`, `attrLines`, `iliDoc`, and `metaAttributes`.
+- `createStructureSnippet`
+  Builds a `STRUCTURE` block with optional `iliDoc` and `metaAttributes`.
+- `createAssociationSnippet`
+  Builds an `ASSOCIATION` block from `name` and `roles`, plus optional `attrLines`, `iliDoc`, and `metaAttributes`. Roles support mandatory `name` and `classFQN` plus optional `card` and `external`.
+- `createEnumDomainSnippet`
+  Builds an enumerated `DOMAIN` with optional `iliDoc` and `metaAttributes`; enum values can also carry optional `iliDoc` and `metaAttributes` via `itemSpecs`.
+- `createEnumTreeDomainSnippet`
+  Builds a nested enumerated `DOMAIN` from recursive `items`, with optional `iliDoc` and `metaAttributes` on both domain and item level.
+- `createNumericDomainSnippet`
+  Builds a numeric `DOMAIN` with optional `unitFqn`, `iliDoc`, and `metaAttributes`.
+- `createUnitSnippet`
+  Builds a `UNIT` with optional `iliDoc` and `metaAttributes`.
+- `createCoordDomainSnippet`
+  Builds a default 2D or 3D `COORD` domain with optional `iliDoc` and `metaAttributes`.
+- `createStructureAttributeLine`
+  Builds an attribute line referencing a `STRUCTURE`, with optional `iliDoc` and `metaAttributes`.
+- `createUniqueConstraint`
+- `createMandatoryConstraint`
+- `createSetConstraint`
+- `createPresentIfConstraint`
+- `createValueRangeConstraint`
+- `createExistenceConstraint`
+- `createMetaAttributeBlock`
+  Builds a pure `!!@` block from validated meta attributes.
 
-### Class and structure builders
-- **`createClassSnippet`** – Build a `CLASS` block with optional abstract flag, `EXTENDS` clause, `OID` declaration, and optional attribute lines. Supplying `attrLines` inserts raw INTERLIS lines; otherwise a placeholder comment is inserted.
-- **`createStructureSnippet`** – Analogous to `createClassSnippet` but for `STRUCTURE` definitions without OIDs.
-- **`createAssociationSnippet`** – Create an `ASSOCIATION` with role descriptors. Provide `name` and at least two `roles` (each role carries `name`, `classFQN`, and `card`).
+### `createAttributeLine`
+`createAttributeLine` is the structured attribute helper. In MCP it currently expects a nested `req` object:
 
-### Attribute helpers
-- **`createAttributeLineV2`** – Preferred endpoint for a single attribute line. Accepts an object with fields:
-  - `name` (identifier),
-  - optional `mandatory` boolean,
-  - optional `collection` (`NONE`, `LIST_OF`, `BAG_OF`),
-  - `typeSpec` which must contain **either** `domainFqn` or a `baseType` object.
-    - `baseType` requires `kind` (`TEXT`, `MTEXT`, `NUM_RANGE`, `BOOLEAN`, `COORD`, `POLYLINE`, `SURFACE_SIMPLE`).
-    - Numeric ranges need `min`, `max`, and optional `unitFqn`.
-    - Text kinds accept optional `length`.
-  Returns the attribute line and default cursor hint `{line:0, col:0}`.
-- **`createStructureAttributeLine`** – Emit an attribute referencing a `STRUCTURE`. Parameters: `name`, `structureFqn`, optional `mandatory`, and optional `collection` (`NONE`, `LIST_OF`, `BAG_OF`).
+```json
+{
+  "req": {
+    "name": "hoehe",
+    "iliDoc": "Gemessene Höhe",
+    "metaAttributes": [
+      {
+        "name": "ch.so.quality",
+        "rawValue": "INTERLIS"
+      }
+    ],
+    "mandatory": true,
+    "collection": "NONE",
+    "typeSpec": {
+      "baseType": {
+        "kind": "NUM_RANGE",
+        "min": 0.0,
+        "max": 100.0,
+        "unitFqn": "INTERLIS.m"
+      }
+    }
+  }
+}
+```
 
-### Constraint helpers
-- **`createUniqueConstraint`** – Wrap attribute names in a `CONSTRAINTS` block with `UNIQUE`.
-- **`createMandatoryConstraint`** – Build a `MANDATORY CONSTRAINT` with an arbitrary boolean expression.
-- **`createSetConstraint`** – Produce a `SET CONSTRAINT` block with a multi-line expression.
-- **`createPresentIfConstraint`** – Ensure an attribute is present under a condition.
-- **`createValueRangeConstraint`** – Restrict an attribute to a specified range.
-- **`createExistenceConstraint`** – Require a reference attribute to point to one of the provided class FQNs.
+Domain reference variant:
 
-### Identifier utilities
-- **`sanitizeIdentifier`** – Convert arbitrary strings into legal INTERLIS identifiers (letters, digits, underscores) and report whether the value was changed.
-- **`validateIdentifier`** – Throw if the supplied identifier violates `^[A-Za-z][A-Za-z0-9_]*$`; otherwise return `{valid:true}`.
-- **`validateFqn`** – Validate a dot-separated fully qualified name and return `{valid:true}` on success.
+```json
+{
+  "req": {
+    "name": "farbe",
+    "typeSpec": {
+      "domainFqn": "Demo.Core.Farbe"
+    }
+  }
+}
+```
 
-## Server metadata
-The MCP metadata advertises the server name, version, and capabilities. Tools are registered through Spring's `MethodToolCallbackProvider` so all annotated beans under `ch.so.agi.mcp.tools` become available to clients.
+The response is an `AttributeLineResponse` object with `iliSnippet`.
+
+Supported `typeSpec` families:
+- `domainFqn`
+- `baseType`
+- `referenceType`
+- `blackboxType`
+- `enumTreeValueType`
+- `basketType`
+- `objectType`
+- `metaobjectType`
+
+Examples for the new families:
+
+```json
+{
+  "req": {
+    "name": "refObj",
+    "typeSpec": {
+      "referenceType": {
+        "targetClassFqn": "Demo.Topic.Target",
+        "external": true
+      }
+    }
+  }
+}
+```
+
+```json
+{
+  "req": {
+    "name": "statusPfad",
+    "typeSpec": {
+      "enumTreeValueType": {
+        "enumTreeDomainFqn": "Demo.Topic.StatusTree"
+      }
+    }
+  }
+}
+```
+
+`enumTreeValueType` intentionally renders through a named enum-tree domain, because raw `ENUMTREEVAL` is not accepted by ili2c as an attribute declaration.
+
+### `createAssociationSnippet`
+Roles use the shape `{ "name": "...", "classFQN": "...", "card"?: "{0..*}", "external"?: true }`. For relationship attributes, reuse existing attribute tools and pass the resulting ILI lines via `attrLines`.
+
+```json
+{
+  "name": "Link",
+  "roles": [
+    { "name": "from", "classFQN": "Demo.Topic.Source", "card": "{1}", "external": true },
+    { "name": "to", "classFQN": "Demo.Topic.Target", "card": "{0..*}" }
+  ],
+  "attrLines": [
+    "/** Beziehungscode */\ncode : TEXT*20;"
+  ]
+}
+```
+
+### `createEnumTreeDomainSnippet`
+Use recursive `items` of the form `{ "name": "...", "iliDoc"?: "...", "metaAttributes"?: [...], "children"?: [...] }`.
+
+```json
+{
+  "name": "StatusTree",
+  "items": [
+    {
+      "name": "A",
+      "metaAttributes": [
+        { "name": "ili2db.dispName", "value": "Eltern" }
+      ],
+      "children": [
+        {
+          "name": "B",
+          "metaAttributes": [
+            { "name": "ili2db.dispName", "value": "Kind B" }
+          ]
+        },
+        { "name": "C" }
+      ]
+    },
+    { "name": "D" }
+  ]
+}
+```
+
+### `createEnumDomainSnippet`
+Legacy payloads with `items: ["A", "B"]` remain valid. If you need item-level `iliDoc` or meta attributes such as `ili2db.dispName`, use `itemSpecs` instead of `items`.
+
+```json
+{
+  "name": "GebaeudeArt",
+  "itemSpecs": [
+    {
+      "name": "Wohnhaus",
+      "iliDoc": "Wohngebaeude",
+      "metaAttributes": [
+        { "name": "ili2db.dispName", "value": "Wohngebaeude" }
+      ]
+    },
+    { "name": "Gewerbe" }
+  ]
+}
+```
+
+### `createMetaAttributeBlock`
+
+```json
+{
+  "metaAttributes": [
+    { "name": "title", "value": "Demo" },
+    { "name": "ch.so.flag", "rawValue": "TRUE" }
+  ]
+}
+```
+
+### `renameModelElement`
+
+```json
+{
+  "modelText": "INTERLIS 2.4; ...",
+  "elementFqn": "Demo.Topic.Target",
+  "newName": "TargetRenamed"
+}
+```
+
+`expectedKind` is optional and can be used as an additional guard, for example `"expectedKind": "CLASS_OR_STRUCTURE"`.
+
+The tool returns regenerated `updatedModelText`. It is semantically robust, but not source-preserving with regard to whitespace or declaration layout.
+
+### IliDoc And Meta Attributes
+- `iliDoc` renders as INTERLIS block comment directly before the affected element, for example `/** Beschreibung */`.
+- `metaAttributes` render as real INTERLIS meta attributes directly before the affected element, for example `!!@ ch.so.flag=TRUE`.
+- `metaAttributes` entries use this shape:
+
+```json
+{
+  "name": "title",
+  "value": "a title"
+}
+```
+
+- Use `value` for safely quoted string values and `rawValue` for verbatim output after `=`.
+
+Example `createModelSnippet` payload:
+
+```json
+{
+  "name": "DemoModel",
+  "iliDoc": "Kantonales Testmodell",
+  "metaAttributes": [
+    { "name": "title", "value": "Kantonales Testmodell" },
+    { "name": "ch.so.test", "rawValue": "TRUE" }
+  ]
+}
+```
+
+Example `createClassSnippet` payload:
+
+```json
+{
+  "name": "Gebaeude",
+  "attrLines": [
+    "/** Amtliche Nummer */\n!!@ ch.so.oid=\"extern\"\nnummer : TEXT*20;"
+  ],
+  "iliDoc": "Gebäude im Bestand"
+}
+```
+
+### Plain String Responses
+- `createImportLine`
+  Returns a single `IMPORTS` line as text.
+- `formatIliModel`
+  Returns the formatted INTERLIS model text as plain text.
+
+### Model Transformation Tools
+- `renameModelElement`
+  Renames a `MODEL`, `TOPIC`, `CLASS/STRUCTURE`, `ASSOCIATION`, `DOMAIN`, `UNIT`, or `ATTRIBUTE` by recompiling and regenerating the full model text.
+  Returns a structured object with `updatedModelText`, `oldElementFqn`, `newElementFqn`, `expectedKind`, and `notes`.
+  `expectedKind` is optional and acts only as an additional guard.
+
+### Validation, Geometry, And Lookup Tools
+- `validateIliModel`
+  Returns `{ "valid": boolean, "messages": [...] }`.
+- `ensureGeometryDependencies`
+  Returns:
+  - `importLinesToAdd`
+  - `domainsToAdd`
+  - `attributeLine`
+  - `notes`
+- `listGeometryTypes`
+  Returns `{ "iliVersion": "...", "types": [{ "name": "...", "model": "..." }] }`.
+- `listMathFunctions`
+  Returns `{ "iliVersion": "...", "functions": [{ "function": "...", "returns": "..." }] }`.
+- `listTextFunctions`
+  Returns `{ "iliVersion": "...", "functions": [{ "function": "...", "returns": "..." }] }`.
+
+### Identifier Utilities
+- `sanitizeIdentifier`
+  Returns `{ "value": "...", "changed": boolean }`.
+- `validateIdentifier`
+  Returns `{ "valid": true }` or throws.
+- `validateFqn`
+  Returns `{ "valid": true }` or throws.
 
 ## Tips
-- Tool parameters use standard MCP JSON serialization—send lists and objects exactly as shown in the descriptions above.
-- Many helpers validate identifiers and FQNs before emitting snippets, returning descriptive errors that MCP clients can surface to users.
-- Use the returned `cursorHint` coordinates to position the editor caret after inserting generated snippets.
+- Send exactly the argument shape shown by `tools/list`.
+- Optional parameters are omitted rather than sent as empty strings when possible.
+- Use `validateIliModel` on full `MODEL ... END` content, not on isolated snippets.
+- Use `ensureGeometryDependencies` before manually composing geometry attributes into a model.
+- For comments use `iliDoc`; do not send free `!!` comment lines.
+- For actual INTERLIS meta attributes use `metaAttributes`, not `iliDoc`.

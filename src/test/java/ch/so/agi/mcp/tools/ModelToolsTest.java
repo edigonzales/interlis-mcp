@@ -1,5 +1,6 @@
 package ch.so.agi.mcp.tools;
 
+import ch.so.agi.mcp.model.MetaAttributeSpec;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -27,6 +28,8 @@ class ModelToolsTest {
                 null,
                 null,
                 List.of(),
+                null,
+                null,
                 null
         );
 
@@ -48,6 +51,8 @@ class ModelToolsTest {
                 " 2024-01-31 ",
                 " 2.3 ",
                 List.of("INTERLIS", "GeometryCHLV95_V1"),
+                null,
+                null,
                 null
         );
 
@@ -71,6 +76,8 @@ class ModelToolsTest {
                         "2024-05-01",
                         null,
                         List.of("ValidImport", "Invalid-Import"),
+                        null,
+                        null,
                         null
                 )
         );
@@ -91,7 +98,9 @@ class ModelToolsTest {
                 null,
                 null,
                 null,
-                true
+                true,
+                null,
+                null
         );
 
         String expectedSnippet = """
@@ -101,12 +110,12 @@ class ModelToolsTest {
                  * !! 2024-05-01 | abr  | Initalversion
                  * !!==============================================================================
                  */
+                INTERLIS 2.4;
+
                 !!@ technicalContact=mailto:agi@bd.so.ch
                 !!@ title="a title"
                 !!@ shortDescription="a short description"
                 !!@ tags="de:Gebäude,fr:Bâtiment,fubar"
-                INTERLIS 2.4;
-
                 MODEL HeaderModel (de) AT "https://example.org/headermodel" VERSION "2024-05-01" =
 
                 END HeaderModel.
@@ -125,6 +134,8 @@ class ModelToolsTest {
                         null,
                         null,
                         "2.5",
+                        null,
+                        null,
                         null,
                         null
                 )
@@ -163,5 +174,54 @@ class ModelToolsTest {
                 "Model name must match [A-Za-z][A-Za-z0-9_]* (starts with a letter, then letters/digits/underscore). Got: 'Invalid-Model'.",
                 ex.getMessage()
         );
+    }
+
+    @Test
+    @DisplayName("createModelSnippet merges Solothurn defaults with overriding meta attributes and iliDoc")
+    void createModelSnippetOverridesSolothurnMetaAttributes() {
+        MetaAttributeSpec title = meta("title", "override", null);
+        MetaAttributeSpec custom = meta("ch.so.test", null, "TRUE");
+
+        Map<String, Object> result = modelTools.createModelSnippet(
+                "HeaderModel",
+                null,
+                null,
+                null,
+                null,
+                null,
+                true,
+                "Modelldoku",
+                List.of(title, custom)
+        );
+
+        String expectedSnippet = """
+                /** !!------------------------------------------------------------------------------
+                 * !! Version    | wer | Änderung
+                 * !!------------------------------------------------------------------------------
+                 * !! 2024-05-01 | abr  | Initalversion
+                 * !!==============================================================================
+                 */
+                INTERLIS 2.4;
+
+                /** Modelldoku */
+                !!@ technicalContact=mailto:agi@bd.so.ch
+                !!@ title="override"
+                !!@ shortDescription="a short description"
+                !!@ tags="de:Gebäude,fr:Bâtiment,fubar"
+                !!@ ch.so.test=TRUE
+                MODEL HeaderModel (de) AT "https://example.org/headermodel" VERSION "2024-05-01" =
+
+                END HeaderModel.
+                """.stripIndent();
+
+        assertEquals(expectedSnippet, result.get("iliSnippet"));
+    }
+
+    private MetaAttributeSpec meta(String name, String value, String rawValue) {
+        MetaAttributeSpec metaAttribute = new MetaAttributeSpec();
+        metaAttribute.setName(name);
+        metaAttribute.setValue(value);
+        metaAttribute.setRawValue(rawValue);
+        return metaAttribute;
     }
 }

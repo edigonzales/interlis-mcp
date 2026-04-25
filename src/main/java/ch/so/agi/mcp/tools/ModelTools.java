@@ -1,19 +1,20 @@
 package ch.so.agi.mcp.tools;
 
-import org.springaicommunity.mcp.annotation.McpTool;
-import org.springaicommunity.mcp.annotation.McpToolParam;
-import org.springframework.lang.Nullable;
-import org.springframework.stereotype.Component;
-
+import ch.so.agi.mcp.model.MetaAttributeSpec;
+import ch.so.agi.mcp.util.AnnotationRenderer;
 import ch.so.agi.mcp.util.NameValidator;
-
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.jspecify.annotations.Nullable;
+import org.springframework.ai.mcp.annotation.McpTool;
+import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.stereotype.Component;
 
 @Component
 public class ModelTools {
@@ -27,18 +28,14 @@ public class ModelTools {
       " * !!------------------------------------------------------------------------------\n" +
       " * !! %s | abr  | Initalversion\n" +
       " * !!==============================================================================\n" +
-      " */\n" +
-      "!!@ technicalContact=mailto:agi@bd.so.ch\n" +
-      "!!@ title=\"a title\"\n" +
-      "!!@ shortDescription=\"a short description\"\n" +
-      "!!@ tags=\"de:Gebäude,fr:Bâtiment,fubar\"\n";
+      " */\n";
 
   private final Clock clock;
   public ModelTools(Clock clock) { this.clock = clock; }
 
   @McpTool(
       name = "createModelSnippet",
-      description = "Erzeugt ein INTERLIS-2 Modellgerüst. Params: name (required), lang (default 'de'), version (default 'today'), uri (default 'https://example.org/<name>'), iliVersion (default '2.4'), includeSolothurnHeader (default false), imports (default [])."
+      description = "Erzeugt ein INTERLIS-2 Modellgerüst. Params: name (required), lang (default 'de'), version (default 'today'), uri (default 'https://example.org/<name>'), iliVersion (default '2.4'), includeSolothurnHeader (default false), imports (default []), iliDoc, metaAttributes."
   )
   public Map<String, Object> createModelSnippet(
       @McpToolParam(description = "Modellname (Bezeichner ohne Leerzeichen)", required = true) String name,
@@ -47,7 +44,9 @@ public class ModelTools {
       @McpToolParam(description = "Version im Format YYYY-MM-DD", required = false) @Nullable String version,
       @McpToolParam(description = "INTERLIS Sprachversion (z. B. '2.3' oder '2.4')", required = false) @Nullable String iliVersion,
       @McpToolParam(description = "Zusätzliche Imports (z. B. 'GeometryCHLV95_V1')", required = false) @Nullable List<String> imports,
-      @McpToolParam(description = "Fügt einen Solothurn-Header oberhalb des Snippets ein", required = false) @Nullable Boolean includeSolothurnHeader
+      @McpToolParam(description = "Fügt einen Solothurn-Header oberhalb des Snippets ein", required = false) @Nullable Boolean includeSolothurnHeader,
+      @McpToolParam(description = "IliDoc-Blockkommentar direkt vor dem MODEL", required = false) @Nullable String iliDoc,
+      @McpToolParam(description = "INTERLIS-Metaattribute direkt vor dem MODEL", required = false) @Nullable List<MetaAttributeSpec> metaAttributes
   ) {
       
     List<String> trimmedImports = imports == null
@@ -70,16 +69,18 @@ public class ModelTools {
         .collect(Collectors.joining());
 
     String header = Boolean.TRUE.equals(includeSolothurnHeader) ? buildSolothurnBanner() : "";
-    int headerLines = header.isEmpty() ? 0 : (int) header.lines().count();
-    int cursorLine = headerLines + 4 + trimmedImports.size();
-
+    List<MetaAttributeSpec> mergedMetaAttributes = Boolean.TRUE.equals(includeSolothurnHeader)
+        ? AnnotationRenderer.mergeMetaAttributes(defaultSolothurnMetaAttributes(), metaAttributes)
+        : AnnotationRenderer.mergeMetaAttributes(null, metaAttributes);
+    String modelAnnotations = AnnotationRenderer.renderAnnotations(iliDoc, mergedMetaAttributes);
     String snippet = header +
         String.format(
             "INTERLIS %s;\n\n" +
+            "%s" +
             "MODEL %s (%s) AT \"%s\" VERSION \"%s\" =\n" +
             "%s\n" +
             "END %s.\n",
-            _iliVersion, name, _lang, _uri, _version, importLines, name);
+            _iliVersion, modelAnnotations, name, _lang, _uri, _version, importLines, name);
 
     return Map.of(
         "iliSnippet", snippet
@@ -92,7 +93,7 @@ public class ModelTools {
   )
   public String createImportLine(
       @McpToolParam(description = "Modellname (Bezeichner ohne Leerzeichen)", required = true) String modelName,
-      @McpToolParam(description = "Qualified import (default true)") @Nullable Boolean qualified
+      @McpToolParam(description = "Qualified import (default true)", required = false) @Nullable Boolean qualified
   ) {
     if (modelName == null || modelName.isBlank()) {
       throw new IllegalArgumentException("Model name is required.");
@@ -108,6 +109,23 @@ public class ModelTools {
   private String buildSolothurnBanner() {
     String today = LocalDate.now(clock.withZone(ZURICH)).format(ISO_DAY);
     return String.format(SOLOTHURN_BANNER_TEMPLATE, today);
+  }
+
+  private List<MetaAttributeSpec> defaultSolothurnMetaAttributes() {
+    List<MetaAttributeSpec> defaults = new ArrayList<>();
+    defaults.add(metaAttribute("technicalContact", null, "mailto:agi@bd.so.ch"));
+    defaults.add(metaAttribute("title", "a title", null));
+    defaults.add(metaAttribute("shortDescription", "a short description", null));
+    defaults.add(metaAttribute("tags", "de:Gebäude,fr:Bâtiment,fubar", null));
+    return defaults;
+  }
+
+  private MetaAttributeSpec metaAttribute(String name, @Nullable String value, @Nullable String rawValue) {
+    MetaAttributeSpec metaAttribute = new MetaAttributeSpec();
+    metaAttribute.setName(name);
+    metaAttribute.setValue(value);
+    metaAttribute.setRawValue(rawValue);
+    return metaAttribute;
   }
 
 }

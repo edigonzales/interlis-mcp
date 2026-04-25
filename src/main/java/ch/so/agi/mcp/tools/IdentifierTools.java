@@ -1,8 +1,8 @@
 package ch.so.agi.mcp.tools;
 
 import ch.so.agi.mcp.util.NameValidator;
-import org.springaicommunity.mcp.annotation.McpTool;
-import org.springaicommunity.mcp.annotation.McpToolParam;
+import org.springframework.ai.mcp.annotation.McpTool;
+import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;

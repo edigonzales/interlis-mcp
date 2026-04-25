@@ -1,54 +1,132 @@
 # Developer Guide
 
-This document supports contributors who want to build, test, and extend the `interlis-mcp` server.
+This guide describes how `interlis-mcp` is built, wired, tested, and extended.
 
-## Project structure
-- **Spring Boot application** – `Application` starts the STDIO-only Spring context that hosts the MCP server. `spring.main.web-application-type=none` disables the web container so the process only reads and writes via STDIN/STDOUT.
-- **Tool beans** – Classes in `ch.so.agi.mcp.tools` expose MCP tools using `@Tool` annotations. `ToolsConfig` registers all tool beans with Spring AI's `MethodToolCallbackProvider`, making each annotated method callable by clients.
-- **Model classes** – Types in `ch.so.agi.mcp.model` define the JSON payloads for complex tools such as `createAttributeLineV2`.
-- **Utility classes** – `NameValidator` centralizes identifier validation logic shared by multiple tools.
+## Compatibility Baseline
+- Spring Boot `4.1.0-M2`
+- Spring AI `2.0.0-M2`
+- Gradle Wrapper `8.14.3`
+- Java toolchain and runtime `21`
+- MCP protocol observed in manual smoke tests: `2024-11-05`
 
-## Build and run
+## Project Structure
+- `src/main/java/ch/so/agi/mcp/Application.java`
+  Starts the non-web Spring Boot application.
+- `src/main/java/ch/so/agi/mcp/tools/*`
+  MCP tool beans. Public methods are annotated with `@McpTool` and `@McpToolParam`.
+- `src/main/java/ch/so/agi/mcp/model/*`
+  DTOs used by structured tools such as `createAttributeLine`.
+- `src/main/java/ch/so/agi/mcp/util/NameValidator.java`
+  Shared INTERLIS identifier and FQN validation.
+- `src/test/java`
+  Unit and contract tests.
+- `src/e2e/java`
+  End-to-end STDIO test against the packaged JAR.
+
+## Tool Discovery
+The project no longer has a manual `ToolsConfig`. Tool registration is provided by Spring AI's MCP annotation scanner auto-configuration from `spring-ai-starter-mcp-server`.
+
+Important upstream detail: as of `2026-03-14`, the official Spring AI `2.0.0-M2` starter still resolves MCP tool annotations transitively from `org.springaicommunity:mcp-annotations:0.8.0`. That is why tool classes still import:
+
+```java
+import org.springaicommunity.mcp.annotation.McpTool;
+import org.springaicommunity.mcp.annotation.McpToolParam;
+```
+
+Nullability annotations were migrated from `org.springframework.lang.Nullable` to `org.jspecify.annotations.Nullable`.
+
+## Build And Run
 ```bash
 ./gradlew bootJar
 java -jar build/libs/interlis-mcp.jar
 ```
-The Gradle build configures a Java 21 toolchain, names the Boot archive `interlis-mcp.jar`, and depends on `spring-ai-starter-mcp-server` to provide the MCP runtime wiring. During iteration you can run `./gradlew bootRun` to start the STDIO server without packaging.
+
+The application is STDIO-only. `spring.main.web-application-type=none` disables any web stack at runtime.
+
+During development:
+
+```bash
+./gradlew bootRun
+```
 
 ## Testing
-- Unit tests: `./gradlew test`
-- End-to-end tests (tagged `@Tag("e2e")`): `./gradlew e2eTest`
+- Unit and integration tests:
+  ```bash
+  ./gradlew test
+  ```
+- End-to-end STDIO test:
+  ```bash
+  ./gradlew e2eTest
+  ```
 
-Both tasks use JUnit Platform configuration defined in `build.gradle`.
+`e2eTest` depends on `bootJar` and starts the server with the same Java binary as the test JVM. This avoids mismatches between the Gradle daemon JDK and the packaged application JDK.
 
-## Configuration
-Application-level settings live in `src/main/resources/application.properties`:
-- Declares the MCP server name (`interlis-mcp`), version (`0.1.0`), and that only tool capabilities are enabled.
-- Enables STDIO transport (`spring.ai.mcp.server.stdio=true`) and disables other MCP feature sets (resources, prompts, completions).
-- Silences Spring Boot logging for cleaner STDIO channels.
+## Runtime Configuration
+Application settings live in `src/main/resources/application.properties`.
 
-Adjust these properties if you change metadata or add new capability types.
+Key settings:
+- `spring.main.web-application-type=none`
+- `spring.ai.mcp.server.stdio=true`
+- `spring.ai.mcp.server.type=SYNC`
+- `spring.ai.mcp.server.capabilities.tool=true`
+- `spring.ai.mcp.server.capabilities.resource=false`
+- `spring.ai.mcp.server.capabilities.prompt=false`
+- `spring.ai.mcp.server.capabilities.completion=false`
+- `spring.ai.mcp.server.name=interlis-mcp`
+- `spring.ai.mcp.server.version=${mcpServerVersion}` in `application.properties`, expanded at build time
+- `spring.ai.mcp.server.instructions=...`
 
-## Tool registry
-All tools are wired through `ToolsConfig`, which injects each `@Component` tool class into a single `MethodToolCallbackProvider`. Adding a new tool only requires:
-1. Creating a Spring component under `ch.so.agi.mcp.tools`.
-2. Annotating public methods with `@Tool` and declaring parameters with `@ToolParam` (or POJO payloads).
-3. Ensuring the component is listed in the `toolObjects` builder call.
+The server version placeholder is expanded during `processResources` from Gradle's `project.version`. Local builds therefore still expose `0.0.LOCALBUILD`, while CI builds expose the computed build version automatically.
 
-Spring AI converts incoming MCP JSON-RPC payloads into method arguments and serializes return values back to the client.
+The current runtime advertises `tools` and the MCP runtime's built-in `logging` capability. Resources, prompts, and completions are intentionally disabled.
 
-## Data contracts
-For attribute creation the server uses rich DTOs:
-- `AttributeLineRequest` carries the attribute name, optional mandatory flag, optional collection, and a mutually exclusive `typeSpec`.
-- `TypeSpec` enforces that either `domainFqn` or `baseType` is provided.
-- `BaseType` supplies strong validation for numeric ranges, text lengths, and supported primitive kinds.
-- `AttributeLineResponse` standardizes the returned snippet and cursor hint map.
-Re-use these classes when introducing new tools that work with attributes to stay consistent with existing validation logic.
+## Logging
+`src/main/resources/logback-spring.xml` writes to STDERR only. The root logger is `WARN`, and noisy startup loggers are suppressed to keep the STDIO transport readable.
 
-## Docker packaging
-The Gradle build delegates to `gradle/docker.gradle` so you can run `./gradlew buildAndPushMultiArchImage` from the repository root. The resulting image launches the STDIO server immediately, making it convenient for MCP clients that manage tools as container commands.
+## Data Contracts
+The most structured tool is `createAttributeLine`. In MCP, it currently accepts a nested payload under `req`:
 
-## Coding guidelines
-- Prefer `NameValidator.ascii()` to enforce classic INTERLIS identifier rules when accepting names or FQNs.
-- Throw informative `IllegalArgumentException`s so MCP clients can surface actionable errors.
-- Return `cursorHint` positions whenever you can to help editors position user cursors after inserting snippets.
+```json
+{
+  "req": {
+    "name": "hoehe",
+    "typeSpec": {
+      "baseType": {
+        "kind": "NUM_RANGE",
+        "min": 0.0,
+        "max": 100.0,
+        "unitFqn": "INTERLIS.m"
+      }
+    }
+  }
+}
+```
+
+Relevant DTOs:
+- `AttributeLineRequest`
+- `TypeSpec`
+- `BaseType`
+- `ReferenceTypeSpec`
+- `BlackboxTypeSpec`
+- `EnumTreeValueTypeSpec`
+- `BasketTypeSpec`
+- `ObjectTypeSpec`
+- `MetaobjectTypeSpec`
+- `AttributeLineResponse`
+
+`TypeSpec` is now a strict one-of union across these families. `enumTreeValueType` is modeled via a named enum-tree domain FQN because raw `ENUMTREEVAL` is not accepted by ili2c in attribute declarations.
+
+## Extension Rules
+When adding a new tool:
+1. Add a Spring `@Component` under `ch.so.agi.mcp.tools`.
+2. Annotate the public method with `@McpTool`.
+3. Mark optional parameters explicitly with `required = false`.
+4. Prefer `NameValidator.ascii()` for identifiers and FQNs.
+5. Add at least one focused unit test and, if the MCP contract matters, a schema assertion in `ToolRegistrationContractTest`.
+
+## Docker Packaging
+`gradle/docker.gradle` builds the container image from the packaged JAR:
+
+```bash
+./gradlew buildAndPushMultiArchImage
+```

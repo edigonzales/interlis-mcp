@@ -1,60 +1,57 @@
 # interlis-mcp
 
-`interlis-mcp` is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that helps large language models author correct INTERLIS 2 model definitions. It exposes a catalogue of Spring AI tools for building model, topic, domain, class, association, structure, attribute, constraint, and identifier snippets that IDE assistants can assemble into complete schemas.
+`interlis-mcp` is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for generating and validating INTERLIS 2 snippets. It runs over STDIO and is currently built with Spring Boot `4.1.0-M2`, Spring AI `2.0.0-M2`, Gradle `8.14.3`, and Java `21`.
 
 ## Overview
-- ✅ STDIO-based MCP server built with Spring Boot and Spring AI's MCP starter.
-- ✅ Tooling focused on generating valid INTERLIS snippets and validating identifiers.
-- ✅ Ready to plug into Claude Desktop, VS Code MCP clients, or any MCP-compliant agent runtime.
+- STDIO-only MCP server for IDE agents and desktop MCP clients.
+- Tooling for models, topics, classes, structures, associations, domains, geometry helpers, constraints, identifier hygiene, formatting, and validation.
+- Runtime verified against MCP protocol `2024-11-05`.
+- Current initialize response advertises `tools` and runtime `logging`; resources, prompts, and completions are disabled.
 
-## Architecture at a glance
+## Architecture
 ```mermaid
 flowchart LR
-    Client["MCP client (Claude Desktop, VS Code, etc.)"]
-    Runtime["MCP runtime / transport<br/>(JSON-RPC over STDIO)"]
-    Server["interlis-mcp server<br/>(Spring Boot + Spring AI)"]
-    Registry["MethodToolCallbackProvider<br/>registered tools"]
-    Ili["INTERLIS snippet / validation output"]
+    Client["MCP client"]
+    Transport["STDIO JSON-RPC"]
+    Server["Spring Boot app"]
+    Scanner["Spring AI MCP annotation scanner"]
+    Tools["INTERLIS tool beans"]
 
-    Client --> Runtime --> Server --> Registry --> Ili
+    Client --> Transport --> Server --> Scanner --> Tools
 ```
 
-## Quick start
-
-### Run from source
-1. Ensure a JDK 21 runtime is available (the Gradle build configures the Java toolchain accordingly).
-2. Build the application:
+## Quick Start
+1. Ensure `java -version` reports Java 21.
+2. Build the executable JAR:
    ```bash
    ./gradlew bootJar
    ```
-3. Start the MCP server with STDIO transport:
+3. Start the server:
    ```bash
    java -jar build/libs/interlis-mcp.jar
    ```
-   The process remains attached to your terminal because MCP communicates via STDIN/STDOUT.
 
-### Docker
-Build the container image locally:
+If multiple JDKs are installed, use the explicit Java 21 binary, for example `/path/to/java-21/bin/java -jar build/libs/interlis-mcp.jar`.
 
+## Verification
 ```bash
-./gradlew buildAndPushMultiArchImage
+./gradlew test
+./gradlew e2eTest
 ```
 
-Run the MCP server with standard input/output connected to your host:
-
+## Docker
 ```bash
+./gradlew buildAndPushMultiArchImage
 docker run --rm -i interlis-mcp
 ```
 
-Because the MCP transport is STDIO-based you should not allocate a TTY (no `-t`) and must keep standard input open (the `-i` flag). For Docker Compose set `stdin_open: true` and `tty: false` on the service so that tools can exchange JSON-RPC messages with the server without any extra escape sequences.
+Keep STDIN open and do not allocate a TTY.
 
-## Connect from MCP clients
-- **Claude Desktop** – register the executable or Docker command under *Settings → Developer → MCP tools*. Detailed steps are documented in [docs/USER_GUIDE.md](docs/USER_GUIDE.md#claude-desktop).
-- **VS Code** – add the server command to the Model Context Protocol extension settings (see [docs/USER_GUIDE.md](docs/USER_GUIDE.md#visual-studio-code)).
+## Client Setup
+- Claude Desktop and VS Code examples are documented in [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
 
-## Documentation
-- [User Guide](docs/USER_GUIDE.md) – startup instructions, client configuration, and a complete tool reference.
-- [Developer Guide](docs/DEVELOPER_GUIDE.md) – build, test, and extension notes for contributors.
+## Developer Notes
+- Build, test, runtime, and annotation-scanner details are documented in [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md).
 
 ## License
 [MIT](LICENSE)

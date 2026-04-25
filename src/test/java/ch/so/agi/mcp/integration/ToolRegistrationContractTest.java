@@ -2,18 +2,23 @@ package ch.so.agi.mcp.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.List;
-import java.util.Map;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Qualifier;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest(properties = "spring.main.allow-bean-definition-overriding=true")
 class ToolRegistrationContractTest {
+
+  private static final Map<String, SchemaExpectation> EXPECTED_SCHEMAS = expectedSchemas();
 
   private final ObjectMapper mapper = new ObjectMapper();
 
@@ -22,18 +27,38 @@ class ToolRegistrationContractTest {
   List<SyncToolSpecification> toolSpecifications;
 
   @Test
-  void snippetToolsAreRegisteredWithExpectedSchemasAndBehavior() throws Exception {
-    Map<String, SyncToolSpecification> specsByName =
-        toolSpecifications.stream().collect(java.util.stream.Collectors.toMap(spec -> spec.tool().name(), spec -> spec));
+  void allRegisteredToolsMatchExpectedSchemaContract() {
+    Map<String, SyncToolSpecification> specsByName = specsByName();
 
-    assertThat(specsByName).containsKeys("createModelSnippet");
+    assertThat(specsByName.keySet()).containsExactlyInAnyOrderElementsOf(EXPECTED_SCHEMAS.keySet());
 
-    SyncToolSpecification createModelSnippet = specsByName.get("createModelSnippet");
+    EXPECTED_SCHEMAS.forEach((toolName, expectation) -> {
+      SyncToolSpecification spec = specsByName.get(toolName);
+      assertThat(spec).as("tool specification for %s", toolName).isNotNull();
+
+      var inputSchema = spec.tool().inputSchema();
+      List<String> required = requiredProperties(spec);
+      assertThat(required)
+          .as("required properties for %s", toolName)
+          .containsExactlyInAnyOrderElementsOf(expectation.required());
+
+      Map<String, Object> properties = inputSchema.properties();
+      assertThat(properties.keySet())
+          .as("schema properties for %s", toolName)
+          .containsAll(expectation.required())
+          .containsAll(expectation.optional());
+
+      expectation.optional().forEach(optionalProperty ->
+          assertThat(required)
+              .as("optional property %s for %s must not be required", optionalProperty, toolName)
+              .doesNotContain(optionalProperty));
+    });
+  }
+
+  @Test
+  void createModelSnippetHasExpectedDescriptionsAndBehavior() throws Exception {
+    SyncToolSpecification createModelSnippet = specsByName().get("createModelSnippet");
     var inputSchema = createModelSnippet.tool().inputSchema();
-
-    List<String> requiredParams = inputSchema.required() == null ? List.of() : inputSchema.required();
-
-    assertThat(requiredParams).contains("name");
 
     Map<String, Object> properties = inputSchema.properties();
     assertThat(propertyDescription(properties, "name"))
@@ -50,10 +75,17 @@ class ToolRegistrationContractTest {
     assertThat(propertyDescription(properties, "includeSolothurnHeader"))
         .isEqualTo("Fügt einen Solothurn-Header oberhalb des Snippets ein");
 
-    var request = new McpSchema.CallToolRequest("createModelSnippet", createModelSnippetRequest());
-    var response = createModelSnippet.callHandler().apply(null, request);
-    Map<String, Object> structured = extractStructuredContent(response);
+    var response = createModelSnippet.callHandler().apply(null,
+        new McpSchema.CallToolRequest("createModelSnippet", Map.of(
+            "name", "TestModel",
+            "lang", "de",
+            "uri", "https://example.org/test",
+            "version", "2024-01-31",
+            "iliVersion", "2.3",
+            "imports", List.of("INTERLIS", "GeometryCHLV95_V1"),
+            "includeSolothurnHeader", false)));
 
+    Map<String, Object> structured = extractStructuredContent(response);
     assertThat(structured.get("iliSnippet"))
         .isEqualTo(
             "INTERLIS 2.3;\n\n"
@@ -63,15 +95,56 @@ class ToolRegistrationContractTest {
                 + "END TestModel.\n");
   }
 
-  private Map<String, Object> createModelSnippetRequest() {
-    return Map.of(
-        "name", "TestModel",
-        "lang", "de",
-        "uri", "https://example.org/test",
-        "version", "2024-01-31",
-        "iliVersion", "2.3",
-        "imports", List.of("INTERLIS", "GeometryCHLV95_V1"),
-        "includeSolothurnHeader", false);
+  @Test
+  void ensureGeometryDependenciesProducesExpectedGeometryPayload() throws Exception {
+    SyncToolSpecification ensureGeometryDependencies = specsByName().get("ensureGeometryDependencies");
+
+    var response = ensureGeometryDependencies.callHandler().apply(null,
+        new McpSchema.CallToolRequest("ensureGeometryDependencies", Map.of(
+            "attributeName", "Perimeter",
+            "arcs", true)));
+
+    Map<String, Object> structured = extractStructuredContent(response);
+    assertThat(structured)
+        .containsKeys("importLinesToAdd", "domainsToAdd", "attributeLine", "notes");
+    assertThat(structured.get("importLinesToAdd")).asList().contains("IMPORTS INTERLIS;");
+    assertThat(structured.get("domainsToAdd")).asList().isNotEmpty();
+    assertThat(structured.get("attributeLine").toString())
+        .contains("Perimeter : SURFACE WITH (STRAIGHTS, ARCS)")
+        .contains("VERTEX Coord2");
+  }
+
+  @Test
+  void validateIliModelAcceptsMinimalValidModel() throws Exception {
+    SyncToolSpecification validateIliModel = specsByName().get("validateIliModel");
+
+    var response = validateIliModel.callHandler().apply(null,
+        new McpSchema.CallToolRequest("validateIliModel", Map.of(
+            "modelText",
+            "INTERLIS 2.4;\n\n"
+                + "MODEL DemoModel (de) AT \"https://example.org/demo\" VERSION \"2024-01-31\" =\n\n"
+                + "END DemoModel.\n")));
+
+    Map<String, Object> structured = extractStructuredContent(response);
+    assertThat(structured.get("valid")).isEqualTo(true);
+    assertThat(structured.get("messages")).asList().isEmpty();
+  }
+
+  @Test
+  void listMathFunctionsDefaultsToInterlis24AndReturnsFunctions() throws Exception {
+    SyncToolSpecification listMathFunctions = specsByName().get("listMathFunctions");
+
+    var response = listMathFunctions.callHandler().apply(null,
+        new McpSchema.CallToolRequest("listMathFunctions", Map.of()));
+
+    Map<String, Object> structured = extractStructuredContent(response);
+    assertThat(structured.get("iliVersion")).isEqualTo("2.4");
+    assertThat(structured.get("functions")).asList().isNotEmpty();
+  }
+
+  private Map<String, SyncToolSpecification> specsByName() {
+    return toolSpecifications.stream()
+        .collect(Collectors.toMap(spec -> spec.tool().name(), spec -> spec, (left, right) -> left, LinkedHashMap::new));
   }
 
   @SuppressWarnings("unchecked")
@@ -99,5 +172,55 @@ class ToolRegistrationContractTest {
       return desc != null ? desc.toString() : "";
     }
     return "";
+  }
+
+  private static List<String> requiredProperties(SyncToolSpecification specification) {
+    var required = specification.tool().inputSchema().required();
+    return required == null ? List.of() : required;
+  }
+
+  private static Map<String, SchemaExpectation> expectedSchemas() {
+    Map<String, SchemaExpectation> expectations = new LinkedHashMap<>();
+
+    expectations.put("createAssociationSnippet", schema(Set.of("name", "roles"), Set.of("attrLines", "iliDoc", "metaAttributes")));
+    expectations.put("createAttributeLine", schema(Set.of("req"), Set.of()));
+    expectations.put("createClassSnippet", schema(Set.of("name"), Set.of("isAbstract", "extendsFqn", "oidDecl", "attrLines", "iliDoc", "metaAttributes")));
+    expectations.put("createCoordDomainSnippet", schema(Set.of("name"), Set.of("dimension", "decimals", "iliDoc", "metaAttributes")));
+    expectations.put("createEnumDomainSnippet", schema(Set.of("name"), Set.of("items", "itemSpecs", "iliDoc", "metaAttributes")));
+    expectations.put("createEnumTreeDomainSnippet", schema(Set.of("name", "items"), Set.of("iliDoc", "metaAttributes")));
+    expectations.put("createExistenceConstraint", schema(Set.of("refAttr", "classFqns"), Set.of("iliDoc", "metaAttributes")));
+    expectations.put("createImportLine", schema(Set.of("modelName"), Set.of("qualified")));
+    expectations.put("createMandatoryConstraint", schema(Set.of("expr"), Set.of("iliDoc", "metaAttributes")));
+    expectations.put("createMetaAttributeBlock", schema(Set.of("metaAttributes"), Set.of()));
+    expectations.put("createModelSnippet", schema(Set.of("name"), Set.of("lang", "uri", "version", "iliVersion", "imports", "includeSolothurnHeader", "iliDoc", "metaAttributes")));
+    expectations.put("createNumericDomainSnippet", schema(Set.of("name", "min", "max"), Set.of("unitFqn", "iliDoc", "metaAttributes")));
+    expectations.put("createPresentIfConstraint", schema(Set.of("attr", "cond"), Set.of("iliDoc", "metaAttributes")));
+    expectations.put("createSetConstraint", schema(Set.of("expr"), Set.of("iliDoc", "metaAttributes")));
+    expectations.put("createStructureAttributeLine", schema(Set.of("name", "structureFqn"), Set.of("mandatory", "collection", "iliDoc", "metaAttributes")));
+    expectations.put("createStructureSnippet", schema(Set.of("name"), Set.of("isAbstract", "extendsFqn", "attrLines", "iliDoc", "metaAttributes")));
+    expectations.put("createTopicSnippet", schema(Set.of("name"), Set.of("oidType", "isAbstract", "iliDoc", "metaAttributes")));
+    expectations.put("createUniqueConstraint", schema(Set.of("attrs"), Set.of("iliDoc", "metaAttributes")));
+    expectations.put("createUnitSnippet", schema(Set.of("name", "kind", "base"), Set.of("iliDoc", "metaAttributes")));
+    expectations.put("createValueRangeConstraint", schema(Set.of("attr", "range"), Set.of("iliDoc", "metaAttributes")));
+    expectations.put("ensureGeometryDependencies", schema(Set.of("attributeName"),
+        Set.of("dimension", "arcs", "overlapMm", "chbase", "iliVersion", "geometryType", "directed", "mandatory", "collection")));
+    expectations.put("formatIliModel", schema(Set.of("modelText"), Set.of("modelRepositories")));
+    expectations.put("listGeometryTypes", schema(Set.of(), Set.of("iliVersion")));
+    expectations.put("listMathFunctions", schema(Set.of(), Set.of("iliVersion")));
+    expectations.put("listTextFunctions", schema(Set.of(), Set.of("iliVersion")));
+    expectations.put("renameModelElement", schema(Set.of("modelText", "elementFqn", "newName"), Set.of("expectedKind", "modelRepositories")));
+    expectations.put("sanitizeIdentifier", schema(Set.of("value"), Set.of()));
+    expectations.put("validateFqn", schema(Set.of("fqn"), Set.of()));
+    expectations.put("validateIdentifier", schema(Set.of("value"), Set.of()));
+    expectations.put("validateIliModel", schema(Set.of("modelText"), Set.of("modelRepositories")));
+
+    return expectations;
+  }
+
+  private static SchemaExpectation schema(Set<String> required, Set<String> optional) {
+    return new SchemaExpectation(required, optional);
+  }
+
+  private record SchemaExpectation(Set<String> required, Set<String> optional) {
   }
 }

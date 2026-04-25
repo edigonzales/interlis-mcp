@@ -17,7 +17,9 @@ class StructureToolsTest {
                 "Adresse",
                 false,
                 "Basis.Adresse",
-                List.of("plz : 4 .. 5;")
+                List.of("plz : 4 .. 5;"),
+                null,
+                null
         );
 
         assertEquals(String.join("\n",
@@ -29,11 +31,11 @@ class StructureToolsTest {
 
     @Test
     void createStructure_usesPlaceholderWhenNoAttributes() {
-        Map<String, Object> response = structureTools.createStructure("Koordinate", true, null, null);
+        Map<String, Object> response = structureTools.createStructure("Koordinate", true, null, null, null, null);
 
         assertEquals(String.join("\n",
                 "STRUCTURE Koordinate (ABSTRACT) =",
-                "  !! Attribute hier",
+                "  /** Attribute hier */",
                 "END Koordinate;"
         ), response.get("iliSnippet"));
     }
