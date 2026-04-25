@@ -355,6 +355,21 @@ Example `createClassSnippet` payload:
 ### Validation, Geometry, And Lookup Tools
 - `validateIliModel`
   Returns `{ "valid": boolean, "messages": [...] }`.
+- `generateExampleXtf`
+  Generates a deterministic minimal XTF from an INTERLIS model. Input:
+  - required: `modelText`
+  - optional: `modelRepositories`, `maxObjectsPerClass` (default `1`)
+  Output:
+  - `generated`, `xtfText` (when generated), `messages`
+  - `basketCount`, `objectCount`
+  - `objectsByClass`, `skippedClasses`
+- `validateXtf`
+  Validates XTF text against an INTERLIS model via `ilivalidator`. Input:
+  - required: `modelText`, `xtfText`
+  - optional: `modelRepositories`
+  Output:
+  - `valid`, `messages`
+  - `errorCount`, `warningCount`
 - `analyzeIliModel`
   Returns structural metadata for a full model: `valid`, `messages`, `iliVersion`, `models`, `imports`, `topics`, `classes`, `structures`, `domains`, `associations`, `attributes`, `metaAttributes`, and `summaryMarkdown`.
 - `listModelingRules`
@@ -385,6 +400,59 @@ Example `createClassSnippet` payload:
   Returns `{ "valid": true }` or throws.
 - `validateFqn`
   Returns `{ "valid": true }` or throws.
+
+### `generateExampleXtf`
+
+Example payload:
+
+```json
+{
+  "modelText": "INTERLIS 2.4; ...",
+  "maxObjectsPerClass": 1
+}
+```
+
+Example response shape:
+
+```json
+{
+  "generated": true,
+  "xtfText": "<?xml version=\"1.0\" encoding=\"UTF-8\"?> ...",
+  "messages": [],
+  "basketCount": 1,
+  "objectCount": 1,
+  "objectsByClass": [
+    { "classFqn": "DemoModel.Data.Building", "objectCount": 1 }
+  ],
+  "skippedClasses": []
+}
+```
+
+If a mandatory attribute type is not safely generatable in the MVP, the class is listed in `skippedClasses` with a `reason` and is not emitted.
+
+### `validateXtf`
+
+Example payload:
+
+```json
+{
+  "modelText": "INTERLIS 2.4; ...",
+  "xtfText": "<?xml version=\"1.0\" encoding=\"UTF-8\"?> ..."
+}
+```
+
+Example response shape:
+
+```json
+{
+  "valid": false,
+  "messages": [
+    { "severity": "ERROR", "line": 12, "message": "..." }
+  ],
+  "errorCount": 1,
+  "warningCount": 0
+}
+```
 
 ## Tips
 - Send exactly the argument shape shown by `tools/list`.

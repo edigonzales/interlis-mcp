@@ -131,6 +131,53 @@ class ToolRegistrationContractTest {
   }
 
   @Test
+  void generateExampleXtfReturnsStructuredPayload() throws Exception {
+    SyncToolSpecification generateExampleXtf = specsByName().get("generateExampleXtf");
+
+    var response = generateExampleXtf.callHandler().apply(null,
+        new McpSchema.CallToolRequest("generateExampleXtf", Map.of(
+            "modelText",
+            "INTERLIS 2.4;\n\n"
+                + "MODEL DemoModel (de) AT \"https://example.org/demo\" VERSION \"2024-01-31\" =\n"
+                + "  TOPIC Data =\n"
+                + "    CLASS Building =\n"
+                + "      name : MANDATORY TEXT*20;\n"
+                + "    END Building;\n"
+                + "  END Data;\n"
+                + "END DemoModel.\n")));
+
+    Map<String, Object> structured = extractStructuredContent(response);
+    assertThat(structured.get("generated")).isEqualTo(true);
+    assertThat(structured.get("xtfText")).isNotNull();
+    assertThat(((Number) structured.get("basketCount")).intValue()).isGreaterThanOrEqualTo(1);
+    assertThat(((Number) structured.get("objectCount")).intValue()).isGreaterThanOrEqualTo(1);
+    assertThat(structured).containsKeys("objectsByClass", "skippedClasses", "messages");
+  }
+
+  @Test
+  void validateXtfReturnsErrorsForInvalidXtf() throws Exception {
+    SyncToolSpecification validateXtf = specsByName().get("validateXtf");
+
+    var response = validateXtf.callHandler().apply(null,
+        new McpSchema.CallToolRequest("validateXtf", Map.of(
+            "modelText",
+            "INTERLIS 2.4;\n\n"
+                + "MODEL DemoModel (de) AT \"https://example.org/demo\" VERSION \"2024-01-31\" =\n"
+                + "  TOPIC Data =\n"
+                + "    CLASS Building =\n"
+                + "      name : MANDATORY TEXT*20;\n"
+                + "    END Building;\n"
+                + "  END Data;\n"
+                + "END DemoModel.\n",
+            "xtfText", "<TRANSFER>")));
+
+    Map<String, Object> structured = extractStructuredContent(response);
+    assertThat(structured.get("valid")).isEqualTo(false);
+    assertThat(((Number) structured.get("errorCount")).intValue()).isGreaterThan(0);
+    assertThat(structured.get("messages")).asList().isNotEmpty();
+  }
+
+  @Test
   void listMathFunctionsDefaultsToInterlis24AndReturnsFunctions() throws Exception {
     SyncToolSpecification listMathFunctions = specsByName().get("listMathFunctions");
 
@@ -218,6 +265,8 @@ class ToolRegistrationContractTest {
     expectations.put("validateFqn", schema(Set.of("fqn"), Set.of()));
     expectations.put("validateIdentifier", schema(Set.of("value"), Set.of()));
     expectations.put("validateIliModel", schema(Set.of("modelText"), Set.of("modelRepositories")));
+    expectations.put("generateExampleXtf", schema(Set.of("modelText"), Set.of("modelRepositories", "maxObjectsPerClass")));
+    expectations.put("validateXtf", schema(Set.of("modelText", "xtfText"), Set.of("modelRepositories")));
 
     return expectations;
   }

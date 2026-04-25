@@ -20,6 +20,8 @@ This guide describes how `interlis-mcp` is built, wired, tested, and extended.
   Curated modeling rules, MCP resources, MCP prompts, rule checks, and local `.ili` corpus search.
 - `src/main/java/ch/so/agi/mcp/service/IliCompilerService.java`
   Shared ili2c compilation and INTERLIS regeneration service.
+- `src/main/java/ch/so/agi/mcp/service/XtfService.java`
+  Shared XTF generation and XTF validation service (`generateExampleXtf`, `validateXtf`).
 - `src/main/java/ch/so/agi/mcp/model/*`
   DTOs used by structured tools such as `createAttributeLine`.
 - `src/main/java/ch/so/agi/mcp/util/NameValidator.java`
@@ -94,6 +96,24 @@ The current runtime advertises `tools`, `resources`, `prompts`, and the MCP runt
 
 `interlis.knowledge.model-paths` is a comma-separated list of local files or directories. Directories are scanned recursively for `.ili` files. The MVP uses an in-memory scan and lexical scoring only; it does not use embeddings, a database, or network access at runtime.
 
+## XTF Services
+`XtfService` provides two capabilities:
+
+1. `generateExampleXtf`
+   - Compiles the model via `IliCompilerService`.
+   - Creates deterministic minimal transfer content via `iox-ili` (`XtfWriter` + IOX events).
+   - Generates only identifiable, non-abstract, non-implicit classes from the last compiled model file.
+   - Fills only mandatory attributes for a safe subset (`TEXT`, `NUMERIC`, `BOOLEAN`, enum, enum-tree value, coordinate, references to generated classes).
+   - If a class contains unsupported mandatory types, the class is not emitted and appears in `skippedClasses`.
+
+2. `validateXtf`
+   - Compiles the model first (same compiler pathway as model tools).
+   - Persists model and XTF text to temporary files.
+   - Validates with `org.interlis2.validator.Validator` (core `ilivalidator` API, no custom functions in MVP).
+   - Collects structured ERROR/WARNING messages through an `EhiLogger` listener.
+
+Both paths are text-based in MVP (`xtfText` payloads, no file upload contract).
+
 ## Logging
 `src/main/resources/logback-spring.xml` writes to STDERR only. The root logger is `WARN`, and noisy startup loggers are suppressed to keep the STDIO transport readable.
 
@@ -137,6 +157,8 @@ When adding a new tool:
 3. Mark optional parameters explicitly with `required = false`.
 4. Prefer `NameValidator.ascii()` for identifiers and FQNs.
 5. Add at least one focused unit test and, if the MCP contract matters, a schema assertion in `ToolRegistrationContractTest`.
+
+For `generateExampleXtf`, keep generation deterministic and conservative. If a mandatory value cannot be generated safely, skip the class and surface the reason instead of emitting potentially invalid placeholder data.
 
 When adding curated modeling rules:
 1. Extend `src/main/resources/knowledge/modeling-rules.yml`.

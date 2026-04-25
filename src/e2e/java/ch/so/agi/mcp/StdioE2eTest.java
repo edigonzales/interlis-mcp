@@ -83,7 +83,9 @@ public class StdioE2eTest {
                 "renameModelElement",
                 "analyzeIliModel",
                 "checkModelingRules",
-                "findSimilarModels");
+                "findSimilarModels",
+                "generateExampleXtf",
+                "validateXtf");
 
         String today = LocalDate.now().toString();
         String argsJson = "{"
@@ -133,6 +135,51 @@ public class StdioE2eTest {
                 "REFERENCE TO",
                 "EXTERNAL",
                 "Demo.Topic.Target");
+    }
+
+    @Test
+    void generateExampleXtf_and_validateXtf_overStdio() throws Exception {
+        initializeSession();
+
+        String modelText = """
+                INTERLIS 2.4;
+
+                MODEL DemoModel (de) AT "https://example.org/demo" VERSION "2024-01-31" =
+                  TOPIC Data =
+                    CLASS Building =
+                      name : MANDATORY TEXT*20;
+                    END Building;
+                  END Data;
+                END DemoModel.
+                """;
+
+        String generateArgsJson = "{"
+                + "\"modelText\":" + jsonString(modelText) + ","
+                + "\"maxObjectsPerClass\":1"
+                + "}";
+
+        String generateResponse = callTool(3, "generateExampleXtf", generateArgsJson);
+        assertSuccessfulToolResponse(generateResponse,
+                "generateExampleXtf",
+                "\\\"generated\\\":true",
+                "\\\"xtfText\\\"",
+                "\\\"basketCount\\\":1",
+                "\\\"objectCount\\\":1",
+                "\\\"objectsByClass\\\"",
+                "\\\"skippedClasses\\\"");
+
+        String validateArgsJson = "{"
+                + "\"modelText\":" + jsonString(modelText) + ","
+                + "\"xtfText\":\"<TRANSFER>\""
+                + "}";
+
+        String validateResponse = callTool(4, "validateXtf", validateArgsJson);
+        assertSuccessfulToolResponse(validateResponse,
+                "validateXtf",
+                "\\\"valid\\\":false",
+                "\\\"messages\\\"",
+                "\\\"errorCount\\\"",
+                "\\\"warningCount\\\"");
     }
 
     @Test
