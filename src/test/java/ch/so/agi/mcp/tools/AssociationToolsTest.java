@@ -31,6 +31,67 @@ class AssociationToolsTest {
   }
 
   @Test
+  void createAssociation_generatesAssociationAndRoleNamesWhenMissing() {
+    Map<String, Object> response = associationTools.createAssociation(
+        null,
+        List.of(role(null, "Mod.Topic.Source", "{1}", null), role(null, "Mod.Topic.Target", "{0..*}", null)),
+        null,
+        null,
+        null);
+
+    assertEquals(String.join("\n",
+            "ASSOCIATION Source__Target =",
+            "  r_Target -- {1} Mod.Topic.Source;",
+            "  r_Source -- {0..*} Mod.Topic.Target;",
+            "END Source__Target;"),
+        response.get("iliSnippet"));
+    assertTrue(response.toString().contains("generatedNames"));
+    assertTrue(response.toString().contains("Source__Target"));
+  }
+
+  @Test
+  void createAssociation_generatesSelfAssociationRoleNames() {
+    Map<String, Object> response = associationTools.createAssociation(
+        null,
+        List.of(
+            role(null, "Mod.Topic.Person", "{0..1}", null),
+            role(null, "Mod.Topic.Person", "{0..*}", null)),
+        null,
+        null,
+        null);
+
+    assertEquals(String.join("\n",
+            "ASSOCIATION Person__Person =",
+            "  r_Person_1 -- {0..1} Mod.Topic.Person;",
+            "  r_Person_2 -- {0..*} Mod.Topic.Person;",
+            "END Person__Person;"),
+        response.get("iliSnippet"));
+  }
+
+  @Test
+  void createAssociation_resolvesGeneratedRoleNameCollisions() {
+    Map<String, Object> response = associationTools.createAssociation(
+        null,
+        List.of(
+            role(null, "Mod.Topic.Address", "{1}", null),
+            role(null, "Mod.Topic.Person", "{0..1}", null),
+            role(null, "Mod.Topic.Person", "{0..*}", null)),
+        null,
+        null,
+        null);
+
+    assertEquals(String.join("\n",
+            "ASSOCIATION Address__Person__Person =",
+            "  r_Address -- {1} Mod.Topic.Address;",
+            "  r_Person -- {0..1} Mod.Topic.Person;",
+            "  r_Person_2 -- {0..*} Mod.Topic.Person;",
+            "END Address__Person__Person;"),
+        response.get("iliSnippet"));
+    assertTrue(response.toString().contains("nameCollisionsResolved"));
+    assertTrue(response.toString().contains("N-ary association uses fallback auto role names"));
+  }
+
+  @Test
   void createAssociation_allowsMissingCardinality() {
     Map<String, Object> response = associationTools.createAssociation(
         "Link",

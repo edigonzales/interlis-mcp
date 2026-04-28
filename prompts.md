@@ -34,6 +34,14 @@ Arbeitsmodus: [erst fragen | Vorschlag erstellen | Datei editieren | nur reviewe
 Pruefung: analyzeIliModel, checkModelingRules, validateIliModel
 ```
 
+Bei Bildinput zusaetzlich:
+
+```text
+Bildquelle: [Whiteboard-Foto / UML-Diagramm]
+Strenge: Keine Annahmen ohne Markierung
+Arbeitsmodus: erst Extraktionsreport, dann Modellierung nach Bestaetigung
+```
+
 ## Faustregeln
 
 - Sage explizit, ob du ein `CAPTURE`-, `PUBLICATION`- oder `VALIDATION`-Modell willst.
@@ -204,6 +212,78 @@ Der Agent soll Rueckfragen stellen, wenn:
 - eine Geometrieart unklar ist,
 - ein Publikationsattribut nicht klar ableitbar ist,
 - Kommentare oder Metaattribute nur geraten waeren.
+
+## Vision-Spezifischer Extraktionsvertrag
+
+Bei Whiteboard/UML-Bildinput soll Stage A einen strukturierten Report liefern mit:
+
+- Diagrammkontext
+- Klassen
+- Attribute (Name, sichtbarer Typ, Optionalitaet sofern sichtbar)
+- Beziehungen
+- Kardinalitaeten (nur wenn im Bild sichtbar)
+- offensichtliche Enumerationen
+- offene Punkte
+- Unsicherheiten
+
+Jede Aussage muss markiert sein als:
+
+- `Faktisch erkannt`
+- `Annahme`
+- `Offene Frage`
+
+Ohne bestaetigten Report keine finale INTERLIS-Generierung.
+
+## Beispiel: Nur UML-Extraktion Aus Whiteboard-Foto
+
+```text
+@interlis-vision-extractor
+Ich haenge ein Whiteboard-Foto eines UML-Klassendiagramms an.
+
+Ziel:
+Nur Stage A ausfuehren, noch kein INTERLIS-Modell erzeugen.
+
+Bitte liefere:
+1. Diagrammkontext
+2. Klassen und Attribute
+3. Beziehungen und Kardinalitaeten
+4. offensichtliche Enumerationen
+5. Unsicherheiten und offene Fragen
+
+Wichtig:
+Markiere jede Aussage als "Faktisch erkannt", "Annahme" oder "Offene Frage".
+```
+
+## Beispiel: Uebergang Nach Bestaetigter Extraktion
+
+```text
+@interlis-modeler
+Hier ist der bestaetigte UML-Extraktionsreport aus Stage A.
+
+Modellzweck:
+CAPTURE
+
+Aufgabe:
+Erzeuge daraus ein INTERLIS-Modell in models/ARP/SO_ARP_SolarBewilligung_20260428.ili.
+
+Regeln:
+- Keine zusaetzlichen fachlichen Annahmen einbauen.
+- Alles, was im Report als "Offene Frage" markiert ist, als manuelle Rueckfrage ausgeben.
+
+Danach:
+analyzeIliModel, checkModelingRules, validateIliModel ausfuehren und zusammenfassen.
+```
+
+## Beispiel: End-to-End Mit Command
+
+```text
+/whiteboard-to-ili
+Nutze mein angehaengtes Whiteboard-Foto als Hauptquelle.
+Ich will ein CAPTURE-Modell erstellen.
+
+Bitte erst Stage A liefern und auf meine Bestaetigung warten.
+Nach meiner Bestaetigung Stage B mit INTERLIS-Generierung und den drei Checks ausfuehren.
+```
 
 ## Wann Der User Fakten Liefern Sollte
 

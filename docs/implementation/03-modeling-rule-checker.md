@@ -6,7 +6,8 @@ Add a small, explicit rule system based on the modeling handbook so agents can r
 
 ## Components
 
-- `src/main/resources/knowledge/modeling-rules.yml`
+- `src/main/resources/knowledge/modeling-rules.core.yml`
+- `src/main/resources/knowledge/modeling-rules.so.yml`
 - `ch.so.agi.mcp.knowledge.KnowledgeRuleLoader`
 - `ch.so.agi.mcp.knowledge.ModelingRuleTools`
 
@@ -25,4 +26,3 @@ Add a small, explicit rule system based on the modeling handbook so agents can r
 
 - No attempt to encode the entire handbook.
 - No human approval workflow; manual checks are reported only.
-

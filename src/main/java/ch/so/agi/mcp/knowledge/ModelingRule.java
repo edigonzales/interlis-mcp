@@ -3,6 +3,7 @@ package ch.so.agi.mcp.knowledge;
 import ch.so.agi.mcp.analysis.ModelPurpose;
 
 public record ModelingRule(
+    ModelingRuleProfile profile,
     String id,
     String title,
     Severity severity,
@@ -24,4 +25,3 @@ public record ModelingRule(
     MANUAL
   }
 }
-

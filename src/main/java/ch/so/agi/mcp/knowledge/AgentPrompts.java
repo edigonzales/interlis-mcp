@@ -30,6 +30,8 @@ public class AgentPrompts {
         - `checkModelingRules`
         - `validateIliModel`
 
+        Fuer ASSOCIATIONs koennen Namen automatisch generiert werden; bestaetige dennoch fachliche Kardinalitaeten explizit.
+
         Erfinde keine fachlichen Kardinalitaeten, Rollen, Constraints oder Datenumbauten. Markiere solche Punkte als Rueckfrage.
         """);
   }

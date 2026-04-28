@@ -161,7 +161,7 @@ When adding a new tool:
 For `generateExampleXtf`, keep generation deterministic and conservative. If a mandatory value cannot be generated safely, skip the class and surface the reason instead of emitting potentially invalid placeholder data.
 
 When adding curated modeling rules:
-1. Extend `src/main/resources/knowledge/modeling-rules.yml`.
+1. Extend `src/main/resources/knowledge/modeling-rules.core.yml` for generic checks or `src/main/resources/knowledge/modeling-rules.so.yml` for Solothurn-specific checks.
 2. Keep each rule explicit about `appliesTo` and `checkKind`.
 3. Implement automated checks in `ModelingRuleTools` only when they are deterministic from the model text or ili2c metamodel.
 4. Keep manual checks visible in `manualChecks` instead of pretending that the server can infer missing fachliche Entscheide.

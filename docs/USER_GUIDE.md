@@ -215,14 +215,18 @@ Examples for the new families:
 `enumTreeValueType` intentionally renders through a named enum-tree domain, because raw `ENUMTREEVAL` is not accepted by ili2c as an attribute declaration.
 
 ### `createAssociationSnippet`
-Roles use the shape `{ "name": "...", "classFQN": "...", "card"?: "{0..*}", "external"?: true }`. For relationship attributes, reuse existing attribute tools and pass the resulting ILI lines via `attrLines`.
+Roles use the shape `{ "classFQN": "...", "name"?: "...", "card"?: "{0..*}", "external"?: true }`. `name` on the association and roles is optional; missing names are generated deterministically as:
+- association: `<ClassA>__<ClassB>` (role order, short class names)
+- role (binary): `r_<OppositeClass>`
+- self-association: `r_<Class>_1` / `r_<Class>_2`
+- n-ary fallback: `r_<OwnClass>` (+ collision suffixes)
+For relationship attributes, reuse existing attribute tools and pass the resulting ILI lines via `attrLines`.
 
 ```json
 {
-  "name": "Link",
   "roles": [
-    { "name": "from", "classFQN": "Demo.Topic.Source", "card": "{1}", "external": true },
-    { "name": "to", "classFQN": "Demo.Topic.Target", "card": "{0..*}" }
+    { "classFQN": "Demo.Topic.Source", "card": "{1}", "external": true },
+    { "classFQN": "Demo.Topic.Target", "card": "{0..*}" }
   ],
   "attrLines": [
     "/** Beziehungscode */\ncode : TEXT*20;"
@@ -373,9 +377,9 @@ Example `createClassSnippet` payload:
 - `analyzeIliModel`
   Returns structural metadata for a full model: `valid`, `messages`, `iliVersion`, `models`, `imports`, `topics`, `classes`, `structures`, `domains`, `associations`, `attributes`, `metaAttributes`, and `summaryMarkdown`.
 - `listModelingRules`
-  Returns the curated rules with `id`, `title`, `severity`, `appliesTo`, and `checkKind`.
+  Returns the curated rules with `profile`, `id`, `title`, `severity`, `appliesTo`, and `checkKind`. Optional parameter `profile` defaults to `CORE`. `SO` includes `CORE` plus SO-specific additions.
 - `checkModelingRules`
-  Returns `validForAutomatedRules`, automated `findings`, and separate `manualChecks`. Set `modelPurpose` to `CAPTURE`, `PUBLICATION`, `VALIDATION`, or `UNKNOWN`.
+  Returns `profile`, `validForAutomatedRules`, automated `findings`, and separate `manualChecks`. Set `modelPurpose` to `CAPTURE`, `PUBLICATION`, `VALIDATION`, or `UNKNOWN`. Optional `profile` defaults to `CORE`; `SO` runs `CORE` plus SO-specific rules.
 - `indexConfiguredModels`
   Scans configured local `.ili` paths and returns indexed files, ignored files, and errors.
 - `findSimilarModels`

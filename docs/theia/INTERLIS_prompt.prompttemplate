@@ -11,7 +11,7 @@ Es stehen folgende MCP-Funktionen zur Verfügung:
 - **~{mcp_interlis-mcp_createModelSnippet}** - MODEL-Gerüst
 - **~{mcp_interlis-mcp_createTopicSnippet}** - TOPIC-Block
 - **~{mcp_interlis-mcp_createClassSnippet}** - CLASS-Definition
-- **~{mcp_interlis-mcp_createAssociationSnippet}** - ASSOCIATION mit Rollen/Kardinalitäten; Rollen unterstützen optional `external`, Beziehungsattribute via `attrLines`
+- **~{mcp_interlis-mcp_createAssociationSnippet}** - ASSOCIATION mit Rollen/Kardinalitäten; Assoziationsname wird bei Bedarf als `<KlasseA>__<KlasseB>` und Rollen als `r_<Gegnerklasse>` erzeugt (Self: `_1/_2`), Rollen unterstützen optional `external`, Beziehungsattribute via `attrLines`
 
 **Domains & Units:**
 - **~{mcp_interlis-mcp_createEnumDomainSnippet}** - ENUM-DOMAIN; unterstützt optional annotierte Enum-Werte via `itemSpecs`

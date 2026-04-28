@@ -8,6 +8,7 @@ import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,21 +17,45 @@ import org.springframework.stereotype.Component;
 @Component
 public class KnowledgeRuleLoader {
 
-  private static final String RESOURCE = "/knowledge/modeling-rules.yml";
-  private final List<ModelingRule> rules;
+  private static final String CORE_RESOURCE = "/knowledge/modeling-rules.core.yml";
+  private static final String SO_RESOURCE = "/knowledge/modeling-rules.so.yml";
+  private final Map<ModelingRuleProfile, List<ModelingRule>> rulesByProfile;
 
   public KnowledgeRuleLoader() {
-    this.rules = List.copyOf(loadRules());
+    Map<ModelingRuleProfile, List<ModelingRule>> loaded = new EnumMap<>(ModelingRuleProfile.class);
+    loaded.put(ModelingRuleProfile.CORE, List.copyOf(loadRules(CORE_RESOURCE, ModelingRuleProfile.CORE)));
+    loaded.put(ModelingRuleProfile.SO, List.copyOf(loadRules(SO_RESOURCE, ModelingRuleProfile.SO)));
+    this.rulesByProfile = Map.copyOf(loaded);
   }
 
   public List<ModelingRule> rules() {
-    return rules;
+    return rules(ModelingRuleProfile.CORE);
+  }
+
+  public List<ModelingRule> rules(ModelingRuleProfile profile) {
+    ModelingRuleProfile normalized = ModelingRuleProfile.normalize(profile);
+    if (normalized == ModelingRuleProfile.CORE) {
+      return rulesByProfile.getOrDefault(ModelingRuleProfile.CORE, List.of());
+    }
+
+    List<ModelingRule> merged = new ArrayList<>();
+    merged.addAll(rulesByProfile.getOrDefault(ModelingRuleProfile.CORE, List.of()));
+    merged.addAll(rulesByProfile.getOrDefault(normalized, List.of()));
+    return List.copyOf(merged);
   }
 
   public String rulesAsMarkdown() {
+    return rulesAsMarkdown(ModelingRuleProfile.CORE);
+  }
+
+  public String rulesAsMarkdown(ModelingRuleProfile profile) {
+    ModelingRuleProfile normalizedProfile = ModelingRuleProfile.normalize(profile);
+    List<ModelingRule> rules = rules(normalizedProfile);
     StringBuilder sb = new StringBuilder("# Curated INTERLIS Modeling Rules\n\n");
+    sb.append("Active profile: `").append(normalizedProfile).append("`\n\n");
     for (ModelingRule rule : rules) {
       sb.append("## ").append(rule.id()).append(" - ").append(rule.title()).append("\n\n")
+          .append("- Profile: ").append(rule.profile()).append("\n")
           .append("- Severity: ").append(rule.severity()).append("\n")
           .append("- Applies to: ").append(rule.appliesTo()).append("\n")
           .append("- Check kind: ").append(rule.checkKind()).append("\n")
@@ -41,10 +66,10 @@ public class KnowledgeRuleLoader {
     return sb.toString();
   }
 
-  private List<ModelingRule> loadRules() {
-    InputStream input = KnowledgeRuleLoader.class.getResourceAsStream(RESOURCE);
+  private List<ModelingRule> loadRules(String resource, ModelingRuleProfile defaultProfile) {
+    InputStream input = KnowledgeRuleLoader.class.getResourceAsStream(resource);
     if (input == null) {
-      throw new IllegalStateException("Missing resource " + RESOURCE);
+      throw new IllegalStateException("Missing resource " + resource);
     }
 
     List<Map<String, String>> rawRules = new ArrayList<>();
@@ -69,12 +94,17 @@ public class KnowledgeRuleLoader {
         rawRules.add(current);
       }
     } catch (IOException e) {
-      throw new UncheckedIOException("Unable to read " + RESOURCE, e);
+      throw new UncheckedIOException("Unable to read " + resource, e);
     }
 
     List<ModelingRule> parsed = new ArrayList<>();
     for (Map<String, String> raw : rawRules) {
+      String rawProfile = raw.get("profile");
+      ModelingRuleProfile profile = rawProfile == null || rawProfile.isBlank()
+          ? defaultProfile
+          : ModelingRuleProfile.valueOf(rawProfile);
       parsed.add(new ModelingRule(
+          profile,
           require(raw, "id"),
           require(raw, "title"),
           ModelingRule.Severity.valueOf(require(raw, "severity")),
@@ -110,4 +140,3 @@ public class KnowledgeRuleLoader {
     return value;
   }
 }
-

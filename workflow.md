@@ -36,6 +36,8 @@ opencode
 
 - Verwende `@interlis-modeler`, wenn du mit dem INTERLIS-Spezialisten frei arbeiten willst.
 - Verwende `/interlis-review`, wenn du ein vorhandenes Modell gezielt analysieren, regelpruefen und validieren lassen willst.
+- Verwende `@interlis-vision-extractor`, wenn die Hauptquelle ein Whiteboard-Foto oder UML-Diagramm-Bild ist.
+- Verwende `/whiteboard-to-ili`, wenn du den kompletten 2-Stufen-Flow (Bildextraktion -> bestaetigte INTERLIS-Generierung) ablaufen lassen willst.
 
 Beispiel:
 
@@ -63,6 +65,25 @@ Der Agent soll nicht einfach nur Code ausgeben. Er soll iterativ arbeiten:
 8. Technisch eindeutige Fehler beheben.
 9. Analyse, Regelcheck und Validierung nach Fixes wiederholen.
 10. Resultat mit automatisierten Findings, manuellen Checks und offenen Fragen zusammenfassen.
+
+## Foto/UML-Workflow (2 Stufen)
+
+Wenn du mit einem Whiteboard-Foto oder UML-Bild arbeitest, gilt ein gesonderter Ablauf:
+
+1. Stage A mit `@interlis-vision-extractor` oder `/whiteboard-to-ili` starten.
+2. Agent liefert einen strukturierten UML-Extraktionsreport.
+3. Report muss Unsicherheiten explizit markieren:
+   - `Faktisch erkannt`
+   - `Annahme`
+   - `Offene Frage`
+4. Du bestaetigst oder korrigierst den Report.
+5. Erst danach Stage B:
+   - INTERLIS-Modell erzeugen/aktualisieren via `@interlis-modeler`
+   - `analyzeIliModel`
+   - `checkModelingRules`
+   - `validateIliModel`
+
+Warum: Bildinterpretation ist unsicherer als Textinput. Durch die explizite Zwischenbestaetigung vermeidest du versteckte fachliche Fehlannahmen.
 
 ## Modellzweck Festlegen
 
@@ -109,6 +130,7 @@ Eine gute agentische Modelliersession endet nicht nur mit ILI-Text. Sie endet mi
 - Schema-Jobs werden noch nicht automatisch erzeugt.
 - GRETL-Datenumbau ist noch nicht Teil dieses Workflows.
 - SQL-QA ist als spaeterer Schritt vorgesehen, aber hier nicht aktiv.
+- Vision-Auswertung haengt stark von Bildqualitaet, Perspektive und Lesbarkeit ab; Unsicherheiten muessen immer sichtbar gemacht werden.
 
 ## Praktische Arbeitsweise
 

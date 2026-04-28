@@ -7,7 +7,8 @@ Expose curated INTERLIS modeling knowledge through MCP resources and prompt temp
 ## Components
 
 - `src/main/resources/application.properties`
-- `src/main/resources/knowledge/modeling-rules.yml`
+- `src/main/resources/knowledge/modeling-rules.core.yml`
+- `src/main/resources/knowledge/modeling-rules.so.yml`
 - `ch.so.agi.mcp.knowledge.KnowledgeResources`
 - `ch.so.agi.mcp.knowledge.AgentPrompts`
 
@@ -33,4 +34,3 @@ Expose curated INTERLIS modeling knowledge through MCP resources and prompt temp
 
 - No runtime crawling of the external handbook.
 - No schema-job or GRETL knowledge in this step.
-

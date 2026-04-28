@@ -290,6 +290,26 @@ public class StdioE2eTest {
     }
 
     @Test
+    void createAssociationSnippet_withoutExplicitNames_overStdio() throws Exception {
+        initializeSession();
+
+        String argsJson = "{"
+                + "\"roles\":["
+                + "{\"classFQN\":\"Demo.Topic.Source\"},"
+                + "{\"classFQN\":\"Demo.Topic.Target\",\"card\":\"{0..1}\"}"
+                + "]"
+                + "}";
+
+        String response = callTool(3, "createAssociationSnippet", argsJson);
+        assertSuccessfulToolResponse(response,
+                "createAssociationSnippet",
+                "ASSOCIATION Source__Target",
+                "r_Target -- Demo.Topic.Source",
+                "r_Source -- {0..1} Demo.Topic.Target",
+                "generatedNames");
+    }
+
+    @Test
     void renameModelElement_classRename_overStdio() throws Exception {
         initializeSession();
 
@@ -397,6 +417,36 @@ public class StdioE2eTest {
 
         String ruleCheck = callTool(8, "checkModelingRules", argsJson);
         assertSuccessfulToolResponse(ruleCheck, "checkModelingRules", "validForAutomatedRules", "manualChecks", "MDE-060");
+    }
+
+    @Test
+    void checkModelingRules_profileCore_overStdio() throws Exception {
+        initializeSession();
+
+        String modelText = """
+                INTERLIS 2.4;
+
+                MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
+                  TOPIC Topic =
+                    CLASS Thing =
+                      name : TEXT*20;
+                    END Thing;
+                  END Topic;
+                END Demo.
+                """;
+
+        String argsJson = "{"
+                + "\"modelText\":" + jsonString(modelText) + ","
+                + "\"modelPurpose\":\"CAPTURE\","
+                + "\"profile\":\"CORE\","
+                + "\"ruleIds\":[\"MDE-020\"]"
+                + "}";
+
+        String response = callTool(3, "checkModelingRules", argsJson);
+        assertSuccessfulToolResponse(response,
+                "checkModelingRules",
+                "CORE",
+                "validForAutomatedRules");
     }
 
     // ---- helpers ----

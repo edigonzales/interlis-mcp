@@ -17,9 +17,10 @@ class ModelingRuleToolsTest {
 
   @Test
   void listsCuratedRules() {
-    Map<String, Object> response = tools.listModelingRules();
+    Map<String, Object> response = tools.listModelingRules(null);
 
-    assertThat(response.get("rules")).asList().hasSize(8);
+    assertThat(response.get("profile")).isEqualTo("CORE");
+    assertThat(response.get("rules")).asList().hasSize(9);
   }
 
   @Test
@@ -28,7 +29,8 @@ class ModelingRuleToolsTest {
         publicationModelWithAssociation(),
         ModelPurpose.PUBLICATION,
         null,
-        List.of("MDE-010"));
+        List.of("MDE-010"),
+        null);
 
     assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
     assertThat(response.get("findings")).asList()
@@ -41,10 +43,37 @@ class ModelingRuleToolsTest {
         minimalModel(),
         ModelPurpose.CAPTURE,
         null,
-        List.of("MDE-001", "MDE-050"));
+        List.of("MDE-001", "MDE-050"),
+        null);
 
     assertThat(response.get("findings")).asList().isEmpty();
     assertThat(response.get("manualChecks")).asList().hasSize(2);
+  }
+
+  @Test
+  void flagsTabsInModelText() {
+    String modelWithTab = """
+        INTERLIS 2.4;
+
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
+\tTOPIC Topic =
+            CLASS Thing =
+              name : TEXT*20;
+            END Thing;
+          END Topic;
+        END Demo.
+        """;
+
+    Map<String, Object> response = tools.checkModelingRules(
+        modelWithTab,
+        ModelPurpose.CAPTURE,
+        null,
+        List.of("MDE-206"),
+        ModelingRuleProfile.CORE);
+
+    assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
+    assertThat(response.get("findings")).asList()
+        .anySatisfy(finding -> assertThat(finding.toString()).contains("MDE-206").contains("line"));
   }
 
   private String minimalModel() {
