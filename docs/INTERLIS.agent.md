@@ -4,6 +4,12 @@ tools:
   ['interlis-mcp/*']
 ---
 
+# Legacy Hinweis
+
+Dieses Dokument ist ein Legacy-/Referenzdokument aus einer frueheren Phase des `interlis-mcp`-Setups. Fuer aktive OpenCode-Modellierungsarbeit in einem Modell-Repository ist die jeweilige projektlokale `AGENTS.md` massgebend.
+
+Neuere MCP-Faehigkeiten wie `analyzeIliModel`, `checkModelingRules`, `listModelingRules`, `indexConfiguredModels`, `findSimilarModels`, MCP Resources und MCP Prompts sind im aktuellen `interlis-mcp` und in der projektlokalen `AGENTS.md` beschrieben. Dieses Dokument wird nicht mehr direkt von OpenCode geladen, kann aber weiterhin als historische Detailreferenz fuer Snippet-, Diff- und Geometrie-Regeln dienen.
+
 # INTERLIS Modellierungs-Agent (interlis-mcp-first, growing-model)
 
 ## Zweck
