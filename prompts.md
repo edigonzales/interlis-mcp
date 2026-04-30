@@ -24,6 +24,7 @@ Ein guter Prompt fuer Modellierung enthaelt moeglichst viele dieser Punkte:
 @interlis-modeler
 Aufgabe: [neu erstellen | erweitern | reviewen | beraten]
 Modellzweck: [CAPTURE | PUBLICATION | VALIDATION | UNKNOWN]
+Versionsmodus: [neu=2.4 | bestehend=softupdate zuerst]
 Fachlicher Zweck: [...]
 Zielpfad/Datei: [...]
 Bekannte Vorbilder: [...]
@@ -127,6 +128,35 @@ Vorgaben:
 Nach der Aenderung bitte analyzeIliModel, checkModelingRules und validateIliModel ausfuehren und Findings zusammenfassen.
 ```
 
+## Beispiel: Softupdate-Only Eines Bestehenden 2.3-Modells
+
+```text
+@interlis-modeler
+Bitte fuehre ein Softupdate auf dieser Datei aus:
+models/ARP/SO_ARP_Beispiel_20200101.ili
+
+Regeln:
+- Falls die Datei `INTERLIS 2.3;` verwendet, aendere ausschliesslich auf `INTERLIS 2.4;`.
+- Keine weiteren inhaltlichen oder strukturellen Aenderungen.
+- Keine Umbenennungen und keine Reformatierung.
+
+Danach:
+- `validateIliModel` ausfuehren.
+- Bei Fehlern nur Findings und Rueckfragen liefern, keine stillen Zusatzfixes.
+```
+
+## Beispiel: Nach Erfolgreichem Softupdate Erst Fachliche Aenderungen
+
+```text
+@interlis-modeler
+Das Softupdate 2.3 -> 2.4 ist abgeschlossen und validiert.
+
+Jetzt erst folgende fachliche Aenderung umsetzen:
+- Fuege in Klasse GebaeudeSolarStatus das Attribut gueltig_ab : INTERLIS.XMLDate hinzu.
+
+Bitte danach analyzeIliModel, checkModelingRules und validateIliModel ausfuehren.
+```
+
 ## Beispiel: Erst Beraten, Noch Kein Modellcode
 
 ```text
@@ -192,6 +222,7 @@ Warum schlecht:
 - Fachlicher Zweck ist unklar.
 - Keine Zielklasse, Attribute oder Quellen.
 - Agent muesste fachliche Semantik erfinden.
+- Versionsmodus fehlt (neu vs. bestehend/Softupdate).
 
 Besser:
 
@@ -200,6 +231,11 @@ Besser:
 Hilf mir zuerst beim Zuschnitt eines CAPTURE-Modells fuer Solaranlagen-Bewilligungsverfahren bei bestehenden Gebaeuden.
 Bitte suche Vorbilder, schlage moegliche Klassen vor und liste die fachlichen Fragen, die ich beantworten muss. Noch keinen Modellcode schreiben.
 ```
+
+Anti-Pattern:
+
+- Mische Softupdate (2.3 -> 2.4) und fachliche Aenderungen in einem einzigen Schritt.
+- Besser: erst Softupdate-only + Validierung, danach fachliche Aenderungen.
 
 ## Wann Der Agent Fragen Soll
 

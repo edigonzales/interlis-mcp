@@ -55,16 +55,20 @@ Beispiel:
 
 Der Agent soll nicht einfach nur Code ausgeben. Er soll iterativ arbeiten:
 
-1. Kontext sammeln: Modellzweck, Fachziel, Zielpfad, vorhandene Modelle, offene Punkte.
-2. Lokale Vorbilder suchen, zum Beispiel mit `findSimilarModels`.
-3. Fachliche Rueckfragen stellen, wenn Semantik fehlt.
-4. Modell erstellen oder bestehende Datei erweitern.
-5. `analyzeIliModel` ausfuehren.
-6. `checkModelingRules` mit passendem `modelPurpose` ausfuehren.
-7. `validateIliModel` ausfuehren.
-8. Technisch eindeutige Fehler beheben.
-9. Analyse, Regelcheck und Validierung nach Fixes wiederholen.
-10. Resultat mit automatisierten Findings, manuellen Checks und offenen Fragen zusammenfassen.
+1. Versionscheck vor jeder Bearbeitung:
+   - neue Modelle immer `INTERLIS 2.4;`
+   - bestehende `INTERLIS 2.3;` zuerst Softupdate-only (`2.3` -> `2.4`) ohne weitere Aenderung.
+2. Nach Softupdate sofort `validateIliModel` ausfuehren.
+3. Kontext sammeln: Modellzweck, Fachziel, Zielpfad, vorhandene Modelle, offene Punkte.
+4. Lokale Vorbilder suchen, zum Beispiel mit `findSimilarModels`.
+5. Fachliche Rueckfragen stellen, wenn Semantik fehlt.
+6. Modell erstellen oder bestehende Datei erweitern.
+7. `analyzeIliModel` ausfuehren.
+8. `checkModelingRules` mit passendem `modelPurpose` ausfuehren.
+9. `validateIliModel` ausfuehren.
+10. Technisch eindeutige Fehler beheben.
+11. Analyse, Regelcheck und Validierung nach Fixes wiederholen.
+12. Resultat mit automatisierten Findings, manuellen Checks und offenen Fragen zusammenfassen.
 
 ## Foto/UML-Workflow (2 Stufen)
 
@@ -118,6 +122,8 @@ Bei Modell-Aenderungen:
 Eine gute agentische Modelliersession endet nicht nur mit ILI-Text. Sie endet mit:
 
 - einem nachvollziehbaren Modellstand,
+- klarer Modellversion (`INTERLIS 2.4`),
+- bei Altmodellen: sauber getrenntem Softupdate-Schritt vor Fachaenderungen,
 - validiertem oder klar fehlerhaftem Modell,
 - struktureller Analyse,
 - Regelcheck-Findings,
