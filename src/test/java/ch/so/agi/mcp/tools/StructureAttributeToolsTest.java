@@ -30,4 +30,23 @@ class StructureAttributeToolsTest {
         "!!@ ch.so.attr=\"doc\"",
         "kontakt : MANDATORY BAG OF Demo.Core.Contact;"), response.get("iliSnippet"));
   }
+
+  @Test
+  void createStructureAttributeLine_rendersJsonMappingMetaAttribute() {
+    MetaAttributeSpec metaAttribute = new MetaAttributeSpec();
+    metaAttribute.setName("ili2db.mapping");
+    metaAttribute.setRawValue("JSON");
+
+    Map<String, Object> response = structureAttributeTools.createStructureAttributeLine(
+        "Dokumente",
+        "Demo.Core.Dokument",
+        false,
+        StructureAttributeTools.Collection.BAG_OF,
+        null,
+        List.of(metaAttribute));
+
+    assertEquals(String.join("\n",
+        "!!@ ili2db.mapping=JSON",
+        "Dokumente : BAG OF Demo.Core.Dokument;"), response.get("iliSnippet"));
+  }
 }

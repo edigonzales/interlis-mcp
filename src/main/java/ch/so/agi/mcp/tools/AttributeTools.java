@@ -121,12 +121,17 @@ public class AttributeTools {
   }
 
   private String numericFragment(BaseType bt) {
-    var sb = new StringBuilder("NUMERIC");
+    boolean hasUnit = bt.getUnitFqn() != null && !bt.getUnitFqn().isBlank();
+    var sb = new StringBuilder();
     if (bt.getKind() == BaseType.Kind.NUM_RANGE) {
-      sb.append(" ").append(bt.getMin()).append(" .. ").append(bt.getMax());
+      sb.append(formatRangeValue(bt.getMin(), hasUnit))
+          .append(" .. ")
+          .append(formatRangeValue(bt.getMax(), hasUnit));
+    } else {
+      sb.append("NUMERIC");
     }
 
-    if (bt.getUnitFqn() != null && !bt.getUnitFqn().isBlank()) {
+    if (hasUnit) {
       sb.append(" [").append(bt.getUnitFqn().trim()).append("]");
     }
 
@@ -144,5 +149,18 @@ public class AttributeTools {
     }
 
     return sb.toString();
+  }
+
+  private String formatRangeValue(Double value, boolean keepIntegralDecimal) {
+    if (value == null) {
+      throw new IllegalArgumentException("NUM_RANGE requires non-null range bounds.");
+    }
+    if (keepIntegralDecimal) {
+      return value.toString();
+    }
+    if (value.doubleValue() == Math.rint(value.doubleValue())) {
+      return Long.toString(value.longValue());
+    }
+    return value.toString();
   }
 }

@@ -54,7 +54,27 @@ class AttributeToolsTest {
 
         AttributeLineResponse response = attributeTools.createAttributeLine(request);
 
-        assertEquals("hoehe : MANDATORY LIST OF NUMERIC 0.0 .. 100.0 [INTERLIS.m];", response.getIliSnippet());
+        assertEquals("hoehe : MANDATORY LIST OF 0.0 .. 100.0 [INTERLIS.m];", response.getIliSnippet());
+    }
+
+    @Test
+    void createAttributeLineV2_formatsIntegerRangeWithoutNumericKeyword() {
+        AttributeLineRequest request = new AttributeLineRequest();
+        request.setName("BFSNr");
+        request.setMandatory(true);
+
+        BaseType baseType = new BaseType();
+        baseType.setKind(BaseType.Kind.NUM_RANGE);
+        baseType.setMin(2000.0);
+        baseType.setMax(3000.0);
+
+        TypeSpec spec = new TypeSpec();
+        spec.setBaseType(baseType);
+        request.setTypeSpec(spec);
+
+        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+
+        assertEquals("BFSNr : MANDATORY 2000 .. 3000;", response.getIliSnippet());
     }
 
     @Test
