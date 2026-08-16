@@ -45,7 +45,7 @@ public class ModelAnalysisTools {
 
   @McpTool(
       name = "analyzeIliModel",
-      description = "Analysiert ein vollstaendiges INTERLIS-Modell strukturell mit ili2c. Rueckgabe: valid, messages, Modelle, Imports, Topics, Klassen, Strukturen, Domains, Associations, Attribute, Metaattribute und summaryMarkdown."
+      description = "Analysiert ein vollstaendiges INTERLIS-Modell strukturell mit ili2c. Rueckgabe: valid, messages, Modelle, Imports, Topics, Klassen, Strukturen, Domains, Units, Associations, Attribute, Metaattribute und summaryMarkdown."
   )
   public Map<String, Object> analyzeIliModel(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
@@ -92,6 +92,7 @@ public class ModelAnalysisTools {
         Map.entry("classes", data.classes),
         Map.entry("structures", data.structures),
         Map.entry("domains", data.domains),
+        Map.entry("units", data.units),
         Map.entry("associations", data.associations),
         Map.entry("attributes", data.attributes),
         Map.entry("metaAttributes", data.metaAttributes),
@@ -223,13 +224,14 @@ public class ModelAnalysisTools {
         + "- classes: " + data.classes.size() + "\n"
         + "- structures: " + data.structures.size() + "\n"
         + "- domains: " + data.domains.size() + "\n"
+        + "- units: " + data.units.size() + "\n"
         + "- associations: " + data.associations.size() + "\n"
         + "- attributes: " + data.attributes.size();
   }
 
   public Set<String> lexicalTerms(Map<String, Object> analysisResponse) {
     Set<String> terms = new LinkedHashSet<>();
-    for (String key : List.of("models", "topics", "classes", "structures", "domains", "associations", "attributes")) {
+    for (String key : List.of("models", "topics", "classes", "structures", "domains", "units", "associations", "attributes")) {
       Object value = analysisResponse.get(key);
       if (value instanceof List<?> list) {
         for (Object item : list) {
