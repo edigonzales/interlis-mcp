@@ -256,7 +256,7 @@ class ToolRegistrationContractTest {
     expectations.put("createStructureSnippet", schema(Set.of("name"), Set.of("isAbstract", "extendsFqn", "attrLines", "iliDoc", "metaAttributes")));
     expectations.put("createTopicSnippet", schema(Set.of("name"), Set.of("oidType", "isAbstract", "iliDoc", "metaAttributes")));
     expectations.put("createUniqueConstraint", schema(Set.of("attrs"), Set.of("iliDoc", "metaAttributes")));
-    expectations.put("createUnitSnippet", schema(Set.of("name", "kind", "base"), Set.of("iliDoc", "metaAttributes")));
+    expectations.put("createUnitSnippet", schema(Set.of("name", "factor", "base"), Set.of("iliDoc", "metaAttributes")));
     expectations.put("createValueRangeConstraint", schema(Set.of("attr", "range"), Set.of("iliDoc", "metaAttributes")));
     expectations.put("ensureGeometryDependencies", schema(Set.of("attributeName"),
         Set.of("dimension", "arcs", "overlapMm", "chbase", "iliVersion", "geometryType", "directed", "mandatory", "collection")));
