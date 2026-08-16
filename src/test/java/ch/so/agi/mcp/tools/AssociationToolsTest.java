@@ -29,6 +29,7 @@ class AssociationToolsTest {
             "  to -- {0..*} Mod.Topic.Target;",
             "END Link;"),
         response.get("iliSnippet"));
+    assertEquals(List.of(), response.get("openQuestions"));
   }
 
   @Test
@@ -48,6 +49,10 @@ class AssociationToolsTest {
         response.get("iliSnippet"));
     assertTrue(response.toString().contains("generatedNames"));
     assertTrue(response.toString().contains("Source__Target"));
+    assertTrue(response.get("openQuestions").toString().contains("Generated association name 'Source__Target'"));
+    assertTrue(response.get("openQuestions").toString().contains("Generated role name 'r_Target'"));
+    assertTrue(response.get("openQuestions").toString().contains("Generated role name 'r_Source'"));
+    assertTrue(response.get("openQuestions").toString().contains("technical placeholder"));
   }
 
   @Test
@@ -67,6 +72,8 @@ class AssociationToolsTest {
             "  r_Person_2 -- {0..*} Mod.Topic.Person;",
             "END Person__Person;"),
         response.get("iliSnippet"));
+    assertTrue(response.get("openQuestions").toString().contains("r_Person_1"));
+    assertTrue(response.get("openQuestions").toString().contains("r_Person_2"));
   }
 
   @Test
@@ -89,7 +96,8 @@ class AssociationToolsTest {
             "END Address__Person__Person;"),
         response.get("iliSnippet"));
     assertTrue(response.toString().contains("nameCollisionsResolved"));
-    assertTrue(response.toString().contains("N-ary association uses fallback auto role names"));
+    assertTrue(response.get("openQuestions").toString().contains("r_Person_2"));
+    assertTrue(response.get("openQuestions").toString().contains("technical placeholder"));
   }
 
   @Test
@@ -107,6 +115,7 @@ class AssociationToolsTest {
             "  to -- {0..1} Mod.Topic.Target;",
             "END Link;"),
         response.get("iliSnippet"));
+    assertTrue(response.get("openQuestions").toString().contains("Missing cardinality for role 'from'"));
   }
 
   @Test
