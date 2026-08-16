@@ -48,7 +48,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,7 +57,6 @@ import org.interlis2.validator.Validator;
 @Service
 public class XtfService {
 
-  private static final ReentrantLock ILIVALIDATOR_LOCK = new ReentrantLock();
   private static final int MAX_SUPPORTED_REQUIRED_MULTIPLICITY = 5;
 
   private final IliCompilerService compilerService;
@@ -194,20 +192,21 @@ public class XtfService {
     boolean validationResult = false;
     LogListener collector = new ValidatorLogCollector(messages);
 
-    ILIVALIDATOR_LOCK.lock();
-    StdListener stdListener = StdListener.getInstance();
-    stdListener.skipInfo(true);
-    EhiLogger.getInstance().addListener(collector);
-    EhiLogger.getInstance().removeListener(stdListener);
-    try {
-      validationResult = new Validator().validate(new String[] {xtfFile.toString()}, settings);
-    } catch (Exception e) {
-      messages.add(message("ERROR", "ilivalidator failed: " + e.getMessage()));
-    } finally {
-      EhiLogger.getInstance().addListener(stdListener);
-      EhiLogger.getInstance().removeListener(collector);
-      stdListener.skipInfo(false);
-      ILIVALIDATOR_LOCK.unlock();
+    EhiLogger logger = EhiLogger.getInstance();
+    synchronized (logger) {
+      StdListener stdListener = StdListener.getInstance();
+      stdListener.skipInfo(true);
+      logger.addListener(collector);
+      logger.removeListener(stdListener);
+      try {
+        validationResult = new Validator().validate(new String[] {xtfFile.toString()}, settings);
+      } catch (Exception e) {
+        messages.add(message("ERROR", "ilivalidator failed: " + e.getMessage()));
+      } finally {
+        logger.addListener(stdListener);
+        logger.removeListener(collector);
+        stdListener.skipInfo(false);
+      }
     }
     return validationResult;
   }
