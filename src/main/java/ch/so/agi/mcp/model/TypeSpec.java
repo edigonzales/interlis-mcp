@@ -7,6 +7,9 @@ import jakarta.validation.constraints.Pattern;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class TypeSpec {
 
+  private static final String TYPE_SELECTION_ERROR =
+      "typeSpec must define exactly one of 'domainFqn', 'baseType', 'referenceType', 'blackboxType', 'enumTreeValueType', 'basketType', 'objectType' or 'metaobjectType'.";
+
   @Pattern(regexp = "^([A-Za-z][A-Za-z0-9_]*)(\\.[A-Za-z][A-Za-z0-9_]*)*$", message = "FQN must be dot-separated identifiers")
   @JsonProperty(required = false)
   private String domainFqn;
@@ -49,29 +52,36 @@ public class TypeSpec {
   public MetaobjectTypeSpec getMetaobjectType() { return metaobjectType; }
   public void setMetaobjectType(MetaobjectTypeSpec metaobjectType) { this.metaobjectType = metaobjectType; }
 
-  public void validateOneOf() {
-    boolean hasDomain = domainFqn != null && !domainFqn.isBlank();
-    boolean hasBase = baseType != null;
-    boolean hasReference = referenceType != null;
-    boolean hasBlackbox = blackboxType != null;
-    boolean hasEnumTreeValue = enumTreeValueType != null;
-    boolean hasBasket = basketType != null;
-    boolean hasObject = objectType != null;
-    boolean hasMetaobject = metaobjectType != null;
+  public Object requireSingleType() {
+    Object selected = null;
+    Object[] candidates = {
+        domainFqn != null && !domainFqn.isBlank() ? domainFqn : null,
+        baseType,
+        referenceType,
+        blackboxType,
+        enumTreeValueType,
+        basketType,
+        objectType,
+        metaobjectType
+    };
 
-    int populated = 0;
-    populated += hasDomain ? 1 : 0;
-    populated += hasBase ? 1 : 0;
-    populated += hasReference ? 1 : 0;
-    populated += hasBlackbox ? 1 : 0;
-    populated += hasEnumTreeValue ? 1 : 0;
-    populated += hasBasket ? 1 : 0;
-    populated += hasObject ? 1 : 0;
-    populated += hasMetaobject ? 1 : 0;
-
-    if (populated != 1) {
-      throw new IllegalArgumentException(
-          "typeSpec must define exactly one of 'domainFqn', 'baseType', 'referenceType', 'blackboxType', 'enumTreeValueType', 'basketType', 'objectType' or 'metaobjectType'.");
+    for (Object candidate : candidates) {
+      if (candidate == null) {
+        continue;
+      }
+      if (selected != null) {
+        throw new IllegalArgumentException(TYPE_SELECTION_ERROR);
+      }
+      selected = candidate;
     }
+
+    if (selected == null) {
+      throw new IllegalArgumentException(TYPE_SELECTION_ERROR);
+    }
+    return selected;
+  }
+
+  public void validateOneOf() {
+    requireSingleType();
   }
 }
