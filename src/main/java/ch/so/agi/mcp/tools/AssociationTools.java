@@ -23,10 +23,10 @@ public class AssociationTools {
       Pattern.compile("\\{\\s*(\\d+)(?:\\s*\\.\\.\\s*(\\d+|\\*))?\\s*\\}");
 
   public static class Role {
-    public String name;
+    public @Nullable String name;
     public String classFQN;
-    public String card; // e.g. {1}, {0..1}, {1..*}
-    public Boolean external;
+    public @Nullable String card; // e.g. {1}, {0..1}, {1..*}
+    public @Nullable Boolean external;
   }
 
   @McpTool(name = "createAssociationSnippet",

@@ -16,9 +16,12 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
 public class DomainTools {
+
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   @McpTool(name = "createEnumDomainSnippet",
         description = "Erzeugt eine Aufzählungs-DOMAIN. Params: name (required), items (legacy list of enum item names) XOR itemSpecs (annotated enum items), iliDoc, metaAttributes.")
@@ -62,7 +65,7 @@ public class DomainTools {
   public Map<String,Object> createUnit(
       @McpToolParam(description = "Einheiten-Name", required = true) String name,
       @McpToolParam(description = "Einheitsart, z. B. LENGTH, AREA", required = true) String kind,
-      @McpToolParam(description = "Basis-Einheit, z. B. INTERLIS.m", required = true) String base,
+      @McpToolParam(description = "Basis-Einheit, z. B. 'INTERLIS.m'", required = true) String base,
       @McpToolParam(description = "IliDoc-Blockkommentar direkt vor der UNIT", required = false) @Nullable String iliDoc,
       @McpToolParam(description = "INTERLIS-Metaattribute direkt vor der UNIT", required = false) @Nullable List<MetaAttributeSpec> metaAttributes
   ) {
@@ -104,7 +107,7 @@ public class DomainTools {
       description = "Erzeugt eine verschachtelte Aufzählungs-DOMAIN. Params: name (required), items (required: recursive tree items), iliDoc, metaAttributes.")
   public Map<String, Object> createEnumTreeDomainSnippet(
       @McpToolParam(description = "Domain-Name", required = true) String name,
-      @McpToolParam(description = "Rekursiver Enum-Baum mit name und optionalen children", required = true) List<EnumTreeItem> items,
+      @McpToolParam(description = "Rekursiver Enum-Baum. Jedes Element ist ein Objekt mit name (required) und optional iliDoc, metaAttributes und children mit derselben Struktur.", required = true) List<?> items,
       @McpToolParam(description = "IliDoc-Blockkommentar direkt vor der DOMAIN", required = false) @Nullable String iliDoc,
       @McpToolParam(description = "INTERLIS-Metaattribute direkt vor der DOMAIN", required = false) @Nullable List<MetaAttributeSpec> metaAttributes
   ) {
@@ -113,10 +116,11 @@ public class DomainTools {
     }
 
     NameValidator.ascii().validateIdent(name.trim(), "Domain name");
-    validateEnumTreeItems(items, "items");
+    List<EnumTreeItem> normalizedItems = normalizeEnumTreeItems(items);
+    validateEnumTreeItems(normalizedItems, "items");
 
     String snippet = AnnotationRenderer.renderAnnotations(iliDoc, metaAttributes)
-        + "DOMAIN\n  " + name.trim() + " = " + renderEnumTree(items, 1) + ";";
+        + "DOMAIN\n  " + name.trim() + " = " + renderEnumTree(normalizedItems, 1) + ";";
     return Map.of("iliSnippet", snippet);
   }
 
@@ -187,6 +191,14 @@ public class DomainTools {
       normalized.add(item);
     }
     return validateFlatEnumItems(normalized, "items");
+  }
+
+  private List<EnumTreeItem> normalizeEnumTreeItems(List<?> items) {
+    return items.stream()
+        .map(item -> item instanceof EnumTreeItem treeItem
+            ? treeItem
+            : OBJECT_MAPPER.convertValue(item, EnumTreeItem.class))
+        .toList();
   }
 
   private List<EnumValueItem> validateFlatEnumItems(List<EnumValueItem> items, String path) {
