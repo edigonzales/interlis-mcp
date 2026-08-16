@@ -41,72 +41,68 @@ public class AttributeTools {
     if (req.getName() == null || req.getName().isBlank()) {
       throw new IllegalArgumentException("Attribute 'name' is required.");
     }
-    
-    var nv = NameValidator.ascii(); 
+
+    var nv = NameValidator.ascii();
     nv.validateIdent(req.getName(), "Attribute name");
 
-    
     if (req.getTypeSpec() == null) {
       throw new IllegalArgumentException("typeSpec is required.");
     }
-    
-    var ts = req.getTypeSpec();
-    req.getTypeSpec().validateOneOf();
-    if (ts.getDomainFqn() != null && !ts.getDomainFqn().isBlank()) {
-      nv.validateFqn(ts.getDomainFqn(), "Domain FQN");
-    }
-    
+
+    Object selectedType = req.getTypeSpec().requireSingleType();
 
     // ---- build RHS (type)
-    String rhs;
-    if (ts.getDomainFqn() != null && !ts.getDomainFqn().isBlank()) {
-      rhs = ts.getDomainFqn().trim();
-    } else if (ts.getBaseType() != null) {
-      var bt = ts.getBaseType();
-      bt.validate();
-      rhs = switch (bt.getKind()) {
-        case TEXT -> (bt.getLength() == null) ? "TEXT" : "TEXT*" + bt.getLength();
-        case MTEXT -> (bt.getLength() == null) ? "MTEXT" : "MTEXT*" + bt.getLength();
-        case NUMERIC, NUM_RANGE -> numericFragment(bt);
-        case BOOLEAN -> "BOOLEAN";
-        case COORD -> "COORD";
-        case POLYLINE -> "POLYLINE";
-        case SURFACE_SIMPLE -> "SURFACE WITH (STRAIGHTS) VERTEX COORD";
-      };
-    } else if (ts.getReferenceType() != null) {
-      var ref = ts.getReferenceType();
-      ref.validate();
-      nv.validateFqn(ref.getTargetClassFqn(), "Reference target FQN");
-      rhs = "REFERENCE TO" + (Boolean.TRUE.equals(ref.getExternal()) ? " (EXTERNAL) " : " ") + ref.getTargetClassFqn().trim();
-    } else if (ts.getBlackboxType() != null) {
-      var blackbox = ts.getBlackboxType();
-      blackbox.validate();
-      rhs = "BLACKBOX " + blackbox.getKind().name();
-    } else if (ts.getEnumTreeValueType() != null) {
-      var enumTreeValueType = ts.getEnumTreeValueType();
-      enumTreeValueType.validate();
-      nv.validateFqn(enumTreeValueType.getEnumTreeDomainFqn(), "Enum tree domain FQN");
-      rhs = enumTreeValueType.getEnumTreeDomainFqn().trim();
-    } else if (ts.getBasketType() != null) {
-      var basket = ts.getBasketType();
-      basket.validate();
-      nv.validateFqn(basket.getTopicFqn(), "Basket topic FQN");
-      String kind = basket.getKind() == null ? "" : " (" + basket.getKind().name() + ")";
-      rhs = "BASKET" + kind + " OF " + basket.getTopicFqn().trim();
-    } else if (ts.getObjectType() != null) {
-      var objectType = ts.getObjectType();
-      objectType.validate();
-      nv.validateFqn(objectType.getTargetClassFqn(), "Object target FQN");
-      rhs = (Boolean.TRUE.equals(objectType.getObjects()) ? "OBJECTS OF " : "OBJECT OF ")
-          + objectType.getTargetClassFqn().trim();
-    } else if (ts.getMetaobjectType() != null) {
-      var metaobjectType = ts.getMetaobjectType();
-      metaobjectType.validate();
-      nv.validateFqn(metaobjectType.getTableFqn(), "Metaobject table FQN");
-      rhs = "METAOBJECT OF " + metaobjectType.getTableFqn().trim();
-    } else {
-      throw new IllegalArgumentException("Unsupported typeSpec configuration.");
-    }
+    String rhs = switch (selectedType) {
+      case String domainFqn -> {
+        nv.validateFqn(domainFqn, "Domain FQN");
+        yield domainFqn.trim();
+      }
+      case BaseType bt -> {
+        bt.validate();
+        yield switch (bt.getKind()) {
+          case TEXT -> (bt.getLength() == null) ? "TEXT" : "TEXT*" + bt.getLength();
+          case MTEXT -> (bt.getLength() == null) ? "MTEXT" : "MTEXT*" + bt.getLength();
+          case NUMERIC, NUM_RANGE -> numericFragment(bt);
+          case BOOLEAN -> "BOOLEAN";
+          case COORD -> "COORD";
+          case POLYLINE -> "POLYLINE";
+          case SURFACE_SIMPLE -> "SURFACE WITH (STRAIGHTS) VERTEX COORD";
+        };
+      }
+      case ReferenceTypeSpec ref -> {
+        ref.validate();
+        nv.validateFqn(ref.getTargetClassFqn(), "Reference target FQN");
+        yield "REFERENCE TO" + (Boolean.TRUE.equals(ref.getExternal()) ? " (EXTERNAL) " : " ")
+            + ref.getTargetClassFqn().trim();
+      }
+      case BlackboxTypeSpec blackbox -> {
+        blackbox.validate();
+        yield "BLACKBOX " + blackbox.getKind().name();
+      }
+      case EnumTreeValueTypeSpec enumTreeValueType -> {
+        enumTreeValueType.validate();
+        nv.validateFqn(enumTreeValueType.getEnumTreeDomainFqn(), "Enum tree domain FQN");
+        yield enumTreeValueType.getEnumTreeDomainFqn().trim();
+      }
+      case BasketTypeSpec basket -> {
+        basket.validate();
+        nv.validateFqn(basket.getTopicFqn(), "Basket topic FQN");
+        String kind = basket.getKind() == null ? "" : " (" + basket.getKind().name() + ")";
+        yield "BASKET" + kind + " OF " + basket.getTopicFqn().trim();
+      }
+      case ObjectTypeSpec objectType -> {
+        objectType.validate();
+        nv.validateFqn(objectType.getTargetClassFqn(), "Object target FQN");
+        yield (Boolean.TRUE.equals(objectType.getObjects()) ? "OBJECTS OF " : "OBJECT OF ")
+            + objectType.getTargetClassFqn().trim();
+      }
+      case MetaobjectTypeSpec metaobjectType -> {
+        metaobjectType.validate();
+        nv.validateFqn(metaobjectType.getTableFqn(), "Metaobject table FQN");
+        yield "METAOBJECT OF " + metaobjectType.getTableFqn().trim();
+      }
+      default -> throw new IllegalArgumentException("Unsupported typeSpec configuration.");
+    };
 
     // ---- prefix (mandatory + collection)
     String prefix = Boolean.TRUE.equals(req.getMandatory()) ? "MANDATORY " : "";
