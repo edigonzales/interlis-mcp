@@ -3,6 +3,7 @@ package ch.so.agi.mcp.analysis;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.so.agi.mcp.service.IliCompilerService;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -21,6 +22,21 @@ class ModelAnalysisToolsTest {
     assertThat(response.get("classes")).asList().hasSize(1);
     assertThat(response.get("attributes")).asList().hasSize(1);
     assertThat(response.get("summaryMarkdown").toString()).contains("modelPurpose: CAPTURE");
+  }
+
+  @Test
+  void exposesUnitsInResponseSummaryAndLexicalTerms() {
+    ModelAnalysisTools.AnalysisData data = new ModelAnalysisTools.AnalysisData();
+    data.units.add(Map.of(
+        "kind", "UNIT",
+        "name", "Meter",
+        "scopedName", "Demo.Meter"));
+
+    Map<String, Object> response = tools.toResponse(true, List.of(), data, ModelPurpose.CAPTURE);
+
+    assertThat(response.get("units")).asList().hasSize(1);
+    assertThat(response.get("summaryMarkdown").toString()).contains("units: 1");
+    assertThat(tools.lexicalTerms(response)).contains("meter", "demo");
   }
 
   @Test
