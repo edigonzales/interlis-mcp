@@ -81,12 +81,11 @@ public final class NameValidator {
       throw new IllegalArgumentException(what + " is required.");
     }
     String[] parts = fqn.split("\\.", -1);
-    boolean predefinedInterlis = parts.length > 0 && "INTERLIS".equals(parts[0]);
-    for (String p : parts) {
-      if (predefinedInterlis) {
-        validateIdentSyntax(p, what + " segment");
+    for (int i = 0; i < parts.length; i++) {
+      if (i == 0 && "INTERLIS".equals(parts[i])) {
+        validateIdentSyntax(parts[i], what + " segment");
       } else {
-        validateIdent(p, what + " segment");
+        validateIdent(parts[i], what + " segment");
       }
     }
   }
