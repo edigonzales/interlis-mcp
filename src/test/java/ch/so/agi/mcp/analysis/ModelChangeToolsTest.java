@@ -31,7 +31,47 @@ class ModelChangeToolsTest {
   }
 
   @Test
-  void ignoresFormattingOnlyChangesAndUnstableTypeText() {
+  void detectsTextLengthChange() {
+    IliCompilerService compiler = new IliCompilerService();
+    ModelChangeTools tools = new ModelChangeTools(compiler, new ModelAnalysisTools(compiler));
+
+    Map<String, Object> response = tools.reviewIliChange(
+        minimalModel(),
+        minimalModel().replace("TEXT*20", "TEXT*50"),
+        null);
+
+    assertThat(response.get("impact")).isEqualTo("POTENTIALLY_BREAKING");
+    assertThat(response.get("changed")).asList()
+        .singleElement()
+        .satisfies(change -> assertThat(change.toString())
+            .contains("Demo.Topic.Thing.name")
+            .contains("typeText")
+            .contains("TEXT*20")
+            .contains("TEXT*50"));
+  }
+
+  @Test
+  void detectsNumericDomainRangeChange() {
+    IliCompilerService compiler = new IliCompilerService();
+    ModelChangeTools tools = new ModelChangeTools(compiler, new ModelAnalysisTools(compiler));
+
+    Map<String, Object> response = tools.reviewIliChange(
+        numericDomainModel("10"),
+        numericDomainModel("20"),
+        null);
+
+    assertThat(response.get("impact")).isEqualTo("POTENTIALLY_BREAKING");
+    assertThat(response.get("changed")).asList()
+        .singleElement()
+        .satisfies(change -> assertThat(change.toString())
+            .contains("Demo.Value")
+            .contains("typeText")
+            .contains("0..10")
+            .contains("0..20"));
+  }
+
+  @Test
+  void ignoresFormattingOnlyChanges() {
     IliCompilerService compiler = new IliCompilerService();
     ModelChangeTools tools = new ModelChangeTools(compiler, new ModelAnalysisTools(compiler));
 
@@ -131,6 +171,17 @@ class ModelChangeToolsTest {
           END Topic;
         END Demo.
         """;
+  }
+
+  private String numericDomainModel(String max) {
+    return """
+        INTERLIS 2.4;
+
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
+          DOMAIN
+            Value = 0 .. %s;
+        END Demo.
+        """.formatted(max);
   }
 
   private static class CountingCompiler extends IliCompilerService {
