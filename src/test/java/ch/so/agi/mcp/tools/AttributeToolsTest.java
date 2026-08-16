@@ -12,6 +12,7 @@ import ch.so.agi.mcp.model.MetaobjectTypeSpec;
 import ch.so.agi.mcp.model.ObjectTypeSpec;
 import ch.so.agi.mcp.model.ReferenceTypeSpec;
 import ch.so.agi.mcp.model.TypeSpec;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -44,8 +45,8 @@ class AttributeToolsTest {
 
         BaseType baseType = new BaseType();
         baseType.setKind(BaseType.Kind.NUM_RANGE);
-        baseType.setMin(0.0);
-        baseType.setMax(100.0);
+        baseType.setMin(new BigDecimal("0.0"));
+        baseType.setMax(new BigDecimal("100.0"));
         baseType.setUnitFqn("INTERLIS.m");
 
         TypeSpec spec = new TypeSpec();
@@ -65,8 +66,8 @@ class AttributeToolsTest {
 
         BaseType baseType = new BaseType();
         baseType.setKind(BaseType.Kind.NUM_RANGE);
-        baseType.setMin(2000.0);
-        baseType.setMax(3000.0);
+        baseType.setMin(new BigDecimal("2000.0"));
+        baseType.setMax(new BigDecimal("3000.0"));
 
         TypeSpec spec = new TypeSpec();
         spec.setBaseType(baseType);
@@ -75,6 +76,25 @@ class AttributeToolsTest {
         AttributeLineResponse response = attributeTools.createAttributeLine(request);
 
         assertEquals("BFSNr : MANDATORY 2000 .. 3000;", response.getIliSnippet());
+    }
+
+    @Test
+    void createAttributeLineV2_preservesHighPrecisionRange() {
+        AttributeLineRequest request = new AttributeLineRequest();
+        request.setName("wert");
+
+        BaseType baseType = new BaseType();
+        baseType.setKind(BaseType.Kind.NUM_RANGE);
+        baseType.setMin(new BigDecimal("0.000000000000000001"));
+        baseType.setMax(new BigDecimal("0.000000000000000009"));
+
+        TypeSpec spec = new TypeSpec();
+        spec.setBaseType(baseType);
+        request.setTypeSpec(spec);
+
+        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+
+        assertEquals("wert : 0.000000000000000001 .. 0.000000000000000009;", response.getIliSnippet());
     }
 
     @Test

@@ -45,7 +45,7 @@ class ModelToolsTest {
     @DisplayName("createModelSnippet trims provided values before building snippet")
     void createModelSnippetTrimsValues() {
         Map<String, Object> result = modelTools.createModelSnippet(
-                "TrimModel",
+                " TrimModel ",
                 " en ",
                 " https://data.example/TrimModel ",
                 " 2024-01-31 ",
@@ -63,6 +63,29 @@ class ModelToolsTest {
                 + "END TrimModel.\n";
 
         assertEquals(expectedSnippet, result.get("iliSnippet"));
+    }
+
+    @Test
+    @DisplayName("createModelSnippet validates model name")
+    void createModelSnippetValidatesModelName() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                modelTools.createModelSnippet(
+                        "Invalid-Model",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+
+        assertEquals(
+                "Model name must match [A-Za-z][A-Za-z0-9_]* (starts with a letter, then letters/digits/underscore). Got: 'Invalid-Model'.",
+                ex.getMessage()
+        );
     }
 
     @Test

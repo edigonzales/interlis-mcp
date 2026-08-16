@@ -2,6 +2,7 @@ package ch.so.agi.mcp.model;
 
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
+import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -30,8 +31,8 @@ class BaseTypeTest {
     void validate_numericRangeRequiresBounds() {
         BaseType baseType = new BaseType();
         baseType.setKind(BaseType.Kind.NUM_RANGE);
-        baseType.setMin(5.0);
-        baseType.setMax(10.0);
+        baseType.setMin(new BigDecimal("5.0"));
+        baseType.setMax(new BigDecimal("10.0"));
         assertDoesNotThrow(baseType::validate);
     }
 
@@ -46,8 +47,8 @@ class BaseTypeTest {
     void validate_numericRejectsBounds() {
         BaseType baseType = new BaseType();
         baseType.setKind(BaseType.Kind.NUMERIC);
-        baseType.setMin(0.0);
-        baseType.setMax(10.0);
+        baseType.setMin(new BigDecimal("0.0"));
+        baseType.setMax(new BigDecimal("10.0"));
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, baseType::validate);
         assertTrue(ex.getMessage().contains("NUMERIC must not define 'min'/'max'"));
     }
@@ -56,8 +57,8 @@ class BaseTypeTest {
     void validate_numericRangeRejectsCircular() {
         BaseType baseType = new BaseType();
         baseType.setKind(BaseType.Kind.NUM_RANGE);
-        baseType.setMin(0.0);
-        baseType.setMax(5.0);
+        baseType.setMin(new BigDecimal("0.0"));
+        baseType.setMax(new BigDecimal("5.0"));
         baseType.setCircular(true);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, baseType::validate);
@@ -68,8 +69,8 @@ class BaseTypeTest {
     void validate_numericRangeRejectsRefSys() {
         BaseType baseType = new BaseType();
         baseType.setKind(BaseType.Kind.NUM_RANGE);
-        baseType.setMin(0.0);
-        baseType.setMax(5.0);
+        baseType.setMin(new BigDecimal("0.0"));
+        baseType.setMax(new BigDecimal("5.0"));
         baseType.setRefSysFqn("Model.Topic.RefSys");
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, baseType::validate);
@@ -80,8 +81,8 @@ class BaseTypeTest {
     void validate_numericRangeRejectsInvalidOrder() {
         BaseType baseType = new BaseType();
         baseType.setKind(BaseType.Kind.NUM_RANGE);
-        baseType.setMin(10.0);
-        baseType.setMax(5.0);
+        baseType.setMin(new BigDecimal("10.0"));
+        baseType.setMax(new BigDecimal("5.0"));
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, baseType::validate);
         assertTrue(ex.getMessage().contains("min < max"));
     }
