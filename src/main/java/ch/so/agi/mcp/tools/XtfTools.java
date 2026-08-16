@@ -6,7 +6,6 @@ import java.util.Map;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -14,11 +13,6 @@ public class XtfTools {
 
   private final XtfService xtfService;
 
-  public XtfTools() {
-    this(new XtfService());
-  }
-
-  @Autowired
   public XtfTools(XtfService xtfService) {
     this.xtfService = xtfService;
   }
