@@ -5,6 +5,7 @@ import ch.so.agi.mcp.model.EnumValueItem;
 import ch.so.agi.mcp.model.MetaAttributeSpec;
 import ch.so.agi.mcp.util.AnnotationRenderer;
 import ch.so.agi.mcp.util.NameValidator;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -61,19 +62,19 @@ public class DomainTools {
   }
 
   @McpTool(name = "createUnitSnippet",
-        description = "Erzeugt eine konkrete UNIT mit Faktor 1 gegenüber einer Basis-Einheit. Params: name (required), kind (abstrakte Unit-Referenz, z. B. INTERLIS.LENGTH), base (konkrete Basis-Unit, z. B. INTERLIS.m), iliDoc, metaAttributes.")
+        description = "Erzeugt eine linear abgeleitete UNIT. Params: name (required), factor (positiver Faktor zur Basis-Einheit), base (Basis-Unit, z. B. INTERLIS.m), iliDoc, metaAttributes.")
   public Map<String,Object> createUnit(
       @McpToolParam(description = "Einheiten-Name", required = true) String name,
-      @McpToolParam(description = "Abstrakte Unit-Referenz, z. B. 'INTERLIS.LENGTH'", required = true) String kind,
-      @McpToolParam(description = "Konkrete Basis-Unit mit Faktor 1, z. B. 'INTERLIS.m'", required = true) String base,
+      @McpToolParam(description = "Positiver Faktor zur Basis-Einheit, z. B. 1000 für Kilometer", required = true) BigDecimal factor,
+      @McpToolParam(description = "Basis-Unit, z. B. 'INTERLIS.m'", required = true) String base,
       @McpToolParam(description = "IliDoc-Blockkommentar direkt vor der UNIT", required = false) @Nullable String iliDoc,
       @McpToolParam(description = "INTERLIS-Metaattribute direkt vor der UNIT", required = false) @Nullable List<MetaAttributeSpec> metaAttributes
   ) {
     if (name == null || name.isBlank()) {
       throw new IllegalArgumentException("Unit name is required.");
     }
-    if (kind == null || kind.isBlank()) {
-      throw new IllegalArgumentException("Abstract unit reference is required.");
+    if (factor == null || factor.signum() <= 0) {
+      throw new IllegalArgumentException("Unit factor must be greater than zero.");
     }
     if (base == null || base.isBlank()) {
       throw new IllegalArgumentException("Base unit reference is required.");
@@ -81,14 +82,13 @@ public class DomainTools {
 
     NameValidator validator = NameValidator.ascii();
     String trimmedName = name.trim();
-    String trimmedKind = kind.trim();
     String trimmedBase = base.trim();
     validator.validateIdent(trimmedName, "Unit name");
-    validator.validateFqn(trimmedKind, "Abstract unit reference");
     validator.validateFqn(trimmedBase, "Base unit reference");
 
     String snippet = AnnotationRenderer.renderAnnotations(iliDoc, metaAttributes)
-        + "UNIT\n  " + trimmedName + " EXTENDS " + trimmedKind + " = [" + trimmedBase + "];";
+        + "UNIT\n  " + trimmedName + " = " + factor.stripTrailingZeros().toPlainString()
+        + " [" + trimmedBase + "];";
     return Map.of("iliSnippet", snippet);
   }
 
