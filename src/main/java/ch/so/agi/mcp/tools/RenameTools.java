@@ -18,7 +18,6 @@ import java.util.Map;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -26,11 +25,6 @@ public class RenameTools {
 
   private final IliCompilerService compilerService;
 
-  public RenameTools() {
-    this(new IliCompilerService());
-  }
-
-  @Autowired
   public RenameTools(IliCompilerService compilerService) {
     this.compilerService = compilerService;
   }
@@ -158,5 +152,4 @@ public class RenameTools {
     Element renamed = td.getElement(newScopedName);
     return renamed != null ? renamed.getScopedName() : newScopedName;
   }
-
 }
