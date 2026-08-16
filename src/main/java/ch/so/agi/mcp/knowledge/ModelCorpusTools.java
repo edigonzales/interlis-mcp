@@ -36,4 +36,14 @@ public class ModelCorpusTools {
   ) {
     return corpusService.findSimilarModels(query, modelText, modelPurpose, limit);
   }
+
+  @McpTool(
+      name = "readModelExample",
+      description = "Liest ein vollstaendiges INTERLIS-Beispielmodell aus dem konfigurierten lokalen Modellkorpus. Verwende einen path aus findSimilarModels oder indexConfiguredModels. Pfade ausserhalb des konfigurierten Korpus werden abgelehnt."
+  )
+  public Map<String, Object> readModelExample(
+      @McpToolParam(description = "Pfad eines Treffers aus findSimilarModels oder indexConfiguredModels", required = true) String path
+  ) {
+    return corpusService.readModelExample(path);
+  }
 }

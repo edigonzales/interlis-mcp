@@ -1,10 +1,12 @@
 package ch.so.agi.mcp.knowledge;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ch.so.agi.mcp.analysis.ModelPurpose;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -36,6 +38,35 @@ class ModelCorpusToolsTest {
 
     assertThat(response.get("results")).asList().isNotEmpty();
     assertThat(response.get("results").toString()).contains("BuildingModel");
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void readsFullModelFromSearchResultPath() throws Exception {
+    String expected = modelText("BuildingModel", "Building");
+    Files.writeString(tempDir.resolve("building.ili"), expected);
+    ModelCorpusTools tools = new ModelCorpusTools(new ModelCorpusService(tempDir.toString(), 1_048_576, 10));
+
+    Map<String, Object> search = tools.findSimilarModels("building", null, null, 1);
+    Map<String, Object> hit = (Map<String, Object>) ((List<?>) search.get("results")).getFirst();
+    Map<String, Object> response = tools.readModelExample(hit.get("path").toString());
+
+    assertThat(response.get("modelName")).isEqualTo("BuildingModel");
+    assertThat(response.get("path")).isEqualTo(tempDir.resolve("building.ili").toRealPath().toString());
+    assertThat(response.get("modelText")).isEqualTo(expected);
+    assertThat(((Number) response.get("sizeBytes")).longValue()).isGreaterThan(0);
+  }
+
+  @Test
+  void rejectsExistingFileOutsideConfiguredCorpus() throws Exception {
+    Path corpus = Files.createDirectory(tempDir.resolve("corpus"));
+    Path outside = tempDir.resolve("outside.ili");
+    Files.writeString(outside, modelText("OutsideModel", "Outside"));
+    ModelCorpusTools tools = new ModelCorpusTools(new ModelCorpusService(corpus.toString(), 1_048_576, 10));
+
+    assertThatThrownBy(() -> tools.readModelExample(outside.toString()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("outside the configured corpus");
   }
 
   private String modelText(String modelName, String className) {

@@ -81,6 +81,41 @@ public class ModelCorpusService {
     return response;
   }
 
+  public Map<String, Object> readModelExample(String requestedPath) {
+    if (requestedPath == null || requestedPath.isBlank()) {
+      throw new IllegalArgumentException("Model example path is required.");
+    }
+
+    Path path = Path.of(requestedPath.trim());
+    try {
+      Path realPath = path.toRealPath();
+      if (!isConfiguredModelPath(realPath)) {
+        throw new IllegalArgumentException("Model example path is outside the configured corpus: " + requestedPath);
+      }
+      if (!Files.isRegularFile(realPath)) {
+        throw new IllegalArgumentException("Model example path is not a regular file: " + requestedPath);
+      }
+      if (!realPath.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".ili")) {
+        throw new IllegalArgumentException("Model example must be an .ili file: " + requestedPath);
+      }
+
+      long size = Files.size(realPath);
+      if (size > maxModelBytes) {
+        throw new IllegalArgumentException(
+            "Model example exceeds max-model-bytes (" + size + " > " + maxModelBytes + ").");
+      }
+
+      String text = Files.readString(realPath, StandardCharsets.UTF_8);
+      ModelDocument document = ModelDocument.from(realPath, text);
+      Map<String, Object> response = new LinkedHashMap<>(document.summaryMap());
+      response.put("sizeBytes", size);
+      response.put("modelText", text);
+      return response;
+    } catch (IOException e) {
+      throw new IllegalArgumentException("Unable to read model example: " + requestedPath, e);
+    }
+  }
+
   public String indexMarkdown() {
     ScanResult scan = scan();
     StringBuilder markdown = new StringBuilder("# Configured INTERLIS Model Corpus\n\n");
@@ -142,16 +177,37 @@ public class ModelCorpusService {
       return;
     }
     try {
-      long size = Files.size(path);
+      Path realPath = path.toRealPath();
+      if (!isConfiguredModelPath(realPath)) {
+        ignored.add(message(path, "File resolves outside the configured model corpus."));
+        return;
+      }
+      long size = Files.size(realPath);
       if (size > maxModelBytes) {
         ignored.add(message(path, "File exceeds max-model-bytes (" + size + " > " + maxModelBytes + ")."));
         return;
       }
-      String text = Files.readString(path, StandardCharsets.UTF_8);
-      documents.add(ModelDocument.from(path, text));
+      String text = Files.readString(realPath, StandardCharsets.UTF_8);
+      documents.add(ModelDocument.from(realPath, text));
     } catch (IOException e) {
       errors.add(message(path, e.getMessage()));
     }
+  }
+
+  private boolean isConfiguredModelPath(Path candidateRealPath) {
+    for (Path configuredPath : configuredPaths()) {
+      try {
+        Path configuredRealPath = configuredPath.toRealPath();
+        if (Files.isRegularFile(configuredRealPath) && candidateRealPath.equals(configuredRealPath)) {
+          return true;
+        }
+        if (Files.isDirectory(configuredRealPath) && candidateRealPath.startsWith(configuredRealPath)) {
+          return true;
+        }
+      } catch (IOException ignore) {
+      }
+    }
+    return false;
   }
 
   private List<Path> configuredPaths() {
