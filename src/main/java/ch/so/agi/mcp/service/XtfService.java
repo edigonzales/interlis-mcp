@@ -49,10 +49,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.jspecify.annotations.Nullable;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 import org.interlis2.validator.Validator;
+import org.jspecify.annotations.Nullable;
+import org.springframework.stereotype.Service;
 
 @Service
 public class XtfService {
@@ -61,11 +60,6 @@ public class XtfService {
 
   private final IliCompilerService compilerService;
 
-  public XtfService() {
-    this(new IliCompilerService());
-  }
-
-  @Autowired
   public XtfService(IliCompilerService compilerService) {
     this.compilerService = compilerService;
   }
