@@ -42,7 +42,7 @@ class ToolRegistrationContractTest {
           .as("required properties for %s", toolName)
           .containsExactlyInAnyOrderElementsOf(expectation.required());
 
-      Map<String, Object> properties = inputSchema.properties();
+      Map<String, Object> properties = schemaProperties(inputSchema);
       assertThat(properties.keySet())
           .as("schema properties for %s", toolName)
           .containsAll(expectation.required())
@@ -60,7 +60,7 @@ class ToolRegistrationContractTest {
     SyncToolSpecification createModelSnippet = specsByName().get("createModelSnippet");
     var inputSchema = createModelSnippet.tool().inputSchema();
 
-    Map<String, Object> properties = inputSchema.properties();
+    Map<String, Object> properties = schemaProperties(inputSchema);
     assertThat(propertyDescription(properties, "name"))
         .isEqualTo("Modellname (Bezeichner ohne Leerzeichen)");
     assertThat(propertyDescription(properties, "lang"))
@@ -221,9 +221,18 @@ class ToolRegistrationContractTest {
     return "";
   }
 
+  @SuppressWarnings("unchecked")
+  private static Map<String, Object> schemaProperties(Map<String, Object> schema) {
+    Object properties = schema.get("properties");
+    return properties instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
+  }
+
   private static List<String> requiredProperties(SyncToolSpecification specification) {
-    var required = specification.tool().inputSchema().required();
-    return required == null ? List.of() : required;
+    Object required = specification.tool().inputSchema().get("required");
+    if (!(required instanceof List<?> list)) {
+      return List.of();
+    }
+    return list.stream().map(String::valueOf).toList();
   }
 
   private static Map<String, SchemaExpectation> expectedSchemas() {
