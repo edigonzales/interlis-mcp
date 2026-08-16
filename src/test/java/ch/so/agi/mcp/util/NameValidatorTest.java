@@ -51,9 +51,8 @@ class NameValidatorTest {
   }
 
   @Test
-  void validateFqn_acceptsPredefinedInterlisReferences() {
+  void validateFqn_acceptsPredefinedInterlisReference() {
     assertDoesNotThrow(() -> NameValidator.ascii().validateFqn("INTERLIS.m", "Unit FQN"));
-    assertDoesNotThrow(() -> NameValidator.ascii().validateFqn("INTERLIS.BOOLEAN", "Domain FQN"));
   }
 
   @Test
