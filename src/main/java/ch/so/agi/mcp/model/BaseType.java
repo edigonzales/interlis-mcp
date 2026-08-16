@@ -3,6 +3,7 @@ package ch.so.agi.mcp.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Pattern;
+import java.math.BigDecimal;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class BaseType {
@@ -14,9 +15,9 @@ public class BaseType {
   @JsonProperty(required = false)
   private Integer length;
   @JsonProperty(required = false)
-  private Double min;
+  private BigDecimal min;
   @JsonProperty(required = false)
-  private Double max;
+  private BigDecimal max;
 
   @Pattern(regexp = "^([A-Za-z][A-Za-z0-9_]*)(\\.[A-Za-z][A-Za-z0-9_]*)*$", message = "FQN must be dot-separated identifiers")
   @JsonProperty(required = false)
@@ -35,11 +36,11 @@ public class BaseType {
   public Integer getLength() { return length; }
   public void setLength(Integer length) { this.length = length; }
 
-  public Double getMin() { return min; }
-  public void setMin(Double min) { this.min = min; }
+  public BigDecimal getMin() { return min; }
+  public void setMin(BigDecimal min) { this.min = min; }
 
-  public Double getMax() { return max; }
-  public void setMax(Double max) { this.max = max; }
+  public BigDecimal getMax() { return max; }
+  public void setMax(BigDecimal max) { this.max = max; }
 
   public String getUnitFqn() { return unitFqn; }
   public void setUnitFqn(String unitFqn) { this.unitFqn = unitFqn; }
@@ -61,7 +62,7 @@ public class BaseType {
       }
       case NUM_RANGE -> {
         if (min == null || max == null) throw new IllegalArgumentException("NUM_RANGE requires 'min' and 'max'.");
-        if (!(min < max)) throw new IllegalArgumentException("NUM_RANGE requires min < max (got " + min + " .. " + max + ").");
+        if (min.compareTo(max) >= 0) throw new IllegalArgumentException("NUM_RANGE requires min < max (got " + min + " .. " + max + ").");
         if (refSysFqn != null && !refSysFqn.isBlank()) throw new IllegalArgumentException("NUM_RANGE does not support 'refSysFqn'.");
         if (Boolean.TRUE.equals(circular)) throw new IllegalArgumentException("NUM_RANGE does not support 'circular'.");
       }
