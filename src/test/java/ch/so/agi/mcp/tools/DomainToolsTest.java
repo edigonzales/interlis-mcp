@@ -6,6 +6,7 @@ import ch.so.agi.mcp.model.MetaAttributeSpec;
 import ch.so.agi.mcp.service.IliCompilerService;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -53,12 +54,42 @@ class DomainToolsTest {
 
   @Test
   void createUnitSnippet_rendersIliDoc() {
-    Map<String, Object> result = domainTools.createUnit("Meter", "LENGTH", "INTERLIS.m", "Einheit", List.of());
+    Map<String, Object> result = domainTools.createUnit(
+        "Kilometer", new BigDecimal("1000"), "INTERLIS.m", "Einheit", List.of());
 
     assertEquals(String.join("\n",
         "/** Einheit */",
         "UNIT",
-        "  Meter = LENGTH [INTERLIS.m];"), result.get("iliSnippet"));
+        "  Kilometer = 1000 [INTERLIS.m];"), result.get("iliSnippet"));
+  }
+
+  @Test
+  void createUnitSnippet_generatedUnitCompiles() {
+    Map<String, Object> result = domainTools.createUnit(
+        "Kilometer", new BigDecimal("1000"), "INTERLIS.m", null, null);
+
+    ValidationTools validationTools = new ValidationTools(new IliCompilerService());
+    Map<String, Object> validation = validationTools.validateIliModel("""
+        INTERLIS 2.4;
+
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-01" =
+        """
+        + result.get("iliSnippet") + "\n\n"
+        + """
+        END Demo.
+        """, null);
+
+    assertEquals(true, validation.get("valid"), () -> "Expected valid model but got " + validation);
+  }
+
+  @Test
+  void createUnitSnippet_rejectsInvalidFactorAndMissingBase() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> domainTools.createUnit("Meter", BigDecimal.ZERO, "INTERLIS.m", null, null));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> domainTools.createUnit("Meter", BigDecimal.ONE, " ", null, null));
   }
 
   @Test
