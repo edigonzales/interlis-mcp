@@ -28,6 +28,9 @@ class NameValidatorTest {
         () -> NameValidator.ascii().validateIdent("MODEL", "Model name"));
 
     assertTrue(ex.getMessage().contains("reserved word"));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> NameValidator.ascii().validateIdent("INTERLIS", "Model name"));
     assertDoesNotThrow(() -> NameValidator.ascii().validateIdent("Model", "Model name"));
   }
 
@@ -48,10 +51,24 @@ class NameValidatorTest {
   }
 
   @Test
+  void validateFqn_acceptsPredefinedInterlisReferences() {
+    assertDoesNotThrow(() -> NameValidator.ascii().validateFqn("INTERLIS.m", "Unit FQN"));
+    assertDoesNotThrow(() -> NameValidator.ascii().validateFqn("INTERLIS.BOOLEAN", "Domain FQN"));
+  }
+
+  @Test
   void validateFqn_rejectsEmptySegment() {
     IllegalArgumentException ex = assertThrows(
         IllegalArgumentException.class,
         () -> NameValidator.ascii().validateFqn("Model..Class", "Class FQN"));
+    assertTrue(ex.getMessage().contains("Class FQN"));
+  }
+
+  @Test
+  void validateFqn_rejectsTrailingEmptySegment() {
+    IllegalArgumentException ex = assertThrows(
+        IllegalArgumentException.class,
+        () -> NameValidator.ascii().validateFqn("Model.Topic.", "Class FQN"));
     assertTrue(ex.getMessage().contains("Class FQN"));
   }
 
