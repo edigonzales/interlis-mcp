@@ -2,6 +2,7 @@ package ch.so.agi.mcp.knowledge;
 
 import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.analysis.ModelPurpose;
+import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
@@ -19,10 +20,15 @@ public class ModelingRuleTools {
 
   private final KnowledgeRuleLoader ruleLoader;
   private final ModelAnalysisTools analysisTools;
+  private final IliCompilerService compilerService;
 
-  public ModelingRuleTools(KnowledgeRuleLoader ruleLoader, ModelAnalysisTools analysisTools) {
+  public ModelingRuleTools(
+      KnowledgeRuleLoader ruleLoader,
+      ModelAnalysisTools analysisTools,
+      IliCompilerService compilerService) {
     this.ruleLoader = ruleLoader;
     this.analysisTools = analysisTools;
+    this.compilerService = compilerService;
   }
 
   @McpTool(
@@ -52,10 +58,72 @@ public class ModelingRuleTools {
     ModelPurpose purpose = ModelPurpose.normalize(modelPurpose);
     ModelingRuleProfile normalizedProfile = ModelingRuleProfile.normalize(profile);
     Map<String, Object> analysis = analysisTools.analyzeIliModel(modelText, modelRepositories, purpose);
+    return checkAnalyzedModel(modelText, purpose, analysis, ruleIds, normalizedProfile);
+  }
+
+  @McpTool(
+      name = "reviewIliModel",
+      description = "Fuehrt einen agentischen Review eines vollstaendigen INTERLIS-Modells durch. Kompiliert genau einmal und kombiniert Compilerdiagnostik, Struktur, automatisierte Modellierungsregeln, manuelle Checks und offene fachliche Fragen."
+  )
+  public Map<String, Object> reviewIliModel(
+      @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
+      @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false) @Nullable ModelPurpose modelPurpose,
+      @McpToolParam(description = "Regelprofil: CORE oder SO (Default CORE)", required = false) @Nullable ModelingRuleProfile ruleProfile,
+      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition", required = false) @Nullable String modelRepositories
+  ) {
+    ModelPurpose purpose = ModelPurpose.normalize(modelPurpose);
+    ModelingRuleProfile profile = ModelingRuleProfile.normalize(ruleProfile);
+
+    IliCompilerService.CompilationResult compilation =
+        compilerService.compile(modelText, modelRepositories, "ili2c_review_");
+    ModelAnalysisTools.AnalysisData data =
+        analysisTools.analyzeCompiled(compilation.transferDescription(), modelText);
+    Map<String, Object> analysis = analysisTools.toResponse(
+        compilation.valid(), compilation.messages(), data, purpose);
+    Map<String, Object> ruleReview =
+        checkAnalyzedModel(modelText, purpose, analysis, null, profile);
+
+    Map<String, Object> structure = new LinkedHashMap<>(analysis);
+    structure.remove("valid");
+    structure.remove("messages");
+    structure.remove("summaryMarkdown");
+
+    List<Map<String, Object>> openQuestions = new ArrayList<>();
+    if (purpose == ModelPurpose.UNKNOWN) {
+      openQuestions.add(Map.of(
+          "kind", "MODEL_PURPOSE",
+          "question", "What is the intended model purpose?",
+          "options", List.of("CAPTURE", "PUBLICATION", "VALIDATION"),
+          "reason", "Some modeling rules depend on whether the model is used for capture, publication or validation."));
+    }
+
+    boolean validForAutomatedRules = Boolean.TRUE.equals(ruleReview.get("validForAutomatedRules"));
+    boolean valid = compilation.valid() && validForAutomatedRules;
+
+    return Map.ofEntries(
+        Map.entry("valid", valid),
+        Map.entry("compilerValid", compilation.valid()),
+        Map.entry("validForAutomatedRules", validForAutomatedRules),
+        Map.entry("modelPurpose", purpose.name()),
+        Map.entry("ruleProfile", profile.name()),
+        Map.entry("compilerDiagnostics", compilation.messages()),
+        Map.entry("structure", structure),
+        Map.entry("ruleFindings", ruleReview.get("findings")),
+        Map.entry("manualChecks", ruleReview.get("manualChecks")),
+        Map.entry("openQuestions", openQuestions)
+    );
+  }
+
+  private Map<String, Object> checkAnalyzedModel(
+      String modelText,
+      ModelPurpose purpose,
+      Map<String, Object> analysis,
+      @Nullable List<String> ruleIds,
+      ModelingRuleProfile profile) {
     List<Map<String, Object>> findings = new ArrayList<>();
     List<Map<String, Object>> manualChecks = new ArrayList<>();
     Set<String> selectedRuleIds = normalizeRuleIds(ruleIds);
-    List<ModelingRule> activeRules = ruleLoader.rules(normalizedProfile);
+    List<ModelingRule> activeRules = ruleLoader.rules(profile);
     Map<String, ModelingRule> rulesById = new LinkedHashMap<>();
     for (ModelingRule rule : activeRules) {
       rulesById.put(rule.id(), rule);
@@ -82,7 +150,7 @@ public class ModelingRuleTools {
     boolean validForAutomatedRules = findings.stream()
         .noneMatch(finding -> "ERROR".equals(finding.get("severity")) || "WARNING".equals(finding.get("severity")));
     return Map.of(
-        "profile", normalizedProfile.name(),
+        "profile", profile.name(),
         "validForAutomatedRules", validForAutomatedRules,
         "findings", findings,
         "manualChecks", manualChecks

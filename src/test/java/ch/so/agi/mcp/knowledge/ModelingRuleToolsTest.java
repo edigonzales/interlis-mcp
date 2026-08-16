@@ -7,13 +7,17 @@ import ch.so.agi.mcp.analysis.ModelPurpose;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 class ModelingRuleToolsTest {
 
+  private final CountingCompilerService compilerService = new CountingCompilerService();
+  private final ModelAnalysisTools analysisTools = new ModelAnalysisTools(compilerService);
   private final ModelingRuleTools tools = new ModelingRuleTools(
       new KnowledgeRuleLoader(),
-      new ModelAnalysisTools(new IliCompilerService()));
+      analysisTools,
+      compilerService);
 
   @Test
   void listsCuratedRules() {
@@ -76,6 +80,43 @@ class ModelingRuleToolsTest {
         .anySatisfy(finding -> assertThat(finding.toString()).contains("MDE-206").contains("line"));
   }
 
+  @Test
+  void reviewCompilesExactlyOnceAndCombinesResults() {
+    Map<String, Object> response = tools.reviewIliModel(
+        minimalModel(),
+        ModelPurpose.CAPTURE,
+        ModelingRuleProfile.CORE,
+        null);
+
+    assertThat(compilerService.calls).isEqualTo(1);
+    assertThat(response).containsKeys(
+        "valid",
+        "compilerValid",
+        "validForAutomatedRules",
+        "compilerDiagnostics",
+        "structure",
+        "ruleFindings",
+        "manualChecks",
+        "openQuestions");
+    assertThat(response.get("compilerValid")).isEqualTo(true);
+    assertThat(response.get("compilerDiagnostics")).asList().isEmpty();
+    assertThat(response.get("structure")).asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+        .containsKeys("models", "topics", "classes", "domains", "attributes");
+  }
+
+  @Test
+  void reviewAsksForPurposeWhenUnknown() {
+    Map<String, Object> response = tools.reviewIliModel(
+        minimalModel(),
+        null,
+        ModelingRuleProfile.CORE,
+        null);
+
+    assertThat(response.get("modelPurpose")).isEqualTo("UNKNOWN");
+    assertThat(response.get("openQuestions")).asList()
+        .anySatisfy(question -> assertThat(question.toString()).contains("MODEL_PURPOSE"));
+  }
+
   private String minimalModel() {
     return """
         INTERLIS 2.4;
@@ -102,5 +143,18 @@ class ModelingRuleToolsTest {
           END Topic;
         END Pub.
         """;
+  }
+
+  private static class CountingCompilerService extends IliCompilerService {
+    int calls;
+
+    @Override
+    public CompilationResult compile(
+        String modelText,
+        @Nullable String modelRepositories,
+        String tempPrefix) {
+      calls++;
+      return super.compile(modelText, modelRepositories, tempPrefix);
+    }
   }
 }
