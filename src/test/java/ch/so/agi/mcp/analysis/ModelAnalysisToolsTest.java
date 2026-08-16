@@ -20,7 +20,9 @@ class ModelAnalysisToolsTest {
     assertThat(response.get("models")).asList().hasSize(1);
     assertThat(response.get("topics")).asList().hasSize(1);
     assertThat(response.get("classes")).asList().hasSize(1);
-    assertThat(response.get("attributes")).asList().hasSize(1);
+    assertThat(response.get("attributes")).asList()
+        .singleElement()
+        .satisfies(attribute -> assertThat(attribute.toString()).contains("typeText=TEXT*20"));
     assertThat(response.get("summaryMarkdown").toString()).contains("modelPurpose: CAPTURE");
   }
 
