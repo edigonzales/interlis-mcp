@@ -61,7 +61,7 @@ public class ModelTools {
         ? List.of()
         : imports.stream().map(String::trim).collect(Collectors.toList());
     for (String m : trimmedImports) {
-      nv.validateIdent(m, "Import model name");
+      validateImportModelName(m);
     }
 
     String _lang = (lang == null || lang.isBlank()) ? "de" : lang.trim();
@@ -109,10 +109,16 @@ public class ModelTools {
     }
 
     String trimmedName = modelName.trim();
-    NameValidator.ascii().validateIdent(trimmedName, "Model name");
+    validateImportModelName(trimmedName);
     String qualifier = Boolean.FALSE.equals(qualified) ? " UNQUALIFIED" : "";
 
     return "IMPORTS" + qualifier + " " + trimmedName + ";";
+  }
+
+  private void validateImportModelName(String modelName) {
+    if (!"INTERLIS".equals(modelName)) {
+      NameValidator.ascii().validateIdent(modelName, "Import model name");
+    }
   }
 
   private String buildSolothurnBanner() {
