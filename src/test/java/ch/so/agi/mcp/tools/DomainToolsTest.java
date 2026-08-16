@@ -3,6 +3,7 @@ package ch.so.agi.mcp.tools;
 import ch.so.agi.mcp.model.EnumTreeItem;
 import ch.so.agi.mcp.model.EnumValueItem;
 import ch.so.agi.mcp.model.MetaAttributeSpec;
+import ch.so.agi.mcp.service.IliCompilerService;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -123,7 +124,7 @@ class DomainToolsTest {
         null,
         null);
 
-    ValidationTools validationTools = new ValidationTools();
+    ValidationTools validationTools = new ValidationTools(new IliCompilerService());
     Map<String, Object> validation = validationTools.validateIliModel("""
         INTERLIS 2.4;
 
@@ -234,7 +235,7 @@ class DomainToolsTest {
         null,
         null);
 
-    ValidationTools validationTools = new ValidationTools();
+    ValidationTools validationTools = new ValidationTools(new IliCompilerService());
     Map<String, Object> validation = validationTools.validateIliModel("""
         INTERLIS 2.4;
 

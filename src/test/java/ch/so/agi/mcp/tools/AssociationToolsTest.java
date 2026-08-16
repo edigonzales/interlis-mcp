@@ -1,5 +1,6 @@
 package ch.so.agi.mcp.tools;
 
+import ch.so.agi.mcp.service.IliCompilerService;
 import ch.so.agi.mcp.tools.AssociationTools.Role;
 import java.util.List;
 import java.util.Map;
@@ -276,7 +277,7 @@ class AssociationToolsTest {
   }
 
   private void assertCompiles(String modelText) {
-    ValidationTools validationTools = new ValidationTools();
+    ValidationTools validationTools = new ValidationTools(new IliCompilerService());
     Map<String, Object> result = validationTools.validateIliModel(modelText, null);
     assertEquals(true, result.get("valid"), () -> "Expected valid model but got " + result);
   }

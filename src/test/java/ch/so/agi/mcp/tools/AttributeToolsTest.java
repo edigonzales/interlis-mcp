@@ -12,6 +12,7 @@ import ch.so.agi.mcp.model.MetaobjectTypeSpec;
 import ch.so.agi.mcp.model.ObjectTypeSpec;
 import ch.so.agi.mcp.model.ReferenceTypeSpec;
 import ch.so.agi.mcp.model.TypeSpec;
+import ch.so.agi.mcp.service.IliCompilerService;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -426,7 +427,7 @@ class AttributeToolsTest {
     }
 
     private void assertCompiles(String modelText) {
-        ValidationTools validationTools = new ValidationTools();
+        ValidationTools validationTools = new ValidationTools(new IliCompilerService());
         Map<String, Object> result = validationTools.validateIliModel(modelText, null);
         assertEquals(true, result.get("valid"), () -> "Expected valid model but got " + result);
     }

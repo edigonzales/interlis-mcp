@@ -1,24 +1,17 @@
 package ch.so.agi.mcp.tools;
 
 import ch.so.agi.mcp.service.IliCompilerService;
+import java.util.Map;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
-
-import java.util.Map;
-import org.springframework.beans.factory.annotation.Autowired;
 
 @Component
 public class ValidationTools {
 
   private final IliCompilerService compilerService;
 
-  public ValidationTools() {
-    this(new IliCompilerService());
-  }
-
-  @Autowired
   public ValidationTools(IliCompilerService compilerService) {
     this.compilerService = compilerService;
   }

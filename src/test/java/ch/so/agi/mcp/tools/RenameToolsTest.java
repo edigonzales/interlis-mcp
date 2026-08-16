@@ -1,6 +1,7 @@
 package ch.so.agi.mcp.tools;
 
 import ch.so.agi.mcp.model.RenameElementKind;
+import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -8,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class RenameToolsTest {
 
-  private final RenameTools renameTools = new RenameTools();
+  private final RenameTools renameTools = new RenameTools(new IliCompilerService());
 
   @Test
   void renameModelElement_renamesClassAndUpdatesReferences_withoutExpectedKind() {
