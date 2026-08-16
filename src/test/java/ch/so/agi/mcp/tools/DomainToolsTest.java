@@ -6,6 +6,7 @@ import ch.so.agi.mcp.model.MetaAttributeSpec;
 import ch.so.agi.mcp.service.IliCompilerService;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -54,18 +55,18 @@ class DomainToolsTest {
   @Test
   void createUnitSnippet_rendersIliDoc() {
     Map<String, Object> result = domainTools.createUnit(
-        "Meter", "INTERLIS.LENGTH", "INTERLIS.m", "Einheit", List.of());
+        "Kilometer", new BigDecimal("1000"), "INTERLIS.m", "Einheit", List.of());
 
     assertEquals(String.join("\n",
         "/** Einheit */",
         "UNIT",
-        "  Meter EXTENDS INTERLIS.LENGTH = [INTERLIS.m];"), result.get("iliSnippet"));
+        "  Kilometer = 1000 [INTERLIS.m];"), result.get("iliSnippet"));
   }
 
   @Test
   void createUnitSnippet_generatedUnitCompiles() {
     Map<String, Object> result = domainTools.createUnit(
-        "MyMeter", "INTERLIS.LENGTH", "INTERLIS.m", null, null);
+        "Kilometer", new BigDecimal("1000"), "INTERLIS.m", null, null);
 
     ValidationTools validationTools = new ValidationTools(new IliCompilerService());
     Map<String, Object> validation = validationTools.validateIliModel("""
@@ -82,13 +83,13 @@ class DomainToolsTest {
   }
 
   @Test
-  void createUnitSnippet_rejectsMissingReferences() {
+  void createUnitSnippet_rejectsInvalidFactorAndMissingBase() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> domainTools.createUnit("Meter", " ", "INTERLIS.m", null, null));
+        () -> domainTools.createUnit("Meter", BigDecimal.ZERO, "INTERLIS.m", null, null));
     assertThrows(
         IllegalArgumentException.class,
-        () -> domainTools.createUnit("Meter", "INTERLIS.LENGTH", " ", null, null));
+        () -> domainTools.createUnit("Meter", BigDecimal.ONE, " ", null, null));
   }
 
   @Test
