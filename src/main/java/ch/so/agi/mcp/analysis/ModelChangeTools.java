@@ -19,7 +19,7 @@ public class ModelChangeTools {
   private static final List<String> CATEGORIES = List.of(
       "models", "imports", "topics", "classes", "structures", "domains", "units", "associations", "attributes");
   private static final Set<String> IDENTITY_FIELDS = Set.of("kind", "name", "scopedName");
-  private static final Set<String> IGNORED_FIELDS = Set.of("line", "typeText");
+  private static final Set<String> IGNORED_FIELDS = Set.of("line");
 
   private final IliCompilerService compilerService;
   private final ModelAnalysisTools analysisTools;
@@ -211,10 +211,11 @@ public class ModelChangeTools {
 
       if ("ILI_VERSION".equals(kind)) {
         result.add(impactFinding(change, "Changing the INTERLIS language version may affect compatibility."));
-      } else if ("DOMAIN".equals(kind) && fields.contains("type")) {
+      } else if ("DOMAIN".equals(kind) && (fields.contains("type") || fields.contains("typeText"))) {
         result.add(impactFinding(change, "Changing a domain type may invalidate existing values or consumers."));
       } else if ("ATTRIBUTE".equals(kind)
-          && (fields.contains("type") || fields.contains("mandatory") || fields.contains("geometry") || fields.contains("container"))) {
+          && (fields.contains("type") || fields.contains("typeText") || fields.contains("mandatory")
+              || fields.contains("geometry") || fields.contains("container"))) {
         result.add(impactFinding(change, "Changing an attribute type, mandatory state, geometry semantics or container may be incompatible."));
       }
     }
@@ -287,6 +288,6 @@ public class ModelChangeTools {
   private List<String> limitations() {
     return List.of(
         "Renames are not inferred; they appear as one removed and one added element.",
-        "Source line changes and ili2c typeText values are ignored because they are not stable semantic identifiers.");
+        "Source line changes are ignored.");
   }
 }

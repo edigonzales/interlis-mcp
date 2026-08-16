@@ -10,8 +10,12 @@ import ch.interlis.ili2c.metamodel.Domain;
 import ch.interlis.ili2c.metamodel.Element;
 import ch.interlis.ili2c.metamodel.LineType;
 import ch.interlis.ili2c.metamodel.Model;
+import ch.interlis.ili2c.metamodel.NumericType;
+import ch.interlis.ili2c.metamodel.RefSystemRef;
+import ch.interlis.ili2c.metamodel.ReferenceType;
 import ch.interlis.ili2c.metamodel.SurfaceType;
 import ch.interlis.ili2c.metamodel.Table;
+import ch.interlis.ili2c.metamodel.TextType;
 import ch.interlis.ili2c.metamodel.Topic;
 import ch.interlis.ili2c.metamodel.TransferDescription;
 import ch.interlis.ili2c.metamodel.Type;
@@ -123,8 +127,10 @@ public class ModelAnalysisTools {
         }
         collect(table, data);
       } else if (element instanceof Domain domain) {
+        Type domainType = domain.getType();
         Map<String, Object> map = elementMap(domain, "DOMAIN");
-        map.put("type", domain.getType() != null ? domain.getType().getClass().getSimpleName() : "");
+        map.put("type", domainType != null ? domainType.getClass().getSimpleName() : "");
+        map.put("typeText", typeText(domainType));
         data.domains.add(map);
       } else if (element instanceof Unit unit) {
         Map<String, Object> map = elementMap(unit, "UNIT");
@@ -141,7 +147,7 @@ public class ModelAnalysisTools {
     Map<String, Object> map = elementMap(attribute, "ATTRIBUTE");
     Type domain = attribute.getDomainResolvingAliases();
     map.put("type", domain != null ? domain.getClass().getSimpleName() : "");
-    map.put("typeText", domain != null ? domain.toString() : "");
+    map.put("typeText", typeText(domain));
     map.put("mandatory", domain != null && domain.isMandatoryConsideringAliases());
     map.put("geometry", isGeometryType(domain));
     Element container = attribute.getContainer();
@@ -149,6 +155,79 @@ public class ModelAnalysisTools {
       map.put("container", container.getScopedName());
     }
     return map;
+  }
+
+  private String typeText(@Nullable Type type) {
+    if (type == null) {
+      return "";
+    }
+    Type real = type.resolveAliases();
+    if (real instanceof TextType textType) {
+      String kind = textType.isNormalized() ? "TEXT" : "MTEXT";
+      return textType.getMaxLength() < 0 ? kind : kind + "*" + textType.getMaxLength();
+    }
+    if (real instanceof NumericType numericType) {
+      StringBuilder text = new StringBuilder();
+      if (numericType.getMinimum() == null || numericType.getMaximum() == null) {
+        text.append("NUMERIC");
+      } else {
+        text.append(numericType.getMinimum()).append("..").append(numericType.getMaximum());
+      }
+      Unit unit = numericType.getUnit();
+      if (unit != null) {
+        text.append("|unit=").append(unit.getScopedName());
+      }
+      if (numericType.isCircular()) {
+        text.append("|circular=true");
+      }
+      if (numericType.getRotation() != 0) {
+        text.append("|rotation=").append(numericType.getRotation());
+      }
+      String referenceSystem = referenceSystemText(numericType.getReferenceSystem());
+      if (!referenceSystem.isEmpty()) {
+        text.append("|refSys=").append(referenceSystem);
+      }
+      return text.toString();
+    }
+    if (real instanceof ReferenceType referenceType) {
+      StringBuilder text = new StringBuilder("REFERENCE");
+      if (referenceType.getReferred() != null) {
+        text.append("|target=").append(referenceType.getReferred().getScopedName());
+      }
+      if (referenceType.isExternal()) {
+        text.append("|external=true");
+      }
+      List<String> restrictions = new ArrayList<>();
+      Iterator<?> iterator = referenceType.iteratorRestrictedTo();
+      while (iterator.hasNext()) {
+        Object restriction = iterator.next();
+        if (restriction instanceof Element element) {
+          restrictions.add(element.getScopedName());
+        }
+      }
+      if (!restrictions.isEmpty()) {
+        text.append("|restrictedTo=").append(String.join(",", restrictions));
+      }
+      return text.toString();
+    }
+    return real.getClass().getSimpleName();
+  }
+
+  private String referenceSystemText(@Nullable RefSystemRef referenceSystem) {
+    if (referenceSystem instanceof RefSystemRef.CoordDomain ref) {
+      return "coordDomain:" + ref.getReferredDomain().getScopedName();
+    }
+    if (referenceSystem instanceof RefSystemRef.CoordDomainAxis ref) {
+      return "coordDomain:" + ref.getReferredDomain().getScopedName() + ":axis=" + ref.getAxisNumber();
+    }
+    if (referenceSystem instanceof RefSystemRef.CoordSystem ref) {
+      return "coordSystem:" + ref.getSystem().getTable().getScopedName() + "." + ref.getSystem().getName();
+    }
+    if (referenceSystem instanceof RefSystemRef.CoordSystemAxis ref) {
+      return "coordSystem:" + ref.getSystem().getTable().getScopedName() + "." + ref.getSystem().getName()
+          + ":axis=" + ref.getAxisNumber();
+    }
+    return referenceSystem == null ? "" : referenceSystem.getClass().getSimpleName();
   }
 
   private boolean isGeometryType(@Nullable Type type) {
