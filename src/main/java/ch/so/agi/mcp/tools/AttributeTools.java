@@ -4,6 +4,7 @@ import ch.so.agi.mcp.model.*;
 import ch.so.agi.mcp.model.AttributeLineRequest.Collection;
 import ch.so.agi.mcp.util.AnnotationRenderer;
 import ch.so.agi.mcp.util.NameValidator;
+import java.math.BigDecimal;
 
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
@@ -151,16 +152,10 @@ public class AttributeTools {
     return sb.toString();
   }
 
-  private String formatRangeValue(Double value, boolean keepIntegralDecimal) {
+  private String formatRangeValue(BigDecimal value, boolean keepScale) {
     if (value == null) {
       throw new IllegalArgumentException("NUM_RANGE requires non-null range bounds.");
     }
-    if (keepIntegralDecimal) {
-      return value.toString();
-    }
-    if (value.doubleValue() == Math.rint(value.doubleValue())) {
-      return Long.toString(value.longValue());
-    }
-    return value.toString();
+    return (keepScale ? value : value.stripTrailingZeros()).toPlainString();
   }
 }
