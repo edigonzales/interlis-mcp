@@ -70,6 +70,28 @@ public final class NameValidator {
   }
 
   public void validateIdent(String value, String what) {
+    validateIdentSyntax(value, what);
+    if (isReservedWord(value)) {
+      throw new IllegalArgumentException(what + " must not be an INTERLIS reserved word. Got: '" + value + "'.");
+    }
+  }
+
+  public void validateFqn(String fqn, String what) {
+    if (fqn == null || fqn.isBlank()) {
+      throw new IllegalArgumentException(what + " is required.");
+    }
+    String[] parts = fqn.split("\\.", -1);
+    boolean predefinedInterlis = parts.length > 0 && "INTERLIS".equals(parts[0]);
+    for (String p : parts) {
+      if (predefinedInterlis) {
+        validateIdentSyntax(p, what + " segment");
+      } else {
+        validateIdent(p, what + " segment");
+      }
+    }
+  }
+
+  private void validateIdentSyntax(String value, String what) {
     if (value == null || value.isBlank()) {
       throw new IllegalArgumentException(what + " is required.");
     }
@@ -80,19 +102,6 @@ public final class NameValidator {
       String rule = (pattern == ASCII) ? "[A-Za-z][A-Za-z0-9_]*" : "\\p{L}[\\p{L}\\p{Nd}_]*";
       throw new IllegalArgumentException(what + " must match " + rule
           + " (starts with a letter, then letters/digits/underscore). Got: '" + value + "'.");
-    }
-    if (isReservedWord(value)) {
-      throw new IllegalArgumentException(what + " must not be an INTERLIS reserved word. Got: '" + value + "'.");
-    }
-  }
-
-  public void validateFqn(String fqn, String what) {
-    if (fqn == null || fqn.isBlank()) {
-      throw new IllegalArgumentException(what + " is required.");
-    }
-    String[] parts = fqn.split("\\.");
-    for (String p : parts) {
-      validateIdent(p, what + " segment");
     }
   }
 }
