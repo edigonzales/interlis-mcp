@@ -65,7 +65,7 @@ public class DomainTools {
   public Map<String,Object> createUnit(
       @McpToolParam(description = "Einheiten-Name", required = true) String name,
       @McpToolParam(description = "Einheitsart, z. B. LENGTH, AREA", required = true) String kind,
-      @McpToolParam(description = "Basis-Einheit, z. B. INTERLIS.m", required = true) String base,
+      @McpToolParam(description = "Basis-Einheit, z. B. 'INTERLIS.m'", required = true) String base,
       @McpToolParam(description = "IliDoc-Blockkommentar direkt vor der UNIT", required = false) @Nullable String iliDoc,
       @McpToolParam(description = "INTERLIS-Metaattribute direkt vor der UNIT", required = false) @Nullable List<MetaAttributeSpec> metaAttributes
   ) {
@@ -106,8 +106,8 @@ public class DomainTools {
   @McpTool(name = "createEnumTreeDomainSnippet",
       description = "Erzeugt eine verschachtelte Aufzählungs-DOMAIN. Params: name (required), items (required: recursive tree items), iliDoc, metaAttributes.")
   public Map<String, Object> createEnumTreeDomainSnippet(
-      @McpToolParam(description = "Rekursiver Enum-Baum. Jedes Element ist ein Objekt mit name (required) und optional iliDoc, metaAttributes und children mit derselben Struktur.", required = true) List<?> items,
       @McpToolParam(description = "Domain-Name", required = true) String name,
+      @McpToolParam(description = "Rekursiver Enum-Baum. Jedes Element ist ein Objekt mit name (required) und optional iliDoc, metaAttributes und children mit derselben Struktur.", required = true) List<?> items,
       @McpToolParam(description = "IliDoc-Blockkommentar direkt vor der DOMAIN", required = false) @Nullable String iliDoc,
       @McpToolParam(description = "INTERLIS-Metaattribute direkt vor der DOMAIN", required = false) @Nullable List<MetaAttributeSpec> metaAttributes
   ) {
