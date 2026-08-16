@@ -53,12 +53,42 @@ class DomainToolsTest {
 
   @Test
   void createUnitSnippet_rendersIliDoc() {
-    Map<String, Object> result = domainTools.createUnit("Meter", "LENGTH", "INTERLIS.m", "Einheit", List.of());
+    Map<String, Object> result = domainTools.createUnit(
+        "Meter", "INTERLIS.LENGTH", "INTERLIS.m", "Einheit", List.of());
 
     assertEquals(String.join("\n",
         "/** Einheit */",
         "UNIT",
-        "  Meter = LENGTH [INTERLIS.m];"), result.get("iliSnippet"));
+        "  Meter EXTENDS INTERLIS.LENGTH = [INTERLIS.m];"), result.get("iliSnippet"));
+  }
+
+  @Test
+  void createUnitSnippet_generatedUnitCompiles() {
+    Map<String, Object> result = domainTools.createUnit(
+        "MyMeter", "INTERLIS.LENGTH", "INTERLIS.m", null, null);
+
+    ValidationTools validationTools = new ValidationTools(new IliCompilerService());
+    Map<String, Object> validation = validationTools.validateIliModel("""
+        INTERLIS 2.4;
+
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-01" =
+        """
+        + result.get("iliSnippet") + "\n\n"
+        + """
+        END Demo.
+        """, null);
+
+    assertEquals(true, validation.get("valid"), () -> "Expected valid model but got " + validation);
+  }
+
+  @Test
+  void createUnitSnippet_rejectsMissingReferences() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> domainTools.createUnit("Meter", " ", "INTERLIS.m", null, null));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> domainTools.createUnit("Meter", "INTERLIS.LENGTH", " ", null, null));
   }
 
   @Test
