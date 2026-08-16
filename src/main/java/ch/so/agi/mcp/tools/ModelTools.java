@@ -9,6 +9,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
@@ -48,18 +49,26 @@ public class ModelTools {
       @McpToolParam(description = "IliDoc-Blockkommentar direkt vor dem MODEL", required = false) @Nullable String iliDoc,
       @McpToolParam(description = "INTERLIS-Metaattribute direkt vor dem MODEL", required = false) @Nullable List<MetaAttributeSpec> metaAttributes
   ) {
-      
+    if (name == null || name.isBlank()) {
+      throw new IllegalArgumentException("Model name is required.");
+    }
+
+    String modelName = name.trim();
+    var nv = NameValidator.ascii();
+    nv.validateIdent(modelName, "Model name");
+
     List<String> trimmedImports = imports == null
         ? List.of()
         : imports.stream().map(String::trim).collect(Collectors.toList());
-    var nv = NameValidator.ascii();
     for (String m : trimmedImports) {
       nv.validateIdent(m, "Import model name");
     }
 
     String _lang = (lang == null || lang.isBlank()) ? "de" : lang.trim();
     String _version = (version == null || version.isBlank()) ? LocalDate.now(clock).toString() : version.trim();
-    String _uri = (uri == null || uri.isBlank()) ? ("https://example.org/" + name.toLowerCase()) : uri.trim();
+    String _uri = (uri == null || uri.isBlank())
+        ? ("https://example.org/" + modelName.toLowerCase(Locale.ROOT))
+        : uri.trim();
     String _iliVersion = (iliVersion == null || iliVersion.isBlank()) ? DEFAULT_ILI_VERSION : iliVersion.trim();
     if (!"2.3".equals(_iliVersion) && !DEFAULT_ILI_VERSION.equals(_iliVersion)) {
       throw new IllegalArgumentException("iliVersion must be either '2.3' or '2.4'. Got: '" + _iliVersion + "'.");
@@ -80,7 +89,7 @@ public class ModelTools {
             "MODEL %s (%s) AT \"%s\" VERSION \"%s\" =\n" +
             "%s\n" +
             "END %s.\n",
-            _iliVersion, modelAnnotations, name, _lang, _uri, _version, importLines, name);
+            _iliVersion, modelAnnotations, modelName, _lang, _uri, _version, importLines, modelName);
 
     return Map.of(
         "iliSnippet", snippet
