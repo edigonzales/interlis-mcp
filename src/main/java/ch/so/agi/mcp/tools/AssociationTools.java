@@ -30,10 +30,10 @@ public class AssociationTools {
   }
 
   @McpTool(name = "createAssociationSnippet",
-      description = "Erzeugt eine ASSOCIATION. Params: name (optional), roles (mindestens 2 Rollen mit classFQN, optional name, optional card, optional external), optional attrLines, iliDoc, metaAttributes. Fehlen name oder Rollenname, werden deterministische Default-Namen generiert. card ist die Kardinalitaet in INTERLIS-Notation, z.B. {1}, {0..1}, {1..*}.")
+      description = "Erzeugt eine ASSOCIATION. Params: name (optional), roles (mindestens 2 Rollen mit classFQN, optional name, optional card, optional external), optional attrLines, iliDoc, metaAttributes. Fehlen name oder Rollenname, werden deterministische technische Platzhalter generiert und unter openQuestions zur fachlichen Bestaetigung ausgewiesen. card ist die Kardinalitaet in INTERLIS-Notation, z.B. {1}, {0..1}, {1..*}.")
   public Map<String, Object> createAssociation(
-      @McpToolParam(description = "Assoziationsname (optional; bei Leerwert wird ein Default wie KlasseA__KlasseB generiert)", required = false) @Nullable String name,
-      @McpToolParam(description = "Rollen (mindestens 2) mit classFQN, optional name, optional card, optional external; card ist die Kardinalitaet in INTERLIS-Notation, z.B. {1}, {0..1}, {1..*}.", required = true) List<Role> roles,
+      @McpToolParam(description = "Assoziationsname (optional; bei Leerwert wird ein technischer Platzhalter wie KlasseA__KlasseB generiert)", required = false) @Nullable String name,
+      @McpToolParam(description = "Rollen (mindestens 2) mit classFQN, optional name, optional card, optional external; fehlende Rollennamen werden als technische Platzhalter generiert. card ist die Kardinalitaet in INTERLIS-Notation, z.B. {1}, {0..1}, {1..*}.", required = true) List<Role> roles,
       @McpToolParam(description = "Beziehungsattribute als rohe ILI-Attributzeilen", required = false) @Nullable List<String> attrLines,
       @McpToolParam(description = "IliDoc-Blockkommentar direkt vor der ASSOCIATION", required = false) @Nullable String iliDoc,
       @McpToolParam(description = "INTERLIS-Metaattribute direkt vor der ASSOCIATION", required = false) @Nullable List<MetaAttributeSpec> metaAttributes
@@ -45,7 +45,8 @@ public class AssociationTools {
     String associationName = resolveAssociationName(name, normalizedRoles, nv);
     boolean associationNameGenerated = (name == null || name.isBlank());
     ResolvedRoleSet resolvedRoleSet = resolveRoleNames(normalizedRoles, nv, nameCollisionsResolved);
-    List<String> openQuestions = findOpenQuestions(resolvedRoleSet.roles(), normalizedRoles, resolvedRoleSet.generatedRoleNames());
+    List<String> openQuestions = findOpenQuestions(
+        resolvedRoleSet.roles(), associationName, associationNameGenerated, resolvedRoleSet.generatedRoleNames());
 
     StringBuilder sb = new StringBuilder();
     sb.append(AnnotationRenderer.renderAnnotations(iliDoc, metaAttributes));
@@ -298,17 +299,25 @@ public class AssociationTools {
 
   private List<String> findOpenQuestions(
       List<ResolvedRole> roles,
-      List<Role> originalRoles,
+      String associationName,
+      boolean associationNameGenerated,
       List<Map<String, Object>> generatedRoleNames) {
     List<String> openQuestions = new ArrayList<>();
+    if (associationNameGenerated) {
+      openQuestions.add("Generated association name '" + associationName
+          + "' is a technical placeholder; confirm the domain-appropriate name.");
+    }
+    for (Map<String, Object> generatedRole : generatedRoleNames) {
+      openQuestions.add("Generated role name '" + generatedRole.get("name")
+          + "' for class '" + generatedRole.get("classFQN")
+          + "' (index " + generatedRole.get("index")
+          + ") is a technical placeholder; confirm the domain-appropriate role name.");
+    }
     for (int i = 0; i < roles.size(); i++) {
       ResolvedRole role = roles.get(i);
       if (role.card() == null || role.card().isBlank()) {
         openQuestions.add("Missing cardinality for role '" + role.name() + "' (index " + i + ").");
       }
-    }
-    if (originalRoles.size() > 2 && !generatedRoleNames.isEmpty()) {
-      openQuestions.add("N-ary association uses fallback auto role names r_<OwnClass>; no unique opposite class exists.");
     }
     return openQuestions;
   }
