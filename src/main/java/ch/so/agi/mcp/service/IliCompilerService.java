@@ -22,14 +22,11 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.locks.ReentrantLock;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
 @Service
 public class IliCompilerService {
-
-  private static final ReentrantLock ILI2C_LOCK = new ReentrantLock();
 
   public CompilationResult compile(String modelText, @Nullable String modelRepositories) {
     return compile(modelText, modelRepositories, "ili2c_model_");
@@ -63,27 +60,29 @@ public class IliCompilerService {
     cfg.setGenerateWarnings(true);
 
     TransferDescription transferDescription = null;
-    ILI2C_LOCK.lock();
-    StdListener stdListener = StdListener.getInstance();
-    stdListener.skipInfo(true);
-    EhiLogger.getInstance().addListener(collector);
-    EhiLogger.getInstance().removeListener(stdListener);
-    try {
-      transferDescription = ch.interlis.ili2c.Main.runCompiler(cfg, settings, null);
-    } catch (Exception e) {
-      Map<String, Object> error = new LinkedHashMap<>();
-      error.put("severity", "ERROR");
-      error.put("message", "ili2c failed: " + e.getMessage());
-      messages.add(error);
-    } finally {
-      EhiLogger.getInstance().addListener(stdListener);
-      EhiLogger.getInstance().removeListener(collector);
-      stdListener.skipInfo(false);
-      ILI2C_LOCK.unlock();
+    EhiLogger logger = EhiLogger.getInstance();
+    synchronized (logger) {
+      StdListener stdListener = StdListener.getInstance();
+      stdListener.skipInfo(true);
+      logger.addListener(collector);
+      logger.removeListener(stdListener);
       try {
-        Files.deleteIfExists(tempFile);
-      } catch (Exception ignore) {
+        transferDescription = ch.interlis.ili2c.Main.runCompiler(cfg, settings, null);
+      } catch (Exception e) {
+        Map<String, Object> error = new LinkedHashMap<>();
+        error.put("severity", "ERROR");
+        error.put("message", "ili2c failed: " + e.getMessage());
+        messages.add(error);
+      } finally {
+        logger.addListener(stdListener);
+        logger.removeListener(collector);
+        stdListener.skipInfo(false);
       }
+    }
+
+    try {
+      Files.deleteIfExists(tempFile);
+    } catch (Exception ignore) {
     }
 
     boolean valid = transferDescription != null
