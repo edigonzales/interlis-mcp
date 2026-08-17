@@ -80,13 +80,38 @@ public class ModelingRuleTools {
         analysisTools.analyzeCompiled(compilation.transferDescription(), modelText);
     Map<String, Object> analysis = analysisTools.toResponse(
         compilation.valid(), compilation.messages(), data, purpose);
-    Map<String, Object> ruleReview =
-        checkAnalyzedModel(modelText, purpose, analysis, null, profile);
+    Map<String, Object> review = reviewAnalyzedModel(modelText, purpose, profile, analysis);
 
     Map<String, Object> structure = new LinkedHashMap<>(analysis);
     structure.remove("valid");
     structure.remove("messages");
     structure.remove("summaryMarkdown");
+
+    boolean validForAutomatedRules = Boolean.TRUE.equals(review.get("validForAutomatedRules"));
+    boolean valid = compilation.valid() && validForAutomatedRules;
+
+    return Map.ofEntries(
+        Map.entry("valid", valid),
+        Map.entry("compilerValid", compilation.valid()),
+        Map.entry("validForAutomatedRules", validForAutomatedRules),
+        Map.entry("modelPurpose", review.get("modelPurpose")),
+        Map.entry("ruleProfile", review.get("ruleProfile")),
+        Map.entry("compilerDiagnostics", compilation.messages()),
+        Map.entry("structure", structure),
+        Map.entry("ruleFindings", review.get("ruleFindings")),
+        Map.entry("manualChecks", review.get("manualChecks")),
+        Map.entry("openQuestions", review.get("openQuestions"))
+    );
+  }
+
+  public Map<String, Object> reviewAnalyzedModel(
+      String modelText,
+      @Nullable ModelPurpose modelPurpose,
+      @Nullable ModelingRuleProfile ruleProfile,
+      Map<String, Object> analysis) {
+    ModelPurpose purpose = ModelPurpose.normalize(modelPurpose);
+    ModelingRuleProfile profile = ModelingRuleProfile.normalize(ruleProfile);
+    Map<String, Object> ruleReview = checkAnalyzedModel(modelText, purpose, analysis, null, profile);
 
     List<Map<String, Object>> openQuestions = new ArrayList<>();
     if (purpose == ModelPurpose.UNKNOWN) {
@@ -97,21 +122,13 @@ public class ModelingRuleTools {
           "reason", "Some modeling rules depend on whether the model is used for capture, publication or validation."));
     }
 
-    boolean validForAutomatedRules = Boolean.TRUE.equals(ruleReview.get("validForAutomatedRules"));
-    boolean valid = compilation.valid() && validForAutomatedRules;
-
     return Map.ofEntries(
-        Map.entry("valid", valid),
-        Map.entry("compilerValid", compilation.valid()),
-        Map.entry("validForAutomatedRules", validForAutomatedRules),
+        Map.entry("validForAutomatedRules", ruleReview.get("validForAutomatedRules")),
         Map.entry("modelPurpose", purpose.name()),
         Map.entry("ruleProfile", profile.name()),
-        Map.entry("compilerDiagnostics", compilation.messages()),
-        Map.entry("structure", structure),
         Map.entry("ruleFindings", ruleReview.get("findings")),
         Map.entry("manualChecks", ruleReview.get("manualChecks")),
-        Map.entry("openQuestions", openQuestions)
-    );
+        Map.entry("openQuestions", openQuestions));
   }
 
   private Map<String, Object> checkAnalyzedModel(

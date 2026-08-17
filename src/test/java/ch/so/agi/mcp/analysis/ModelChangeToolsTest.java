@@ -2,6 +2,9 @@ package ch.so.agi.mcp.analysis;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.so.agi.mcp.knowledge.KnowledgeRuleLoader;
+import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
+import ch.so.agi.mcp.knowledge.ModelingRuleTools;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.List;
 import java.util.Map;
@@ -12,9 +15,9 @@ class ModelChangeToolsTest {
   @Test
   void detectsAddedRemovedAndChangedElements() {
     IliCompilerService compiler = new IliCompilerService();
-    ModelChangeTools tools = new ModelChangeTools(compiler, new ModelAnalysisTools(compiler));
+    ModelChangeTools tools = changeTools(compiler);
 
-    Map<String, Object> response = tools.reviewIliChange(beforeModel(), afterModel(), null);
+    Map<String, Object> response = tools.reviewIliChange(beforeModel(), afterModel(), null, null, null);
 
     assertThat(response.get("valid")).isEqualTo(true);
     assertThat(response.get("comparable")).isEqualTo(true);
@@ -31,13 +34,37 @@ class ModelChangeToolsTest {
   }
 
   @Test
+  void reviewsAfterModelWithPurposeAndProfile() {
+    IliCompilerService compiler = new IliCompilerService();
+    ModelChangeTools tools = changeTools(compiler);
+
+    Map<String, Object> response = tools.reviewIliChange(
+        minimalModel(),
+        minimalModelWithExtraBlankLines(),
+        null,
+        ModelPurpose.CAPTURE,
+        ModelingRuleProfile.CORE);
+
+    assertThat(response.get("afterReview")).isInstanceOfSatisfying(Map.class, review -> {
+      assertThat(review.get("modelPurpose")).isEqualTo("CAPTURE");
+      assertThat(review.get("ruleProfile")).isEqualTo("CORE");
+      assertThat(review.get("ruleFindings")).asList()
+          .anySatisfy(item -> assertThat(item.toString()).contains("MDE-060"));
+      assertThat(review.get("manualChecks")).asList().isNotEmpty();
+      assertThat(review.get("openQuestions")).asList().isEmpty();
+    });
+  }
+
+  @Test
   void detectsTextLengthChange() {
     IliCompilerService compiler = new IliCompilerService();
-    ModelChangeTools tools = new ModelChangeTools(compiler, new ModelAnalysisTools(compiler));
+    ModelChangeTools tools = changeTools(compiler);
 
     Map<String, Object> response = tools.reviewIliChange(
         minimalModel(),
         minimalModel().replace("TEXT*20", "TEXT*50"),
+        null,
+        null,
         null);
 
     assertThat(response.get("impact")).isEqualTo("POTENTIALLY_BREAKING");
@@ -53,11 +80,13 @@ class ModelChangeToolsTest {
   @Test
   void detectsNumericDomainRangeChange() {
     IliCompilerService compiler = new IliCompilerService();
-    ModelChangeTools tools = new ModelChangeTools(compiler, new ModelAnalysisTools(compiler));
+    ModelChangeTools tools = changeTools(compiler);
 
     Map<String, Object> response = tools.reviewIliChange(
         numericDomainModel("10"),
         numericDomainModel("20"),
+        null,
+        null,
         null);
 
     assertThat(response.get("impact")).isEqualTo("POTENTIALLY_BREAKING");
@@ -73,11 +102,13 @@ class ModelChangeToolsTest {
   @Test
   void detectsEnumerationDomainValueChange() {
     IliCompilerService compiler = new IliCompilerService();
-    ModelChangeTools tools = new ModelChangeTools(compiler, new ModelAnalysisTools(compiler));
+    ModelChangeTools tools = changeTools(compiler);
 
     Map<String, Object> response = tools.reviewIliChange(
         enumerationDomainModel("A, B"),
         enumerationDomainModel("A, B, C"),
+        null,
+        null,
         null);
 
     assertThat(response.get("valid")).isEqualTo(true);
@@ -94,11 +125,13 @@ class ModelChangeToolsTest {
   @Test
   void detectsCoordinateDomainRangeChange() {
     IliCompilerService compiler = new IliCompilerService();
-    ModelChangeTools tools = new ModelChangeTools(compiler, new ModelAnalysisTools(compiler));
+    ModelChangeTools tools = changeTools(compiler);
 
     Map<String, Object> response = tools.reviewIliChange(
         coordinateDomainModel("100"),
         coordinateDomainModel("200"),
+        null,
+        null,
         null);
 
     assertThat(response.get("valid")).isEqualTo(true);
@@ -115,11 +148,13 @@ class ModelChangeToolsTest {
   @Test
   void detectsCoordinateDomainRotationChange() {
     IliCompilerService compiler = new IliCompilerService();
-    ModelChangeTools tools = new ModelChangeTools(compiler, new ModelAnalysisTools(compiler));
+    ModelChangeTools tools = changeTools(compiler);
 
     Map<String, Object> response = tools.reviewIliChange(
         coordinateDomainRotationModel("2", "1"),
         coordinateDomainRotationModel("1", "2"),
+        null,
+        null,
         null);
 
     assertThat(response.get("valid")).isEqualTo(true);
@@ -136,9 +171,10 @@ class ModelChangeToolsTest {
   @Test
   void ignoresFormattingOnlyChanges() {
     IliCompilerService compiler = new IliCompilerService();
-    ModelChangeTools tools = new ModelChangeTools(compiler, new ModelAnalysisTools(compiler));
+    ModelChangeTools tools = changeTools(compiler);
 
-    Map<String, Object> response = tools.reviewIliChange(minimalModel(), minimalModelWithExtraBlankLines(), null);
+    Map<String, Object> response = tools.reviewIliChange(
+        minimalModel(), minimalModelWithExtraBlankLines(), null, null, null);
 
     assertThat(response.get("hasChanges")).isEqualTo(false);
     assertThat(response.get("impact")).isEqualTo("NONE");
@@ -150,11 +186,13 @@ class ModelChangeToolsTest {
   @Test
   void doesNotCompareWhenOneVersionDoesNotCompile() {
     IliCompilerService compiler = new IliCompilerService();
-    ModelChangeTools tools = new ModelChangeTools(compiler, new ModelAnalysisTools(compiler));
+    ModelChangeTools tools = changeTools(compiler);
 
     Map<String, Object> response = tools.reviewIliChange(
         minimalModel(),
         "INTERLIS 2.4;\nMODEL Broken =\n",
+        null,
+        null,
         null);
 
     assertThat(response.get("valid")).isEqualTo(false);
@@ -162,16 +200,33 @@ class ModelChangeToolsTest {
     assertThat(response.get("impact")).isEqualTo("UNKNOWN");
     assertThat(response.get("afterDiagnostics")).asList().isNotEmpty();
     assertThat(response.get("changed")).asList().isEmpty();
+    assertThat(response.get("afterReview")).isInstanceOfSatisfying(Map.class, review ->
+        assertThat(review.get("available")).isEqualTo(false));
   }
 
   @Test
-  void compilesEachVersionExactlyOnce() {
+  void compilesEachVersionExactlyOnceIncludingAfterReview() {
     CountingCompiler compiler = new CountingCompiler();
-    ModelChangeTools tools = new ModelChangeTools(compiler, new ModelAnalysisTools(compiler));
+    ModelChangeTools tools = changeTools(compiler);
 
-    tools.reviewIliChange(minimalModel(), minimalModelWithExtraBlankLines(), null);
+    Map<String, Object> response = tools.reviewIliChange(
+        minimalModel(),
+        minimalModelWithExtraBlankLines(),
+        null,
+        ModelPurpose.UNKNOWN,
+        ModelingRuleProfile.CORE);
 
     assertThat(compiler.calls).isEqualTo(2);
+    assertThat(response.get("afterReview")).isInstanceOfSatisfying(Map.class, review ->
+        assertThat(review.get("openQuestions")).asList()
+            .anySatisfy(item -> assertThat(item.toString()).contains("MODEL_PURPOSE")));
+  }
+
+  private ModelChangeTools changeTools(IliCompilerService compiler) {
+    ModelAnalysisTools analysisTools = new ModelAnalysisTools(compiler);
+    ModelingRuleTools ruleTools = new ModelingRuleTools(
+        new KnowledgeRuleLoader(), analysisTools, compiler);
+    return new ModelChangeTools(compiler, analysisTools, ruleTools);
   }
 
   private String beforeModel() {
