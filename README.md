@@ -21,6 +21,9 @@ For local examples, use `findSimilarModels` followed by `readModelExample` for t
 
 The lower-level analysis, rule-checking, and validation tools remain available for targeted diagnostics when an agent needs one specific result. Generated association and role names are technical placeholders and remain open domain questions until confirmed.
 
+### Modeling-rule profiles
+`CORE` contains only portable technical and agent-safety rules of the MCP server. `SO` includes `CORE` and adds the rules curated from the Kanton Solothurn modeling handbook. Use `ruleProfile=SO` when a model is reviewed against Solothurn requirements. The MCP resource `interlis://knowledge/handbook-rules` exposes the effective `SO` rule set.
+
 ## Architecture
 ```mermaid
 flowchart LR

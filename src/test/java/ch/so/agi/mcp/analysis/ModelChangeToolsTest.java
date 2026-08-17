@@ -43,11 +43,11 @@ class ModelChangeToolsTest {
         minimalModelWithExtraBlankLines(),
         null,
         ModelPurpose.CAPTURE,
-        ModelingRuleProfile.CORE);
+        ModelingRuleProfile.SO);
 
     assertThat(response.get("afterReview")).isInstanceOfSatisfying(Map.class, review -> {
       assertThat(review.get("modelPurpose")).isEqualTo("CAPTURE");
-      assertThat(review.get("ruleProfile")).isEqualTo("CORE");
+      assertThat(review.get("ruleProfile")).isEqualTo("SO");
       assertThat(review.get("ruleFindings")).asList()
           .anySatisfy(item -> assertThat(item.toString()).contains("MDE-060"));
       assertThat(review.get("manualChecks")).asList().isNotEmpty();

@@ -25,6 +25,11 @@ public class AgentPrompts {
         Arbeite agentisch: klaere Zweck und offene Fachentscheide, nutze lokale Beispiele, erstelle kleine Modellinkremente
         und pruefe vollstaendige Modelle mit den vorhandenen High-Level-Review-Tools.
 
+        Regelprofile:
+        - `CORE` enthaelt nur portable technische/agentische Basisregeln.
+        - Wenn das Modell nach den Vorgaben des Kantons Solothurn beurteilt wird, verwende `ruleProfile=SO`;
+          dieses Profil enthaelt CORE plus die Regeln aus dem Solothurner Modellierungshandbuch.
+
         Bevorzuge diesen Ablauf:
         - Fuer ein vollstaendiges Modell ohne Vorher-Stand: `reviewIliModel`.
         - Fuer die Aenderung eines bestehenden Modells: `reviewIliChange` mit Vorher-/Nachher-Modell. Das enthaltene `afterReview`
@@ -51,8 +56,11 @@ public class AgentPrompts {
     return prompt("Review INTERLIS Model", """
         Reviewe das INTERLIS-Modell mit Modellzweck `%s`.
 
+        Wenn die Vorgaben des Kantons Solothurn gelten, verwende bei `reviewIliModel` das `ruleProfile=SO`.
+        Fuer portable technische/agentische Basisregeln genuegt `CORE`.
+
         Pflichtablauf:
-        1. Fuehre `reviewIliModel` mit dem passenden `modelPurpose` aus.
+        1. Fuehre `reviewIliModel` mit dem passenden `modelPurpose` und Regelprofil aus.
         2. Berichte zuerst blockierende `compilerDiagnostics` und automatisierte ERROR-Findings.
         3. Berichte danach WARNING/INFO-Findings, `manualChecks` und `openQuestions`.
         4. Nutze die gelieferte `structure`, um Befunde auf konkrete Modellelemente zu beziehen.
@@ -73,6 +81,9 @@ public class AgentPrompts {
       @Nullable String modelPurpose) {
     return prompt("Extend INTERLIS Model", """
         Erweitere ein bestehendes INTERLIS-Modell mit Modellzweck `%s`.
+
+        Wenn die Vorgaben des Kantons Solothurn gelten, verwende in den Reviews `ruleProfile=SO`;
+        `CORE` enthaelt nur die portablen technischen/agentischen Basisregeln.
 
         Vorgehen:
         1. Reviewe den bestehenden Modelltext mit `reviewIliModel`, damit Compilerstatus, Struktur, Regeln und offene Fragen bekannt sind.
