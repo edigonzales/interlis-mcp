@@ -1,2 +1,163 @@
-# SO profile rules are intentionally curated separately from CORE.
-# Add only Solothurn-specific rules here.
+# Solothurn-specific rules from the canton modeling handbook.
+# The SO profile automatically includes all CORE rules via KnowledgeRuleLoader.
+
+- profile: SO
+  id: MDE-001
+  title: Modellzweck bewusst klaeren
+  severity: INFO
+  appliesTo: ANY
+  checkKind: MANUAL
+  sourceUrl: https://github.com/sogis/modellbasierte-datenerfassung-handbuch
+  sourceSection: Modelltypen
+  rationale: Erfassungs-, Publikations- und Validierungsmodelle haben unterschiedliche Ziele.
+  recommendation: Klaere vor dem Modellieren, ob das Modell der Erfassung, Publikation oder Validierung dient.
+- profile: SO
+  id: MDE-010
+  title: Publikationsmodelle flach halten
+  severity: WARNING
+  appliesTo: PUBLICATION
+  checkKind: AUTOMATED
+  sourceUrl: https://github.com/sogis/modellbasierte-datenerfassung-handbuch
+  sourceSection: Publikationsmodell
+  rationale: Publikationsmodelle sollen fuer einfache Darstellung und Abfrage optimiert sein.
+  recommendation: Vermeide ASSOCIATIONs in Publikationsmodellen und fuehre relevante Informationen in flache Zielklassen zusammen.
+- profile: SO
+  id: MDE-011
+  title: Publikationsmodell-Inhalte ableitbar halten
+  severity: INFO
+  appliesTo: PUBLICATION
+  checkKind: MANUAL
+  sourceUrl: https://github.com/sogis/modellbasierte-datenerfassung-handbuch
+  sourceSection: Publikationsmodell
+  rationale: Publikationsmodell-Inhalte sollen automatisiert aus Erfassungsmodellen oder anderen Quellen ableitbar sein.
+  recommendation: Dokumentiere die Herleitung jeder Publikationsklasse und jedes nicht direkt uebernommene Attribut.
+- profile: SO
+  id: MDE-030
+  title: LV95/CHLV95-Geometriekonvention pruefen
+  severity: WARNING
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://github.com/sogis/modellbasierte-datenerfassung-handbuch
+  sourceSection: Geometrien
+  rationale: Geometriemodelle in der kantonalen GDI sollen ihre LV95/CHLV95-Konvention eindeutig machen.
+  recommendation: Verwende erkennbare LV95/CHLV95-Imports, Domains oder CRS-Metaangaben fuer Geometrieattribute.
+- profile: SO
+  id: MDE-050
+  title: Erfassungsmodelle normalisiert modellieren
+  severity: INFO
+  appliesTo: CAPTURE
+  checkKind: MANUAL
+  sourceUrl: https://github.com/sogis/modellbasierte-datenerfassung-handbuch
+  sourceSection: Erfassungsmodell
+  rationale: Erfassungsmodelle dienen der Nachfuehrung und sollen Redundanz vermeiden.
+  recommendation: Pruefe, ob wiederholte Werte als Beziehungen, Strukturen oder Domains modelliert werden sollten.
+- profile: SO
+  id: MDE-060
+  title: Modell-Metaattribute pruefen
+  severity: INFO
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.2 Modellname / Version / Formatierung (#204)
+  rationale: furtherInformation, technicalContact, title und shortDescription sind gemaess Handbuch im Modellheader zu erfassen.
+  recommendation: Ergaenze furtherInformation, technicalContact, title und shortDescription als Modell-Metaattribute, sofern sie fehlen.
+- profile: SO
+  id: MDE-206
+  title: Modellformatierung ohne Tabulatoren
+  severity: WARNING
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.2 Modellname / Version / Formatierung (#206)
+  rationale: Tabs erschweren konsistente Formatierung und kollidieren mit Teamkonventionen.
+  recommendation: Ersetze Tabulatoren durch Spaces und fuehre formatIliModel aus.
+- profile: SO
+  id: MDE-208
+  title: Modellversion angeben
+  severity: WARNING
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.2 Modellname / Version / Formatierung (#208)
+  rationale: Die Modellversion ist als VERSION-Datum anzugeben, damit Modellstaende eindeutig identifizierbar sind.
+  recommendation: Ergaenze beim MODEL eine VERSION-Angabe, vorzugsweise als Datum im Format JJJJ-MM-TT.
+- profile: SO
+  id: MDE-209
+  title: Attribute dokumentieren
+  severity: WARNING
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.2 Modellname / Version / Formatierung (#209)
+  rationale: Jedes Attribut soll mit einem sinnvollen Kommentar fachlich beschrieben sein.
+  recommendation: Ergaenze fuer jedes Attribut eine INTERLIS-Dokumentation mit einer aussagekraeftigen Beschreibung.
+- profile: SO
+  id: MDE-210
+  title: Klassen dokumentieren
+  severity: WARNING
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.2 Modellname / Version / Formatierung (#210)
+  rationale: Jede Klasse soll mit einem sinnvollen Kommentar fachlich beschrieben sein.
+  recommendation: Ergaenze fuer jede Klasse eine INTERLIS-Dokumentation mit einer aussagekraeftigen Beschreibung.
+- profile: SO
+  id: MDE-302
+  title: Namen von Modellelementen kurz halten
+  severity: INFO
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.3 Namenskonvention (#302)
+  rationale: Namen von Topics, Klassen, Assoziationen und Attributen sollten nicht laenger als 29 Zeichen sein.
+  recommendation: Kuerze Namen von Topics, Klassen, Assoziationen und Attributen auf hoechstens 29 Zeichen, ohne die fachliche Aussage zu verlieren.
+- profile: SO
+  id: MDE-501
+  title: Views nur in Validierungsmodellen verwenden
+  severity: WARNING
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.5 Einschraenkungen zum Gebrauch von INTERLIS 2.3 (#501)
+  rationale: Views duerfen gemaess Handbuch nur in Validierungsmodellen verwendet werden.
+  recommendation: Verschiebe VIEW-Definitionen in ein Validierungsmodell oder bestaetige den Modellzweck VALIDATION.
+- profile: SO
+  id: MDE-502
+  title: TEXT mit konkreter Laenge modellieren
+  severity: WARNING
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.5 Einschraenkungen zum Gebrauch von INTERLIS 2.3 (#502)
+  rationale: Fuer TEXT muss gemaess Handbuch immer eine konkrete Laenge angegeben werden.
+  recommendation: Ersetze unbeschraenktes TEXT oder MTEXT durch einen Typ mit expliziter maximaler Laenge.
+- profile: SO
+  id: MDE-601
+  title: Rollen-Kardinalitaeten explizit modellieren
+  severity: WARNING
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.6 Konsistenzbedingungen (#601)
+  rationale: Die Kardinalitaeten von Rollen muessen gemaess Handbuch explizit erfasst werden.
+  recommendation: Deklariere an jeder definierten Association-Rolle eine Kardinalitaet wie {1} oder {0..*}.
+- profile: SO
+  id: MDE-602
+  title: UNIQUE-Bedingungen fachlich pruefen
+  severity: INFO
+  appliesTo: ANY
+  checkKind: MANUAL
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.6 Konsistenzbedingungen (#602)
+  rationale: UNIQUE-Bedingungen muessen dort modelliert werden, wo die Fachsemantik Eindeutigkeit verlangt.
+  recommendation: Pruefe fachliche Schluessel und ergaenze UNIQUE-Bedingungen, wenn Eindeutigkeit eine Domaenenanforderung ist.
+- profile: SO
+  id: MDE-603
+  title: Konkrete Klassen mit Objektidentifikation modellieren
+  severity: WARNING
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.6 Konsistenzbedingungen (#603)
+  rationale: Objekte muessen gemaess Handbuch eine eindeutige Objektidentifikation besitzen; INTERLIS.UUIDOID ist die uebliche Wahl.
+  recommendation: Definiere fuer jede konkrete Klasse eine effektive OID-Domain, in der Regel ueber OID AS INTERLIS.UUIDOID auf Klassen- oder Topic-Ebene.

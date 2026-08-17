@@ -20,11 +20,14 @@ class ModelingRuleToolsTest {
       compilerService);
 
   @Test
-  void listsCuratedRules() {
-    Map<String, Object> response = tools.listModelingRules(null);
+  void listsCoreAndSolothurnRulesSeparately() {
+    Map<String, Object> core = tools.listModelingRules(ModelingRuleProfile.CORE);
+    Map<String, Object> so = tools.listModelingRules(ModelingRuleProfile.SO);
 
-    assertThat(response.get("profile")).isEqualTo("CORE");
-    assertThat(response.get("rules")).asList().hasSize(18);
+    assertThat(core.get("profile")).isEqualTo("CORE");
+    assertThat(core.get("rules")).asList().hasSize(2);
+    assertThat(so.get("profile")).isEqualTo("SO");
+    assertThat(so.get("rules")).asList().hasSize(18);
   }
 
   @Test
@@ -34,7 +37,7 @@ class ModelingRuleToolsTest {
         ModelPurpose.PUBLICATION,
         null,
         List.of("MDE-010"),
-        null);
+        ModelingRuleProfile.SO);
 
     assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
     assertThat(response.get("findings")).asList()
@@ -48,7 +51,7 @@ class ModelingRuleToolsTest {
         ModelPurpose.CAPTURE,
         null,
         List.of("MDE-001", "MDE-050", "MDE-602"),
-        null);
+        ModelingRuleProfile.SO);
 
     assertThat(response.get("findings")).asList().isEmpty();
     assertThat(response.get("manualChecks")).asList().hasSize(3)
@@ -62,7 +65,7 @@ class ModelingRuleToolsTest {
         ModelPurpose.CAPTURE,
         null,
         List.of("MDE-060"),
-        ModelingRuleProfile.CORE);
+        ModelingRuleProfile.SO);
 
     assertThat(response.get("findings")).asList()
         .singleElement()
@@ -90,7 +93,7 @@ class ModelingRuleToolsTest {
         ModelPurpose.CAPTURE,
         null,
         List.of("MDE-206"),
-        ModelingRuleProfile.CORE);
+        ModelingRuleProfile.SO);
 
     assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
     assertThat(response.get("findings")).asList()
@@ -104,7 +107,7 @@ class ModelingRuleToolsTest {
         ModelPurpose.CAPTURE,
         null,
         List.of("MDE-208"),
-        ModelingRuleProfile.CORE);
+        ModelingRuleProfile.SO);
 
     assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
     assertThat(response.get("findings")).asList()
@@ -119,7 +122,7 @@ class ModelingRuleToolsTest {
         ModelPurpose.CAPTURE,
         null,
         List.of("MDE-209", "MDE-210"),
-        ModelingRuleProfile.CORE);
+        ModelingRuleProfile.SO);
 
     assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
     assertThat(response.get("findings")).asList()
@@ -134,7 +137,7 @@ class ModelingRuleToolsTest {
         ModelPurpose.CAPTURE,
         null,
         List.of("MDE-209", "MDE-210"),
-        ModelingRuleProfile.CORE);
+        ModelingRuleProfile.SO);
 
     assertThat(response.get("findings")).asList().isEmpty();
   }
@@ -146,7 +149,7 @@ class ModelingRuleToolsTest {
         ModelPurpose.CAPTURE,
         null,
         List.of("MDE-302"),
-        ModelingRuleProfile.CORE);
+        ModelingRuleProfile.SO);
 
     assertThat(response.get("validForAutomatedRules")).isEqualTo(true);
     assertThat(response.get("findings")).asList()
@@ -164,11 +167,11 @@ class ModelingRuleToolsTest {
             "scopedName", "Demo.Topic.Derived")));
 
     Map<String, Object> captureReview = tools.reviewAnalyzedModel(
-        "", ModelPurpose.CAPTURE, ModelingRuleProfile.CORE, analysis);
+        "", ModelPurpose.CAPTURE, ModelingRuleProfile.SO, analysis);
     Map<String, Object> validationReview = tools.reviewAnalyzedModel(
-        "", ModelPurpose.VALIDATION, ModelingRuleProfile.CORE, analysis);
+        "", ModelPurpose.VALIDATION, ModelingRuleProfile.SO, analysis);
     Map<String, Object> unknownReview = tools.reviewAnalyzedModel(
-        "", ModelPurpose.UNKNOWN, ModelingRuleProfile.CORE, analysis);
+        "", ModelPurpose.UNKNOWN, ModelingRuleProfile.SO, analysis);
 
     assertThat(captureReview.get("ruleFindings")).asList()
         .anySatisfy(finding -> assertThat(finding.toString()).contains("MDE-501").contains("Demo.Topic.Derived"));
@@ -183,7 +186,7 @@ class ModelingRuleToolsTest {
         ModelPurpose.CAPTURE,
         null,
         List.of("MDE-502"),
-        ModelingRuleProfile.CORE);
+        ModelingRuleProfile.SO);
 
     assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
     assertThat(response.get("findings")).asList()
@@ -198,7 +201,7 @@ class ModelingRuleToolsTest {
         ModelPurpose.CAPTURE,
         null,
         List.of("MDE-601"),
-        ModelingRuleProfile.CORE);
+        ModelingRuleProfile.SO);
 
     assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
     assertThat(response.get("findings")).asList().hasSize(2)
@@ -212,7 +215,7 @@ class ModelingRuleToolsTest {
         ModelPurpose.CAPTURE,
         null,
         List.of("MDE-601"),
-        ModelingRuleProfile.CORE);
+        ModelingRuleProfile.SO);
 
     assertThat(response.get("findings")).asList().isEmpty();
   }
@@ -224,7 +227,7 @@ class ModelingRuleToolsTest {
         ModelPurpose.CAPTURE,
         null,
         List.of("MDE-603"),
-        ModelingRuleProfile.CORE);
+        ModelingRuleProfile.SO);
 
     assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
     assertThat(response.get("findings")).asList()
@@ -239,13 +242,13 @@ class ModelingRuleToolsTest {
         ModelPurpose.CAPTURE,
         null,
         List.of("MDE-603"),
-        ModelingRuleProfile.CORE);
+        ModelingRuleProfile.SO);
     Map<String, Object> abstractClass = tools.checkModelingRules(
         modelWithAbstractClassWithoutOid(),
         ModelPurpose.CAPTURE,
         null,
         List.of("MDE-603"),
-        ModelingRuleProfile.CORE);
+        ModelingRuleProfile.SO);
 
     assertThat(withTopicOid.get("findings")).asList().isEmpty();
     assertThat(abstractClass.get("findings")).asList().isEmpty();

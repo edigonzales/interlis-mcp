@@ -20,12 +20,14 @@ public class KnowledgeResources {
   @McpResource(
       uri = "interlis://knowledge/handbook-rules",
       name = "handbook-rules",
-      title = "Curated INTERLIS Modeling Rules",
-      description = "Kuratierte, versionierte MVP-Regeln aus dem Modellierungshandbuch-Kontext.",
+      title = "Solothurn INTERLIS Modeling Rules",
+      description = "Kuratierte, versionierte Regeln aus dem Solothurner Modellierungshandbuch inklusive der portablen CORE-Basisregeln.",
       mimeType = "text/markdown"
   )
   public ReadResourceResult handbookRules() {
-    return markdown("interlis://knowledge/handbook-rules", ruleLoader.rulesAsMarkdown());
+    return markdown(
+        "interlis://knowledge/handbook-rules",
+        ruleLoader.rulesAsMarkdown(ModelingRuleProfile.SO));
   }
 
   @McpResource(
@@ -66,6 +68,12 @@ public class KnowledgeResources {
         # INTERLIS MCP Tool Choice Guide
 
         Bevorzuge das hoechste Tool, das die konkrete Frage vollstaendig beantwortet. Rufe Low-Level-Tools nicht routinemaessig zusaetzlich auf.
+
+        ## Regelprofile
+
+        - `CORE` enthaelt nur portable technische/agentische Basisregeln des MCP-Servers.
+        - `SO` enthaelt `CORE` plus die Regeln aus dem Solothurner Modellierungshandbuch.
+        - Fuer Modelle, die nach den Vorgaben des Kantons Solothurn beurteilt werden, verwende `ruleProfile=SO`.
 
         ## Standardfaelle
 

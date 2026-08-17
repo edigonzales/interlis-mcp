@@ -409,14 +409,20 @@ public class StdioE2eTest {
 
         String argsJson = "{"
                 + "\"modelText\":" + jsonString(modelText) + ","
-                + "\"modelPurpose\":\"PUBLICATION\""
+                + "\"modelPurpose\":\"PUBLICATION\","
+                + "\"profile\":\"SO\""
                 + "}";
 
         String analysis = callTool(7, "analyzeIliModel", argsJson);
         assertSuccessfulToolResponse(analysis, "analyzeIliModel", "valid", "true", "classes", "Thing");
 
         String ruleCheck = callTool(8, "checkModelingRules", argsJson);
-        assertSuccessfulToolResponse(ruleCheck, "checkModelingRules", "validForAutomatedRules", "manualChecks", "MDE-060");
+        assertSuccessfulToolResponse(ruleCheck,
+                "checkModelingRules",
+                "SO",
+                "validForAutomatedRules",
+                "manualChecks",
+                "MDE-060");
     }
 
     @Test
