@@ -241,7 +241,9 @@ class AgenticGoldenScenariosTest {
 
         MODEL Demo (de) AT "https://example.org/demo" VERSION "2026-08-17" =
           TOPIC Topic =
+            /** Thing description */
             CLASS Thing =
+              /** Name description */
               name : TEXT*20;
             END Thing;
           END Topic;
@@ -255,8 +257,11 @@ class AgenticGoldenScenariosTest {
 
         MODEL Demo (de) AT "https://example.org/demo" VERSION "2026-08-17" =
           TOPIC Topic =
+            /** Thing description */
             CLASS Thing =
+              /** Name description */
               name : TEXT*20;
+              /** Code description */
               code : TEXT*10;
             END Thing;
           END Topic;

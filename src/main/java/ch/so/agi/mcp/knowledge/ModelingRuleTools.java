@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
@@ -17,6 +18,9 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class ModelingRuleTools {
+
+  private static final Pattern VERSION_DECLARATION =
+      Pattern.compile("\\bVERSION\\s+\"[^\"]+\"", Pattern.CASE_INSENSITIVE);
 
   private final KnowledgeRuleLoader ruleLoader;
   private final ModelAnalysisTools analysisTools;
@@ -163,6 +167,11 @@ public class ModelingRuleTools {
     addGeometryConventionFinding(findings, selectedRuleIds, analysis, rulesById);
     addMetaAttributeFinding(findings, selectedRuleIds, analysis, rulesById);
     addTabCharacterFinding(findings, selectedRuleIds, modelText, rulesById);
+    addModelVersionFindings(findings, selectedRuleIds, modelText, analysis, rulesById);
+    addDocumentationFindings(findings, selectedRuleIds, analysis, rulesById, "MDE-209", "attributes", "Attribute");
+    addDocumentationFindings(findings, selectedRuleIds, analysis, rulesById, "MDE-210", "classes", "Class");
+    addNameLengthFindings(findings, selectedRuleIds, analysis, rulesById);
+    addTextLengthFindings(findings, selectedRuleIds, analysis, rulesById);
 
     boolean validForAutomatedRules = findings.stream()
         .noneMatch(finding -> "ERROR".equals(finding.get("severity")) || "WARNING".equals(finding.get("severity")));
@@ -252,14 +261,25 @@ public class ModelingRuleTools {
     if (rule == null) {
       return;
     }
+
+    Set<String> modelOwners = new LinkedHashSet<>();
+    for (Object item : listValue(analysis, "models")) {
+      if (item instanceof Map<?, ?> map && map.get("scopedName") != null) {
+        modelOwners.add(map.get("scopedName").toString());
+      }
+    }
+
     Set<String> present = new LinkedHashSet<>();
     for (Object item : listValue(analysis, "metaAttributes")) {
-      if (item instanceof Map<?, ?> map && map.get("name") != null) {
+      if (item instanceof Map<?, ?> map
+          && map.get("name") != null
+          && map.get("owner") != null
+          && modelOwners.contains(map.get("owner").toString())) {
         present.add(map.get("name").toString());
       }
     }
     List<String> missing = new ArrayList<>();
-    for (String required : List.of("title", "shortDescription", "technicalContact")) {
+    for (String required : List.of("furtherInformation", "technicalContact", "title", "shortDescription")) {
       if (!present.contains(required)) {
         missing.add(required);
       }
@@ -302,6 +322,129 @@ public class ModelingRuleTools {
         rule,
         "Model contains tab character(s) on line(s): " + join(tabLines) + ".",
         Map.of("lines", tabLines)));
+  }
+
+  private void addModelVersionFindings(
+      List<Map<String, Object>> findings,
+      Set<String> selectedRuleIds,
+      String modelText,
+      Map<String, Object> analysis,
+      Map<String, ModelingRule> rulesById) {
+    if (!isSelected(selectedRuleIds, "MDE-208")) {
+      return;
+    }
+    ModelingRule rule = rule("MDE-208", rulesById);
+    if (rule == null) {
+      return;
+    }
+
+    List<?> models = listValue(analysis, "models");
+    if (models.isEmpty()) {
+      if (!VERSION_DECLARATION.matcher(modelText).find()) {
+        findings.add(ruleFinding(rule, "Model source has no VERSION declaration.", null));
+      }
+      return;
+    }
+
+    for (Object item : models) {
+      if (item instanceof Map<?, ?> map && isBlank(map.get("version"))) {
+        findings.add(ruleFinding(rule,
+            "Model has no VERSION declaration.",
+            elementLocation(map)));
+      }
+    }
+  }
+
+  private void addDocumentationFindings(
+      List<Map<String, Object>> findings,
+      Set<String> selectedRuleIds,
+      Map<String, Object> analysis,
+      Map<String, ModelingRule> rulesById,
+      String ruleId,
+      String category,
+      String label) {
+    if (!isSelected(selectedRuleIds, ruleId)) {
+      return;
+    }
+    ModelingRule rule = rule(ruleId, rulesById);
+    if (rule == null) {
+      return;
+    }
+    for (Object item : listValue(analysis, category)) {
+      if (item instanceof Map<?, ?> map && isBlank(map.get("documentation"))) {
+        findings.add(ruleFinding(rule,
+            label + " has no documentation comment.",
+            elementLocation(map)));
+      }
+    }
+  }
+
+  private void addNameLengthFindings(
+      List<Map<String, Object>> findings,
+      Set<String> selectedRuleIds,
+      Map<String, Object> analysis,
+      Map<String, ModelingRule> rulesById) {
+    if (!isSelected(selectedRuleIds, "MDE-302")) {
+      return;
+    }
+    ModelingRule rule = rule("MDE-302", rulesById);
+    if (rule == null) {
+      return;
+    }
+    for (String category : List.of("topics", "classes", "associations", "attributes")) {
+      for (Object item : listValue(analysis, category)) {
+        if (item instanceof Map<?, ?> map && map.get("name") != null) {
+          String name = map.get("name").toString();
+          if (name.length() > 29) {
+            findings.add(ruleFinding(rule,
+                "Model element name has " + name.length() + " characters: " + name + ".",
+                elementLocation(map)));
+          }
+        }
+      }
+    }
+  }
+
+  private void addTextLengthFindings(
+      List<Map<String, Object>> findings,
+      Set<String> selectedRuleIds,
+      Map<String, Object> analysis,
+      Map<String, ModelingRule> rulesById) {
+    if (!isSelected(selectedRuleIds, "MDE-502")) {
+      return;
+    }
+    ModelingRule rule = rule("MDE-502", rulesById);
+    if (rule == null) {
+      return;
+    }
+    for (String category : List.of("domains", "attributes")) {
+      for (Object item : listValue(analysis, category)) {
+        if (item instanceof Map<?, ?> map && map.get("typeText") != null) {
+          String typeText = map.get("typeText").toString();
+          if ("TEXT".equals(typeText) || "MTEXT".equals(typeText)) {
+            findings.add(ruleFinding(rule,
+                "Unbounded " + typeText + " type has no explicit maximum length.",
+                elementLocation(map)));
+          }
+        }
+      }
+    }
+  }
+
+  private boolean isBlank(@Nullable Object value) {
+    return value == null || value.toString().isBlank();
+  }
+
+  private @Nullable Object elementLocation(Map<?, ?> map) {
+    Object scopedName = map.get("scopedName");
+    Object line = map.get("line");
+    if (scopedName != null && line != null) {
+      return Map.of("scopedName", scopedName, "line", line);
+    }
+    if (scopedName != null) {
+      return scopedName;
+    }
+    return line;
   }
 
   private String join(List<Integer> values) {
