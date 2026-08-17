@@ -58,7 +58,7 @@ public class ModelAnalysisTools {
 
   @McpTool(
       name = "analyzeIliModel",
-      description = "Low-Level-Tool fuer gezielte strukturelle und semantische Inspektion eines vollstaendigen INTERLIS-Modells, z. B. Vererbung, Topic-Abhaengigkeiten, Association-Rollen, Constraints oder Typdetails. Nicht als allgemeines Qualitaetsgate oder Standardreview verwenden; dafuer reviewIliModel."
+      description = "Low-Level-Tool fuer gezielte strukturelle und semantische Inspektion eines vollstaendigen INTERLIS-Modells, z. B. Vererbung, Topic-Abhaengigkeiten, Association-Rollen, Constraints, Units, Metaattribute oder Typdetails. Nicht als allgemeines Qualitaetsgate oder Standardreview verwenden; dafuer reviewIliModel."
   )
   public Map<String, Object> analyzeIliModel(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
@@ -73,14 +73,15 @@ public class ModelAnalysisTools {
   public AnalysisData analyzeCompiled(@Nullable TransferDescription td, String modelText) {
     AnalysisData data = new AnalysisData();
     data.imports.addAll(parseImports(modelText));
-    data.metaAttributes.addAll(parseMetaAttributes(modelText));
     data.iliVersion = parseIliVersion(modelText);
 
     if (td == null) {
+      data.metaAttributes.addAll(parseMetaAttributes(modelText));
       return data;
     }
 
     for (Model model : td.getModelsFromLastFile()) {
+      collectMetaAttributes(model, data);
       data.models.add(elementMap(model, "MODEL"));
       if (model.getIliVersion() != null && !model.getIliVersion().isBlank()) {
         data.iliVersion = model.getIliVersion();
@@ -121,6 +122,7 @@ public class ModelAnalysisTools {
       if (!(item instanceof Element element)) {
         continue;
       }
+      collectMetaAttributes(element, data);
       if (element instanceof Topic topic) {
         data.topics.add(topicMap(topic));
         collect(topic, data, td);
@@ -142,8 +144,7 @@ public class ModelAnalysisTools {
       } else if (element instanceof Constraint constraint) {
         data.constraints.add(constraintMap(constraint, td));
       } else if (element instanceof Unit unit) {
-        Map<String, Object> map = elementMap(unit, "UNIT");
-        data.units.add(map);
+        data.units.add(unitMap(unit, td));
       } else if (element instanceof AttributeDef attribute) {
         data.attributes.add(attributeMap(attribute));
       } else if (element instanceof Container<?> child) {
@@ -236,6 +237,15 @@ public class ModelAnalysisTools {
     StringWriter writer = new StringWriter();
     Interlis2Generator generator = Interlis2Generator.generateElements(writer, td);
     generator.printConstraint(constraint, true);
+    map.put("definitionText", writer.toString().strip());
+    return map;
+  }
+
+  private Map<String, Object> unitMap(Unit unit, TransferDescription td) {
+    Map<String, Object> map = elementMap(unit, "UNIT");
+    StringWriter writer = new StringWriter();
+    Interlis2Generator generator = Interlis2Generator.generateElements(writer, td);
+    generator.printUnit(unit.getContainer(), unit, true);
     map.put("definitionText", writer.toString().strip());
     return map;
   }
@@ -450,6 +460,23 @@ public class ModelAnalysisTools {
     return map;
   }
 
+  private void collectMetaAttributes(Element element, AnalysisData data) {
+    Settings metaValues = element.getMetaValues();
+    if (metaValues == null || metaValues.getValues().isEmpty()) {
+      return;
+    }
+    List<String> keys = new ArrayList<>(metaValues.getValues());
+    keys.sort(String::compareTo);
+    for (String key : keys) {
+      Map<String, Object> map = new LinkedHashMap<>();
+      map.put("kind", "META_ATTRIBUTE");
+      map.put("name", key);
+      map.put("owner", element.getScopedName());
+      map.put("value", metaValues.getValue(key));
+      data.metaAttributes.add(map);
+    }
+  }
+
   private List<Map<String, Object>> parseImports(String modelText) {
     List<Map<String, Object>> imports = new ArrayList<>();
     Matcher matcher = IMPORT_PATTERN.matcher(modelText);
@@ -474,6 +501,7 @@ public class ModelAnalysisTools {
     Matcher matcher = META_PATTERN.matcher(modelText);
     while (matcher.find()) {
       Map<String, Object> map = new LinkedHashMap<>();
+      map.put("kind", "META_ATTRIBUTE");
       map.put("name", matcher.group(1));
       metaAttributes.add(map);
     }
@@ -496,12 +524,13 @@ public class ModelAnalysisTools {
         + "- units: " + data.units.size() + "\n"
         + "- associations: " + data.associations.size() + "\n"
         + "- attributes: " + data.attributes.size() + "\n"
-        + "- constraints: " + data.constraints.size();
+        + "- constraints: " + data.constraints.size() + "\n"
+        + "- metaAttributes: " + data.metaAttributes.size();
   }
 
   public Set<String> lexicalTerms(Map<String, Object> analysisResponse) {
     Set<String> terms = new LinkedHashSet<>();
-    for (String key : List.of("models", "topics", "classes", "structures", "domains", "units", "associations", "attributes", "constraints")) {
+    for (String key : List.of("models", "topics", "classes", "structures", "domains", "units", "associations", "attributes", "constraints", "metaAttributes")) {
       Object value = analysisResponse.get(key);
       if (value instanceof List<?> list) {
         for (Object item : list) {
