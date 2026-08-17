@@ -53,6 +53,42 @@ public class KnowledgeResources {
   }
 
   @McpResource(
+      uri = "interlis://knowledge/tool-guide",
+      name = "tool-guide",
+      title = "INTERLIS MCP Tool Choice Guide",
+      description = "Entscheidungshilfe fuer die Auswahl zwischen High-Level-Review, Low-Level-Diagnostik und Modellbeispielen.",
+      mimeType = "text/markdown"
+  )
+  public ReadResourceResult toolGuide() {
+    return markdown("interlis://knowledge/tool-guide", """
+        # INTERLIS MCP Tool Choice Guide
+
+        Bevorzuge das hoechste Tool, das die konkrete Frage vollstaendig beantwortet. Rufe Low-Level-Tools nicht routinemaessig zusaetzlich auf.
+
+        ## Standardfaelle
+
+        - Vollstaendigen aktuellen Modellstand pruefen: `reviewIliModel`.
+          Es kombiniert ili2c, Strukturanalyse, automatisierte Regeln, manuelle Checks und offene fachliche Fragen.
+        - Vorher-/Nachher-Aenderung pruefen: `reviewIliChange`.
+          Es liefert den semantischen Diff und prueft gleichzeitig das After-Modell.
+        - Passendes Modellierungsmuster suchen: `findSimilarModels` -> `readModelExample`.
+          Treffer dienen nur der Discovery; lies einen relevanten Treffer vollstaendig, bevor du das Muster uebernimmst.
+
+        ## Low-Level nur bei gezieltem Bedarf
+
+        - `validateIliModel`: nur Compiler-/Syntaxdiagnostik, besonders fuer einen gezielten Repair-Loop.
+        - `analyzeIliModel`: nur strukturelle oder semantische Detailfragen zum Modell.
+        - `checkModelingRules`: nur gezielte Regelpruefung, insbesondere fuer einzelne `ruleIds`.
+        - `listModelingRules`: Regelkatalog verstehen; prueft selbst kein Modell.
+        - `indexConfiguredModels`: Korpus inventarisieren/aktualisieren; fuer Mustersuche `findSimilarModels` verwenden.
+
+        Nach `reviewIliModel` nicht standardmaessig noch `validateIliModel`, `analyzeIliModel` und `checkModelingRules` aufrufen. Nutze eines davon nur, wenn das High-Level-Resultat eine konkrete Detailfrage offenlaesst.
+
+        Snippet-, Rename- und Formatting-Tools sind lokale Konstruktionshilfen. Nach einer Aenderung entscheidet weiterhin `reviewIliChange` bzw. `reviewIliModel` ueber den vollstaendigen Modellstand. Technisch generierte Namen oder andere fachliche Platzhalter sind keine fachlichen Entscheide.
+        """);
+  }
+
+  @McpResource(
       uri = "interlis://knowledge/model-corpus-index",
       name = "model-corpus-index",
       title = "Configured INTERLIS Model Corpus Index",

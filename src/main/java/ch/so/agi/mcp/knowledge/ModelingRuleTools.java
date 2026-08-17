@@ -33,7 +33,7 @@ public class ModelingRuleTools {
 
   @McpTool(
       name = "listModelingRules",
-      description = "Listet die kuratierten INTERLIS-Modellierungsregeln mit id, title, severity, appliesTo und checkKind auf."
+      description = "Katalog-Tool fuer die kuratierten INTERLIS-Modellierungsregeln mit id, title, severity, appliesTo und checkKind. Verwenden, um verfuegbare Regeln oder Regel-IDs zu verstehen. Nicht zum Pruefen eines Modells verwenden; dafuer reviewIliModel oder fuer gezielte Regelpruefungen checkModelingRules."
   )
   public Map<String, Object> listModelingRules(
       @McpToolParam(description = "Regelprofil: CORE oder SO (Default CORE)", required = false) @Nullable ModelingRuleProfile profile
@@ -46,7 +46,7 @@ public class ModelingRuleTools {
 
   @McpTool(
       name = "checkModelingRules",
-      description = "Prueft ein INTERLIS-Modell gegen kuratierte Modellierungsregeln. Automatisierte Findings und manuelle Checks werden getrennt ausgewiesen."
+      description = "Low-Level-Tool fuer gezielte Modellierungsregel-Diagnosen, insbesondere einzelne ruleIds oder wenn nur Regel-Findings benoetigt werden. Automatisierte Findings und manuelle Checks werden getrennt ausgewiesen. Nicht als Standardreview eines vollstaendigen Modells verwenden; dafuer reviewIliModel."
   )
   public Map<String, Object> checkModelingRules(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
@@ -63,7 +63,7 @@ public class ModelingRuleTools {
 
   @McpTool(
       name = "reviewIliModel",
-      description = "Fuehrt einen agentischen Review eines vollstaendigen INTERLIS-Modells durch. Kompiliert genau einmal und kombiniert Compilerdiagnostik, Struktur, automatisierte Modellierungsregeln, manuelle Checks und offene fachliche Fragen."
+      description = "Standard-Tool fuer Baseline- und Abschlussreview eines vollstaendigen aktuellen INTERLIS-Modells. Kompiliert genau einmal und kombiniert Compilerdiagnostik, Struktur, automatisierte Modellierungsregeln, manuelle Checks und offene fachliche Fragen. Nicht routinemaessig zusaetzlich analyzeIliModel, checkModelingRules oder validateIliModel aufrufen; diese nur fuer gezielte Detaildiagnosen."
   )
   public Map<String, Object> reviewIliModel(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,

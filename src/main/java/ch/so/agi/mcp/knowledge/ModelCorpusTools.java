@@ -18,7 +18,7 @@ public class ModelCorpusTools {
 
   @McpTool(
       name = "indexConfiguredModels",
-      description = "Scannt die konfigurierten lokalen INTERLIS-Beispielpfade und gibt den aktuellen In-Memory-Index zurueck."
+      description = "Inventar-/Admin-Tool: scannt die konfigurierten lokalen INTERLIS-Beispielpfade und gibt den aktuellen In-Memory-Index zurueck. Nicht fuer die normale Mustersuche verwenden; dafuer findSimilarModels."
   )
   public Map<String, Object> indexConfiguredModels() {
     return corpusService.indexConfiguredModels();
@@ -26,7 +26,7 @@ public class ModelCorpusTools {
 
   @McpTool(
       name = "findSimilarModels",
-      description = "Sucht aehnliche INTERLIS-Modelle in den konfigurierten lokalen Beispielpfaden mit lexikalischem Scoring."
+      description = "Discovery-Tool fuer passende INTERLIS-Beispiele im konfigurierten lokalen Modellkorpus. Verwenden, um Kandidaten fuer einen fachlichen oder strukturellen Modellierungsfall zu finden. Vor der Uebernahme eines Musters einen relevanten Treffer mit readModelExample vollstaendig lesen; nicht nur aus Treffer-Metadaten modellieren."
   )
   public Map<String, Object> findSimilarModels(
       @McpToolParam(description = "Suchbegriffe, fachlicher Kontext oder gewuenschte Modellstruktur", required = false) @Nullable String query,
@@ -39,7 +39,7 @@ public class ModelCorpusTools {
 
   @McpTool(
       name = "readModelExample",
-      description = "Liest ein vollstaendiges INTERLIS-Beispielmodell aus dem konfigurierten lokalen Modellkorpus. Verwende einen path aus findSimilarModels oder indexConfiguredModels. Pfade ausserhalb des konfigurierten Korpus werden abgelehnt."
+      description = "Liest den vollstaendigen Quelltext eines ausgewaehlten INTERLIS-Beispielmodells. Verwenden nach findSimilarModels oder bei einem bekannten path aus indexConfiguredModels, bevor ein Muster uebernommen wird. Nicht zum Lesen beliebiger Dateien verwenden; Pfade ausserhalb des konfigurierten Korpus werden abgelehnt."
   )
   public Map<String, Object> readModelExample(
       @McpToolParam(description = "Pfad eines Treffers aus findSimilarModels oder indexConfiguredModels", required = true) String path
