@@ -1,12 +1,14 @@
 package ch.so.agi.mcp.analysis;
 
 import ch.ehi.basics.settings.Settings;
+import ch.interlis.ili2c.generator.Interlis2Generator;
 import ch.interlis.ili2c.metamodel.AbstractCoordType;
 import ch.interlis.ili2c.metamodel.AreaType;
 import ch.interlis.ili2c.metamodel.AssociationDef;
 import ch.interlis.ili2c.metamodel.AttributeDef;
 import ch.interlis.ili2c.metamodel.BlackboxType;
 import ch.interlis.ili2c.metamodel.CompositionType;
+import ch.interlis.ili2c.metamodel.Constraint;
 import ch.interlis.ili2c.metamodel.Container;
 import ch.interlis.ili2c.metamodel.Domain;
 import ch.interlis.ili2c.metamodel.Element;
@@ -27,6 +29,7 @@ import ch.interlis.ili2c.metamodel.TransferDescription;
 import ch.interlis.ili2c.metamodel.Type;
 import ch.interlis.ili2c.metamodel.Unit;
 import ch.so.agi.mcp.service.IliCompilerService;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -55,7 +58,7 @@ public class ModelAnalysisTools {
 
   @McpTool(
       name = "analyzeIliModel",
-      description = "Low-Level-Tool fuer gezielte strukturelle und semantische Inspektion eines vollstaendigen INTERLIS-Modells, z. B. Vererbung, Topic-Abhaengigkeiten, Association-Rollen oder Typdetails. Nicht als allgemeines Qualitaetsgate oder Standardreview verwenden; dafuer reviewIliModel."
+      description = "Low-Level-Tool fuer gezielte strukturelle und semantische Inspektion eines vollstaendigen INTERLIS-Modells, z. B. Vererbung, Topic-Abhaengigkeiten, Association-Rollen, Constraints oder Typdetails. Nicht als allgemeines Qualitaetsgate oder Standardreview verwenden; dafuer reviewIliModel."
   )
   public Map<String, Object> analyzeIliModel(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
@@ -82,7 +85,7 @@ public class ModelAnalysisTools {
       if (model.getIliVersion() != null && !model.getIliVersion().isBlank()) {
         data.iliVersion = model.getIliVersion();
       }
-      collect(model, data);
+      collect(model, data, td);
     }
     return data;
   }
@@ -105,12 +108,13 @@ public class ModelAnalysisTools {
         Map.entry("units", data.units),
         Map.entry("associations", data.associations),
         Map.entry("attributes", data.attributes),
+        Map.entry("constraints", data.constraints),
         Map.entry("metaAttributes", data.metaAttributes),
         Map.entry("summaryMarkdown", summaryMarkdown(valid, data, modelPurpose))
     );
   }
 
-  private void collect(Container<?> container, AnalysisData data) {
+  private void collect(Container<?> container, AnalysisData data, TransferDescription td) {
     Iterator<?> iterator = container.iterator();
     while (iterator.hasNext()) {
       Object item = iterator.next();
@@ -119,10 +123,10 @@ public class ModelAnalysisTools {
       }
       if (element instanceof Topic topic) {
         data.topics.add(topicMap(topic));
-        collect(topic, data);
+        collect(topic, data, td);
       } else if (element instanceof AssociationDef association) {
         data.associations.add(associationMap(association));
-        collect(association, data);
+        collect(association, data, td);
       } else if (element instanceof Table table) {
         if (!table.isImplicit()) {
           if (table.isIdentifiable()) {
@@ -131,16 +135,19 @@ public class ModelAnalysisTools {
             data.structures.add(classMap(table, "STRUCTURE"));
           }
         }
-        collect(table, data);
+        collect(table, data, td);
       } else if (element instanceof Domain domain) {
         data.domains.add(domainMap(domain));
+        collect(domain, data, td);
+      } else if (element instanceof Constraint constraint) {
+        data.constraints.add(constraintMap(constraint, td));
       } else if (element instanceof Unit unit) {
         Map<String, Object> map = elementMap(unit, "UNIT");
         data.units.add(map);
       } else if (element instanceof AttributeDef attribute) {
         data.attributes.add(attributeMap(attribute));
       } else if (element instanceof Container<?> child) {
-        collect(child, data);
+        collect(child, data, td);
       }
     }
   }
@@ -222,6 +229,21 @@ public class ModelAnalysisTools {
     }
     map.put("targets", targets);
     return map;
+  }
+
+  private Map<String, Object> constraintMap(Constraint constraint, TransferDescription td) {
+    Map<String, Object> map = elementMap(constraint, constraintKind(constraint));
+    StringWriter writer = new StringWriter();
+    Interlis2Generator generator = Interlis2Generator.generateElements(writer, td);
+    generator.printConstraint(constraint, true);
+    map.put("definitionText", writer.toString().strip());
+    return map;
+  }
+
+  private String constraintKind(Constraint constraint) {
+    return constraint.getClass().getSimpleName()
+        .replace("Constraint", "_CONSTRAINT")
+        .toUpperCase(Locale.ROOT);
   }
 
   private String roleKind(int kind) {
@@ -473,12 +495,13 @@ public class ModelAnalysisTools {
         + "- domains: " + data.domains.size() + "\n"
         + "- units: " + data.units.size() + "\n"
         + "- associations: " + data.associations.size() + "\n"
-        + "- attributes: " + data.attributes.size();
+        + "- attributes: " + data.attributes.size() + "\n"
+        + "- constraints: " + data.constraints.size();
   }
 
   public Set<String> lexicalTerms(Map<String, Object> analysisResponse) {
     Set<String> terms = new LinkedHashSet<>();
-    for (String key : List.of("models", "topics", "classes", "structures", "domains", "units", "associations", "attributes")) {
+    for (String key : List.of("models", "topics", "classes", "structures", "domains", "units", "associations", "attributes", "constraints")) {
       Object value = analysisResponse.get(key);
       if (value instanceof List<?> list) {
         for (Object item : list) {
@@ -513,6 +536,7 @@ public class ModelAnalysisTools {
     public final List<Map<String, Object>> domains = new ArrayList<>();
     public final List<Map<String, Object>> associations = new ArrayList<>();
     public final List<Map<String, Object>> attributes = new ArrayList<>();
+    public final List<Map<String, Object>> constraints = new ArrayList<>();
     public final List<Map<String, Object>> metaAttributes = new ArrayList<>();
     public final List<Map<String, Object>> units = new ArrayList<>();
   }

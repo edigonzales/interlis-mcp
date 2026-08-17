@@ -19,7 +19,7 @@ import org.springframework.stereotype.Component;
 public class ModelChangeTools {
 
   private static final List<String> CATEGORIES = List.of(
-      "models", "imports", "topics", "classes", "structures", "domains", "units", "associations", "attributes");
+      "models", "imports", "topics", "classes", "structures", "domains", "units", "associations", "attributes", "constraints");
   private static final Set<String> IDENTITY_FIELDS = Set.of("kind", "name", "scopedName");
   private static final Set<String> IGNORED_FIELDS = Set.of("line");
 
@@ -242,8 +242,11 @@ public class ModelChangeTools {
     }
 
     for (Map<String, Object> item : added) {
-      if ("ATTRIBUTE".equals(item.get("kind")) && Boolean.TRUE.equals(item.get("mandatory"))) {
+      String kind = String.valueOf(item.get("kind"));
+      if ("ATTRIBUTE".equals(kind) && Boolean.TRUE.equals(item.get("mandatory"))) {
         result.add(impactFinding(item, "Adding a mandatory attribute requires values in existing data."));
+      } else if (isConstraintKind(kind)) {
+        result.add(impactFinding(item, "Adding a constraint can invalidate data that was valid before."));
       }
     }
 
@@ -254,16 +257,39 @@ public class ModelChangeTools {
 
       if ("ILI_VERSION".equals(kind)) {
         result.add(impactFinding(change, "Changing the INTERLIS language version may affect compatibility."));
-      } else if ("DOMAIN".equals(kind) && (fields.contains("type") || fields.contains("typeText"))) {
-        result.add(impactFinding(change, "Changing a domain type may invalidate existing values or consumers."));
+      } else if (isConstraintKind(kind)) {
+        result.add(impactFinding(change, "Changing a constraint changes the set of valid data and requires domain review."));
+      } else if ("TOPIC".equals(kind) && hasAny(fields, "extends", "dependsOn", "abstract", "final")) {
+        result.add(impactFinding(change, "Changing topic inheritance, dependencies or modifiers may affect model compatibility."));
+      } else if (("CLASS".equals(kind) || "STRUCTURE".equals(kind))
+          && hasAny(fields, "extends", "abstract", "final")) {
+        result.add(impactFinding(change, "Changing inheritance or class/structure modifiers may affect existing data or consumers."));
+      } else if ("DOMAIN".equals(kind)
+          && hasAny(fields, "type", "typeText", "extends", "abstract", "final")) {
+        result.add(impactFinding(change, "Changing a domain type, inheritance or modifiers may invalidate existing values or consumers."));
+      } else if ("ASSOCIATION".equals(kind)
+          && hasAny(fields, "roles", "extends", "abstract", "final")) {
+        result.add(impactFinding(change, "Changing association roles, inheritance or modifiers may change relationship semantics."));
       } else if ("ATTRIBUTE".equals(kind)
-          && (fields.contains("type") || fields.contains("typeText") || fields.contains("mandatory")
-              || fields.contains("geometry") || fields.contains("container"))) {
+          && hasAny(fields, "type", "typeText", "mandatory", "geometry", "container")) {
         result.add(impactFinding(change, "Changing an attribute type, mandatory state, geometry semantics or container may be incompatible."));
       }
     }
 
     return result;
+  }
+
+  private boolean hasAny(List<String> fields, String... candidates) {
+    for (String candidate : candidates) {
+      if (fields.contains(candidate)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private boolean isConstraintKind(String kind) {
+    return kind.endsWith("_CONSTRAINT");
   }
 
   private Map<String, Object> impactFinding(Map<String, Object> change, String reason) {
@@ -285,6 +311,7 @@ public class ModelChangeTools {
       case "units" -> data.units;
       case "associations" -> data.associations;
       case "attributes" -> data.attributes;
+      case "constraints" -> data.constraints;
       default -> List.of();
     };
   }
@@ -316,6 +343,7 @@ public class ModelChangeTools {
       case "units" -> "UNIT";
       case "associations" -> "ASSOCIATION";
       case "attributes" -> "ATTRIBUTE";
+      case "constraints" -> "CONSTRAINT";
       default -> category.toUpperCase();
     };
   }
@@ -331,6 +359,7 @@ public class ModelChangeTools {
   private List<String> limitations() {
     return List.of(
         "Renames are not inferred; they appear as one removed and one added element.",
+        "Unnamed constraints are matched by ili2c-generated names; reordering them can appear as multiple changes.",
         "Source line changes are ignored.");
   }
 }
