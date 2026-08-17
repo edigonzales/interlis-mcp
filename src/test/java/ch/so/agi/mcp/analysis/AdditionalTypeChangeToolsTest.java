@@ -2,6 +2,8 @@ package ch.so.agi.mcp.analysis;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.so.agi.mcp.knowledge.KnowledgeRuleLoader;
+import ch.so.agi.mcp.knowledge.ModelingRuleTools;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -10,7 +12,8 @@ class AdditionalTypeChangeToolsTest {
 
   @Test
   void detectsBlackboxKindChange() {
-    Map<String, Object> response = tools().reviewIliChange(blackboxModel("XML"), blackboxModel("BINARY"), null);
+    Map<String, Object> response = tools().reviewIliChange(
+        blackboxModel("XML"), blackboxModel("BINARY"), null, null, null);
 
     assertChanged(response, "Demo.Topic.Thing.payload", "BLACKBOX|kind=XML", "BLACKBOX|kind=BINARY");
   }
@@ -20,6 +23,8 @@ class AdditionalTypeChangeToolsTest {
     Map<String, Object> response = tools().reviewIliChange(
         coordinateSemanticsModel("", "EPSG:2056"),
         coordinateSemanticsModel(" (GENERIC)", "EPSG:4326"),
+        null,
+        null,
         null);
 
     assertChanged(
@@ -34,6 +39,8 @@ class AdditionalTypeChangeToolsTest {
     Map<String, Object> response = tools().reviewIliChange(
         compositionModel("BAG", "{0..*}", "PartA"),
         compositionModel("LIST", "{1..*}", "PartB"),
+        null,
+        null,
         null);
 
     assertChanged(
@@ -48,6 +55,8 @@ class AdditionalTypeChangeToolsTest {
     Map<String, Object> response = tools().reviewIliChange(
         lineModel("POLYLINE", "STRAIGHTS", "CoordA", "0.010"),
         lineModel("DIRECTED POLYLINE", "STRAIGHTS, ARCS", "CoordB", "0.020"),
+        null,
+        null,
         null);
 
     assertChanged(
@@ -59,7 +68,10 @@ class AdditionalTypeChangeToolsTest {
 
   private ModelChangeTools tools() {
     IliCompilerService compiler = new IliCompilerService();
-    return new ModelChangeTools(compiler, new ModelAnalysisTools(compiler));
+    ModelAnalysisTools analysisTools = new ModelAnalysisTools(compiler);
+    ModelingRuleTools ruleTools = new ModelingRuleTools(
+        new KnowledgeRuleLoader(), analysisTools, compiler);
+    return new ModelChangeTools(compiler, analysisTools, ruleTools);
   }
 
   private void assertChanged(Map<String, Object> response, String scopedName, String beforeType, String afterType) {

@@ -1,5 +1,7 @@
 package ch.so.agi.mcp.analysis;
 
+import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
+import ch.so.agi.mcp.knowledge.ModelingRuleTools;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -23,48 +25,56 @@ public class ModelChangeTools {
 
   private final IliCompilerService compilerService;
   private final ModelAnalysisTools analysisTools;
+  private final ModelingRuleTools ruleTools;
 
-  public ModelChangeTools(IliCompilerService compilerService, ModelAnalysisTools analysisTools) {
+  public ModelChangeTools(
+      IliCompilerService compilerService,
+      ModelAnalysisTools analysisTools,
+      ModelingRuleTools ruleTools) {
     this.compilerService = compilerService;
     this.analysisTools = analysisTools;
+    this.ruleTools = ruleTools;
   }
 
   @McpTool(
       name = "reviewIliChange",
-      description = "Vergleicht zwei vollstaendige INTERLIS-Modelle semantisch auf Basis der ili2c-Struktur. Beide Versionen werden je einmal kompiliert. Rueckgabe: added, removed, changed und potentiallyBreakingChanges. Reine Zeilenverschiebungen werden ignoriert; Renames werden bewusst als remove+add ausgewiesen."
+      description = "Vergleicht zwei vollstaendige INTERLIS-Modelle semantisch auf Basis der ili2c-Struktur und prueft das After-Modell gegen die Modellierungsregeln. Beide Versionen werden je einmal kompiliert. Rueckgabe: added, removed, changed, potentiallyBreakingChanges und afterReview. Reine Zeilenverschiebungen werden ignoriert; Renames werden bewusst als remove+add ausgewiesen."
   )
   public Map<String, Object> reviewIliChange(
       @McpToolParam(description = "INTERLIS-2 Modelltext vor der Aenderung", required = true) String beforeModelText,
       @McpToolParam(description = "INTERLIS-2 Modelltext nach der Aenderung", required = true) String afterModelText,
-      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition fuer beide Versionen", required = false) @Nullable String modelRepositories
+      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition fuer beide Versionen", required = false) @Nullable String modelRepositories,
+      @McpToolParam(description = "Modellzweck fuer das Review des After-Modells: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false) @Nullable ModelPurpose modelPurpose,
+      @McpToolParam(description = "Regelprofil fuer das Review des After-Modells: CORE oder SO (Default CORE)", required = false) @Nullable ModelingRuleProfile ruleProfile
   ) {
+    ModelPurpose purpose = ModelPurpose.normalize(modelPurpose);
+    ModelingRuleProfile profile = ModelingRuleProfile.normalize(ruleProfile);
+
     IliCompilerService.CompilationResult beforeCompilation =
         compilerService.compile(beforeModelText, modelRepositories, "ili2c_change_before_");
     IliCompilerService.CompilationResult afterCompilation =
         compilerService.compile(afterModelText, modelRepositories, "ili2c_change_after_");
 
-    if (!beforeCompilation.valid() || !afterCompilation.valid()) {
-      return Map.ofEntries(
-          Map.entry("valid", false),
-          Map.entry("comparable", false),
-          Map.entry("beforeCompilerValid", beforeCompilation.valid()),
-          Map.entry("afterCompilerValid", afterCompilation.valid()),
-          Map.entry("beforeDiagnostics", beforeCompilation.messages()),
-          Map.entry("afterDiagnostics", afterCompilation.messages()),
-          Map.entry("added", List.of()),
-          Map.entry("removed", List.of()),
-          Map.entry("changed", List.of()),
-          Map.entry("potentiallyBreakingChanges", List.of()),
-          Map.entry("impact", "UNKNOWN"),
-          Map.entry("summary", summary(0, 0, 0, 0)),
-          Map.entry("limitations", limitations())
-      );
+    if (!afterCompilation.valid()) {
+      return notComparableResponse(
+          beforeCompilation,
+          afterCompilation,
+          unavailableAfterReview(purpose, profile));
+    }
+
+    ModelAnalysisTools.AnalysisData after =
+        analysisTools.analyzeCompiled(afterCompilation.transferDescription(), afterModelText);
+    Map<String, Object> afterAnalysis =
+        analysisTools.toResponse(true, afterCompilation.messages(), after, purpose);
+    Map<String, Object> afterReview =
+        ruleTools.reviewAnalyzedModel(afterModelText, purpose, profile, afterAnalysis);
+
+    if (!beforeCompilation.valid()) {
+      return notComparableResponse(beforeCompilation, afterCompilation, afterReview);
     }
 
     ModelAnalysisTools.AnalysisData before =
         analysisTools.analyzeCompiled(beforeCompilation.transferDescription(), beforeModelText);
-    ModelAnalysisTools.AnalysisData after =
-        analysisTools.analyzeCompiled(afterCompilation.transferDescription(), afterModelText);
 
     List<Map<String, Object>> added = new ArrayList<>();
     List<Map<String, Object>> removed = new ArrayList<>();
@@ -102,9 +112,42 @@ public class ModelChangeTools {
         Map.entry("changed", changed),
         Map.entry("potentiallyBreakingChanges", potentiallyBreaking),
         Map.entry("impact", impact),
+        Map.entry("afterReview", afterReview),
         Map.entry("summary", summary(added.size(), removed.size(), changed.size(), potentiallyBreaking.size())),
         Map.entry("limitations", limitations())
     );
+  }
+
+  private Map<String, Object> notComparableResponse(
+      IliCompilerService.CompilationResult beforeCompilation,
+      IliCompilerService.CompilationResult afterCompilation,
+      Map<String, Object> afterReview) {
+    return Map.ofEntries(
+        Map.entry("valid", false),
+        Map.entry("comparable", false),
+        Map.entry("beforeCompilerValid", beforeCompilation.valid()),
+        Map.entry("afterCompilerValid", afterCompilation.valid()),
+        Map.entry("beforeDiagnostics", beforeCompilation.messages()),
+        Map.entry("afterDiagnostics", afterCompilation.messages()),
+        Map.entry("added", List.of()),
+        Map.entry("removed", List.of()),
+        Map.entry("changed", List.of()),
+        Map.entry("potentiallyBreakingChanges", List.of()),
+        Map.entry("impact", "UNKNOWN"),
+        Map.entry("afterReview", afterReview),
+        Map.entry("summary", summary(0, 0, 0, 0)),
+        Map.entry("limitations", limitations())
+    );
+  }
+
+  private Map<String, Object> unavailableAfterReview(
+      ModelPurpose purpose,
+      ModelingRuleProfile profile) {
+    return Map.of(
+        "available", false,
+        "modelPurpose", purpose.name(),
+        "ruleProfile", profile.name(),
+        "reason", "The after model must compile before modeling rules can be reviewed.");
   }
 
   private void diffCategory(
