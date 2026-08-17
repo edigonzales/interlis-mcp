@@ -189,6 +189,16 @@ public class ModelAnalysisTools {
       }
       return text.toString();
     }
+    if (real instanceof AbstractCoordType coordType) {
+      StringBuilder text = new StringBuilder(real.getClass().getSimpleName()).append("|dimensions=");
+      for (int i = 0; i < coordType.getDimensions().length; i++) {
+        if (i > 0) {
+          text.append(",");
+        }
+        text.append(typeText(coordType.getDimensions()[i]));
+      }
+      return text.toString();
+    }
     if (real instanceof ReferenceType referenceType) {
       StringBuilder text = new StringBuilder("REFERENCE");
       if (referenceType.getReferred() != null) {

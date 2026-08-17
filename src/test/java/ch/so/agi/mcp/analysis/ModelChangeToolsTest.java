@@ -71,6 +71,27 @@ class ModelChangeToolsTest {
   }
 
   @Test
+  void detectsCoordinateDomainRangeChange() {
+    IliCompilerService compiler = new IliCompilerService();
+    ModelChangeTools tools = new ModelChangeTools(compiler, new ModelAnalysisTools(compiler));
+
+    Map<String, Object> response = tools.reviewIliChange(
+        coordinateDomainModel("100"),
+        coordinateDomainModel("200"),
+        null);
+
+    assertThat(response.get("valid")).isEqualTo(true);
+    assertThat(response.get("impact")).isEqualTo("POTENTIALLY_BREAKING");
+    assertThat(response.get("changed")).asList()
+        .singleElement()
+        .satisfies(change -> assertThat(change.toString())
+            .contains("Demo.Point")
+            .contains("typeText")
+            .contains("0.000..100.000")
+            .contains("0.000..200.000"));
+  }
+
+  @Test
   void ignoresFormattingOnlyChanges() {
     IliCompilerService compiler = new IliCompilerService();
     ModelChangeTools tools = new ModelChangeTools(compiler, new ModelAnalysisTools(compiler));
@@ -182,6 +203,19 @@ class ModelChangeToolsTest {
             Value = 0 .. %s;
         END Demo.
         """.formatted(max);
+  }
+
+  private String coordinateDomainModel(String firstAxisMax) {
+    return """
+        INTERLIS 2.4;
+
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
+          DOMAIN
+            Point = COORD
+              0.000 .. %s.000,
+              0.000 .. 100.000;
+        END Demo.
+        """.formatted(firstAxisMax);
   }
 
   private static class CountingCompiler extends IliCompilerService {
