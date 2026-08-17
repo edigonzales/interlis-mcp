@@ -129,6 +129,16 @@
   rationale: Namen von Topics, Klassen, Assoziationen und Attributen sollten nicht laenger als 29 Zeichen sein.
   recommendation: Kuerze Namen von Topics, Klassen, Assoziationen und Attributen auf hoechstens 29 Zeichen, ohne die fachliche Aussage zu verlieren.
 - profile: CORE
+  id: MDE-501
+  title: Views nur in Validierungsmodellen verwenden
+  severity: WARNING
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.5 Einschraenkungen zum Gebrauch von INTERLIS 2.3 (#501)
+  rationale: Views duerfen gemaess Handbuch nur in Validierungsmodellen verwendet werden.
+  recommendation: Verschiebe VIEW-Definitionen in ein Validierungsmodell oder bestaetige den Modellzweck VALIDATION.
+- profile: CORE
   id: MDE-502
   title: TEXT mit konkreter Laenge modellieren
   severity: WARNING
@@ -138,3 +148,33 @@
   sourceSection: 6.5 Einschraenkungen zum Gebrauch von INTERLIS 2.3 (#502)
   rationale: Fuer TEXT muss gemaess Handbuch immer eine konkrete Laenge angegeben werden.
   recommendation: Ersetze unbeschraenktes TEXT oder MTEXT durch einen Typ mit expliziter maximaler Laenge.
+- profile: CORE
+  id: MDE-601
+  title: Rollen-Kardinalitaeten explizit modellieren
+  severity: WARNING
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.6 Konsistenzbedingungen (#601)
+  rationale: Die Kardinalitaeten von Rollen muessen gemaess Handbuch explizit erfasst werden.
+  recommendation: Deklariere an jeder definierten Association-Rolle eine Kardinalitaet wie {1} oder {0..*}.
+- profile: CORE
+  id: MDE-602
+  title: UNIQUE-Bedingungen fachlich pruefen
+  severity: INFO
+  appliesTo: ANY
+  checkKind: MANUAL
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.6 Konsistenzbedingungen (#602)
+  rationale: UNIQUE-Bedingungen muessen dort modelliert werden, wo die Fachsemantik Eindeutigkeit verlangt.
+  recommendation: Pruefe fachliche Schluessel und ergaenze UNIQUE-Bedingungen, wenn Eindeutigkeit eine Domaenenanforderung ist.
+- profile: CORE
+  id: MDE-603
+  title: Konkrete Klassen mit Objektidentifikation modellieren
+  severity: WARNING
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.6 Konsistenzbedingungen (#603)
+  rationale: Objekte muessen gemaess Handbuch eine eindeutige Objektidentifikation besitzen; INTERLIS.UUIDOID ist die uebliche Wahl.
+  recommendation: Definiere fuer jede konkrete Klasse eine effektive OID-Domain, in der Regel ueber OID AS INTERLIS.UUIDOID auf Klassen- oder Topic-Ebene.

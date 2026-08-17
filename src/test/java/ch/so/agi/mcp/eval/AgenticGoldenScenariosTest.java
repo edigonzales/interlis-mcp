@@ -241,6 +241,7 @@ class AgenticGoldenScenariosTest {
 
         MODEL Demo (de) AT "https://example.org/demo" VERSION "2026-08-17" =
           TOPIC Topic =
+            OID AS INTERLIS.UUIDOID;
             /** Thing description */
             CLASS Thing =
               /** Name description */
@@ -257,6 +258,7 @@ class AgenticGoldenScenariosTest {
 
         MODEL Demo (de) AT "https://example.org/demo" VERSION "2026-08-17" =
           TOPIC Topic =
+            OID AS INTERLIS.UUIDOID;
             /** Thing description */
             CLASS Thing =
               /** Name description */

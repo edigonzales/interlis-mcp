@@ -24,7 +24,7 @@ class ModelingRuleToolsTest {
     Map<String, Object> response = tools.listModelingRules(null);
 
     assertThat(response.get("profile")).isEqualTo("CORE");
-    assertThat(response.get("rules")).asList().hasSize(14);
+    assertThat(response.get("rules")).asList().hasSize(18);
   }
 
   @Test
@@ -47,11 +47,12 @@ class ModelingRuleToolsTest {
         minimalModel(),
         ModelPurpose.CAPTURE,
         null,
-        List.of("MDE-001", "MDE-050"),
+        List.of("MDE-001", "MDE-050", "MDE-602"),
         null);
 
     assertThat(response.get("findings")).asList().isEmpty();
-    assertThat(response.get("manualChecks")).asList().hasSize(2);
+    assertThat(response.get("manualChecks")).asList().hasSize(3)
+        .anySatisfy(check -> assertThat(check.toString()).contains("MDE-602"));
   }
 
   @Test
@@ -154,6 +155,28 @@ class ModelingRuleToolsTest {
   }
 
   @Test
+  void flagsViewsOutsideValidationModels() {
+    Map<String, Object> analysis = Map.of(
+        "valid", true,
+        "views", List.of(Map.of(
+            "kind", "VIEW",
+            "name", "Derived",
+            "scopedName", "Demo.Topic.Derived")));
+
+    Map<String, Object> captureReview = tools.reviewAnalyzedModel(
+        "", ModelPurpose.CAPTURE, ModelingRuleProfile.CORE, analysis);
+    Map<String, Object> validationReview = tools.reviewAnalyzedModel(
+        "", ModelPurpose.VALIDATION, ModelingRuleProfile.CORE, analysis);
+    Map<String, Object> unknownReview = tools.reviewAnalyzedModel(
+        "", ModelPurpose.UNKNOWN, ModelingRuleProfile.CORE, analysis);
+
+    assertThat(captureReview.get("ruleFindings")).asList()
+        .anySatisfy(finding -> assertThat(finding.toString()).contains("MDE-501").contains("Demo.Topic.Derived"));
+    assertThat(validationReview.get("ruleFindings").toString()).doesNotContain("MDE-501");
+    assertThat(unknownReview.get("ruleFindings").toString()).doesNotContain("MDE-501");
+  }
+
+  @Test
   void flagsUnboundedTextAndMtext() {
     Map<String, Object> response = tools.checkModelingRules(
         modelWithUnboundedText(),
@@ -166,6 +189,66 @@ class ModelingRuleToolsTest {
     assertThat(response.get("findings")).asList()
         .anySatisfy(finding -> assertThat(finding.toString()).contains("MDE-502").contains("TEXT"))
         .anySatisfy(finding -> assertThat(finding.toString()).contains("MDE-502").contains("MTEXT"));
+  }
+
+  @Test
+  void flagsImplicitRoleCardinalities() {
+    Map<String, Object> response = tools.checkModelingRules(
+        publicationModelWithAssociation(),
+        ModelPurpose.CAPTURE,
+        null,
+        List.of("MDE-601"),
+        ModelingRuleProfile.CORE);
+
+    assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
+    assertThat(response.get("findings")).asList().hasSize(2)
+        .allSatisfy(finding -> assertThat(finding.toString()).contains("MDE-601").contains("{1}"));
+  }
+
+  @Test
+  void acceptsExplicitRoleCardinalities() {
+    Map<String, Object> response = tools.checkModelingRules(
+        modelWithExplicitRoleCardinalities(),
+        ModelPurpose.CAPTURE,
+        null,
+        List.of("MDE-601"),
+        ModelingRuleProfile.CORE);
+
+    assertThat(response.get("findings")).asList().isEmpty();
+  }
+
+  @Test
+  void flagsConcreteClassWithoutEffectiveOid() {
+    Map<String, Object> response = tools.checkModelingRules(
+        modelWithConcreteClassWithoutOid(),
+        ModelPurpose.CAPTURE,
+        null,
+        List.of("MDE-603"),
+        ModelingRuleProfile.CORE);
+
+    assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
+    assertThat(response.get("findings")).asList()
+        .singleElement()
+        .satisfies(finding -> assertThat(finding.toString()).contains("MDE-603").contains("Demo.Topic.Thing"));
+  }
+
+  @Test
+  void acceptsTopicOidForConcreteClassAndSkipsAbstractClass() {
+    Map<String, Object> withTopicOid = tools.checkModelingRules(
+        modelWithTopicOid(),
+        ModelPurpose.CAPTURE,
+        null,
+        List.of("MDE-603"),
+        ModelingRuleProfile.CORE);
+    Map<String, Object> abstractClass = tools.checkModelingRules(
+        modelWithAbstractClassWithoutOid(),
+        ModelPurpose.CAPTURE,
+        null,
+        List.of("MDE-603"),
+        ModelingRuleProfile.CORE);
+
+    assertThat(withTopicOid.get("findings")).asList().isEmpty();
+    assertThat(abstractClass.get("findings")).asList().isEmpty();
   }
 
   @Test
@@ -189,7 +272,7 @@ class ModelingRuleToolsTest {
     assertThat(response.get("compilerValid")).isEqualTo(true);
     assertThat(response.get("compilerDiagnostics")).asList().isEmpty();
     assertThat(response.get("structure")).asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
-        .containsKeys("models", "topics", "classes", "domains", "attributes");
+        .containsKeys("models", "topics", "classes", "views", "domains", "attributes");
   }
 
   @Test
@@ -310,6 +393,65 @@ class ModelingRuleToolsTest {
             END AB;
           END Topic;
         END Pub.
+        """;
+  }
+
+  private String modelWithExplicitRoleCardinalities() {
+    return """
+        INTERLIS 2.4;
+
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
+          TOPIC Topic =
+            CLASS A =
+            END A;
+            CLASS B =
+            END B;
+            ASSOCIATION AB =
+              a -- {1} A;
+              b -- {0..*} B;
+            END AB;
+          END Topic;
+        END Demo.
+        """;
+  }
+
+  private String modelWithConcreteClassWithoutOid() {
+    return """
+        INTERLIS 2.4;
+
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
+          TOPIC Topic =
+            CLASS Thing =
+            END Thing;
+          END Topic;
+        END Demo.
+        """;
+  }
+
+  private String modelWithTopicOid() {
+    return """
+        INTERLIS 2.4;
+
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
+          TOPIC Topic =
+            OID AS INTERLIS.UUIDOID;
+            CLASS Thing =
+            END Thing;
+          END Topic;
+        END Demo.
+        """;
+  }
+
+  private String modelWithAbstractClassWithoutOid() {
+    return """
+        INTERLIS 2.4;
+
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
+          TOPIC Topic =
+            CLASS Thing (ABSTRACT) =
+            END Thing;
+          END Topic;
+        END Demo.
         """;
   }
 

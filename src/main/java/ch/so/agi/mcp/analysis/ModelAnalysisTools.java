@@ -28,6 +28,7 @@ import ch.interlis.ili2c.metamodel.Topic;
 import ch.interlis.ili2c.metamodel.TransferDescription;
 import ch.interlis.ili2c.metamodel.Type;
 import ch.interlis.ili2c.metamodel.Unit;
+import ch.interlis.ili2c.metamodel.View;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.io.StringWriter;
 import java.util.ArrayList;
@@ -105,6 +106,7 @@ public class ModelAnalysisTools {
         Map.entry("topics", data.topics),
         Map.entry("classes", data.classes),
         Map.entry("structures", data.structures),
+        Map.entry("views", data.views),
         Map.entry("domains", data.domains),
         Map.entry("units", data.units),
         Map.entry("associations", data.associations),
@@ -129,6 +131,9 @@ public class ModelAnalysisTools {
       } else if (element instanceof AssociationDef association) {
         data.associations.add(associationMap(association));
         collect(association, data, td);
+      } else if (element instanceof View view) {
+        data.views.add(viewMap(view));
+        collect(view, data, td);
       } else if (element instanceof Table table) {
         if (!table.isImplicit()) {
           if (table.isIdentifiable()) {
@@ -184,6 +189,16 @@ public class ModelAnalysisTools {
     map.put("abstract", table.isAbstract());
     map.put("final", table.isFinal());
     putExtending(map, table.getExtending());
+    Domain oid = table.getOid();
+    if (oid != null) {
+      map.put("oid", oid.getScopedName());
+    }
+    return map;
+  }
+
+  private Map<String, Object> viewMap(View view) {
+    Map<String, Object> map = elementMap(view, "VIEW");
+    map.put("viewType", view.getClass().getSimpleName());
     return map;
   }
 
@@ -219,6 +234,7 @@ public class ModelAnalysisTools {
     map.put("final", role.isFinal());
     map.put("ordered", role.isOrdered());
     map.put("roleKind", roleKind(role.getKind()));
+    map.put("cardinalityDefined", role.containsCardinality());
     if (role.getCardinality() != null) {
       map.put("cardinality", role.getCardinality().toString());
     }
@@ -531,6 +547,7 @@ public class ModelAnalysisTools {
         + "- topics: " + data.topics.size() + "\n"
         + "- classes: " + data.classes.size() + "\n"
         + "- structures: " + data.structures.size() + "\n"
+        + "- views: " + data.views.size() + "\n"
         + "- domains: " + data.domains.size() + "\n"
         + "- units: " + data.units.size() + "\n"
         + "- associations: " + data.associations.size() + "\n"
@@ -541,7 +558,7 @@ public class ModelAnalysisTools {
 
   public Set<String> lexicalTerms(Map<String, Object> analysisResponse) {
     Set<String> terms = new LinkedHashSet<>();
-    for (String key : List.of("models", "topics", "classes", "structures", "domains", "units", "associations", "attributes", "constraints", "metaAttributes")) {
+    for (String key : List.of("models", "topics", "classes", "structures", "views", "domains", "units", "associations", "attributes", "constraints", "metaAttributes")) {
       Object value = analysisResponse.get(key);
       if (value instanceof List<?> list) {
         for (Object item : list) {
@@ -573,6 +590,7 @@ public class ModelAnalysisTools {
     public final List<Map<String, Object>> topics = new ArrayList<>();
     public final List<Map<String, Object>> classes = new ArrayList<>();
     public final List<Map<String, Object>> structures = new ArrayList<>();
+    public final List<Map<String, Object>> views = new ArrayList<>();
     public final List<Map<String, Object>> domains = new ArrayList<>();
     public final List<Map<String, Object>> associations = new ArrayList<>();
     public final List<Map<String, Object>> attributes = new ArrayList<>();
