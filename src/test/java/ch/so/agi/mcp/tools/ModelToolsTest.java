@@ -194,7 +194,7 @@ class ModelToolsTest {
         );
 
         assertEquals(
-                "Model name must match [A-Za-z][A-Za-z0-9_]* (starts with a letter, then letters/digits/underscore). Got: 'Invalid-Model'.",
+                "Import model name must match [A-Za-z][A-Za-z0-9_]* (starts with a letter, then letters/digits/underscore). Got: 'Invalid-Model'.",
                 ex.getMessage()
         );
     }
