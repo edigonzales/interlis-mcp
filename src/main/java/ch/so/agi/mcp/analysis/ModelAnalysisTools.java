@@ -197,6 +197,9 @@ public class ModelAnalysisTools {
         }
         text.append(typeText(coordType.getDimensions()[i]));
       }
+      if (coordType.getNullAxis() != 0 || coordType.getPiHalfAxis() != 0) {
+        text.append("|rotation=").append(coordType.getNullAxis()).append("->").append(coordType.getPiHalfAxis());
+      }
       return text.toString();
     }
     if (real instanceof ReferenceType referenceType) {
