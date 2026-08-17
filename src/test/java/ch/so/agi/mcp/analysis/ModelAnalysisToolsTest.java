@@ -27,6 +27,17 @@ class ModelAnalysisToolsTest {
   }
 
   @Test
+  void exposesModelVersionAndElementDocumentation() {
+    Map<String, Object> response = tools.analyzeIliModel(documentedModel(), null, ModelPurpose.CAPTURE);
+
+    assertThat(element(response, "models", "Demo")).containsEntry("version", "2026-08-17");
+    assertThat(element(response, "classes", "Demo.Topic.Thing"))
+        .containsEntry("documentation", "Thing description");
+    assertThat(element(response, "attributes", "Demo.Topic.Thing.name"))
+        .containsEntry("documentation", "Name description");
+  }
+
+  @Test
   void exposesSemanticRelationshipsForAgenticUnderstanding() {
     Map<String, Object> response = tools.analyzeIliModel(semanticModel(), null, ModelPurpose.CAPTURE);
 
@@ -108,6 +119,22 @@ class ModelAnalysisToolsTest {
         MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
           TOPIC Topic =
             CLASS Thing =
+              name : TEXT*20;
+            END Thing;
+          END Topic;
+        END Demo.
+        """;
+  }
+
+  private String documentedModel() {
+    return """
+        INTERLIS 2.4;
+
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2026-08-17" =
+          TOPIC Topic =
+            /** Thing description */
+            CLASS Thing =
+              /** Name description */
               name : TEXT*20;
             END Thing;
           END Topic;

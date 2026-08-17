@@ -24,7 +24,7 @@ class ModelingRuleToolsTest {
     Map<String, Object> response = tools.listModelingRules(null);
 
     assertThat(response.get("profile")).isEqualTo("CORE");
-    assertThat(response.get("rules")).asList().hasSize(9);
+    assertThat(response.get("rules")).asList().hasSize(14);
   }
 
   @Test
@@ -55,6 +55,22 @@ class ModelingRuleToolsTest {
   }
 
   @Test
+  void flagsMissingRequiredModelMetaAttribute() {
+    Map<String, Object> response = tools.checkModelingRules(
+        modelWithThreeHeaderMetaAttributes(),
+        ModelPurpose.CAPTURE,
+        null,
+        List.of("MDE-060"),
+        ModelingRuleProfile.CORE);
+
+    assertThat(response.get("findings")).asList()
+        .singleElement()
+        .satisfies(finding -> assertThat(finding.toString())
+            .contains("MDE-060")
+            .contains("furtherInformation"));
+  }
+
+  @Test
   void flagsTabsInModelText() {
     String modelWithTab = """
         INTERLIS 2.4;
@@ -78,6 +94,78 @@ class ModelingRuleToolsTest {
     assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
     assertThat(response.get("findings")).asList()
         .anySatisfy(finding -> assertThat(finding.toString()).contains("MDE-206").contains("line"));
+  }
+
+  @Test
+  void flagsMissingModelVersion() {
+    Map<String, Object> response = tools.checkModelingRules(
+        modelWithoutVersion(),
+        ModelPurpose.CAPTURE,
+        null,
+        List.of("MDE-208"),
+        ModelingRuleProfile.CORE);
+
+    assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
+    assertThat(response.get("findings")).asList()
+        .singleElement()
+        .satisfies(finding -> assertThat(finding.toString()).contains("MDE-208").contains("VERSION"));
+  }
+
+  @Test
+  void flagsUndocumentedClassesAndAttributes() {
+    Map<String, Object> response = tools.checkModelingRules(
+        modelWithUndocumentedClassAndAttribute(),
+        ModelPurpose.CAPTURE,
+        null,
+        List.of("MDE-209", "MDE-210"),
+        ModelingRuleProfile.CORE);
+
+    assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
+    assertThat(response.get("findings")).asList()
+        .anySatisfy(finding -> assertThat(finding.toString()).contains("MDE-209").contains("Demo.Topic.Thing.name"))
+        .anySatisfy(finding -> assertThat(finding.toString()).contains("MDE-210").contains("Demo.Topic.Thing"));
+  }
+
+  @Test
+  void acceptsDocumentedClassAndAttribute() {
+    Map<String, Object> response = tools.checkModelingRules(
+        documentedModel(),
+        ModelPurpose.CAPTURE,
+        null,
+        List.of("MDE-209", "MDE-210"),
+        ModelingRuleProfile.CORE);
+
+    assertThat(response.get("findings")).asList().isEmpty();
+  }
+
+  @Test
+  void flagsNamesLongerThanTwentyNineCharacters() {
+    Map<String, Object> response = tools.checkModelingRules(
+        modelWithLongAttributeName(),
+        ModelPurpose.CAPTURE,
+        null,
+        List.of("MDE-302"),
+        ModelingRuleProfile.CORE);
+
+    assertThat(response.get("validForAutomatedRules")).isEqualTo(true);
+    assertThat(response.get("findings")).asList()
+        .singleElement()
+        .satisfies(finding -> assertThat(finding.toString()).contains("MDE-302").contains("characters"));
+  }
+
+  @Test
+  void flagsUnboundedTextAndMtext() {
+    Map<String, Object> response = tools.checkModelingRules(
+        modelWithUnboundedText(),
+        ModelPurpose.CAPTURE,
+        null,
+        List.of("MDE-502"),
+        ModelingRuleProfile.CORE);
+
+    assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
+    assertThat(response.get("findings")).asList()
+        .anySatisfy(finding -> assertThat(finding.toString()).contains("MDE-502").contains("TEXT"))
+        .anySatisfy(finding -> assertThat(finding.toString()).contains("MDE-502").contains("MTEXT"));
   }
 
   @Test
@@ -122,6 +210,86 @@ class ModelingRuleToolsTest {
         INTERLIS 2.4;
 
         MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
+        END Demo.
+        """;
+  }
+
+  private String modelWithThreeHeaderMetaAttributes() {
+    return """
+        INTERLIS 2.4;
+
+        !!@ technicalContact="mailto:agi@example.org"
+        !!@ title="Demo"
+        !!@ shortDescription="Demo model"
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
+        END Demo.
+        """;
+  }
+
+  private String modelWithoutVersion() {
+    return """
+        INTERLIS 2.4;
+
+        MODEL Demo (de) AT "https://example.org/demo" =
+        END Demo.
+        """;
+  }
+
+  private String modelWithUndocumentedClassAndAttribute() {
+    return """
+        INTERLIS 2.4;
+
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
+          TOPIC Topic =
+            CLASS Thing =
+              name : TEXT*20;
+            END Thing;
+          END Topic;
+        END Demo.
+        """;
+  }
+
+  private String documentedModel() {
+    return """
+        INTERLIS 2.4;
+
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
+          TOPIC Topic =
+            /** Thing description */
+            CLASS Thing =
+              /** Name description */
+              name : TEXT*20;
+            END Thing;
+          END Topic;
+        END Demo.
+        """;
+  }
+
+  private String modelWithLongAttributeName() {
+    return """
+        INTERLIS 2.4;
+
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
+          TOPIC Topic =
+            CLASS Thing =
+              this_attribute_name_is_definitely_too_long : TEXT*20;
+            END Thing;
+          END Topic;
+        END Demo.
+        """;
+  }
+
+  private String modelWithUnboundedText() {
+    return """
+        INTERLIS 2.4;
+
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
+          DOMAIN FreeText = TEXT;
+          TOPIC Topic =
+            CLASS Thing =
+              note : MTEXT;
+            END Thing;
+          END Topic;
         END Demo.
         """;
   }

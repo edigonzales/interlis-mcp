@@ -74,10 +74,10 @@
   severity: INFO
   appliesTo: ANY
   checkKind: AUTOMATED
-  sourceUrl: https://github.com/sogis/modellbasierte-datenerfassung-handbuch
-  sourceSection: Modellablage
-  rationale: Titel, Kurzbeschreibung und technischer Kontakt helfen bei Ablage, Betrieb und Wiederverwendung.
-  recommendation: Ergaenze title, shortDescription und technicalContact als Modell-Metaattribute, sofern sie fehlen.
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.2 Modellname / Version / Formatierung (#204)
+  rationale: furtherInformation, technicalContact, title und shortDescription sind gemaess Handbuch im Modellheader zu erfassen.
+  recommendation: Ergaenze furtherInformation, technicalContact, title und shortDescription als Modell-Metaattribute, sofern sie fehlen.
 - profile: CORE
   id: MDE-206
   title: Modellformatierung ohne Tabulatoren
@@ -88,3 +88,53 @@
   sourceSection: 6.2 Modellname / Version / Formatierung (#206)
   rationale: Tabs erschweren konsistente Formatierung und kollidieren mit Teamkonventionen.
   recommendation: Ersetze Tabulatoren durch Spaces und fuehre formatIliModel aus.
+- profile: CORE
+  id: MDE-208
+  title: Modellversion angeben
+  severity: WARNING
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.2 Modellname / Version / Formatierung (#208)
+  rationale: Die Modellversion ist als VERSION-Datum anzugeben, damit Modellstaende eindeutig identifizierbar sind.
+  recommendation: Ergaenze beim MODEL eine VERSION-Angabe, vorzugsweise als Datum im Format JJJJ-MM-TT.
+- profile: CORE
+  id: MDE-209
+  title: Attribute dokumentieren
+  severity: WARNING
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.2 Modellname / Version / Formatierung (#209)
+  rationale: Jedes Attribut soll mit einem sinnvollen Kommentar fachlich beschrieben sein.
+  recommendation: Ergaenze fuer jedes Attribut eine INTERLIS-Dokumentation mit einer aussagekraeftigen Beschreibung.
+- profile: CORE
+  id: MDE-210
+  title: Klassen dokumentieren
+  severity: WARNING
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.2 Modellname / Version / Formatierung (#210)
+  rationale: Jede Klasse soll mit einem sinnvollen Kommentar fachlich beschrieben sein.
+  recommendation: Ergaenze fuer jede Klasse eine INTERLIS-Dokumentation mit einer aussagekraeftigen Beschreibung.
+- profile: CORE
+  id: MDE-302
+  title: Namen von Modellelementen kurz halten
+  severity: INFO
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.3 Namenskonvention (#302)
+  rationale: Namen von Topics, Klassen, Assoziationen und Attributen sollten nicht laenger als 29 Zeichen sein.
+  recommendation: Kuerze Namen von Topics, Klassen, Assoziationen und Attributen auf hoechstens 29 Zeichen, ohne die fachliche Aussage zu verlieren.
+- profile: CORE
+  id: MDE-502
+  title: TEXT mit konkreter Laenge modellieren
+  severity: WARNING
+  appliesTo: ANY
+  checkKind: AUTOMATED
+  sourceUrl: https://sogis.github.io/modellbasierte-datenerfassung-handbuch/index.html#_modellierungsregeln
+  sourceSection: 6.5 Einschraenkungen zum Gebrauch von INTERLIS 2.3 (#502)
+  rationale: Fuer TEXT muss gemaess Handbuch immer eine konkrete Laenge angegeben werden.
+  recommendation: Ersetze unbeschraenktes TEXT oder MTEXT durch einen Typ mit expliziter maximaler Laenge.

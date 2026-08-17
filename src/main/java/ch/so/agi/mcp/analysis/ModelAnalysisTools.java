@@ -82,7 +82,7 @@ public class ModelAnalysisTools {
 
     for (Model model : td.getModelsFromLastFile()) {
       collectMetaAttributes(model, data);
-      data.models.add(elementMap(model, "MODEL"));
+      data.models.add(modelMap(model));
       if (model.getIliVersion() != null && !model.getIliVersion().isBlank()) {
         data.iliVersion = model.getIliVersion();
       }
@@ -151,6 +151,14 @@ public class ModelAnalysisTools {
         collect(child, data, td);
       }
     }
+  }
+
+  private Map<String, Object> modelMap(Model model) {
+    Map<String, Object> map = elementMap(model, "MODEL");
+    if (model.getModelVersion() != null && !model.getModelVersion().isBlank()) {
+      map.put("version", model.getModelVersion());
+    }
+    return map;
   }
 
   private Map<String, Object> topicMap(Topic topic) {
@@ -448,6 +456,9 @@ public class ModelAnalysisTools {
     map.put("scopedName", element.getScopedName());
     if (element.getSourceLine() > 0) {
       map.put("line", element.getSourceLine());
+    }
+    if (element.getDocumentation() != null && !element.getDocumentation().isBlank()) {
+      map.put("documentation", element.getDocumentation());
     }
     Settings metaValues = element.getMetaValues();
     if (metaValues != null && !metaValues.getValues().isEmpty()) {
