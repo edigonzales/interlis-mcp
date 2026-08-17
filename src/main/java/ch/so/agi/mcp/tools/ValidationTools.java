@@ -18,7 +18,7 @@ public class ValidationTools {
 
   @McpTool(
       name = "validateIliModel",
-      description = "Validiert ein INTERLIS-2 Modell mit dem offiziellen ili2c-Compiler. Rückgabe: {valid:bool, messages:[{severity,file?,line?,message}]}"
+      description = "Validiert ein INTERLIS-2 Modell mit dem offiziellen ili2c-Compiler. Rückgabe: {valid:bool, messages:[{severity,file?,line?,message,sourceExcerpt?:{startLine,endLine,text}}]}"
   )
   public Map<String, Object> validateIliModel(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,

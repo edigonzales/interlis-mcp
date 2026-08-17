@@ -17,8 +17,10 @@ import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +29,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class IliCompilerService {
+
+  private static final int SOURCE_CONTEXT_LINES = 2;
 
   public CompilationResult compile(String modelText, @Nullable String modelRepositories) {
     return compile(modelText, modelRepositories, "ili2c_model_");
@@ -80,6 +84,8 @@ public class IliCompilerService {
       }
     }
 
+    addSourceExcerpts(messages, modelText, tempFile);
+
     try {
       Files.deleteIfExists(tempFile);
     } catch (Exception ignore) {
@@ -116,6 +122,43 @@ public class IliCompilerService {
       return writer.toString();
     } catch (IOException e) {
       throw new UncheckedIOException("Unable to generate INTERLIS source.", e);
+    }
+  }
+
+  private void addSourceExcerpts(List<Map<String, Object>> messages, String modelText, Path sourceFile) {
+    List<String> sourceLines = Arrays.asList(modelText.split("\\R", -1));
+    for (Map<String, Object> message : messages) {
+      Object lineValue = message.get("line");
+      if (!(lineValue instanceof Number number)) {
+        continue;
+      }
+
+      int line = number.intValue();
+      if (line < 1 || line > sourceLines.size()) {
+        continue;
+      }
+
+      Object fileValue = message.get("file");
+      if (fileValue != null && !sameSourceFile(fileValue.toString(), sourceFile)) {
+        continue;
+      }
+
+      int startLine = Math.max(1, line - SOURCE_CONTEXT_LINES);
+      int endLine = Math.min(sourceLines.size(), line + SOURCE_CONTEXT_LINES);
+      Map<String, Object> excerpt = new LinkedHashMap<>();
+      excerpt.put("startLine", startLine);
+      excerpt.put("endLine", endLine);
+      excerpt.put("text", String.join("\n", sourceLines.subList(startLine - 1, endLine)));
+      message.put("sourceExcerpt", excerpt);
+    }
+  }
+
+  private boolean sameSourceFile(String diagnosticFile, Path sourceFile) {
+    try {
+      return Path.of(diagnosticFile).toAbsolutePath().normalize()
+          .equals(sourceFile.toAbsolutePath().normalize());
+    } catch (InvalidPathException e) {
+      return diagnosticFile.equals(sourceFile.toString());
     }
   }
 
