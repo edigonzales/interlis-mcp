@@ -55,7 +55,7 @@ public class ModelAnalysisTools {
 
   @McpTool(
       name = "analyzeIliModel",
-      description = "Analysiert ein vollstaendiges INTERLIS-Modell strukturell und semantisch mit ili2c. Rueckgabe: valid, messages, Modelle, Imports, Topics, Klassen, Strukturen, Domains, Units, Associations mit Rollen, Attribute, Metaattribute und summaryMarkdown."
+      description = "Low-Level-Tool fuer gezielte strukturelle und semantische Inspektion eines vollstaendigen INTERLIS-Modells, z. B. Vererbung, Topic-Abhaengigkeiten, Association-Rollen oder Typdetails. Nicht als allgemeines Qualitaetsgate oder Standardreview verwenden; dafuer reviewIliModel."
   )
   public Map<String, Object> analyzeIliModel(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
