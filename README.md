@@ -1,14 +1,22 @@
 # interlis-mcp
 
-`interlis-mcp` is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for generating, validating, analyzing, and reviewing INTERLIS 2 models. It runs over STDIO and is currently built with Spring Boot `4.1.0-M4`, Spring AI `2.0.0-M4`, Gradle `8.14.3`, and Java `21`.
+`interlis-mcp` is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for generating, validating, analyzing, and reviewing INTERLIS 2 models. It runs over STDIO and is currently built with Spring Boot `4.1.0`, Spring AI `2.0.0`, Gradle `8.14.3`, and Java `21`.
 
 ## Overview
 - STDIO-only MCP server for IDE agents and desktop MCP clients.
 - Tooling for models, topics, classes, structures, associations, domains, geometry helpers, constraints, identifier hygiene, formatting, validation, structural analysis, modeling-rule checks, and local model-corpus search.
+- High-level review tools combine compiler, structural and modeling-rule feedback for agentic workflows.
 - MCP resources expose curated modeling rules, an agent workflow, and the configured `.ili` corpus index.
 - MCP prompts provide reusable INTERLIS modeling, review, and extension workflows.
 - Runtime verified against MCP protocol `2025-06-18`.
 - Current initialize response advertises `tools`, `resources`, `prompts`, and runtime `logging`; completions are disabled.
+
+## Agentic workflow
+For a complete model, prefer `reviewIliModel` over separately calling `analyzeIliModel`, `checkModelingRules`, and `validateIliModel`. It compiles once and returns compiler diagnostics, structure, automated rule findings, manual checks, and open questions.
+
+When changing an existing model, use `reviewIliChange` to compare the before/after model semantically, then run `reviewIliModel` on the final model. For local examples, use `findSimilarModels` followed by `readModelExample` for the selected result.
+
+The lower-level analysis, rule-checking, and validation tools remain available for targeted diagnostics when an agent needs one specific result.
 
 ## Architecture
 ```mermaid
