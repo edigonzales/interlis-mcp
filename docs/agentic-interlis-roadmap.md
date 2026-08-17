@@ -20,7 +20,7 @@ Fuer INTERLIS-Modellierung heisst das konkret:
 
 - Der Agent sammelt zuerst Kontext: Modellzweck, bestehende Modelle, Konventionen, Modellierungshandbuch, lokale Beispiele und bekannte Zielsysteme.
 - Der Agent entwirft oder erweitert Modelle iterativ statt in einem grossen unkontrollierten Schritt.
-- Der Agent nutzt technische Werkzeuge konsequent: Snippet-Tools, Modellanalyse, ili2c-Validierung, Modellierungsregel-Checks und Suche in lokalen Modellkorpora.
+- Der Agent nutzt technische Werkzeuge konsequent: High-Level-Reviews fuer vollstaendige Modellstaende und Aenderungen, Snippet-Tools fuer lokale Konstruktion sowie gezielte Low-Level-Diagnostik bei konkretem Bedarf.
 - Der Agent behandelt Compilerfehler, strukturelle Inkonsistenzen und Regelverletzungen als Arbeitsgegenstand und iteriert bis zu einem technisch belastbaren Modell.
 - Der Agent erfindet keine fachliche Semantik: Kardinalitaeten, Rollen, Constraints, Datenumbau-Regeln, Joins und Mapping-Logik brauchen entweder eine Quelle oder eine menschliche Entscheidung.
 
@@ -55,7 +55,7 @@ flowchart TD
     InterlisMcp --> Rules
     InterlisMcp --> Corpus
     Agent -->|"entwirft und iteriert"| IliModel
-    IliModel -->|"validate/analyze/check rules"| InterlisMcp
+    IliModel -->|"review / semantic diff / targeted diagnostics"| InterlisMcp
     Agent -->|"erstellt Konfiguration"| SchemaJobs
     SchemaJobs --> DbSchema
     Human -->|"Mapping-Prompt fuer Datenumbau"| Gretl
@@ -156,7 +156,7 @@ Ein spaeteres `.opencode/opencode.jsonc` koennte so aussehen:
     "interlis-review": {
       "description": "INTERLIS Modell analysieren, Regeln pruefen und validieren.",
       "agent": "interlis-modeler",
-      "template": "Reviewe das angegebene INTERLIS-Modell. Nutze analyzeIliModel, checkModelingRules und validateIliModel. Berichte Compilerfehler, automatisierte Findings und manuelle Rueckfragen getrennt."
+      "template": "Reviewe das angegebene INTERLIS-Modell mit reviewIliModel und dem passenden Modellzweck. Berichte Compilerdiagnosen, automatisierte Findings, manuelle Checks und offene fachliche Fragen getrennt. Nutze Low-Level-Tools nur fuer gezielte Detaildiagnosen."
     },
     "sql-qa": {
       "description": "GRETL SQL kompilieren und Resultset-Struktur gegen Zieltabellen pruefen.",
@@ -177,14 +177,17 @@ Der erste Schritt ist ein agentenfaehiger `interlis-mcp`. Dieser Server soll nic
 
 Der aktuelle MVP umfasst bereits:
 
-- MCP Resources fuer kuratierte Regeln, Agent-Workflow und lokalen Modellkorpus-Index.
+- MCP Resources fuer kuratierte Regeln, Agent-Workflow, Tool-Auswahl und lokalen Modellkorpus-Index.
 - MCP Prompts fuer Modellierung, Review und kontrollierte Erweiterung.
-- `analyzeIliModel` fuer strukturelle Modellanalyse.
-- `listModelingRules` und `checkModelingRules` fuer automatisierte und manuelle Regelchecks.
-- `validateIliModel` fuer ili2c-Validierung.
-- `indexConfiguredModels` und `findSimilarModels` fuer lokale `.ili`-Beispielsuche.
+- `reviewIliModel` als Standardreview fuer einen vollstaendigen Modellstand.
+- `reviewIliChange` fuer semantische Vorher-/Nachher-Analyse inklusive Review des After-Modells.
+- `analyzeIliModel` fuer gezielte strukturelle und semantische Modellanalyse.
+- `listModelingRules` und `checkModelingRules` fuer Regelkatalog und gezielte automatisierte/manuelle Regelchecks.
+- `validateIliModel` fuer gezielte ili2c-Compilerdiagnostik; Diagnosen koennen einen kleinen `sourceExcerpt` fuer Repair-Loops enthalten.
+- `indexConfiguredModels`, `findSimilarModels` und `readModelExample` fuer lokale `.ili`-Beispielsuche und das vollstaendige Lesen ausgewaehlter Vorbilder.
+- deterministische Golden-Scenario-Tests fuer den vorgesehenen agentischen Workflow, ohne LLM-Testframework.
 
-Ziel ist, dass ein Agent bei jedem Modellierungsauftrag einen stabilen technischen Arbeitszyklus hat: Wissen laden, Beispiele suchen, Modell erstellen, analysieren, Regeln pruefen, validieren, iterieren.
+Ziel ist, dass ein Agent bei jedem Modellierungsauftrag einen stabilen technischen Arbeitszyklus hat: Wissen laden, bei Bedarf Beispiele suchen und lesen, Modell erstellen oder erweitern, den vollstaendigen Stand mit High-Level-Reviews pruefen, technische Fehler iterativ beheben und fachliche Unsicherheiten offen lassen.
 
 ### Schritt 2: Agentenfaehiger Modellierungsworkflow
 
@@ -194,11 +197,13 @@ Der Agent soll:
 
 1. Modellzweck klaeren: Erfassung, Publikation, Validierung oder unbekannt.
 2. Fachbegriffe und offene fachliche Entscheidungen sammeln.
-3. Aehnliche Modelle im lokalen Korpus suchen.
-4. Modell in kleinen Inkrementen erstellen oder erweitern.
-5. Nach jeder wesentlichen Aenderung `analyzeIliModel`, `checkModelingRules` und `validateIliModel` ausfuehren.
-6. Automatisierte Fehler beheben, soweit sie technisch eindeutig sind.
-7. Fachliche Luecken als Rueckfragen dokumentieren.
+3. Aehnliche Modelle im lokalen Korpus mit `findSimilarModels` suchen und ein relevantes Vorbild mit `readModelExample` vollstaendig lesen.
+4. Bei einem bestehenden vollstaendigen Modell den Ausgangsstand mit `reviewIliModel` erfassen.
+5. Modell in kleinen Inkrementen erstellen oder erweitern.
+6. Aenderungen an bestehenden Modellen mit `reviewIliChange` semantisch pruefen und den finalen Stand gemaess aktuellem Prompt mit `reviewIliModel` abschliessen.
+7. `validateIliModel`, `analyzeIliModel` und `checkModelingRules` nur fuer konkrete Low-Level-Diagnosen einsetzen, nicht als routinemaessige Dreierfolge.
+8. Automatisierte Fehler beheben, soweit sie technisch eindeutig sind; bei Compilerfehlern `sourceExcerpt` verwenden, wenn vorhanden.
+9. Fachliche Luecken als Rueckfragen dokumentieren. Technisch generierte Namen oder fehlende Kardinalitaeten sind keine bestaetigten Fachentscheide.
 
 Der Agent darf technische Form und Konsistenz verbessern, aber keine fachlichen Kardinalitaeten, Rollen, Constraints oder Klassenzuschnitte ohne Quelle festlegen.
 
