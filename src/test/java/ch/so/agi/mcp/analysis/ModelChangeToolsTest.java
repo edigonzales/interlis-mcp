@@ -247,7 +247,7 @@ class ModelChangeToolsTest {
           DOMAIN
             Point = COORD
               0.000 .. 100.000,
-              0.000 .. 100.000
+              0.000 .. 100.000,
               ROTATION %s -> %s;
         END Demo.
         """.formatted(nullAxis, piHalfAxis);
