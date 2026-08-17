@@ -18,6 +18,7 @@ import ch.interlis.ili2c.metamodel.NumericType;
 import ch.interlis.ili2c.metamodel.PolylineType;
 import ch.interlis.ili2c.metamodel.RefSystemRef;
 import ch.interlis.ili2c.metamodel.ReferenceType;
+import ch.interlis.ili2c.metamodel.RoleDef;
 import ch.interlis.ili2c.metamodel.SurfaceType;
 import ch.interlis.ili2c.metamodel.Table;
 import ch.interlis.ili2c.metamodel.TextType;
@@ -54,7 +55,7 @@ public class ModelAnalysisTools {
 
   @McpTool(
       name = "analyzeIliModel",
-      description = "Analysiert ein vollstaendiges INTERLIS-Modell strukturell mit ili2c. Rueckgabe: valid, messages, Modelle, Imports, Topics, Klassen, Strukturen, Domains, Units, Associations, Attribute, Metaattribute und summaryMarkdown."
+      description = "Analysiert ein vollstaendiges INTERLIS-Modell strukturell und semantisch mit ili2c. Rueckgabe: valid, messages, Modelle, Imports, Topics, Klassen, Strukturen, Domains, Units, Associations mit Rollen, Attribute, Metaattribute und summaryMarkdown."
   )
   public Map<String, Object> analyzeIliModel(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
@@ -117,26 +118,22 @@ public class ModelAnalysisTools {
         continue;
       }
       if (element instanceof Topic topic) {
-        data.topics.add(elementMap(topic, "TOPIC"));
+        data.topics.add(topicMap(topic));
         collect(topic, data);
       } else if (element instanceof AssociationDef association) {
-        data.associations.add(elementMap(association, "ASSOCIATION"));
+        data.associations.add(associationMap(association));
         collect(association, data);
       } else if (element instanceof Table table) {
         if (!table.isImplicit()) {
           if (table.isIdentifiable()) {
-            data.classes.add(elementMap(table, "CLASS"));
+            data.classes.add(classMap(table, "CLASS"));
           } else {
-            data.structures.add(elementMap(table, "STRUCTURE"));
+            data.structures.add(classMap(table, "STRUCTURE"));
           }
         }
         collect(table, data);
       } else if (element instanceof Domain domain) {
-        Type domainType = domain.getType();
-        Map<String, Object> map = elementMap(domain, "DOMAIN");
-        map.put("type", domainType != null ? domainType.getClass().getSimpleName() : "");
-        map.put("typeText", typeText(domainType));
-        data.domains.add(map);
+        data.domains.add(domainMap(domain));
       } else if (element instanceof Unit unit) {
         Map<String, Object> map = elementMap(unit, "UNIT");
         data.units.add(map);
@@ -145,6 +142,99 @@ public class ModelAnalysisTools {
       } else if (element instanceof Container<?> child) {
         collect(child, data);
       }
+    }
+  }
+
+  private Map<String, Object> topicMap(Topic topic) {
+    Map<String, Object> map = elementMap(topic, "TOPIC");
+    map.put("abstract", topic.isAbstract());
+    map.put("final", topic.isFinal());
+    putExtending(map, topic.getExtending());
+
+    List<String> dependsOn = new ArrayList<>();
+    Iterator<Topic> iterator = topic.getDependentOn();
+    while (iterator.hasNext()) {
+      dependsOn.add(iterator.next().getScopedName());
+    }
+    if (!dependsOn.isEmpty()) {
+      dependsOn.sort(String::compareTo);
+      map.put("dependsOn", dependsOn);
+    }
+    return map;
+  }
+
+  private Map<String, Object> classMap(Table table, String kind) {
+    Map<String, Object> map = elementMap(table, kind);
+    map.put("abstract", table.isAbstract());
+    map.put("final", table.isFinal());
+    putExtending(map, table.getExtending());
+    return map;
+  }
+
+  private Map<String, Object> domainMap(Domain domain) {
+    Type domainType = domain.getType();
+    Map<String, Object> map = elementMap(domain, "DOMAIN");
+    map.put("abstract", domain.isAbstract());
+    map.put("final", domain.isFinal());
+    putExtending(map, domain.getExtending());
+    map.put("type", domainType != null ? domainType.getClass().getSimpleName() : "");
+    map.put("typeText", typeText(domainType));
+    return map;
+  }
+
+  private Map<String, Object> associationMap(AssociationDef association) {
+    Map<String, Object> map = elementMap(association, "ASSOCIATION");
+    map.put("abstract", association.isAbstract());
+    map.put("final", association.isFinal());
+    putExtending(map, association.getExtending());
+
+    List<Map<String, Object>> roles = new ArrayList<>();
+    Iterator<RoleDef> iterator = association.getDefinedRoles();
+    while (iterator.hasNext()) {
+      roles.add(roleMap(iterator.next()));
+    }
+    map.put("roles", roles);
+    return map;
+  }
+
+  private Map<String, Object> roleMap(RoleDef role) {
+    Map<String, Object> map = elementMap(role, "ROLE");
+    map.put("abstract", role.isAbstract());
+    map.put("final", role.isFinal());
+    map.put("ordered", role.isOrdered());
+    map.put("roleKind", roleKind(role.getKind()));
+    if (role.getCardinality() != null) {
+      map.put("cardinality", role.getCardinality().toString());
+    }
+    putExtending(map, role.getExtending());
+
+    List<Map<String, Object>> targets = new ArrayList<>();
+    Iterator<ReferenceType> references = role.iteratorReference();
+    while (references.hasNext()) {
+      ReferenceType reference = references.next();
+      if (reference.getReferred() == null) {
+        continue;
+      }
+      Map<String, Object> target = new LinkedHashMap<>();
+      target.put("target", reference.getReferred().getScopedName());
+      target.put("external", reference.isExternal());
+      targets.add(target);
+    }
+    map.put("targets", targets);
+    return map;
+  }
+
+  private String roleKind(int kind) {
+    return switch (kind) {
+      case RoleDef.Kind.eAGGREGATE -> "AGGREGATE";
+      case RoleDef.Kind.eCOMPOSITE -> "COMPOSITE";
+      default -> "ASSOCIATE";
+    };
+  }
+
+  private void putExtending(Map<String, Object> map, @Nullable Element extending) {
+    if (extending != null) {
+      map.put("extends", extending.getScopedName());
     }
   }
 
