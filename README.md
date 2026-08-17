@@ -13,9 +13,9 @@
 - Current initialize response advertises `tools`, `resources`, `prompts`, and runtime `logging`; completions are disabled.
 
 ## Agentic workflow
-For a complete model, prefer `reviewIliModel` over separately calling `analyzeIliModel`, `checkModelingRules`, and `validateIliModel`. It compiles once and returns compiler diagnostics, structure, automated rule findings, manual checks, and open questions.
+For a complete model without a before state, prefer `reviewIliModel` over separately calling `analyzeIliModel`, `checkModelingRules`, and `validateIliModel`. It compiles once and returns compiler diagnostics, structure, automated rule findings, manual checks, and open questions.
 
-When changing an existing model, use `reviewIliChange` to compare the before/after model semantically. It compiles each version once, returns `added`, `removed`, `changed`, `potentiallyBreakingChanges`, and `impact`, and includes an `afterReview` of the changed model. The current extension prompt then runs `reviewIliModel` on the final model state.
+When changing an existing model, use `reviewIliChange` to compare the before/after model semantically. It compiles each version once, returns `added`, `removed`, `changed`, `potentiallyBreakingChanges`, and `impact`, and includes `afterCompilerValid`, `afterDiagnostics`, and an `afterReview` of the changed model. Together these form the final review gate for the unchanged after state; do not routinely run an additional `reviewIliModel` for that same state. If the model is edited again after `reviewIliChange`, run `reviewIliChange` again with the new after state.
 
 For local examples, use `findSimilarModels` followed by `readModelExample` for the selected result. Search hits are discovery metadata; read the complete example before adopting a pattern.
 
@@ -55,7 +55,7 @@ If multiple JDKs are installed, use the explicit Java 21 binary, for example `/p
 ./gradlew e2eTest
 ```
 
-The unit-test suite also contains deterministic agentic golden scenarios covering the intended high-level review workflow, repair diagnostics, example lookup, breaking-change detection, and the rule that missing domain semantics must not be invented.
+The unit-test suite also contains deterministic agentic golden scenarios covering the intended high-level review workflow, including the two-compile `reviewIliChange` final gate, repair diagnostics, example lookup, breaking-change detection, and the rule that missing domain semantics must not be invented.
 
 ## Docker
 ```bash

@@ -52,6 +52,9 @@ class ToolChoiceGuidanceTest {
         .contains("interlis://knowledge/tool-guide")
         .contains("reviewIliModel")
         .contains("reviewIliChange")
+        .contains("afterReview")
+        .contains("kein")
+        .contains("zusaetzliches `reviewIliModel`")
         .contains("findSimilarModels", "readModelExample")
         .contains("validateIliModel", "analyzeIliModel", "checkModelingRules")
         .contains("nicht standardmaessig");

@@ -15,6 +15,7 @@ class AgentPromptsTest {
     assertThat(prompt)
         .contains("reviewIliModel")
         .contains("reviewIliChange")
+        .contains("afterReview")
         .contains("findSimilarModels")
         .contains("readModelExample")
         .contains("Low-Level-Tools");
@@ -34,15 +35,17 @@ class AgentPromptsTest {
   }
 
   @Test
-  void extensionPromptReviewsSemanticChangeAndFinalModel() {
+  void extensionPromptUsesChangeReviewAsFinalGate() {
     String prompt = prompts.extendInterlisModel("CAPTURE").toString();
 
     assertThat(prompt)
         .contains("reviewIliChange")
         .contains("potentiallyBreakingChanges")
         .contains("impact")
-        .contains("finalen Modelltext mit `reviewIliModel`")
-        .contains("readModelExample");
+        .contains("afterReview")
+        .contains("nicht noch `reviewIliModel`")
+        .contains("readModelExample")
+        .doesNotContain("finalen Modelltext mit `reviewIliModel`");
   }
 
   @Test
@@ -53,7 +56,8 @@ class AgentPromptsTest {
         .contains("findSimilarModels")
         .contains("readModelExample")
         .contains("reviewIliChange")
-        .contains("reviewIliModel")
+        .contains("afterReview")
+        .contains("nicht zusaetzlich `reviewIliModel`")
         .contains("nicht als Standard-Dreierfolge");
   }
 }
