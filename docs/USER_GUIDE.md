@@ -87,16 +87,18 @@ Example `mcp.json` entry:
   Markdown summary of the curated INTERLIS modeling rules versioned in this repository.
 - `interlis://knowledge/agent-workflow`
   Compact workflow for modeling, validating, reviewing, and iterating.
+- `interlis://knowledge/tool-guide`
+  Decision guide for choosing high-level review tools, targeted low-level diagnostics, and the model-example workflow.
 - `interlis://knowledge/model-corpus-index`
   Markdown index of `.ili` files found through `interlis.knowledge.model-paths`.
 
 ### MCP Prompts
 - `interlis-modeling-agent`
-  General agent instruction for INTERLIS modeling.
+  General agent instruction for INTERLIS modeling. It prefers the high-level review tools and treats the lower-level tools as targeted diagnostics.
 - `review-interlis-model`
-  Review prompt requiring `analyzeIliModel`, `checkModelingRules`, and `validateIliModel`.
+  Review prompt using `reviewIliModel` as the mandatory full-model review step.
 - `extend-interlis-model`
-  Controlled extension workflow for existing models.
+  Controlled extension workflow using a baseline `reviewIliModel`, optional model examples, `reviewIliChange`, and a final `reviewIliModel`.
 
 ### Snippet Generators Returning `{ "iliSnippet": ... }`
 - `createModelSnippet`
@@ -108,7 +110,7 @@ Example `mcp.json` entry:
 - `createStructureSnippet`
   Builds a `STRUCTURE` block with optional `iliDoc` and `metaAttributes`.
 - `createAssociationSnippet`
-  Builds an `ASSOCIATION` block from `name` and `roles`, plus optional `attrLines`, `iliDoc`, and `metaAttributes`. Roles support mandatory `name` and `classFQN` plus optional `card` and `external`.
+  Builds an `ASSOCIATION` block from at least two `roles`, plus optional `name`, `attrLines`, `iliDoc`, and `metaAttributes`. Each role requires `classFQN`; `name`, `card`, and `external` are optional. Generated names are technical placeholders and are returned in `openQuestions` for domain confirmation.
 - `createEnumDomainSnippet`
   Builds an enumerated `DOMAIN` with optional `iliDoc` and `metaAttributes`; enum values can also carry optional `iliDoc` and `metaAttributes` via `itemSpecs`.
 - `createEnumTreeDomainSnippet`
@@ -116,7 +118,7 @@ Example `mcp.json` entry:
 - `createNumericDomainSnippet`
   Builds a numeric `DOMAIN` with optional `unitFqn`, `iliDoc`, and `metaAttributes`.
 - `createUnitSnippet`
-  Builds a `UNIT` with optional `iliDoc` and `metaAttributes`.
+  Builds a linearly derived `UNIT`. `name`, positive `factor`, and `base` are required; `iliDoc` and `metaAttributes` are optional.
 - `createCoordDomainSnippet`
   Builds a default 2D or 3D `COORD` domain with optional `iliDoc` and `metaAttributes`.
 - `createStructureAttributeLine`
@@ -183,7 +185,9 @@ Supported `typeSpec` families:
 - `objectType`
 - `metaobjectType`
 
-Examples for the new families:
+Exactly one family must be selected.
+
+Examples for the newer families:
 
 ```json
 {
@@ -220,7 +224,8 @@ Roles use the shape `{ "classFQN": "...", "name"?: "...", "card"?: "{0..*}", "ex
 - role (binary): `r_<OppositeClass>`
 - self-association: `r_<Class>_1` / `r_<Class>_2`
 - n-ary fallback: `r_<OwnClass>` (+ collision suffixes)
-For relationship attributes, reuse existing attribute tools and pass the resulting ILI lines via `attrLines`.
+
+Every generated association or role name is returned as a technical placeholder in `openQuestions`. Missing role cardinalities are also returned as open questions instead of being invented. For relationship attributes, reuse existing attribute tools and pass the resulting ILI lines via `attrLines`.
 
 ```json
 {
@@ -233,6 +238,26 @@ For relationship attributes, reuse existing attribute tools and pass the resulti
   ]
 }
 ```
+
+### `createUnitSnippet`
+This helper intentionally covers only linearly derived units:
+
+```json
+{
+  "name": "Kilometer",
+  "factor": 1000,
+  "base": "INTERLIS.m"
+}
+```
+
+It generates:
+
+```ili
+UNIT
+  Kilometer = 1000 [INTERLIS.m];
+```
+
+Base/abstract unit declarations are outside this helper's contract.
 
 ### `createEnumTreeDomainSnippet`
 Use recursive `items` of the form `{ "name": "...", "iliDoc"?: "...", "metaAttributes"?: [...], "children"?: [...] }`.
@@ -356,9 +381,13 @@ Example `createClassSnippet` payload:
   Returns a structured object with `updatedModelText`, `oldElementFqn`, `newElementFqn`, `expectedKind`, and `notes`.
   `expectedKind` is optional and acts only as an additional guard.
 
-### Validation, Geometry, And Lookup Tools
+### Review, Validation, Analysis, And Lookup Tools
+- `reviewIliModel`
+  Standard full-model review. Compiles once and returns `valid`, `compilerValid`, `validForAutomatedRules`, `modelPurpose`, `ruleProfile`, `compilerDiagnostics`, `structure`, `ruleFindings`, `manualChecks`, and `openQuestions`.
+- `reviewIliChange`
+  Standard before/after review. Compiles each model once and returns `added`, `removed`, `changed`, `potentiallyBreakingChanges`, `impact`, compiler diagnostics for both versions, and `afterReview` for the changed model. If the after model does not compile, `afterReview.available` is `false` and the semantic comparison is unavailable.
 - `validateIliModel`
-  Returns `{ "valid": boolean, "messages": [...] }`.
+  Low-level compiler/syntax diagnostic tool returning `{ "valid": boolean, "messages": [...] }`. Compiler messages can include `sourceExcerpt` with `startLine`, `endLine`, and nearby source text.
 - `generateExampleXtf`
   Generates a deterministic minimal XTF from an INTERLIS model. Input:
   - required: `modelText`
@@ -375,15 +404,17 @@ Example `createClassSnippet` payload:
   - `valid`, `messages`
   - `errorCount`, `warningCount`
 - `analyzeIliModel`
-  Returns structural metadata for a full model: `valid`, `messages`, `iliVersion`, `models`, `imports`, `topics`, `classes`, `structures`, `domains`, `associations`, `attributes`, `metaAttributes`, and `summaryMarkdown`.
+  Low-level structural/semantic analysis for a full model. In addition to the basic collections (`models`, `imports`, `topics`, `classes`, `structures`, `domains`, `units`, `associations`, `attributes`, `metaAttributes`), the analysis exposes parser-backed relationships such as `extends`, `abstract`/`final`, topic `dependsOn`, and structured association roles including target, cardinality, aggregation kind, ordering, inheritance, and `external` where applicable.
 - `listModelingRules`
-  Returns the curated rules with `profile`, `id`, `title`, `severity`, `appliesTo`, and `checkKind`. Optional parameter `profile` defaults to `CORE`. `SO` includes `CORE` plus SO-specific additions.
+  Rule-catalog tool returning the curated rules with `profile`, `id`, `title`, `severity`, `appliesTo`, and `checkKind`. Optional parameter `profile` defaults to `CORE`. `SO` includes `CORE` plus SO-specific additions.
 - `checkModelingRules`
-  Returns `profile`, `validForAutomatedRules`, automated `findings`, and separate `manualChecks`. Set `modelPurpose` to `CAPTURE`, `PUBLICATION`, `VALIDATION`, or `UNKNOWN`. Optional `profile` defaults to `CORE`; `SO` runs `CORE` plus SO-specific rules.
+  Low-level targeted rule diagnostics. Returns `profile`, `validForAutomatedRules`, automated `findings`, and separate `manualChecks`. Set `modelPurpose` to `CAPTURE`, `PUBLICATION`, `VALIDATION`, or `UNKNOWN`. Optional `profile` defaults to `CORE`; `SO` runs `CORE` plus SO-specific rules.
 - `indexConfiguredModels`
-  Scans configured local `.ili` paths and returns indexed files, ignored files, and errors.
+  Inventory/admin tool that scans configured local `.ili` paths and returns indexed files, ignored files, and errors.
 - `findSimilarModels`
-  Searches configured local `.ili` files using lexical terms from `query` and/or `modelText`.
+  Searches configured local `.ili` files using lexical terms from `query` and/or `modelText`. Use the returned `path` only to select a candidate.
+- `readModelExample`
+  Reads the complete UTF-8 `.ili` model for a `path` returned by the configured corpus search. Paths must remain inside the configured corpus.
 - `ensureGeometryDependencies`
   Returns:
   - `importLinesToAdd`
@@ -399,11 +430,11 @@ Example `createClassSnippet` payload:
 
 ### Identifier Utilities
 - `sanitizeIdentifier`
-  Returns `{ "value": "...", "changed": boolean }`.
+  Returns `{ "value": "...", "changed": boolean }` and produces an INTERLIS-compatible non-reserved identifier.
 - `validateIdentifier`
-  Returns `{ "valid": true }` or throws.
+  Returns `{ "valid": true }` or throws for invalid/reserved identifiers.
 - `validateFqn`
-  Returns `{ "valid": true }` or throws.
+  Returns `{ "valid": true }` or throws for invalid FQNs. `INTERLIS` is accepted as the first FQN segment for built-in references such as `INTERLIS.m`.
 
 ### `generateExampleXtf`
 
@@ -461,9 +492,12 @@ Example response shape:
 ## Tips
 - Send exactly the argument shape shown by `tools/list`.
 - Optional parameters are omitted rather than sent as empty strings when possible.
-- Use `validateIliModel` on full `MODEL ... END` content, not on isolated snippets.
-- For model reviews, call `analyzeIliModel`, then `checkModelingRules`, then `validateIliModel`.
-- For publication models, call `checkModelingRules` with `"modelPurpose": "PUBLICATION"` so association checks are active.
+- For a complete current model, prefer `reviewIliModel` instead of routinely calling `validateIliModel`, `analyzeIliModel`, and `checkModelingRules` separately.
+- For a before/after change, use `reviewIliChange`; inspect `impact`, `potentiallyBreakingChanges`, and `afterReview`, then follow the extension prompt's final `reviewIliModel` step.
+- Use `validateIliModel` for a focused compiler repair loop; consume `sourceExcerpt` when present.
+- For publication-specific targeted rule checks, pass `"modelPurpose": "PUBLICATION"` to `checkModelingRules`.
+- For model examples, use `findSimilarModels` and then `readModelExample`; do not infer a modeling pattern from search metadata alone.
 - Use `ensureGeometryDependencies` before manually composing geometry attributes into a model.
 - For comments use `iliDoc`; do not send free `!!` comment lines.
 - For actual INTERLIS meta attributes use `metaAttributes`, not `iliDoc`.
+- Generated association/role names and missing cardinalities are open domain questions, not confirmed semantics.
