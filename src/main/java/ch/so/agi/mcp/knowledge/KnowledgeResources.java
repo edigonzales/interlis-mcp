@@ -86,6 +86,13 @@ public class KnowledgeResources {
         - Passendes Modellierungsmuster suchen: `findSimilarModels` -> `readModelExample`.
           Treffer dienen nur der Discovery; lies einen relevanten Treffer vollstaendig, bevor du das Muster uebernimmst.
 
+        ## Constraints und String-Pfade
+
+        - Bevor du eine Constraint-Funktion aus Trainingswissen annimmst, pruefe sie mit `listConstraintFunctions`. Beachte insbesondere `origin` und die Parameter-`semanticType`.
+        - Hat ein Parameter `semanticType=ATTRIBUTE_PATH`, erfinde den String-Pfad nicht. Pruefe ihn mit `resolveConstraintPath` im konkreten Klassen-/Association-Kontext.
+        - `resolveConstraintPath` verwendet dieselbe ili2c-Objekt-/Attributpfad-Syntax, die iox-ili fuer die bekannten Math-Aggregatfunktionen auswertet.
+        - Diese Werkzeuge erklaeren in diesem Schritt Funktion und Pfad. Sie beweisen noch nicht die fachliche Constraint-Logik und erzeugen noch keine Constraint-Testdaten.
+
         ## Low-Level nur bei gezieltem Bedarf
 
         - `validateIliModel`: nur Compiler-/Syntaxdiagnostik, besonders fuer einen gezielten Repair-Loop.
