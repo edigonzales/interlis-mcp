@@ -8,6 +8,7 @@ import ch.interlis.ili2c.metamodel.AttributeDef;
 import ch.interlis.ili2c.metamodel.Container;
 import ch.interlis.ili2c.metamodel.Domain;
 import ch.interlis.ili2c.metamodel.Element;
+import ch.interlis.ili2c.metamodel.EnumerationType;
 import ch.interlis.ili2c.metamodel.LineType;
 import ch.interlis.ili2c.metamodel.Model;
 import ch.interlis.ili2c.metamodel.NumericType;
@@ -199,6 +200,19 @@ public class ModelAnalysisTools {
       }
       if (coordType.getNullAxis() != 0 || coordType.getPiHalfAxis() != 0) {
         text.append("|rotation=").append(coordType.getNullAxis()).append("->").append(coordType.getPiHalfAxis());
+      }
+      return text.toString();
+    }
+    if (real instanceof EnumerationType enumerationType) {
+      StringBuilder text = new StringBuilder("ENUM|values=").append(String.join(",", enumerationType.getValues()));
+      if (enumerationType.isOrdered()) {
+        text.append("|ordered=true");
+      }
+      if (enumerationType.isCircular()) {
+        text.append("|circular=true");
+      }
+      if (enumerationType.getConsolidatedEnumeration().isFinal()) {
+        text.append("|final=true");
       }
       return text.toString();
     }
