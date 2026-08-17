@@ -3,8 +3,8 @@
 This guide describes how `interlis-mcp` is built, wired, tested, and extended.
 
 ## Compatibility Baseline
-- Spring Boot `4.1.0-M4`
-- Spring AI `2.0.0-M4`
+- Spring Boot `4.1.0`
+- Spring AI `2.0.0`
 - Gradle Wrapper `8.14.3`
 - Java toolchain and runtime `21`
 - MCP protocol observed in automated STDIO tests: `2025-06-18`
@@ -15,26 +15,26 @@ This guide describes how `interlis-mcp` is built, wired, tested, and extended.
 - `src/main/java/ch/so/agi/mcp/tools/*`
   MCP tool beans. Public methods are annotated with `@McpTool` and `@McpToolParam`.
 - `src/main/java/ch/so/agi/mcp/analysis/*`
-  Structural model analysis tools built on ili2c.
+  Structural model analysis and semantic before/after review tools built on ili2c.
 - `src/main/java/ch/so/agi/mcp/knowledge/*`
-  Curated modeling rules, MCP resources, MCP prompts, rule checks, and local `.ili` corpus search.
+  Curated modeling rules, MCP resources, MCP prompts, high-level model review, rule checks, and local `.ili` corpus search.
 - `src/main/java/ch/so/agi/mcp/service/IliCompilerService.java`
-  Shared ili2c compilation and INTERLIS regeneration service.
+  Shared ili2c compilation service and compiler-diagnostic normalization, including source excerpts for diagnostics from the submitted model text.
 - `src/main/java/ch/so/agi/mcp/service/XtfService.java`
   Shared XTF generation and XTF validation service (`generateExampleXtf`, `validateXtf`).
 - `src/main/java/ch/so/agi/mcp/model/*`
   DTOs used by structured tools such as `createAttributeLine`.
 - `src/main/java/ch/so/agi/mcp/util/NameValidator.java`
-  Shared INTERLIS identifier and FQN validation.
+  Shared INTERLIS identifier and FQN validation, including reserved-word checks.
 - `src/test/java`
-  Unit and contract tests.
+  Unit, contract, compile-based semantic tests, and deterministic agentic golden scenarios.
 - `src/e2e/java`
   End-to-end STDIO test against the packaged JAR.
 
 ## Tool Discovery
 The project no longer has a manual `ToolsConfig`. Tool registration is provided by Spring AI's MCP annotation scanner auto-configuration from `spring-ai-starter-mcp-server`.
 
-With Spring AI `2.0.0-M4`, MCP annotations come from the official Spring AI package:
+With Spring AI `2.0.0`, MCP annotations come from the official Spring AI package:
 
 ```java
 import org.springframework.ai.mcp.annotation.McpTool;
@@ -44,7 +44,7 @@ import org.springframework.ai.mcp.annotation.McpPrompt;
 import org.springframework.ai.mcp.annotation.McpArg;
 ```
 
-Nullability annotations were migrated from `org.springframework.lang.Nullable` to `org.jspecify.annotations.Nullable`.
+Nullability annotations use `org.jspecify.annotations.Nullable`.
 
 ## Build And Run
 ```bash
@@ -61,7 +61,7 @@ During development:
 ```
 
 ## Testing
-- Unit and integration tests:
+- Unit, contract, semantic, and golden-scenario tests:
   ```bash
   ./gradlew test
   ```
@@ -71,6 +71,17 @@ During development:
   ```
 
 `e2eTest` depends on `bootJar` and starts the server with the same Java binary as the test JVM. This avoids mismatches between the Gradle daemon JDK and the packaged application JDK.
+
+`src/test/java/ch/so/agi/mcp/eval/AgenticGoldenScenariosTest.java` freezes the intended agentic behavior without introducing an LLM test framework. The scenarios call real deterministic tools where possible and cover:
+- one high-level `reviewIliModel` for a complete new model
+- before/after `reviewIliChange` followed by the current prompt's final `reviewIliModel`, including compiler-call counts
+- compiler repair diagnostics with `sourceExcerpt`
+- missing cardinalities and generated names remaining open domain questions
+- `findSimilarModels` followed by `readModelExample`
+- breaking-change detection
+- rejection of routine low-level `validate + analyze + checkRules` triple checks
+
+These tests protect workflow contracts; they are not a simulation of an LLM planner.
 
 ## Runtime Configuration
 Application settings live in `src/main/resources/application.properties`.
@@ -95,6 +106,30 @@ The server version placeholder is expanded during `processResources` from Gradle
 The current runtime advertises `tools`, `resources`, `prompts`, and the MCP runtime's built-in `logging` capability. Completions are intentionally disabled.
 
 `interlis.knowledge.model-paths` is a comma-separated list of local files or directories. Directories are scanned recursively for `.ili` files. The MVP uses an in-memory scan and lexical scoring only; it does not use embeddings, a database, or network access at runtime.
+
+## Review And Diagnostic Contracts
+`reviewIliModel` is the standard high-level review for one complete current model. It compiles exactly once and combines:
+- compiler validity and `compilerDiagnostics`
+- structural/semantic `structure`
+- automated `ruleFindings`
+- `manualChecks`
+- `openQuestions`
+
+`reviewIliChange` is the standard before/after review. It compiles each version exactly once, computes semantic `added`/`removed`/`changed` items, derives `impact` and `potentiallyBreakingChanges`, and reuses the already analyzed after-model for `afterReview` instead of compiling it a third time.
+
+`validateIliModel`, `analyzeIliModel`, and `checkModelingRules` remain low-level tools for targeted diagnostics. Tool descriptions, prompts, and `interlis://knowledge/tool-guide` explicitly discourage calling all three routinely after a high-level review.
+
+`IliCompilerService` enriches diagnostics that belong to the submitted model text with a `sourceExcerpt` containing `startLine`, `endLine`, and a small nearby text window. Diagnostics attributable to other files are not given an excerpt from the submitted model.
+
+## Structural Analysis
+`ModelAnalysisTools` deliberately exposes selected ili2c metamodel semantics rather than serializing the complete metamodel generically. Current parser-backed structure includes, where applicable:
+- `extends`
+- `abstract` / `final`
+- topic `dependsOn`
+- association roles with name, target, cardinality, aggregation kind, ordering, role inheritance, and `external`
+- deterministic `typeText` fingerprints used by semantic change review for important type semantics
+
+The same analyzed data is reused by `reviewIliChange`, so structural changes can participate in semantic diffing without a separate parsing layer.
 
 ## XTF Services
 `XtfService` provides two capabilities:
@@ -148,15 +183,21 @@ Relevant DTOs:
 - `MetaobjectTypeSpec`
 - `AttributeLineResponse`
 
-`TypeSpec` is now a strict one-of union across these families. `enumTreeValueType` is modeled via a named enum-tree domain FQN because raw `ENUMTREEVAL` is not accepted by ili2c in attribute declarations.
+`TypeSpec.requireSingleType()` enforces a strict one-of selection across these families. `enumTreeValueType` is modeled via a named enum-tree domain FQN because raw `ENUMTREEVAL` is not accepted by ili2c in attribute declarations.
+
+`createUnitSnippet` intentionally supports only linearly derived units. Its contract is `name`, positive `factor`, and `base`, plus optional annotations. Base/abstract unit declarations are not synthesized by this helper.
+
+`createAssociationSnippet` may generate deterministic association and role names when they are omitted, but those names are technical placeholders. Generated names and missing cardinalities are surfaced through `openQuestions` rather than treated as confirmed domain semantics.
 
 ## Extension Rules
 When adding a new tool:
-1. Add a Spring `@Component` under `ch.so.agi.mcp.tools`.
-2. Annotate the public method with `@McpTool`.
-3. Mark optional parameters explicitly with `required = false`.
-4. Prefer `NameValidator.ascii()` for identifiers and FQNs.
-5. Add at least one focused unit test and, if the MCP contract matters, a schema assertion in `ToolRegistrationContractTest`.
+1. Prefer extending an existing focused component when that keeps the code simpler; do not introduce a new hierarchy or factory without a concrete need.
+2. If a new Spring component is needed, place it under the appropriate package and use constructor injection for its dependencies.
+3. Annotate MCP entrypoints with `@McpTool` and parameters with `@McpToolParam`.
+4. Mark optional parameters explicitly with `required = false` and `@Nullable` where appropriate.
+5. Prefer `NameValidator.ascii()` for identifiers and FQNs.
+6. Add at least one focused unit test and, if the MCP contract matters, a schema assertion in `ToolRegistrationContractTest`.
+7. For complete-model workflows, prefer extending the high-level review result instead of making agents compose several redundant low-level calls.
 
 For `generateExampleXtf`, keep generation deterministic and conservative. If a mandatory value cannot be generated safely, skip the class and surface the reason instead of emitting potentially invalid placeholder data.
 
