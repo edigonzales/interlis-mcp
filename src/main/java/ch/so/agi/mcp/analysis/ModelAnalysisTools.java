@@ -5,13 +5,17 @@ import ch.interlis.ili2c.metamodel.AbstractCoordType;
 import ch.interlis.ili2c.metamodel.AreaType;
 import ch.interlis.ili2c.metamodel.AssociationDef;
 import ch.interlis.ili2c.metamodel.AttributeDef;
+import ch.interlis.ili2c.metamodel.BlackboxType;
+import ch.interlis.ili2c.metamodel.CompositionType;
 import ch.interlis.ili2c.metamodel.Container;
 import ch.interlis.ili2c.metamodel.Domain;
 import ch.interlis.ili2c.metamodel.Element;
 import ch.interlis.ili2c.metamodel.EnumerationType;
+import ch.interlis.ili2c.metamodel.LineForm;
 import ch.interlis.ili2c.metamodel.LineType;
 import ch.interlis.ili2c.metamodel.Model;
 import ch.interlis.ili2c.metamodel.NumericType;
+import ch.interlis.ili2c.metamodel.PolylineType;
 import ch.interlis.ili2c.metamodel.RefSystemRef;
 import ch.interlis.ili2c.metamodel.ReferenceType;
 import ch.interlis.ili2c.metamodel.SurfaceType;
@@ -201,6 +205,12 @@ public class ModelAnalysisTools {
       if (coordType.getNullAxis() != 0 || coordType.getPiHalfAxis() != 0) {
         text.append("|rotation=").append(coordType.getNullAxis()).append("->").append(coordType.getPiHalfAxis());
       }
+      if (coordType.isGeneric()) {
+        text.append("|generic=true");
+      }
+      if (coordType.getCrs() != null && !coordType.getCrs().isBlank()) {
+        text.append("|crs=").append(coordType.getCrs());
+      }
       return text.toString();
     }
     if (real instanceof EnumerationType enumerationType) {
@@ -213,6 +223,47 @@ public class ModelAnalysisTools {
       }
       if (enumerationType.getConsolidatedEnumeration().isFinal()) {
         text.append("|final=true");
+      }
+      return text.toString();
+    }
+    if (real instanceof BlackboxType blackboxType) {
+      return switch (blackboxType.getKind()) {
+        case BlackboxType.eXML -> "BLACKBOX|kind=XML";
+        case BlackboxType.eBINARY -> "BLACKBOX|kind=BINARY";
+        default -> "BLACKBOX|kind=" + blackboxType.getKind();
+      };
+    }
+    if (real instanceof CompositionType compositionType) {
+      StringBuilder text = new StringBuilder("COMPOSITION");
+      if (compositionType.getComponentType() != null) {
+        text.append("|component=").append(compositionType.getComponentType().getScopedName());
+      }
+      if (compositionType.getCardinality() != null) {
+        text.append("|cardinality=").append(compositionType.getCardinality());
+      }
+      if (compositionType.isOrdered()) {
+        text.append("|ordered=true");
+      }
+      return text.toString();
+    }
+    if (real instanceof LineType lineType) {
+      StringBuilder text = new StringBuilder(real.getClass().getSimpleName());
+      if (real instanceof PolylineType polylineType && polylineType.isDirected()) {
+        text.append("|directed=true");
+      }
+      if (lineType.getControlPointDomain() != null) {
+        text.append("|controlPointDomain=").append(lineType.getControlPointDomain().getScopedName());
+      }
+      List<String> lineForms = new ArrayList<>();
+      for (LineForm lineForm : lineType.getLineForms()) {
+        lineForms.add(lineForm.getName());
+      }
+      if (!lineForms.isEmpty()) {
+        lineForms.sort(String::compareTo);
+        text.append("|lineForms=").append(String.join(",", lineForms));
+      }
+      if (lineType.getMaxOverlap() != null) {
+        text.append("|maxOverlap=").append(lineType.getMaxOverlap());
       }
       return text.toString();
     }
