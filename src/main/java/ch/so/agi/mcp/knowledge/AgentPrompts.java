@@ -26,12 +26,14 @@ public class AgentPrompts {
         und pruefe vollstaendige Modelle mit den vorhandenen High-Level-Review-Tools.
 
         Bevorzuge diesen Ablauf:
-        - Fuer ein vollstaendiges Modell: `reviewIliModel`.
-        - Fuer die Aenderung eines bestehenden Modells: `reviewIliChange` mit Vorher-/Nachher-Modell und danach `reviewIliModel` fuer den finalen Stand.
+        - Fuer ein vollstaendiges Modell ohne Vorher-Stand: `reviewIliModel`.
+        - Fuer die Aenderung eines bestehenden Modells: `reviewIliChange` mit Vorher-/Nachher-Modell. Das enthaltene `afterReview`
+          ist zusammen mit `afterCompilerValid` und `afterDiagnostics` der Abschlussreview fuer den Nachher-Stand; fuehre nicht
+          routinemaessig noch `reviewIliModel` fuer denselben unveraenderten Nachher-Stand aus.
         - Fuer lokale Vorbilder: zuerst `findSimilarModels`, danach das ausgewaehlte Modell mit `readModelExample` lesen.
 
         `analyzeIliModel`, `checkModelingRules` und `validateIliModel` sind Low-Level-Tools fuer gezielte Einzeldiagnosen.
-        Fuehre sie nicht standardmaessig zusaetzlich zu `reviewIliModel` aus.
+        Fuehre sie nicht standardmaessig zusaetzlich zu einem passenden High-Level-Review aus.
 
         Automatisch erzeugte Namen sind technische Platzhalter. Bestaetige fachliche Namen, Kardinalitaeten, Rollen,
         Constraints und Datenumbauten explizit oder markiere sie als Rueckfrage.
@@ -76,10 +78,12 @@ public class AgentPrompts {
         1. Reviewe den bestehenden Modelltext mit `reviewIliModel`, damit Compilerstatus, Struktur, Regeln und offene Fragen bekannt sind.
         2. Suche bei Bedarf lokale Vorbilder mit `findSimilarModels` und lies ein ausgewaehltes Modell mit `readModelExample`.
         3. Mache nur die geforderte Erweiterung und halte bestehende Namen, Imports und Stil konsistent.
-        4. Vergleiche Vorher und Nachher mit `reviewIliChange` und beachte insbesondere `potentiallyBreakingChanges` und `impact`.
-        5. Reviewe den finalen Modelltext mit `reviewIliModel`.
-        6. Liefere den neuen Modelltext, die semantische Aenderung, Compiler-/Regelbefunde und offene fachliche Entscheide.
+        4. Vergleiche Vorher und Nachher mit `reviewIliChange`. Beachte `potentiallyBreakingChanges` und `impact` und verwende
+           `afterReview` zusammen mit `afterCompilerValid` und `afterDiagnostics` als Abschlussreview des Nachher-Stands.
+        5. Liefere den neuen Modelltext, die semantische Aenderung, Compiler-/Regelbefunde und offene fachliche Entscheide.
 
+        Fuehre fuer denselben unveraenderten Nachher-Stand nicht noch `reviewIliModel` aus. Wenn du den Modelltext nach
+        `reviewIliChange` nochmals aenderst, pruefe den neuen Nachher-Stand erneut mit `reviewIliChange`.
         Nutze `analyzeIliModel`, `checkModelingRules` oder `validateIliModel` nur, wenn fuer eine konkrete Diagnose ein einzelnes
         Low-Level-Ergebnis benoetigt wird. Erfinde keine fachlichen Constraints, Rollen oder Kardinalitaeten ohne klare Vorgabe.
         """.formatted(blankFallback(modelPurpose, "UNKNOWN")));

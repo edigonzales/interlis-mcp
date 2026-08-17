@@ -62,7 +62,7 @@ class AgenticGoldenScenariosTest {
   }
 
   @Test
-  void existingModelUsesChangeReviewThenFinalReview() {
+  void existingModelUsesChangeReviewAsFinalGate() {
     CountingCompilerService compiler = new CountingCompilerService();
     ModelAnalysisTools analysis = new ModelAnalysisTools(compiler);
     ModelingRuleTools reviews = reviewTools(compiler, analysis);
@@ -77,16 +77,13 @@ class AgenticGoldenScenariosTest {
 
     assertThat(compiler.calls).isEqualTo(2);
     assertThat(changeReview.get("comparable")).isEqualTo(true);
+    assertThat(changeReview.get("afterCompilerValid")).isEqualTo(true);
     assertThat(changeReview.get("impact")).isEqualTo("ADDITIVE_OR_METADATA_ONLY");
+    assertThat(changeReview.get("afterReview")).isInstanceOf(Map.class);
+    assertThat(((Map<?, ?>) changeReview.get("afterReview")).get("validForAutomatedRules"))
+        .isEqualTo(true);
 
-    Map<String, Object> finalReview = reviews.reviewIliModel(
-        extendedModel(),
-        ModelPurpose.CAPTURE,
-        ModelingRuleProfile.CORE,
-        null);
-
-    assertThat(compiler.calls).isEqualTo(3);
-    assertThat(finalReview.get("compilerValid")).isEqualTo(true);
+    assertThat(compiler.calls).isEqualTo(2);
   }
 
   @Test
@@ -183,6 +180,21 @@ class AgenticGoldenScenariosTest {
     assertThat(agentPrompt)
         .contains("reviewIliModel")
         .contains("Low-Level-Tools");
+  }
+
+  @Test
+  void agentGuidanceUsesChangeReviewAsFinalGate() {
+    String toolGuide = new KnowledgeResources(null, null).toolGuide().toString();
+    String agentPrompt = new AgentPrompts().interlisModelingAgent().toString();
+
+    assertThat(toolGuide)
+        .contains("afterReview")
+        .contains("kein")
+        .contains("zusaetzliches `reviewIliModel`");
+    assertThat(agentPrompt)
+        .contains("afterReview")
+        .contains("nicht")
+        .contains("routinemaessig noch `reviewIliModel`");
   }
 
   @Test

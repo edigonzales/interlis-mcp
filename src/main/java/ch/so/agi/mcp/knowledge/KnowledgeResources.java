@@ -44,11 +44,13 @@ public class KnowledgeResources {
         3. Wenn ein bestehendes vollstaendiges Modell vorliegt, ermittle den Ausgangszustand mit `reviewIliModel`.
         4. Erstelle oder erweitere das Modell in kleinen, nachvollziehbaren Schritten. Fachliche Entscheidungen nicht erfinden.
         5. Vergleiche bei Aenderungen eines bestehenden Modells Vorher und Nachher mit `reviewIliChange`.
-        6. Pruefe den aktuellen vollstaendigen Modellstand mit `reviewIliModel`.
+        6. Verwende `afterReview` zusammen mit `afterCompilerValid` und `afterDiagnostics` als Abschlussreview des Nachher-Stands.
+           Fuehre fuer denselben unveraenderten Nachher-Stand nicht zusaetzlich `reviewIliModel` aus.
         7. Behandle Compilerfehler und automatisierte ERROR-Findings vor WARNING/INFO-Findings.
         8. Liste `manualChecks` und `openQuestions` als fachliche Rueckfragen, ohne Kardinalitaeten, Rollen oder Constraints zu erfinden.
         9. Nutze `analyzeIliModel`, `checkModelingRules` und `validateIliModel` nur fuer gezielte Einzeldiagnosen, nicht als Standard-Dreierfolge.
-        10. Liefere am Schluss Modelltext, semantische Aenderungen, Review-Resultat und offene fachliche Entscheide.
+        10. Wenn der Modelltext nach `reviewIliChange` erneut geaendert wird, pruefe den neuen Nachher-Stand erneut mit `reviewIliChange`.
+        11. Liefere am Schluss Modelltext, semantische Aenderungen, Review-Resultat und offene fachliche Entscheide.
         """);
   }
 
@@ -67,10 +69,12 @@ public class KnowledgeResources {
 
         ## Standardfaelle
 
-        - Vollstaendigen aktuellen Modellstand pruefen: `reviewIliModel`.
+        - Vollstaendigen aktuellen Modellstand ohne Vorher-Stand pruefen: `reviewIliModel`.
           Es kombiniert ili2c, Strukturanalyse, automatisierte Regeln, manuelle Checks und offene fachliche Fragen.
         - Vorher-/Nachher-Aenderung pruefen: `reviewIliChange`.
-          Es liefert den semantischen Diff und prueft gleichzeitig das After-Modell.
+          Es liefert den semantischen Diff und prueft gleichzeitig das After-Modell. `afterReview` bildet zusammen mit
+          `afterCompilerValid` und `afterDiagnostics` den Abschlussreview; fuer denselben unveraenderten Nachher-Stand ist kein
+          zusaetzliches `reviewIliModel` erforderlich.
         - Passendes Modellierungsmuster suchen: `findSimilarModels` -> `readModelExample`.
           Treffer dienen nur der Discovery; lies einen relevanten Treffer vollstaendig, bevor du das Muster uebernimmst.
 
@@ -82,9 +86,9 @@ public class KnowledgeResources {
         - `listModelingRules`: Regelkatalog verstehen; prueft selbst kein Modell.
         - `indexConfiguredModels`: Korpus inventarisieren/aktualisieren; fuer Mustersuche `findSimilarModels` verwenden.
 
-        Nach `reviewIliModel` nicht standardmaessig noch `validateIliModel`, `analyzeIliModel` und `checkModelingRules` aufrufen. Nutze eines davon nur, wenn das High-Level-Resultat eine konkrete Detailfrage offenlaesst.
+        Nach einem passenden High-Level-Review nicht standardmaessig noch `validateIliModel`, `analyzeIliModel` und `checkModelingRules` aufrufen. Nutze eines davon nur, wenn das High-Level-Resultat eine konkrete Detailfrage offenlaesst.
 
-        Snippet-, Rename- und Formatting-Tools sind lokale Konstruktionshilfen. Nach einer Aenderung entscheidet weiterhin `reviewIliChange` bzw. `reviewIliModel` ueber den vollstaendigen Modellstand. Technisch generierte Namen oder andere fachliche Platzhalter sind keine fachlichen Entscheide.
+        Snippet-, Rename- und Formatting-Tools sind lokale Konstruktionshilfen. Fuer einen einzelnen Modellstand ohne Baseline entscheidet `reviewIliModel`; bei einer Vorher-/Nachher-Aenderung entscheidet `reviewIliChange`. Technisch generierte Namen oder andere fachliche Platzhalter sind keine fachlichen Entscheide.
         """);
   }
 
