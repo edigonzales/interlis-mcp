@@ -92,6 +92,27 @@ class ModelChangeToolsTest {
   }
 
   @Test
+  void detectsCoordinateDomainRotationChange() {
+    IliCompilerService compiler = new IliCompilerService();
+    ModelChangeTools tools = new ModelChangeTools(compiler, new ModelAnalysisTools(compiler));
+
+    Map<String, Object> response = tools.reviewIliChange(
+        coordinateDomainRotationModel("2", "1"),
+        coordinateDomainRotationModel("1", "2"),
+        null);
+
+    assertThat(response.get("valid")).isEqualTo(true);
+    assertThat(response.get("impact")).isEqualTo("POTENTIALLY_BREAKING");
+    assertThat(response.get("changed")).asList()
+        .singleElement()
+        .satisfies(change -> assertThat(change.toString())
+            .contains("Demo.Point")
+            .contains("typeText")
+            .contains("rotation=2->1")
+            .contains("rotation=1->2"));
+  }
+
+  @Test
   void ignoresFormattingOnlyChanges() {
     IliCompilerService compiler = new IliCompilerService();
     ModelChangeTools tools = new ModelChangeTools(compiler, new ModelAnalysisTools(compiler));
@@ -216,6 +237,20 @@ class ModelChangeToolsTest {
               0.000 .. 100.000;
         END Demo.
         """.formatted(firstAxisMax);
+  }
+
+  private String coordinateDomainRotationModel(String nullAxis, String piHalfAxis) {
+    return """
+        INTERLIS 2.4;
+
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
+          DOMAIN
+            Point = COORD
+              0.000 .. 100.000,
+              0.000 .. 100.000
+              ROTATION %s -> %s;
+        END Demo.
+        """.formatted(nullAxis, piHalfAxis);
   }
 
   private static class CountingCompiler extends IliCompilerService {
