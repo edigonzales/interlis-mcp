@@ -19,9 +19,9 @@ import org.springframework.stereotype.Component;
 public class ModelChangeTools {
 
   private static final List<String> CATEGORIES = List.of(
-      "models", "imports", "topics", "classes", "structures", "domains", "units", "associations", "attributes", "constraints");
+      "models", "imports", "topics", "classes", "structures", "domains", "units", "associations", "attributes", "constraints", "metaAttributes");
   private static final Set<String> IDENTITY_FIELDS = Set.of("kind", "name", "scopedName");
-  private static final Set<String> IGNORED_FIELDS = Set.of("line");
+  private static final Set<String> IGNORED_FIELDS = Set.of("line", "metaAttributes");
 
   private final IliCompilerService compilerService;
   private final ModelAnalysisTools analysisTools;
@@ -236,7 +236,8 @@ public class ModelChangeTools {
     List<Map<String, Object>> result = new ArrayList<>();
 
     for (Map<String, Object> item : removed) {
-      if (!"IMPORT".equals(item.get("kind"))) {
+      String kind = String.valueOf(item.get("kind"));
+      if (!"IMPORT".equals(kind) && !"META_ATTRIBUTE".equals(kind)) {
         result.add(impactFinding(item, "Removing a model element can break existing data or consumers."));
       }
     }
@@ -259,6 +260,8 @@ public class ModelChangeTools {
         result.add(impactFinding(change, "Changing the INTERLIS language version may affect compatibility."));
       } else if (isConstraintKind(kind)) {
         result.add(impactFinding(change, "Changing a constraint changes the set of valid data and requires domain review."));
+      } else if ("UNIT".equals(kind) && fields.contains("definitionText")) {
+        result.add(impactFinding(change, "Changing a unit definition may change the meaning of existing numeric values."));
       } else if ("TOPIC".equals(kind) && hasAny(fields, "extends", "dependsOn", "abstract", "final")) {
         result.add(impactFinding(change, "Changing topic inheritance, dependencies or modifiers may affect model compatibility."));
       } else if (("CLASS".equals(kind) || "STRUCTURE".equals(kind))
@@ -312,11 +315,19 @@ public class ModelChangeTools {
       case "associations" -> data.associations;
       case "attributes" -> data.attributes;
       case "constraints" -> data.constraints;
+      case "metaAttributes" -> data.metaAttributes;
       default -> List.of();
     };
   }
 
   private String identity(Map<String, Object> item, String category) {
+    if ("metaAttributes".equals(category)) {
+      Object owner = item.get("owner");
+      Object name = item.get("name");
+      if (owner != null && name != null) {
+        return owner + "!!@" + name;
+      }
+    }
     Object scopedName = item.get("scopedName");
     if (scopedName != null && !scopedName.toString().isBlank()) {
       return scopedName.toString();
@@ -344,6 +355,7 @@ public class ModelChangeTools {
       case "associations" -> "ASSOCIATION";
       case "attributes" -> "ATTRIBUTE";
       case "constraints" -> "CONSTRAINT";
+      case "metaAttributes" -> "META_ATTRIBUTE";
       default -> category.toUpperCase();
     };
   }
