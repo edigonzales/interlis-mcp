@@ -4,8 +4,8 @@ import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.analysis.ModelPurpose;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -171,7 +171,10 @@ public class ModelingRuleTools {
     addDocumentationFindings(findings, selectedRuleIds, analysis, rulesById, "MDE-209", "attributes", "Attribute");
     addDocumentationFindings(findings, selectedRuleIds, analysis, rulesById, "MDE-210", "classes", "Class");
     addNameLengthFindings(findings, selectedRuleIds, analysis, rulesById);
+    addViewPurposeFindings(findings, selectedRuleIds, purpose, analysis, rulesById);
     addTextLengthFindings(findings, selectedRuleIds, analysis, rulesById);
+    addRoleCardinalityFindings(findings, selectedRuleIds, analysis, rulesById);
+    addObjectIdentificationFindings(findings, selectedRuleIds, analysis, rulesById);
 
     boolean validForAutomatedRules = findings.stream()
         .noneMatch(finding -> "ERROR".equals(finding.get("severity")) || "WARNING".equals(finding.get("severity")));
@@ -405,6 +408,30 @@ public class ModelingRuleTools {
     }
   }
 
+  private void addViewPurposeFindings(
+      List<Map<String, Object>> findings,
+      Set<String> selectedRuleIds,
+      ModelPurpose purpose,
+      Map<String, Object> analysis,
+      Map<String, ModelingRule> rulesById) {
+    if (!isSelected(selectedRuleIds, "MDE-501")
+        || purpose == ModelPurpose.VALIDATION
+        || purpose == ModelPurpose.UNKNOWN) {
+      return;
+    }
+    ModelingRule rule = rule("MDE-501", rulesById);
+    if (rule == null) {
+      return;
+    }
+    for (Object item : listValue(analysis, "views")) {
+      if (item instanceof Map<?, ?> map) {
+        findings.add(ruleFinding(rule,
+            "VIEW is only allowed by the modeling handbook in validation models.",
+            elementLocation(map)));
+      }
+    }
+  }
+
   private void addTextLengthFindings(
       List<Map<String, Object>> findings,
       Set<String> selectedRuleIds,
@@ -427,6 +454,61 @@ public class ModelingRuleTools {
                 elementLocation(map)));
           }
         }
+      }
+    }
+  }
+
+  private void addRoleCardinalityFindings(
+      List<Map<String, Object>> findings,
+      Set<String> selectedRuleIds,
+      Map<String, Object> analysis,
+      Map<String, ModelingRule> rulesById) {
+    if (!isSelected(selectedRuleIds, "MDE-601")) {
+      return;
+    }
+    ModelingRule rule = rule("MDE-601", rulesById);
+    if (rule == null) {
+      return;
+    }
+    for (Object associationItem : listValue(analysis, "associations")) {
+      if (!(associationItem instanceof Map<?, ?> association)) {
+        continue;
+      }
+      Object rolesValue = association.get("roles");
+      if (!(rolesValue instanceof List<?> roles)) {
+        continue;
+      }
+      for (Object roleItem : roles) {
+        if (roleItem instanceof Map<?, ?> role && !Boolean.TRUE.equals(role.get("cardinalityDefined"))) {
+          Object cardinality = role.get("cardinality");
+          findings.add(ruleFinding(rule,
+              "Association role relies on the implicit cardinality "
+                  + (cardinality != null ? cardinality : "{1}") + ".",
+              elementLocation(role)));
+        }
+      }
+    }
+  }
+
+  private void addObjectIdentificationFindings(
+      List<Map<String, Object>> findings,
+      Set<String> selectedRuleIds,
+      Map<String, Object> analysis,
+      Map<String, ModelingRule> rulesById) {
+    if (!isSelected(selectedRuleIds, "MDE-603")) {
+      return;
+    }
+    ModelingRule rule = rule("MDE-603", rulesById);
+    if (rule == null) {
+      return;
+    }
+    for (Object item : listValue(analysis, "classes")) {
+      if (item instanceof Map<?, ?> map
+          && !Boolean.TRUE.equals(map.get("abstract"))
+          && isBlank(map.get("oid"))) {
+        findings.add(ruleFinding(rule,
+            "Concrete class has no effective OID domain.",
+            elementLocation(map)));
       }
     }
   }

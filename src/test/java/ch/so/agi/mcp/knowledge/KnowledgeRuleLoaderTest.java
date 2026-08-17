@@ -10,8 +10,8 @@ class KnowledgeRuleLoaderTest {
   void loadsCuratedRulesFromResource() {
     KnowledgeRuleLoader loader = new KnowledgeRuleLoader();
 
-    assertThat(loader.rules()).hasSize(14);
-    assertThat(loader.rules(ModelingRuleProfile.SO)).hasSize(14);
+    assertThat(loader.rules()).hasSize(18);
+    assertThat(loader.rules(ModelingRuleProfile.SO)).hasSize(18);
     assertThat(loader.rules()).extracting(ModelingRule::id)
         .containsExactly(
             "MDE-001",
@@ -27,13 +27,19 @@ class KnowledgeRuleLoaderTest {
             "MDE-209",
             "MDE-210",
             "MDE-302",
-            "MDE-502");
+            "MDE-501",
+            "MDE-502",
+            "MDE-601",
+            "MDE-602",
+            "MDE-603");
     assertThat(loader.rulesAsMarkdown())
         .contains("# Curated INTERLIS Modeling Rules")
         .contains("Active profile: `CORE`")
         .contains("MDE-020")
         .contains("ili2c")
-        .contains("MDE-206")
-        .contains("MDE-502");
+        .contains("MDE-501")
+        .contains("MDE-601")
+        .contains("MDE-602")
+        .contains("MDE-603");
   }
 }
