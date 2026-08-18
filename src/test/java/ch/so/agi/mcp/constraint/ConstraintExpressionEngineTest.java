@@ -78,12 +78,11 @@ class ConstraintExpressionEngineTest {
     ConstraintExpression.FunctionCall avg = call(
         "COLLECTION_AVG",
         new ConstraintExpression.Path("items->value", ConstraintExpression.Type.collection(NUMERIC)));
-    assertEquals(
-        new BigDecimal("15"),
-        ConstraintExpressionEngine.evaluate(
-            avg,
-            ConstraintExpressionEngine.EvaluationContext.of(Map.of("items->value", List.of(10, 20))))
-            .stripTrailingZeros());
+    Object average = ConstraintExpressionEngine.evaluate(
+        avg,
+        ConstraintExpressionEngine.EvaluationContext.of(Map.of("items->value", List.of(10, 20))));
+    assertTrue(average instanceof BigDecimal);
+    assertEquals(0, ((BigDecimal) average).compareTo(new BigDecimal("15")));
     assertEquals(
         ConstraintExpressionEngine.Undefined.INSTANCE,
         ConstraintExpressionEngine.evaluate(
