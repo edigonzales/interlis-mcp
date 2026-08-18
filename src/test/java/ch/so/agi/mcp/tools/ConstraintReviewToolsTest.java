@@ -54,6 +54,7 @@ class ConstraintReviewToolsTest {
                 Gewichtung == 100
                 AND NOT(DEFINED(Math.sum("Nebenauspraegung->Gewichtung")))
               );
+          END;
         END Bodeneinheiten;
       END SO_AFU_Bodeneinheiten_20251210.
       """;
