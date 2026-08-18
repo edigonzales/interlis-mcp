@@ -3,7 +3,6 @@ package ch.so.agi.mcp.tools;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -157,8 +156,10 @@ public class ConstraintDecisionTableTools {
         if (!OPERATORS.contains(operator)) {
           throw new IllegalArgumentException("Unsupported decision-table operator '" + operator + "'.");
         }
-        BigDecimal value = numericValue(condition.value, name, conditionIndex);
-        conditions.add(new NormalizedCondition(attribute, operator, value));
+        conditions.add(new NormalizedCondition(
+            attribute,
+            operator,
+            numericValue(condition.value, name, conditionIndex)));
       }
       result.add(new NormalizedRow(name, conditions));
     }
@@ -171,12 +172,15 @@ public class ConstraintDecisionTableTools {
       List<String> conditions = row.conditions().stream()
           .map(condition -> condition.attribute() + " " + condition.operator() + " " + decimal(condition.value()))
           .toList();
-      String rowExpression = String.join(" AND ", conditions);
-      rowExpressions.add(conditions.size() > 1 ? "(" + rowExpression + ")" : rowExpression);
+      String expression = String.join(" AND ", conditions);
+      rowExpressions.add(conditions.size() > 1 ? "(" + expression + ")" : expression);
     }
-    return rowExpressions.size() > 1
-        ? rowExpressions.stream().map(expression -> "(" + expression + ")").reduce((a, b) -> a + " OR " + b).orElseThrow()
-        : rowExpressions.getFirst();
+    return rowExpressions.size() == 1
+        ? rowExpressions.getFirst()
+        : rowExpressions.stream()
+            .map(expression -> "(" + expression + ")")
+            .reduce((left, right) -> left + " OR " + right)
+            .orElseThrow();
   }
 
   private String renderConstraintBlock(String context, String constraintName, String expression) {
@@ -189,41 +193,39 @@ public class ConstraintDecisionTableTools {
 
   private String insertConstraintBlock(String modelText, String context, String constraintBlock) {
     String[] parts = context.split("\\.");
-    if (parts.length != 3) {
-      throw new IllegalArgumentException("Decision-table MVP requires context in the form Model.Topic.Class.");
-    }
     String modelName = parts[0];
     String topicName = parts[1];
 
-    Pattern modelPattern = Pattern.compile(
+    Matcher modelMatcher = Pattern.compile(
         "(?m)^\\s*(?:(?:CONTRACTED|REFSYSTEM|SYMBOLOGY|TYPE)\\s+)?MODEL\\s+"
-            + Pattern.quote(modelName) + "\\b");
-    Matcher modelMatcher = modelPattern.matcher(modelText);
+            + Pattern.quote(modelName) + "\\b")
+        .matcher(modelText);
     if (!modelMatcher.find()) {
       throw new IllegalArgumentException("Model '" + modelName + "' was not found in modelText.");
     }
     int modelStart = modelMatcher.start();
 
-    Pattern modelEndPattern = Pattern.compile("(?m)^\\s*END\\s+" + Pattern.quote(modelName) + "\\s*\\.");
-    Matcher modelEndMatcher = modelEndPattern.matcher(modelText);
+    Matcher modelEndMatcher = Pattern.compile(
+        "(?m)^\\s*END\\s+" + Pattern.quote(modelName) + "\\s*\\.")
+        .matcher(modelText);
     if (!modelEndMatcher.find(modelStart)) {
       throw new IllegalArgumentException("End of model '" + modelName + "' was not found.");
     }
     int modelEnd = modelEndMatcher.start();
 
-    Pattern topicPattern = Pattern.compile("(?m)^\\s*TOPIC\\s+" + Pattern.quote(topicName) + "\\b");
-    Matcher topicMatcher = topicPattern.matcher(modelText);
+    Matcher topicMatcher = Pattern.compile(
+        "(?m)^\\s*TOPIC\\s+" + Pattern.quote(topicName) + "\\b")
+        .matcher(modelText);
     if (!topicMatcher.find(modelStart) || topicMatcher.start() >= modelEnd) {
       throw new IllegalArgumentException("Topic '" + topicName + "' was not found in model '" + modelName + "'.");
     }
 
-    Pattern topicEndPattern = Pattern.compile("(?m)^\\s*END\\s+" + Pattern.quote(topicName) + "\\s*;");
-    Matcher topicEndMatcher = topicEndPattern.matcher(modelText);
+    Matcher topicEndMatcher = Pattern.compile(
+        "(?m)^\\s*END\\s+" + Pattern.quote(topicName) + "\\s*;")
+        .matcher(modelText);
+    topicEndMatcher.region(topicMatcher.start(), modelEnd);
     int insertAt = -1;
-    while (topicEndMatcher.find(topicMatcher.start())) {
-      if (topicEndMatcher.start() >= modelEnd) {
-        break;
-      }
+    while (topicEndMatcher.find()) {
       insertAt = topicEndMatcher.start();
     }
     if (insertAt < 0) {
@@ -233,7 +235,7 @@ public class ConstraintDecisionTableTools {
     String indentation = leadingWhitespace(modelText, insertAt);
     String indentedBlock = constraintBlock.lines()
         .map(line -> indentation + "  " + line)
-        .reduce((a, b) -> a + "\n" + b)
+        .reduce((left, right) -> left + "\n" + right)
         .orElse(constraintBlock);
     return modelText.substring(0, insertAt)
         + indentedBlock + "\n\n"
@@ -260,10 +262,9 @@ public class ConstraintDecisionTableTools {
     Map<String, Integer> literalScales = literalScales(rows);
     for (String attribute : referencedAttributes(rows)) {
       Map<String, Object> type = types.get(attribute);
-      if (type == null || !"NUMERIC".equals(type.get("kind"))) {
-        continue;
+      if (type != null && "NUMERIC".equals(type.get("kind"))) {
+        result.put(attribute, numericDomain(type, literalScales.getOrDefault(attribute, 0)));
       }
-      result.put(attribute, numericDomain(type, literalScales.getOrDefault(attribute, 0)));
     }
     return result;
   }
@@ -318,8 +319,11 @@ public class ConstraintDecisionTableTools {
           Map<String, BigDecimal> values = new LinkedHashMap<>(baseline);
           values.put(condition.attribute(), boundary.value());
           if (allValuesInDomain(values, domains)) {
-            candidates.add(new Candidate(boundary.purpose(), row.name() + ": " + condition.attribute()
-                + " " + condition.operator() + " " + decimal(condition.value()), values));
+            candidates.add(new Candidate(
+                boundary.purpose(),
+                row.name() + ": " + condition.attribute() + " " + condition.operator()
+                    + " " + decimal(condition.value()),
+                values));
           }
         }
       }
@@ -371,6 +375,8 @@ public class ConstraintDecisionTableTools {
       NormalizedRow row,
       Map<String, NumericDomain> domains) {
     Map<String, BigDecimal> result = new LinkedHashMap<>();
+    domains.forEach((attribute, domain) -> result.put(attribute, defaultValue(domain)));
+
     Map<String, List<NormalizedCondition>> byAttribute = new LinkedHashMap<>();
     for (NormalizedCondition condition : row.conditions()) {
       byAttribute.computeIfAbsent(condition.attribute(), key -> new ArrayList<>()).add(condition);
@@ -409,6 +415,20 @@ public class ConstraintDecisionTableTools {
     return result;
   }
 
+  private BigDecimal defaultValue(NumericDomain domain) {
+    BigDecimal zero = BigDecimal.ZERO.setScale(domain.step().scale());
+    if (domain.contains(zero)) {
+      return zero;
+    }
+    if (domain.minimum() != null) {
+      return domain.minimum();
+    }
+    if (domain.maximum() != null) {
+      return domain.maximum();
+    }
+    return zero;
+  }
+
   private List<BoundaryValue> boundaryValues(
       NormalizedCondition condition,
       NumericDomain domain) {
@@ -418,57 +438,51 @@ public class ConstraintDecisionTableTools {
     List<BoundaryValue> result = new ArrayList<>();
     switch (condition.operator()) {
       case "==" -> {
-        result.add(new BoundaryValue("AT_EQUALITY", literal));
+        addIfInDomain(result, domain, "AT_EQUALITY", literal);
         if (domain.contains(below)) {
           result.add(new BoundaryValue("BELOW_EQUALITY", below));
-        } else if (domain.contains(above)) {
-          result.add(new BoundaryValue("ABOVE_EQUALITY", above));
+        } else {
+          addIfInDomain(result, domain, "ABOVE_EQUALITY", above);
         }
       }
       case "!=" -> {
-        result.add(new BoundaryValue("AT_EXCLUDED_VALUE", literal));
+        addIfInDomain(result, domain, "AT_EXCLUDED_VALUE", literal);
         if (domain.contains(below)) {
           result.add(new BoundaryValue("BELOW_EXCLUDED_VALUE", below));
-        } else if (domain.contains(above)) {
-          result.add(new BoundaryValue("ABOVE_EXCLUDED_VALUE", above));
+        } else {
+          addIfInDomain(result, domain, "ABOVE_EXCLUDED_VALUE", above);
         }
       }
       case "<" -> {
-        if (domain.contains(below)) {
-          result.add(new BoundaryValue("JUST_BELOW_UPPER_BOUND", below));
-        }
-        if (domain.contains(literal)) {
-          result.add(new BoundaryValue("AT_EXCLUSIVE_UPPER_BOUND", literal));
-        }
+        addIfInDomain(result, domain, "JUST_BELOW_UPPER_BOUND", below);
+        addIfInDomain(result, domain, "AT_EXCLUSIVE_UPPER_BOUND", literal);
       }
       case "<=" -> {
-        if (domain.contains(literal)) {
-          result.add(new BoundaryValue("AT_INCLUSIVE_UPPER_BOUND", literal));
-        }
-        if (domain.contains(above)) {
-          result.add(new BoundaryValue("JUST_ABOVE_UPPER_BOUND", above));
-        }
+        addIfInDomain(result, domain, "AT_INCLUSIVE_UPPER_BOUND", literal);
+        addIfInDomain(result, domain, "JUST_ABOVE_UPPER_BOUND", above);
       }
       case ">" -> {
-        if (domain.contains(literal)) {
-          result.add(new BoundaryValue("AT_EXCLUSIVE_LOWER_BOUND", literal));
-        }
-        if (domain.contains(above)) {
-          result.add(new BoundaryValue("JUST_ABOVE_LOWER_BOUND", above));
-        }
+        addIfInDomain(result, domain, "AT_EXCLUSIVE_LOWER_BOUND", literal);
+        addIfInDomain(result, domain, "JUST_ABOVE_LOWER_BOUND", above);
       }
       case ">=" -> {
-        if (domain.contains(below)) {
-          result.add(new BoundaryValue("JUST_BELOW_LOWER_BOUND", below));
-        }
-        if (domain.contains(literal)) {
-          result.add(new BoundaryValue("AT_INCLUSIVE_LOWER_BOUND", literal));
-        }
+        addIfInDomain(result, domain, "JUST_BELOW_LOWER_BOUND", below);
+        addIfInDomain(result, domain, "AT_INCLUSIVE_LOWER_BOUND", literal);
       }
       default -> {
       }
     }
     return result;
+  }
+
+  private void addIfInDomain(
+      List<BoundaryValue> sink,
+      NumericDomain domain,
+      String purpose,
+      BigDecimal value) {
+    if (domain.contains(value)) {
+      sink.add(new BoundaryValue(purpose, value));
+    }
   }
 
   private boolean tableMatches(List<NormalizedRow> rows, Map<String, BigDecimal> values) {
@@ -494,7 +508,8 @@ public class ConstraintDecisionTableTools {
       Map<String, BigDecimal> values,
       Map<String, NumericDomain> domains) {
     return values.entrySet().stream()
-        .allMatch(entry -> domains.containsKey(entry.getKey()) && domains.get(entry.getKey()).contains(entry.getValue()));
+        .allMatch(entry -> domains.containsKey(entry.getKey())
+            && domains.get(entry.getKey()).contains(entry.getValue()));
   }
 
   private NumericDomain numericDomain(Map<String, Object> type, int literalScale) {
@@ -541,19 +556,21 @@ public class ConstraintDecisionTableTools {
     return values.entrySet().stream()
         .sorted(Map.Entry.comparingByKey())
         .map(entry -> entry.getKey() + "=" + decimal(entry.getValue()))
-        .reduce((a, b) -> a + "|" + b)
+        .reduce((left, right) -> left + "|" + right)
         .orElse("");
   }
 
   private BigDecimal numericValue(@Nullable Object value, String rowName, int conditionIndex) {
     if (value == null) {
-      throw new IllegalArgumentException("Decision row '" + rowName + "' condition " + conditionIndex + " requires a numeric value.");
+      throw new IllegalArgumentException(
+          "Decision row '" + rowName + "' condition " + conditionIndex + " requires a numeric value.");
     }
     try {
       return new BigDecimal(String.valueOf(value));
     } catch (NumberFormatException ex) {
-      throw new IllegalArgumentException("Decision row '" + rowName + "' condition " + conditionIndex
-          + " value is not numeric: " + value);
+      throw new IllegalArgumentException(
+          "Decision row '" + rowName + "' condition " + conditionIndex
+              + " value is not numeric: " + value);
     }
   }
 
