@@ -70,9 +70,12 @@ class ConstraintExpressionEngineTest {
     assertTrue(ConstraintExpressionEngine.evaluateConstraint(
         expression,
         ConstraintExpressionEngine.EvaluationContext.of(Map.of("A", 4, "B", 6))));
-    assertFalse(ConstraintExpressionEngine.evaluateConstraint(
-        expression,
-        ConstraintExpressionEngine.EvaluationContext.of(Map.of("A", 4))));
+
+    var missingB = ConstraintExpressionEngine.EvaluationContext.of(Map.of("A", 4));
+    assertEquals(
+        ConstraintExpressionEngine.Undefined.INSTANCE,
+        ConstraintExpressionEngine.evaluate(expression, missingB));
+    assertTrue(ConstraintExpressionEngine.evaluateConstraint(expression, missingB));
 
     ConstraintExpression.FunctionCall avg = call(
         "COLLECTION_AVG",
