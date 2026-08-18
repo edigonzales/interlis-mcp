@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.analysis.ModelChangeTools;
+import ch.so.agi.mcp.tools.ConstraintReviewTools;
 import ch.so.agi.mcp.tools.ValidationTools;
 import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,13 @@ class ToolChoiceGuidanceTest {
     assertThat(description(ModelChangeTools.class, "reviewIliChange"))
         .contains("Standard-Tool", "Vorher- und ein Nachher-Stand", "Nicht fuer einen einzelnen Modellstand")
         .contains("reviewIliModel");
+  }
+
+  @Test
+  void constraintReviewAdvertisesItsScopeBoundary() {
+    assertThat(description(ConstraintReviewTools.class, "reviewIliConstraint"))
+        .contains("AST", "Kontext", "Funktionen", "String-Pfade", "Typen", "Edge Cases")
+        .contains("keine Testdaten", "Witnesses", "Counterexamples");
   }
 
   @Test
@@ -56,6 +64,8 @@ class ToolChoiceGuidanceTest {
         .contains("kein")
         .contains("zusaetzliches `reviewIliModel`")
         .contains("findSimilarModels", "readModelExample")
+        .contains("reviewIliConstraint", "resolveConstraintPath", "listConstraintFunctions")
+        .contains("keine Constraint-Testdaten", "Witnesses", "Counterexamples")
         .contains("validateIliModel", "analyzeIliModel", "checkModelingRules")
         .contains("nicht standardmaessig");
   }

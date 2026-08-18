@@ -265,6 +265,7 @@ class ToolRegistrationContractTest {
     expectations.put("checkModelingRules", schema(Set.of("modelText"), Set.of("modelPurpose", "modelRepositories", "ruleIds", "profile")));
     expectations.put("reviewIliModel", schema(Set.of("modelText"), Set.of("modelPurpose", "ruleProfile", "modelRepositories")));
     expectations.put("reviewIliChange", schema(Set.of("beforeModelText", "afterModelText"), Set.of("modelRepositories")));
+    expectations.put("reviewIliConstraint", schema(Set.of("modelText", "constraint"), Set.of("modelRepositories")));
     expectations.put("findSimilarModels", schema(Set.of(), Set.of("query", "modelText", "modelPurpose", "limit")));
     expectations.put("indexConfiguredModels", schema(Set.of(), Set.of()));
     expectations.put("readModelExample", schema(Set.of("path"), Set.of()));
