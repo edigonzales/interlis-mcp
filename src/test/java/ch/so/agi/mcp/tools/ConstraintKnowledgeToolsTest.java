@@ -1,7 +1,6 @@
 package ch.so.agi.mcp.tools;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ch.so.agi.mcp.service.IliCompilerService;
@@ -33,6 +32,41 @@ class ConstraintKnowledgeToolsTest {
       END ConstraintPathTest.
       """;
 
+  // Self-contained structural excerpt of
+  // sogis/sogis-interlis-repository/models/AFU/SO_AFU_Bodeneinheiten_20251210.ili.
+  // It preserves the production model/topic/class/role names and the exact path used by
+  // Math.sum("Nebenauspraegung->Gewichtung") without making the test depend on network access.
+  private static final String AFU_GOLDEN_MODEL = """
+      INTERLIS 2.3;
+
+      MODEL SO_AFU_Bodeneinheiten_20251210 (de)
+      AT "http://geo.so.ch/models/AFU"
+      VERSION "2025-08-21" =
+        TOPIC Bodeneinheiten =
+          CLASS Auspraegung =
+            Gewichtung : MANDATORY 0 .. 100;
+          END Auspraegung;
+
+          CLASS BodeneinheitHauptauspraegung (ABSTRACT)
+          EXTENDS Auspraegung =
+          END BodeneinheitHauptauspraegung;
+
+          CLASS BodeneinheitHauptauspraegung_Wald
+          EXTENDS BodeneinheitHauptauspraegung =
+          END BodeneinheitHauptauspraegung_Wald;
+
+          CLASS Nebenauspraegung_Wald
+          EXTENDS Auspraegung =
+          END Nebenauspraegung_Wald;
+
+          ASSOCIATION Bodeneinheit_Nebenauspraegungen_Wald =
+            Bodeneinheit -- {1} BodeneinheitHauptauspraegung_Wald;
+            Nebenauspraegung -- {0..3} Nebenauspraegung_Wald;
+          END Bodeneinheit_Nebenauspraegungen_Wald;
+        END Bodeneinheiten;
+      END SO_AFU_Bodeneinheiten_20251210.
+      """;
+
   private final ConstraintKnowledgeTools tools = new ConstraintKnowledgeTools(
       new MathTools(), new TextTools(), new IliCompilerService());
 
@@ -51,6 +85,53 @@ class ConstraintKnowledgeToolsTest {
     assertEquals("ILI23_OBJECT_OR_ATTRIBUTE_PATH", sum.get("pathSemantics"));
     List<Map<String, Object>> parameters = castList(sum.get("parameters"));
     assertEquals("ATTRIBUTE_PATH", parameters.getFirst().get("semanticType"));
+  }
+
+  @Test
+  void catalogCoversInterlis23MathSumUsedByAfuModel() {
+    Map<String, Object> result = tools.listConstraintFunctions("2.3");
+    List<Map<String, Object>> functions = castList(result.get("functions"));
+
+    Map<String, Object> sum = functions.stream()
+        .filter(function -> "Math.sum".equals(function.get("name")))
+        .findFirst()
+        .orElseThrow();
+
+    assertEquals("STANDARD_FUNCTION_MODEL", sum.get("origin"));
+    assertEquals("Math", sum.get("sourceModel"));
+    assertEquals("ILI23_OBJECT_OR_ATTRIBUTE_PATH", sum.get("pathSemantics"));
+    List<Map<String, Object>> parameters = castList(sum.get("parameters"));
+    assertEquals("attributePath", parameters.getFirst().get("name"));
+    assertEquals("ATTRIBUTE_PATH", parameters.getFirst().get("semanticType"));
+  }
+
+  @Test
+  void resolvesAfuBodeneinheitenGoldenPath() {
+    Map<String, Object> result = tools.resolveConstraintPath(
+        AFU_GOLDEN_MODEL,
+        "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.BodeneinheitHauptauspraegung_Wald",
+        "\"Nebenauspraegung->Gewichtung\"",
+        null);
+
+    assertEquals(true, result.get("valid"));
+    assertEquals("Nebenauspraegung->Gewichtung", result.get("path"));
+    assertEquals(true, result.get("attributePath"));
+    assertEquals(true, result.get("collection"));
+
+    List<Map<String, Object>> steps = castList(result.get("steps"));
+    assertEquals(2, steps.size());
+    assertEquals("ROLE", steps.get(0).get("kind"));
+    assertEquals("Nebenauspraegung", steps.get(0).get("name"));
+    assertEquals("{0..3}", steps.get(0).get("cardinality"));
+    assertEquals(
+        "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Nebenauspraegung_Wald",
+        steps.get(0).get("target"));
+    assertEquals("ATTRIBUTE", steps.get(1).get("kind"));
+    assertEquals("Gewichtung", steps.get(1).get("name"));
+
+    Map<String, Object> valueType = castMap(result.get("result"));
+    assertEquals("NUMERIC", valueType.get("kind"));
+    assertEquals("0..100", valueType.get("typeText"));
   }
 
   @Test
