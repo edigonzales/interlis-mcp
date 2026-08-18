@@ -28,8 +28,8 @@ class ConstraintMultiStepObjectGraphTest {
           END Country;
 
           CLASS Owner =
-            Land : MANDATORY REFERENCE TO Country;
-            Adresse : MANDATORY Address;
+            Land : REFERENCE TO Country;
+            Adresse : Address;
           END Owner;
 
           CLASS Parcel =
