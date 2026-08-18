@@ -20,6 +20,8 @@ class ConstraintDecisionTableToolsTest {
         TOPIC Data =
           CLASS Item =
             value : MANDATORY 0 .. 100;
+            status : MANDATORY (draft, active, archived);
+            enabled : MANDATORY BOOLEAN;
           END Item;
         END Data;
       END DecisionTableModel.
@@ -53,10 +55,10 @@ class ConstraintDecisionTableToolsTest {
 
     List<Map<String, Object>> boundaryCases = list(result.get("boundaryCases"));
     assertEquals(4, boundaryCases.size());
-    assertBoundary(boundaryCases, "9", false);
-    assertBoundary(boundaryCases, "10", true);
-    assertBoundary(boundaryCases, "20", true);
-    assertBoundary(boundaryCases, "21", false);
+    assertCase(boundaryCases, "value", "9", false);
+    assertCase(boundaryCases, "value", "10", true);
+    assertCase(boundaryCases, "value", "20", true);
+    assertCase(boundaryCases, "value", "21", false);
 
     Map<String, Object> verification = map(result.get("verification"));
     assertEquals(4, verification.get("caseCount"));
@@ -87,14 +89,66 @@ class ConstraintDecisionTableToolsTest {
     assertTrue(String.valueOf(result.get("constraintExpression")).contains(" OR "));
 
     List<Map<String, Object>> boundaryCases = list(result.get("boundaryCases"));
-    assertBoundary(boundaryCases, "10", true);
-    assertBoundary(boundaryCases, "11", false);
-    assertBoundary(boundaryCases, "89", false);
-    assertBoundary(boundaryCases, "90", true);
+    assertCase(boundaryCases, "value", "10", true);
+    assertCase(boundaryCases, "value", "11", false);
+    assertCase(boundaryCases, "value", "89", false);
+    assertCase(boundaryCases, "value", "90", true);
   }
 
   @Test
-  void rejectsNonNumericDecisionAttributeWithoutGuessing() {
+  void provesAllDeclaredEnumValuesForAllowedEnumRows() {
+    ConstraintDecisionTableTools.DecisionRow draft = row(
+        "draft allowed",
+        condition("status", "==", "draft"));
+    ConstraintDecisionTableTools.DecisionRow active = row(
+        "active allowed",
+        condition("status", "==", "#active"));
+
+    Map<String, Object> result = tools.generateIliConstraintFromDecisionTable(
+        MODEL,
+        "DecisionTableModel.Data.Item",
+        "DraftOrActive",
+        List.of(draft, active),
+        null);
+
+    assertEquals(true, result.get("generated"));
+    assertEquals(true, result.get("proofVerified"));
+    String expression = String.valueOf(result.get("constraintExpression"));
+    assertTrue(expression.contains("status == #draft"));
+    assertTrue(expression.contains("status == #active"));
+
+    List<Map<String, Object>> cases = list(result.get("boundaryCases"));
+    assertCase(cases, "status", "draft", true);
+    assertCase(cases, "status", "active", true);
+    assertCase(cases, "status", "archived", false);
+
+    Map<String, Object> verification = map(result.get("verification"));
+    assertEquals(true, verification.get("allPassed"));
+  }
+
+  @Test
+  void provesBothBooleanValues() {
+    Map<String, Object> result = tools.generateIliConstraintFromDecisionTable(
+        MODEL,
+        "DecisionTableModel.Data.Item",
+        "EnabledOnly",
+        List.of(row("enabled", condition("enabled", "==", true))),
+        null);
+
+    assertEquals(true, result.get("generated"));
+    assertEquals(true, result.get("proofVerified"));
+    assertEquals("enabled == #true", result.get("constraintExpression"));
+
+    List<Map<String, Object>> cases = list(result.get("boundaryCases"));
+    assertCase(cases, "enabled", "true", true);
+    assertCase(cases, "enabled", "false", false);
+
+    Map<String, Object> verification = map(result.get("verification"));
+    assertEquals(true, verification.get("allPassed"));
+  }
+
+  @Test
+  void rejectsTextDecisionAttributeWithoutGuessing() {
     String textModel = MODEL.replace(
         "value : MANDATORY 0 .. 100;",
         "value : MANDATORY TEXT*20;");
@@ -133,11 +187,16 @@ class ConstraintDecisionTableToolsTest {
     return condition;
   }
 
-  private void assertBoundary(List<Map<String, Object>> cases, String expectedValue, boolean expectedValid) {
+  private void assertCase(
+      List<Map<String, Object>> cases,
+      String attribute,
+      String expectedValue,
+      boolean expectedValid) {
     Map<String, Object> match = cases.stream()
-        .filter(item -> expectedValue.equals(String.valueOf(map(item.get("values")).get("value"))))
+        .filter(item -> expectedValue.equals(String.valueOf(map(item.get("values")).get(attribute))))
         .findFirst()
-        .orElseThrow(() -> new AssertionError("Missing boundary value " + expectedValue + ": " + cases));
+        .orElseThrow(() -> new AssertionError(
+            "Missing decision-table value " + attribute + "=" + expectedValue + ": " + cases));
     assertEquals(expectedValid, match.get("expectedConstraintValid"));
   }
 

@@ -20,6 +20,7 @@ public class ConstraintDecisionTableTools {
 
   private static final Set<String> OPERATORS = Set.of("==", "!=", "<", "<=", ">", ">=");
   private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z][A-Za-z0-9_]*");
+  private static final Pattern ENUM_VALUE = Pattern.compile("[A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z][A-Za-z0-9_]*)*");
 
   private final ConstraintReviewTools reviewTools;
   private final ConstraintTestTools testTools;
@@ -42,13 +43,13 @@ public class ConstraintDecisionTableTools {
 
   @McpTool(
       name = "generateIliConstraintFromDecisionTable",
-      description = "Erzeugt aus einer strukturierten Entscheidungstabelle einen INTERLIS Mandatory Constraint, leitet automatisch numerische Boundary-Testfaelle ab und beweist den erzeugten Constraint mit testIliConstraint und dem echten ilivalidator. Jede Tabellenzeile beschreibt eine erlaubte Kombination; Bedingungen einer Zeile werden mit AND, mehrere Zeilen mit OR verbunden. Der MVP unterstuetzt direkte numerische Attribute und die Operatoren ==, !=, <, <=, >, >=."
+      description = "Erzeugt aus einer strukturierten Entscheidungstabelle einen INTERLIS Mandatory Constraint, leitet automatisch Boundary-/Kategoriefaelle ab und beweist den erzeugten Constraint mit testIliConstraint und dem echten ilivalidator. Jede Tabellenzeile beschreibt eine erlaubte Kombination; Bedingungen einer Zeile werden mit AND, mehrere Zeilen mit OR verbunden. Unterstuetzt direkte numerische Attribute mit ==, !=, <, <=, >, >= sowie Boolean- und Enum-Attribute mit == und !=."
   )
   public Map<String, Object> generateIliConstraintFromDecisionTable(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext ohne den zu erzeugenden Constraint", required = true) String modelText,
       @McpToolParam(description = "Vollqualifizierter Klassenkontext Model.Topic.Class", required = true) String context,
       @McpToolParam(description = "Technischer Name des zu erzeugenden Constraints", required = true) String constraintName,
-      @McpToolParam(description = "Erlaubte Entscheidungszeilen. Jede Zeile hat name und conditions; jede Bedingung hat attribute, operator und numerischen value.", required = true) List<DecisionRow> rows,
+      @McpToolParam(description = "Erlaubte Entscheidungszeilen. Jede Bedingung hat attribute, operator und value. Numerisch: Zahl; Boolean: true/false; Enum: String wie active oder #active.", required = true) List<DecisionRow> rows,
       @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition", required = false) @Nullable String modelRepositories) {
     String normalizedContext = requireContext(context);
     String normalizedConstraintName = requireIdentifier(constraintName, "constraintName");
@@ -83,11 +84,22 @@ public class ConstraintDecisionTableTools {
           review);
     }
 
-    Map<String, NumericDomain> domains = attributeDomains(map(review.get("ast")), normalizedRows);
+    Map<String, AttributeDomain> domains = attributeDomains(map(review.get("ast")), normalizedRows);
     if (domains.size() != referencedAttributes(normalizedRows).size()) {
       return unavailable(
           "UNSUPPORTED_ATTRIBUTE_TYPE",
-          "Decision-table boundary proof currently requires every referenced attribute to be a direct NUMERIC attribute.",
+          "Decision-table proof currently requires every referenced attribute to be a direct NUMERIC, BOOLEAN or ENUM attribute.",
+          expression,
+          constraintBlock,
+          normalizedRows,
+          review);
+    }
+
+    String domainProblem = validateConditionDomains(normalizedRows, domains);
+    if (domainProblem != null) {
+      return unavailable(
+          "CONDITION_VALUE_TYPE_MISMATCH",
+          domainProblem,
           expression,
           constraintBlock,
           normalizedRows,
@@ -125,7 +137,7 @@ public class ConstraintDecisionTableTools {
     result.put("verification", verification);
     if (!verified) {
       result.put("reasonCode", "BOUNDARY_PROOF_FAILED");
-      result.put("reason", "The generated boundary cases were created, but the validator did not confirm all expected decision-table outcomes.");
+      result.put("reason", "The generated boundary/category cases were created, but the validator did not confirm all expected decision-table outcomes.");
     }
     result.put("limitations", limitations());
     return result;
@@ -156,21 +168,65 @@ public class ConstraintDecisionTableTools {
         if (!OPERATORS.contains(operator)) {
           throw new IllegalArgumentException("Unsupported decision-table operator '" + operator + "'.");
         }
-        conditions.add(new NormalizedCondition(
-            attribute,
-            operator,
-            numericValue(condition.value, name, conditionIndex)));
+        Literal literal = literalValue(condition.value, name, conditionIndex);
+        if (literal.kind() != ValueKind.NUMERIC && !Set.of("==", "!=").contains(operator)) {
+          throw new IllegalArgumentException(
+              "Boolean and enum decision conditions support == and != only; got '" + operator + "'.");
+        }
+        conditions.add(new NormalizedCondition(attribute, operator, literal));
       }
       result.add(new NormalizedRow(name, conditions));
     }
     return result;
   }
 
+  private Literal literalValue(@Nullable Object value, String rowName, int conditionIndex) {
+    if (value == null) {
+      throw new IllegalArgumentException(
+          "Decision row '" + rowName + "' condition " + conditionIndex + " requires a value.");
+    }
+    if (value instanceof Boolean bool) {
+      return new Literal(ValueKind.BOOLEAN, bool);
+    }
+    if (value instanceof Number) {
+      return new Literal(ValueKind.NUMERIC, decimalValue(value, rowName, conditionIndex));
+    }
+    if (value instanceof String text) {
+      String normalized = text.trim();
+      try {
+        return new Literal(ValueKind.NUMERIC, new BigDecimal(normalized));
+      } catch (NumberFormatException ignore) {
+      }
+      if (normalized.startsWith("#")) {
+        normalized = normalized.substring(1);
+      }
+      if (!ENUM_VALUE.matcher(normalized).matches()) {
+        throw new IllegalArgumentException(
+            "Decision row '" + rowName + "' condition " + conditionIndex
+                + " value is neither numeric, boolean nor an enum value: " + value);
+      }
+      return new Literal(ValueKind.ENUM, normalized);
+    }
+    throw new IllegalArgumentException(
+        "Decision row '" + rowName + "' condition " + conditionIndex
+            + " value must be numeric, boolean or an enum string.");
+  }
+
+  private BigDecimal decimalValue(Object value, String rowName, int conditionIndex) {
+    try {
+      return new BigDecimal(String.valueOf(value));
+    } catch (NumberFormatException ex) {
+      throw new IllegalArgumentException(
+          "Decision row '" + rowName + "' condition " + conditionIndex
+              + " value is not numeric: " + value);
+    }
+  }
+
   private String renderExpression(List<NormalizedRow> rows) {
     List<String> rowExpressions = new ArrayList<>();
     for (NormalizedRow row : rows) {
       List<String> conditions = row.conditions().stream()
-          .map(condition -> condition.attribute() + " " + condition.operator() + " " + decimal(condition.value()))
+          .map(this::renderCondition)
           .toList();
       String expression = String.join(" AND ", conditions);
       rowExpressions.add(conditions.size() > 1 ? "(" + expression + ")" : expression);
@@ -181,6 +237,18 @@ public class ConstraintDecisionTableTools {
             .map(expression -> "(" + expression + ")")
             .reduce((left, right) -> left + " OR " + right)
             .orElseThrow();
+  }
+
+  private String renderCondition(NormalizedCondition condition) {
+    return condition.attribute() + " " + condition.operator() + " " + renderLiteral(condition.literal());
+  }
+
+  private String renderLiteral(Literal literal) {
+    return switch (literal.kind()) {
+      case NUMERIC -> decimal((BigDecimal) literal.value());
+      case BOOLEAN -> "#" + literal.value().toString().toLowerCase();
+      case ENUM -> "#" + literal.value();
+    };
   }
 
   private String renderConstraintBlock(String context, String constraintName, String expression) {
@@ -252,18 +320,40 @@ public class ConstraintDecisionTableTools {
     return text.substring(lineStart, pos);
   }
 
-  private Map<String, NumericDomain> attributeDomains(
+  private Map<String, AttributeDomain> attributeDomains(
       Map<String, Object> ast,
       List<NormalizedRow> rows) {
     Map<String, Map<String, Object>> types = new LinkedHashMap<>();
     collectDirectAttributeTypes(map(ast.get("condition")), types);
 
-    Map<String, NumericDomain> result = new LinkedHashMap<>();
+    Map<String, AttributeDomain> result = new LinkedHashMap<>();
     Map<String, Integer> literalScales = literalScales(rows);
     for (String attribute : referencedAttributes(rows)) {
       Map<String, Object> type = types.get(attribute);
-      if (type != null && "NUMERIC".equals(type.get("kind"))) {
-        result.put(attribute, numericDomain(type, literalScales.getOrDefault(attribute, 0)));
+      if (type == null) {
+        continue;
+      }
+      String kind = String.valueOf(type.getOrDefault("kind", ""));
+      if ("NUMERIC".equals(kind)) {
+        result.put(attribute, new AttributeDomain(
+            ValueKind.NUMERIC,
+            numericDomain(type, literalScales.getOrDefault(attribute, 0)),
+            List.of()));
+      } else if ("BOOLEAN".equals(kind)) {
+        result.put(attribute, new AttributeDomain(
+            ValueKind.BOOLEAN,
+            null,
+            List.of("false", "true")));
+      } else if ("ENUM".equals(kind)) {
+        List<String> values = new ArrayList<>();
+        Object rawValues = type.get("values");
+        if (rawValues instanceof List<?> list) {
+          for (Object raw : list) {
+            String value = String.valueOf(raw);
+            values.add(value.startsWith("#") ? value.substring(1) : value);
+          }
+        }
+        result.put(attribute, new AttributeDomain(ValueKind.ENUM, null, values));
       }
     }
     return result;
@@ -298,31 +388,50 @@ public class ConstraintDecisionTableTools {
     }
   }
 
+  private @Nullable String validateConditionDomains(
+      List<NormalizedRow> rows,
+      Map<String, AttributeDomain> domains) {
+    for (NormalizedRow row : rows) {
+      for (NormalizedCondition condition : row.conditions()) {
+        AttributeDomain domain = domains.get(condition.attribute());
+        if (domain == null || domain.kind() != condition.literal().kind()) {
+          return "Decision condition '" + renderCondition(condition)
+              + "' does not match the model attribute type.";
+        }
+        if (domain.kind() == ValueKind.ENUM
+            && !domain.values().contains(String.valueOf(condition.literal().value()))) {
+          return "Enum value '" + condition.literal().value() + "' is not declared for attribute '"
+              + condition.attribute() + "'.";
+        }
+      }
+    }
+    return null;
+  }
+
   private BoundaryGeneration generateBoundaryCases(
       String context,
       List<NormalizedRow> rows,
-      Map<String, NumericDomain> domains) {
+      Map<String, AttributeDomain> domains) {
     List<Candidate> candidates = new ArrayList<>();
 
     for (NormalizedRow row : rows) {
-      Map<String, BigDecimal> baseline = representative(row, domains);
+      Map<String, Object> baseline = representative(row, domains);
       if (baseline == null) {
         return BoundaryGeneration.unavailable(
             "UNSATISFIABLE_DECISION_ROW",
-            "No in-domain numeric assignment satisfies allowed decision row '" + row.name() + "'.");
+            "No in-domain assignment satisfies allowed decision row '" + row.name() + "'.");
       }
       candidates.add(new Candidate("ROW_WITNESS", row.name(), baseline));
 
       for (NormalizedCondition condition : row.conditions()) {
-        NumericDomain domain = domains.get(condition.attribute());
+        AttributeDomain domain = domains.get(condition.attribute());
         for (BoundaryValue boundary : boundaryValues(condition, domain)) {
-          Map<String, BigDecimal> values = new LinkedHashMap<>(baseline);
+          Map<String, Object> values = new LinkedHashMap<>(baseline);
           values.put(condition.attribute(), boundary.value());
           if (allValuesInDomain(values, domains)) {
             candidates.add(new Candidate(
                 boundary.purpose(),
-                row.name() + ": " + condition.attribute() + " " + condition.operator()
-                    + " " + decimal(condition.value()),
+                row.name() + ": " + renderCondition(condition),
                 values));
           }
         }
@@ -343,7 +452,8 @@ public class ConstraintDecisionTableTools {
       object.classFqn = context;
       object.oid = "decision_case_" + index;
       Map<String, Object> objectValues = new LinkedHashMap<>();
-      candidate.values().forEach((attribute, value) -> objectValues.put(attribute, decimal(value)));
+      candidate.values().forEach((attribute, value) ->
+          objectValues.put(attribute, fixtureValue(value)));
       object.values = objectValues;
 
       ConstraintTestTools.TestCase testCase = new ConstraintTestTools.TestCase();
@@ -366,15 +476,15 @@ public class ConstraintDecisionTableTools {
     if (cases.isEmpty()) {
       return BoundaryGeneration.unavailable(
           "NO_BOUNDARY_CASES",
-          "No in-domain boundary cases could be derived from the decision table.");
+          "No in-domain boundary/category cases could be derived from the decision table.");
     }
     return new BoundaryGeneration(true, cases, summaries, "", "");
   }
 
-  private @Nullable Map<String, BigDecimal> representative(
+  private @Nullable Map<String, Object> representative(
       NormalizedRow row,
-      Map<String, NumericDomain> domains) {
-    Map<String, BigDecimal> result = new LinkedHashMap<>();
+      Map<String, AttributeDomain> domains) {
+    Map<String, Object> result = new LinkedHashMap<>();
     domains.forEach((attribute, domain) -> result.put(attribute, defaultValue(domain)));
 
     Map<String, List<NormalizedCondition>> byAttribute = new LinkedHashMap<>();
@@ -383,30 +493,18 @@ public class ConstraintDecisionTableTools {
     }
 
     for (Map.Entry<String, List<NormalizedCondition>> entry : byAttribute.entrySet()) {
-      NumericDomain domain = domains.get(entry.getKey());
-      LinkedHashSet<BigDecimal> candidates = new LinkedHashSet<>();
-      for (NormalizedCondition condition : entry.getValue()) {
-        candidates.add(condition.value());
-        candidates.add(condition.value().subtract(domain.step()));
-        candidates.add(condition.value().add(domain.step()));
-      }
-      if (domain.minimum() != null) {
-        candidates.add(domain.minimum());
-      }
-      if (domain.maximum() != null) {
-        candidates.add(domain.maximum());
-      }
-      if (domain.minimum() != null && domain.maximum() != null) {
-        candidates.add(domain.minimum().add(domain.maximum())
-            .divide(BigDecimal.valueOf(2), domain.step().scale(), RoundingMode.HALF_UP));
-      }
-      candidates.add(BigDecimal.ZERO.setScale(domain.step().scale()));
-
-      BigDecimal selected = candidates.stream()
-          .filter(domain::contains)
-          .filter(value -> entry.getValue().stream().allMatch(condition -> matches(condition, value)))
-          .findFirst()
-          .orElse(null);
+      AttributeDomain domain = domains.get(entry.getKey());
+      Object selected = switch (domain.kind()) {
+        case NUMERIC -> numericRepresentative(entry.getValue(), domain.numeric());
+        case BOOLEAN -> List.of(false, true).stream()
+            .filter(value -> entry.getValue().stream().allMatch(condition -> matches(condition, value)))
+            .findFirst()
+            .orElse(null);
+        case ENUM -> domain.values().stream()
+            .filter(value -> entry.getValue().stream().allMatch(condition -> matches(condition, value)))
+            .findFirst()
+            .orElse(null);
+      };
       if (selected == null) {
         return null;
       }
@@ -415,7 +513,44 @@ public class ConstraintDecisionTableTools {
     return result;
   }
 
-  private BigDecimal defaultValue(NumericDomain domain) {
+  private @Nullable BigDecimal numericRepresentative(
+      List<NormalizedCondition> conditions,
+      NumericDomain domain) {
+    LinkedHashSet<BigDecimal> candidates = new LinkedHashSet<>();
+    for (NormalizedCondition condition : conditions) {
+      BigDecimal literal = (BigDecimal) condition.literal().value();
+      candidates.add(literal);
+      candidates.add(literal.subtract(domain.step()));
+      candidates.add(literal.add(domain.step()));
+    }
+    if (domain.minimum() != null) {
+      candidates.add(domain.minimum());
+    }
+    if (domain.maximum() != null) {
+      candidates.add(domain.maximum());
+    }
+    if (domain.minimum() != null && domain.maximum() != null) {
+      candidates.add(domain.minimum().add(domain.maximum())
+          .divide(BigDecimal.valueOf(2), domain.step().scale(), RoundingMode.HALF_UP));
+    }
+    candidates.add(BigDecimal.ZERO.setScale(domain.step().scale()));
+
+    return candidates.stream()
+        .filter(domain::contains)
+        .filter(value -> conditions.stream().allMatch(condition -> matches(condition, value)))
+        .findFirst()
+        .orElse(null);
+  }
+
+  private Object defaultValue(AttributeDomain domain) {
+    return switch (domain.kind()) {
+      case NUMERIC -> defaultNumericValue(domain.numeric());
+      case BOOLEAN -> false;
+      case ENUM -> domain.values().isEmpty() ? "" : domain.values().getFirst();
+    };
+  }
+
+  private BigDecimal defaultNumericValue(NumericDomain domain) {
     BigDecimal zero = BigDecimal.ZERO.setScale(domain.step().scale());
     if (domain.contains(zero)) {
       return zero;
@@ -431,43 +566,55 @@ public class ConstraintDecisionTableTools {
 
   private List<BoundaryValue> boundaryValues(
       NormalizedCondition condition,
-      NumericDomain domain) {
-    BigDecimal literal = condition.value();
-    BigDecimal below = literal.subtract(domain.step());
-    BigDecimal above = literal.add(domain.step());
+      AttributeDomain domain) {
+    if (domain.kind() == ValueKind.BOOLEAN) {
+      return List.of(
+          new BoundaryValue("BOOLEAN_FALSE", false),
+          new BoundaryValue("BOOLEAN_TRUE", true));
+    }
+    if (domain.kind() == ValueKind.ENUM) {
+      return domain.values().stream()
+          .map(value -> new BoundaryValue("ENUM_VALUE", value))
+          .toList();
+    }
+
+    NumericDomain numeric = domain.numeric();
+    BigDecimal literal = (BigDecimal) condition.literal().value();
+    BigDecimal below = literal.subtract(numeric.step());
+    BigDecimal above = literal.add(numeric.step());
     List<BoundaryValue> result = new ArrayList<>();
     switch (condition.operator()) {
       case "==" -> {
-        addIfInDomain(result, domain, "AT_EQUALITY", literal);
-        if (domain.contains(below)) {
+        addIfInDomain(result, numeric, "AT_EQUALITY", literal);
+        if (numeric.contains(below)) {
           result.add(new BoundaryValue("BELOW_EQUALITY", below));
         } else {
-          addIfInDomain(result, domain, "ABOVE_EQUALITY", above);
+          addIfInDomain(result, numeric, "ABOVE_EQUALITY", above);
         }
       }
       case "!=" -> {
-        addIfInDomain(result, domain, "AT_EXCLUDED_VALUE", literal);
-        if (domain.contains(below)) {
+        addIfInDomain(result, numeric, "AT_EXCLUDED_VALUE", literal);
+        if (numeric.contains(below)) {
           result.add(new BoundaryValue("BELOW_EXCLUDED_VALUE", below));
         } else {
-          addIfInDomain(result, domain, "ABOVE_EXCLUDED_VALUE", above);
+          addIfInDomain(result, numeric, "ABOVE_EXCLUDED_VALUE", above);
         }
       }
       case "<" -> {
-        addIfInDomain(result, domain, "JUST_BELOW_UPPER_BOUND", below);
-        addIfInDomain(result, domain, "AT_EXCLUSIVE_UPPER_BOUND", literal);
+        addIfInDomain(result, numeric, "JUST_BELOW_UPPER_BOUND", below);
+        addIfInDomain(result, numeric, "AT_EXCLUSIVE_UPPER_BOUND", literal);
       }
       case "<=" -> {
-        addIfInDomain(result, domain, "AT_INCLUSIVE_UPPER_BOUND", literal);
-        addIfInDomain(result, domain, "JUST_ABOVE_UPPER_BOUND", above);
+        addIfInDomain(result, numeric, "AT_INCLUSIVE_UPPER_BOUND", literal);
+        addIfInDomain(result, numeric, "JUST_ABOVE_UPPER_BOUND", above);
       }
       case ">" -> {
-        addIfInDomain(result, domain, "AT_EXCLUSIVE_LOWER_BOUND", literal);
-        addIfInDomain(result, domain, "JUST_ABOVE_LOWER_BOUND", above);
+        addIfInDomain(result, numeric, "AT_EXCLUSIVE_LOWER_BOUND", literal);
+        addIfInDomain(result, numeric, "JUST_ABOVE_LOWER_BOUND", above);
       }
       case ">=" -> {
-        addIfInDomain(result, domain, "JUST_BELOW_LOWER_BOUND", below);
-        addIfInDomain(result, domain, "AT_INCLUSIVE_LOWER_BOUND", literal);
+        addIfInDomain(result, numeric, "JUST_BELOW_LOWER_BOUND", below);
+        addIfInDomain(result, numeric, "AT_INCLUSIVE_LOWER_BOUND", literal);
       }
       default -> {
       }
@@ -485,31 +632,55 @@ public class ConstraintDecisionTableTools {
     }
   }
 
-  private boolean tableMatches(List<NormalizedRow> rows, Map<String, BigDecimal> values) {
+  private boolean tableMatches(List<NormalizedRow> rows, Map<String, Object> values) {
     return rows.stream().anyMatch(row -> row.conditions().stream()
         .allMatch(condition -> values.containsKey(condition.attribute())
             && matches(condition, values.get(condition.attribute()))));
   }
 
-  private boolean matches(NormalizedCondition condition, BigDecimal actual) {
-    int cmp = actual.compareTo(condition.value());
-    return switch (condition.operator()) {
-      case "==" -> cmp == 0;
-      case "!=" -> cmp != 0;
-      case "<" -> cmp < 0;
-      case "<=" -> cmp <= 0;
-      case ">" -> cmp > 0;
-      case ">=" -> cmp >= 0;
-      default -> false;
-    };
+  private boolean matches(NormalizedCondition condition, Object actual) {
+    Literal literal = condition.literal();
+    if (literal.kind() == ValueKind.NUMERIC) {
+      if (!(actual instanceof BigDecimal number)) {
+        return false;
+      }
+      int cmp = number.compareTo((BigDecimal) literal.value());
+      return switch (condition.operator()) {
+        case "==" -> cmp == 0;
+        case "!=" -> cmp != 0;
+        case "<" -> cmp < 0;
+        case "<=" -> cmp <= 0;
+        case ">" -> cmp > 0;
+        case ">=" -> cmp >= 0;
+        default -> false;
+      };
+    }
+
+    boolean equal = literal.value().equals(actual);
+    return "==".equals(condition.operator()) ? equal : !equal;
   }
 
   private boolean allValuesInDomain(
-      Map<String, BigDecimal> values,
-      Map<String, NumericDomain> domains) {
-    return values.entrySet().stream()
-        .allMatch(entry -> domains.containsKey(entry.getKey())
-            && domains.get(entry.getKey()).contains(entry.getValue()));
+      Map<String, Object> values,
+      Map<String, AttributeDomain> domains) {
+    for (Map.Entry<String, Object> entry : values.entrySet()) {
+      AttributeDomain domain = domains.get(entry.getKey());
+      if (domain == null) {
+        return false;
+      }
+      if (domain.kind() == ValueKind.NUMERIC) {
+        if (!(entry.getValue() instanceof BigDecimal number) || !domain.numeric().contains(number)) {
+          return false;
+        }
+      } else if (domain.kind() == ValueKind.BOOLEAN) {
+        if (!(entry.getValue() instanceof Boolean)) {
+          return false;
+        }
+      } else if (!domain.values().contains(String.valueOf(entry.getValue()))) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private NumericDomain numericDomain(Map<String, Object> type, int literalScale) {
@@ -536,7 +707,10 @@ public class ConstraintDecisionTableTools {
     Map<String, Integer> result = new LinkedHashMap<>();
     for (NormalizedRow row : rows) {
       for (NormalizedCondition condition : row.conditions()) {
-        result.merge(condition.attribute(), Math.max(0, condition.value().scale()), Math::max);
+        if (condition.literal().kind() == ValueKind.NUMERIC) {
+          BigDecimal value = (BigDecimal) condition.literal().value();
+          result.merge(condition.attribute(), Math.max(0, value.scale()), Math::max);
+        }
       }
     }
     return result;
@@ -552,26 +726,16 @@ public class ConstraintDecisionTableTools {
     return result;
   }
 
-  private String candidateKey(Map<String, BigDecimal> values) {
+  private String candidateKey(Map<String, Object> values) {
     return values.entrySet().stream()
         .sorted(Map.Entry.comparingByKey())
-        .map(entry -> entry.getKey() + "=" + decimal(entry.getValue()))
+        .map(entry -> entry.getKey() + "=" + fixtureValue(entry.getValue()))
         .reduce((left, right) -> left + "|" + right)
         .orElse("");
   }
 
-  private BigDecimal numericValue(@Nullable Object value, String rowName, int conditionIndex) {
-    if (value == null) {
-      throw new IllegalArgumentException(
-          "Decision row '" + rowName + "' condition " + conditionIndex + " requires a numeric value.");
-    }
-    try {
-      return new BigDecimal(String.valueOf(value));
-    } catch (NumberFormatException ex) {
-      throw new IllegalArgumentException(
-          "Decision row '" + rowName + "' condition " + conditionIndex
-              + " value is not numeric: " + value);
-    }
+  private Object fixtureValue(Object value) {
+    return value instanceof BigDecimal number ? decimal(number) : value;
   }
 
   private String requireContext(@Nullable String context) {
@@ -608,11 +772,19 @@ public class ConstraintDecisionTableTools {
         conditions.add(Map.of(
             "attribute", condition.attribute(),
             "operator", condition.operator(),
-            "value", decimal(condition.value())));
+            "value", summaryValue(condition.literal())));
       }
       result.add(Map.of("name", row.name(), "allowed", true, "conditions", conditions));
     }
     return result;
+  }
+
+  private Object summaryValue(Literal literal) {
+    return switch (literal.kind()) {
+      case NUMERIC -> decimal((BigDecimal) literal.value());
+      case BOOLEAN -> literal.value();
+      case ENUM -> "#" + literal.value();
+    };
   }
 
   private Map<String, Object> unavailable(
@@ -639,10 +811,10 @@ public class ConstraintDecisionTableTools {
 
   private List<String> limitations() {
     return List.of(
-        "Decision rows currently describe allowed combinations only; the generated Mandatory Constraint is their OR-union.",
-        "Conditions currently support direct numeric attributes and ==, !=, <, <=, >, >= only.",
-        "Boundary candidates are kept inside the declared numeric attribute domain and are verified with testIliConstraint.",
-        "Complex paths, functions, associations, aggregates, text/enumeration decisions and geometry are outside this first decision-table implementation.");
+        "Decision rows describe allowed combinations only; the generated Mandatory Constraint is their OR-union.",
+        "Direct numeric attributes support ==, !=, <, <=, >, >=; direct BOOLEAN and ENUM attributes support == and !=.",
+        "Numeric cases exercise declared precision boundaries; BOOLEAN cases exercise false/true and ENUM cases exercise every declared enum value.",
+        "Complex paths, functions, associations, aggregates, text values and geometry remain outside the decision-table implementation.");
   }
 
   @SuppressWarnings("unchecked")
@@ -655,10 +827,25 @@ public class ConstraintDecisionTableTools {
     return value instanceof List<?> list ? (List<Map<String, Object>>) list : List.of();
   }
 
+  private enum ValueKind {
+    NUMERIC,
+    BOOLEAN,
+    ENUM
+  }
+
+  private record Literal(ValueKind kind, Object value) {
+  }
+
   private record NormalizedRow(String name, List<NormalizedCondition> conditions) {
   }
 
-  private record NormalizedCondition(String attribute, String operator, BigDecimal value) {
+  private record NormalizedCondition(String attribute, String operator, Literal literal) {
+  }
+
+  private record AttributeDomain(
+      ValueKind kind,
+      @Nullable NumericDomain numeric,
+      List<String> values) {
   }
 
   private record NumericDomain(
@@ -671,10 +858,10 @@ public class ConstraintDecisionTableTools {
     }
   }
 
-  private record BoundaryValue(String purpose, BigDecimal value) {
+  private record BoundaryValue(String purpose, Object value) {
   }
 
-  private record Candidate(String purpose, String source, Map<String, BigDecimal> values) {
+  private record Candidate(String purpose, String source, Map<String, Object> values) {
   }
 
   private record BoundaryGeneration(
