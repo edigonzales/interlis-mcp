@@ -1,12 +1,16 @@
 package ch.so.agi.mcp.constraint;
 
 import static ch.so.agi.mcp.constraint.ConstraintExpression.ComparisonOperator.EQ;
+import static ch.so.agi.mcp.constraint.ConstraintExpression.ReferenceKind.ATTRIBUTE;
+import static ch.so.agi.mcp.constraint.ConstraintExpression.ReferenceKind.PATH;
 import static ch.so.agi.mcp.constraint.ConstraintExpression.ScalarKind.NUMERIC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ch.so.agi.mcp.service.IliCompilerService;
 import ch.so.agi.mcp.tools.ConstraintTestTools;
+import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -105,6 +109,34 @@ class ConstraintExpressionDirectedSolverTest {
   }
 
   @Test
+  void solvesAggregateAndScalarComplementsThroughNestedArithmetic() {
+    ConstraintExpression.Path values = new ConstraintExpression.Path(
+        "items->value", ConstraintExpression.Type.collection(NUMERIC));
+    ConstraintExpression.Attribute factor = new ConstraintExpression.Attribute(
+        "Factor", ConstraintExpression.Type.scalar(NUMERIC));
+    ConstraintExpression.FunctionCall sum = call("COLLECTION_SUM", values);
+    ConstraintExpression.FunctionCall ratio = call("NUMERIC_DIV", sum, factor);
+    ConstraintExpression expression = new ConstraintExpression.Comparison(
+        EQ, ratio, new ConstraintExpression.NumericLiteral(2));
+
+    ConstraintModelSynthesizer.ModelBinding binding = aggregateBinding();
+    ConstraintGoalSolver.Solution solution = ConstraintGoalSolver.solve(
+        new ConstraintExpressionEngine.TestGoal(
+            ConstraintExpressionEngine.GoalKind.TRUE,
+            expression,
+            "aggregate ratio"),
+        binding);
+
+    assertTrue(solution.solved(), String.valueOf(solution));
+    assertEquals(
+        true,
+        ConstraintExpressionEngine.evaluateConstraint(
+            expression,
+            ConstraintExpressionEngine.EvaluationContext.of(solution.assignment())));
+    assertEquals(1, ((List<?>) solution.assignment().get("items->value")).size());
+  }
+
+  @Test
   void directedArithmeticAssignmentsAreConfirmedByIlivalidator() {
     IliCompilerService.CompilationResult compilation = compilerService.compile(
         MODEL, null, "ili2c_expression_directed_validator_");
@@ -143,13 +175,59 @@ class ConstraintExpressionDirectedSolverTest {
         "A", ConstraintExpression.Type.scalar(NUMERIC));
     ConstraintExpression.Attribute b = new ConstraintExpression.Attribute(
         "B", ConstraintExpression.Type.scalar(NUMERIC));
+    ConstraintExpression.FunctionCall arithmetic = call(semanticId, a, b);
+    return new ConstraintExpression.Comparison(
+        EQ, arithmetic, new ConstraintExpression.NumericLiteral(target));
+  }
+
+  private ConstraintExpression.FunctionCall call(
+      String semanticId,
+      ConstraintExpression... arguments) {
     ConstraintExpression.FunctionDefinition definition = StandardFunctionRegistry.findBySemanticId(semanticId)
         .orElseThrow()
         .definition();
-    ConstraintExpression.FunctionCall arithmetic = new ConstraintExpression.FunctionCall(
-        definition, List.of(a, b));
-    return new ConstraintExpression.Comparison(
-        EQ, arithmetic, new ConstraintExpression.NumericLiteral(target));
+    return new ConstraintExpression.FunctionCall(definition, List.of(arguments));
+  }
+
+  private ConstraintModelSynthesizer.ModelBinding aggregateBinding() {
+    ConstraintExpression.Reference collectionReference = new ConstraintExpression.Reference(
+        "items->value", PATH, ConstraintExpression.Type.collection(NUMERIC));
+    ConstraintModelSynthesizer.ReferenceBinding collection = new ConstraintModelSynthesizer.ReferenceBinding(
+        collectionReference,
+        numericDomain(10, 30),
+        "value",
+        new ConstraintModelSynthesizer.AssociationBinding(
+            "Directed.Aggregate",
+            "items",
+            "owner",
+            "Directed.Item",
+            1,
+            1,
+            false));
+
+    ConstraintExpression.Reference factorReference = new ConstraintExpression.Reference(
+        "Factor", ATTRIBUTE, ConstraintExpression.Type.scalar(NUMERIC));
+    ConstraintModelSynthesizer.ReferenceBinding factor = new ConstraintModelSynthesizer.ReferenceBinding(
+        factorReference,
+        numericDomain(3, 10),
+        "Factor",
+        null);
+
+    Map<String, ConstraintModelSynthesizer.ReferenceBinding> references = new LinkedHashMap<>();
+    references.put("items->value", collection);
+    references.put("Factor", factor);
+    return new ConstraintModelSynthesizer.ModelBinding("Directed.Root", references);
+  }
+
+  private ConstraintModelSynthesizer.ValueDomain numericDomain(long minimum, long maximum) {
+    return new ConstraintModelSynthesizer.ValueDomain(
+        NUMERIC,
+        new ConstraintModelSynthesizer.NumericDomain(
+            BigDecimal.valueOf(minimum),
+            BigDecimal.valueOf(maximum),
+            BigDecimal.ONE),
+        List.of(),
+        true);
   }
 
   private List<Scenario> scenarios() {
