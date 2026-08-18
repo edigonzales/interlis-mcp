@@ -41,10 +41,11 @@ class ToolChoiceGuidanceTest {
   }
 
   @Test
-  void automaticConstraintCasesAdvertiseNarrowVerifiedScope() {
+  void automaticConstraintCasesAdvertiseSemanticVerifiedScope() {
     assertThat(description(ConstraintCaseGenerationTools.class, "generateIliConstraintCases"))
-        .contains("Witness", "Counterexample", "testIliConstraint")
-        .contains("skalare Attributvergleiche", "DEFINED", "automaticCasesAvailable=false");
+        .contains("Witness", "Counterexample", "Boundary-/Kategoriefaelle")
+        .contains("semantische IR", "Solver", "Object-Graph-Synthese")
+        .contains("testIliConstraint", "ilivalidator", "DEFINED", "SUM", "Association-Pfade");
   }
 
   @Test

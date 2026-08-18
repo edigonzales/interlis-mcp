@@ -206,8 +206,10 @@ public final class ConstraintGoalSolver {
       case ENUM -> domain.values().forEach(candidates::add);
       case TEXT, MTEXT -> {
         collectTextLiterals(expression).forEach(candidates::add);
-        candidates.add("");
+        // Prefer a non-empty value for generic DEFINED witnesses: empty text is not materialized
+        // as an attribute value by the XTF fixture writer and would therefore remain undefined.
         candidates.add("x");
+        candidates.add("");
       }
       default -> throw new IllegalArgumentException(
           "Finite solver does not support scalar kind " + domain.kind() + ".");

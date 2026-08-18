@@ -1,7 +1,6 @@
 package ch.so.agi.mcp.tools;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ch.so.agi.mcp.service.IliCompilerService;
@@ -35,15 +34,61 @@ class ConstraintCaseGenerationToolsTest {
       END ConstraintAutoCases.
       """;
 
+  private static final String AFU_MODEL = """
+      INTERLIS 2.3;
+
+      CONTRACTED TYPE MODEL Math (en) AT "http://www.interlis.ch/models"
+      VERSION "2018-11-19" =
+        FUNCTION add(a: NUMERIC; b: NUMERIC): NUMERIC;
+        FUNCTION sum(attributePath: TEXT): NUMERIC;
+      END Math.
+
+      MODEL AutoAfu (de)
+      AT "https://example.org"
+      VERSION "2026-08-18" =
+        IMPORTS Math;
+
+        TOPIC Data =
+          CLASS Main =
+            Gewichtung : MANDATORY 0 .. 100;
+          END Main;
+
+          CLASS Secondary =
+            Gewichtung : MANDATORY 0 .. 100;
+          END Secondary;
+
+          ASSOCIATION MainSecondary =
+            Hauptobjekt -- {1} Main;
+            Nebenauspraegung -- {0..3} Secondary;
+          END MainSecondary;
+
+          CONSTRAINTS OF AutoAfu.Data.Main =
+            !!@ name = "WeightSum100"
+            MANDATORY CONSTRAINT
+              (
+                DEFINED(Math.sum("Nebenauspraegung->Gewichtung"))
+                AND Math.add(Math.sum("Nebenauspraegung->Gewichtung"), Gewichtung) == 100
+              )
+              OR
+              (
+                Gewichtung == 100
+                AND NOT(DEFINED(Math.sum("Nebenauspraegung->Gewichtung")))
+              );
+          END;
+        END Data;
+      END AutoAfu.
+      """;
+
   private final IliCompilerService compilerService = new IliCompilerService();
   private final ConstraintKnowledgeTools knowledgeTools = new ConstraintKnowledgeTools(
       new MathTools(), new TextTools(), compilerService);
   private final ConstraintReviewTools reviewTools = new ConstraintReviewTools(compilerService, knowledgeTools);
   private final ConstraintTestTools testTools = new ConstraintTestTools(compilerService);
-  private final ConstraintCaseGenerationTools tools = new ConstraintCaseGenerationTools(reviewTools, testTools);
+  private final ConstraintCaseGenerationTools tools = new ConstraintCaseGenerationTools(
+      reviewTools, testTools, compilerService);
 
   @Test
-  void generatesAndVerifiesNumericWitnessAndCounterexample() {
+  void generatesAndVerifiesNumericBoundaryCasesThroughSemanticPipeline() {
     Map<String, Object> result = tools.generateIliConstraintCases(
         MODEL,
         "ValueAtLeast10",
@@ -52,58 +97,87 @@ class ConstraintCaseGenerationToolsTest {
     assertEquals(true, result.get("automaticCasesAvailable"));
     assertEquals(true, result.get("automaticCasesGenerated"));
     assertEquals(true, result.get("generationVerified"));
-    assertEquals("SCALAR_COMPARISON >=", result.get("pattern"));
+    assertEquals("SEMANTIC_IR_COVERAGE", result.get("pattern"));
+    assertEquals(true, result.get("coverageComplete"));
 
     List<Map<String, Object>> generated = list(result.get("generatedCases"));
-    assertEquals(2, generated.size());
-    assertEquals("WITNESS", generated.get(0).get("purpose"));
-    assertEquals("10", generated.get(0).get("value"));
-    assertEquals("COUNTEREXAMPLE", generated.get(1).get("purpose"));
-    assertEquals("9", generated.get(1).get("value"));
+    assertSingleValueCase(generated, "9", false);
+    assertSingleValueCase(generated, "10", true);
 
     Map<String, Object> verification = map(result.get("verification"));
     assertEquals(2, verification.get("caseCount"));
     assertEquals(2, verification.get("passedCount"));
     assertEquals(true, verification.get("allPassed"));
-
-    List<Map<String, Object>> cases = list(verification.get("cases"));
-    assertEquals(true, cases.get(0).get("actualConstraintValid"));
-    assertEquals(false, cases.get(1).get("actualConstraintValid"));
-    assertEquals(true, cases.get(0).get("fixtureValid"));
-    assertEquals(true, cases.get(1).get("fixtureValid"));
   }
 
   @Test
-  void generatesDefinedCasesByOmittingOptionalAttribute() {
+  void generatesDefinedAndUndefinedCasesThroughSemanticPipeline() {
     Map<String, Object> result = tools.generateIliConstraintCases(
         MODEL,
         "LabelDefined",
         null);
 
-    assertEquals(true, result.get("automaticCasesAvailable"));
-    assertEquals("DEFINED", result.get("pattern"));
+    assertEquals(true, result.get("automaticCasesAvailable"), String.valueOf(result));
+    assertEquals("SEMANTIC_IR_COVERAGE", result.get("pattern"));
 
     List<Map<String, Object>> generated = list(result.get("generatedCases"));
-    assertEquals("x", generated.get(0).get("value"));
-    assertEquals(true, generated.get(1).get("attributeOmitted"));
+    assertTrue(generated.stream().anyMatch(item -> "x".equals(String.valueOf(item.get("value")))
+        && Boolean.TRUE.equals(item.get("expectedConstraintValid"))), String.valueOf(generated));
+    assertTrue(generated.stream().anyMatch(item -> Boolean.TRUE.equals(item.get("attributeOmitted"))
+        && Boolean.FALSE.equals(item.get("expectedConstraintValid"))), String.valueOf(generated));
 
-    Map<String, Object> verification = map(result.get("verification"));
-    assertEquals(true, verification.get("allPassed"));
+    assertEquals(true, map(result.get("verification")).get("allPassed"));
   }
 
   @Test
-  void refusesComplexBooleanExpressionInsteadOfGuessing() {
+  void nowSupportsComplexBooleanRangeInsteadOfRejectingIt() {
     Map<String, Object> result = tools.generateIliConstraintCases(
         MODEL,
         "ComplexValueRange",
         null);
 
-    assertEquals(false, result.get("automaticCasesAvailable"));
-    assertEquals(false, result.get("automaticCasesGenerated"));
-    assertEquals(false, result.get("generationVerified"));
-    assertEquals("UNSUPPORTED_EXPRESSION", result.get("reasonCode"));
-    assertFalse(result.containsKey("verification"));
-    assertTrue(String.valueOf(result.get("reason")).contains("direct scalar"));
+    assertEquals(true, result.get("automaticCasesAvailable"), String.valueOf(result));
+    assertEquals(true, result.get("generationVerified"));
+    List<Map<String, Object>> generated = list(result.get("generatedCases"));
+    assertEquals(4, generated.size(), String.valueOf(generated));
+    assertSingleValueCase(generated, "9", false);
+    assertSingleValueCase(generated, "10", true);
+    assertSingleValueCase(generated, "20", true);
+    assertSingleValueCase(generated, "21", false);
+    assertEquals(true, map(result.get("verification")).get("allPassed"));
+  }
+
+  @Test
+  void exposesAfuSumAssociationPipelineThroughMcpTool() {
+    Map<String, Object> result = tools.generateIliConstraintCases(
+        AFU_MODEL,
+        "WeightSum100",
+        null);
+
+    assertEquals(true, result.get("automaticCasesAvailable"), String.valueOf(result));
+    assertEquals(true, result.get("generationVerified"), String.valueOf(result));
+    List<Map<String, Object>> generated = list(result.get("generatedCases"));
+    assertTrue(generated.stream().anyMatch(item ->
+        ((Number) item.get("associationLinkCount")).intValue() == 0), String.valueOf(generated));
+    assertTrue(generated.stream().anyMatch(item ->
+        ((Number) item.get("associationLinkCount")).intValue() > 0), String.valueOf(generated));
+    assertTrue(generated.stream().anyMatch(item -> Boolean.TRUE.equals(item.get("expectedConstraintValid"))),
+        String.valueOf(generated));
+    assertTrue(generated.stream().anyMatch(item -> Boolean.FALSE.equals(item.get("expectedConstraintValid"))),
+        String.valueOf(generated));
+    assertEquals(true, map(result.get("verification")).get("allPassed"));
+  }
+
+  private void assertSingleValueCase(
+      List<Map<String, Object>> cases,
+      String value,
+      boolean expectedValid) {
+    Map<String, Object> match = cases.stream()
+        .filter(item -> value.equals(String.valueOf(item.get("value"))))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("Missing value " + value + ": " + cases));
+    assertEquals(expectedValid, match.get("expectedConstraintValid"));
+    assertEquals(expectedValid ? "WITNESS" : "COUNTEREXAMPLE", match.get("purpose"));
   }
 
   @SuppressWarnings("unchecked")

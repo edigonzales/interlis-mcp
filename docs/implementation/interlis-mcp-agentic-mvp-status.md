@@ -1,18 +1,18 @@
 # Agentic INTERLIS MVP Status
 
-_Last updated: 2026-08-18, after the constraint-pipeline consolidation in PR #79._
+_Last updated: 2026-08-18, after consolidating decision-table proof generation and migrating `generateIliConstraintCases` to the shared semantic constraint pipeline._
 
 ## Scope
 
 The original agentic INTERLIS MVP (knowledge resources, prompts, model analysis, modeling-rule checks and model-corpus search) is implemented. The current development focus has moved to **agentic understanding, creation and proof of INTERLIS constraints**.
 
-The constraint work is already useful, but it is important to describe its current boundary correctly:
+The constraint work is already useful, but its current boundary should be stated explicitly:
 
 > The implemented semantic pipeline is currently centered on **`MANDATORY CONSTRAINT`**. It is not yet a complete implementation of all INTERLIS constraint kinds.
 
 ## Current constraint architecture
 
-The important architectural result is that constraint reasoning is no longer implemented separately in each MCP tool.
+Constraint reasoning is now shared instead of being reimplemented in individual MCP tools.
 
 ```text
 Decision table -------------------\
@@ -39,7 +39,21 @@ Existing MANDATORY constraint       -> Semantic Constraint IR
                                        ilivalidator
 ```
 
-The final validator remains the oracle. The internal evaluator and solver are used to propose test assignments, but a generated witness or counterexample is only considered proven after the resulting XTF has been checked by the real validator.
+The two important public frontends currently using this backend are:
+
+```text
+generateIliConstraintFromDecisionTable
+  -> builds semantic IR from a structured decision table
+  -> renders a Mandatory Constraint
+  -> proves model-aware boundary/category cases
+
+generateIliConstraintCases
+  -> reads an existing Mandatory Constraint through ili2c AST
+  -> translates it to semantic IR
+  -> derives and proves model-aware cases
+```
+
+The final validator remains the oracle. The internal evaluator and solver propose assignments, but a generated witness, counterexample or boundary case is only considered verified after the resulting XTF has been checked by the real ilivalidator through `testIliConstraint`.
 
 ## What is implemented for `MANDATORY CONSTRAINT`
 
@@ -81,7 +95,7 @@ A model-defined/custom function can be preserved in the IR, but it has no execut
 - all ENUM values;
 - DEFINED and UNDEFINED states.
 
-The consolidated decision-table path now uses this same backend instead of maintaining a separate truth evaluator, numeric-domain model and fixture generator.
+The decision-table frontend and `generateIliConstraintCases` both use this shared coverage logic.
 
 ### Solver
 
@@ -111,6 +125,46 @@ The currently strongest path support is:
 
 The AFU weighting constraint is an important production-shaped proof case: DEFINED/NOT DEFINED of a SUM, arithmetic with the direct weight, association target generation and final ilivalidator verification all run through the shared semantic pipeline.
 
+### Automatic cases for an existing constraint
+
+`generateIliConstraintCases` now uses the complete shared backend:
+
+```text
+existing MANDATORY constraint
+ -> compile/review
+ -> ili2c AST
+ -> semantic IR
+ -> model binding
+ -> coverage planner
+ -> solver
+ -> object graph
+ -> testIliConstraint
+ -> ilivalidator
+```
+
+It is no longer limited to one direct scalar comparison or direct `DEFINED(attribute)`.
+
+For example, an existing constraint such as:
+
+```ili
+MANDATORY CONSTRAINT value >= 10 AND value <= 20;
+```
+
+can now produce the model-aware coverage values `9`, `10`, `20` and `21` when the model domain permits them.
+
+The same MCP tool can also exercise supported association/SUM constraints. Generated responses expose:
+
+- solved cases;
+- witness/counterexample classification according to the complete constraint;
+- the semantic coverage reason for each case;
+- object and association-link counts;
+- `coverageGoalCount` and `coverageSolvedCount`;
+- `coverageComplete`;
+- unsolved goals with solver reason codes;
+- the real validator result.
+
+`automaticCasesAvailable=true` is only returned after all generated cases have passed `testIliConstraint` with their expected outcomes.
+
 ### Decision tables
 
 `generateIliConstraintFromDecisionTable` is now primarily a frontend and orchestrator:
@@ -136,26 +190,7 @@ The decision-table input format itself is still deliberately narrower than the b
 
 Even before adding other INTERLIS constraint kinds, the Mandatory-Constraint support can be made substantially more general.
 
-### 1. Expose the generic backend through the MCP tools
-
-`generateIliConstraintCases` is still an older, narrow implementation. It currently generates cases only for direct scalar comparisons and DEFINED/NOT DEFINED on direct optional attributes and explicitly rejects paths, functions and aggregates.
-
-This is now behind the capabilities of the semantic backend.
-
-**High priority:** rewrite `generateIliConstraintCases` to use:
-
-```text
-ili2c AST
- -> semantic IR
- -> ConstraintCoveragePlanner
- -> ConstraintGoalSolver
- -> ConstraintModelSynthesizer
- -> testIliConstraint
-```
-
-This would make the generic capabilities available to an agent instead of only to internal tests and the decision-table frontend.
-
-### 2. More path and object-graph shapes
+### 1. More path and object-graph shapes
 
 The current generic synthesizer is intentionally small. Missing or insufficiently generalized cases include:
 
@@ -166,13 +201,15 @@ The current generic synthesizer is intentionally small. Missing or insufficientl
 - direct multi-valued attributes/structures;
 - cross-topic and cross-basket object graphs where the model permits/requires them.
 
-### 3. Geometry and AREA semantics
+This is one of the most important foundations for both richer Mandatory Constraints and the future Existence/Uniqueness implementations.
+
+### 2. Geometry and AREA semantics
 
 `GEOMETRY` exists as an IR type, but generic geometry synthesis and geometry predicates are not implemented.
 
 The separate INTERLIS AREA-related standard functions are also not part of the current Math/Text function registry. Geometry should remain a specialized extension rather than being forced into the scalar finite-domain solver.
 
-### 4. Solver completeness
+### 3. Solver completeness
 
 The current finite-domain search is deliberately bounded and heuristic. It works well for many comparisons, boundaries and small aggregates, but complex valid constraints can still produce `NO_SOLUTION_FOUND` because the interesting value was not in the candidate set.
 
@@ -184,7 +221,7 @@ Possible future improvements:
 - an optional SMT/Z3 solver adapter if real models justify the dependency;
 - a clear distinction between "not found" and a genuinely proven UNSAT result.
 
-### 5. Better coverage goals
+### 4. Better coverage goals
 
 Current coverage is strong for comparison boundaries, BOOLEAN/ENUM domains and DEFINED/UNDEFINED. It is not yet a complete logical coverage system.
 
@@ -196,7 +233,7 @@ Useful additions include:
 - aggregate cardinality edges (empty, one, maximum relevant count);
 - systematic checks of undefined/null propagation against ilivalidator semantics.
 
-### 6. More validator-differential tests
+### 5. More validator-differential tests
 
 The evaluator intentionally mirrors validator semantics, but the safest way to maintain that contract is to continuously compare semantic evaluation with real ilivalidator behavior.
 
@@ -301,7 +338,9 @@ Supporting constraint syntax is only one part of agentic authoring. A useful age
 
 ### Generic Mandatory-Constraint authoring tool
 
-Today the structured decision table is the main real authoring frontend. For arbitrary Mandatory Constraints, the agent still has to assemble source text itself.
+The system can now automatically analyze and prove an **existing** supported Mandatory Constraint through `generateIliConstraintCases`, and a decision table can create a supported constraint through `generateIliConstraintFromDecisionTable`.
+
+What is still missing is a general authoring frontend for arbitrary semantic Mandatory-Constraint proposals. Today the agent still has to assemble source text itself unless the intent fits the structured decision-table format.
 
 A future high-level tool should accept a structured semantic proposal and perform the complete safe loop:
 
@@ -354,24 +393,24 @@ A later agentic review should therefore check at least:
 - whether generated witnesses can satisfy the rest of the model at the same time;
 - whether a simpler native INTERLIS construct would express the same rule better.
 
-### Coverage evidence in the tool response
+### Coverage evidence in authoring responses
 
-The high-level creation tool should make the evidence visible to the agent/user:
+A high-level creation tool should make the same evidence now exposed by `generateIliConstraintCases` visible for a newly proposed constraint:
 
 - solved witness cases;
 - solved counterexamples;
-- boundary cases;
+- boundary/category cases;
 - unsolved goals and reason codes;
-- validator result;
+- validator results;
 - known limitations of the proof.
 
 A green compile alone is not enough evidence that a generated business constraint expresses the intended rule.
 
 ## Suggested next implementation order
 
-1. **Replace the legacy `generateIliConstraintCases` implementation with the shared AST -> IR -> coverage -> solver -> synthesizer pipeline.**
-2. Add a high-level, typed **Mandatory-Constraint authoring/proof tool** that uses the same pipeline.
-3. Generalize object-graph synthesis to multiple root objects and richer paths.
+1. Generalize object-graph synthesis to richer paths and multiple root objects.
+2. Add a high-level, typed **Mandatory-Constraint authoring/proof tool** that uses the existing semantic pipeline.
+3. Improve logical/function/aggregate coverage goals and production differential tests.
 4. Introduce the outer `ConstraintSpec` IR.
 5. Implement **Uniqueness** and **Existence** constraints on top of multi-root synthesis.
 6. Implement **Plausibility** and **Set** constraints with explicit dataset/basket semantics.
