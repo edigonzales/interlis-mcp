@@ -91,6 +91,9 @@ public class ConstraintKnowledgeTools {
     String normalizedPath = normalizePath(path);
     try {
       ObjectPath objectPath = Ili23Parser.parseObjectOrAttributePath(td, root, normalizedPath);
+      if (!matchesParsedPath(objectPath, normalizedPath)) {
+        throw new IllegalArgumentException("Invalid object/attribute path: " + normalizedPath);
+      }
       List<Map<String, Object>> steps = describeSteps(objectPath.getPathElements());
       Type resultType = objectPath.getType();
       boolean collection = steps.stream().anyMatch(step -> Boolean.TRUE.equals(step.get("collection")));
@@ -278,6 +281,9 @@ public class ConstraintKnowledgeTools {
       String prefix = String.join("->", java.util.Arrays.copyOfRange(segments, 0, i + 1));
       try {
         ObjectPath parsed = Ili23Parser.parseObjectOrAttributePath(td, root, prefix);
+        if (!matchesParsedPath(parsed, prefix)) {
+          return new InvalidPathDiagnostic(segment, i, candidates(current));
+        }
         if (i < segments.length - 1) {
           Viewable<?> reached = parsed.getViewable();
           if (reached != null) {
@@ -289,6 +295,24 @@ public class ConstraintKnowledgeTools {
       }
     }
     return new InvalidPathDiagnostic("", -1, candidates(current));
+  }
+
+  private boolean matchesParsedPath(ObjectPath objectPath, String path) {
+    if (objectPath == null || objectPath.isDirty()) {
+      return false;
+    }
+    String[] segments = path.split("->", -1);
+    PathEl[] parsedElements = objectPath.getPathElements();
+    if (parsedElements == null || parsedElements.length != segments.length) {
+      return false;
+    }
+    for (int i = 0; i < segments.length; i++) {
+      PathEl parsedElement = parsedElements[i];
+      if (parsedElement == null || !segments[i].trim().equals(parsedElement.getName())) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private List<Map<String, Object>> candidates(Viewable<?> viewable) {
