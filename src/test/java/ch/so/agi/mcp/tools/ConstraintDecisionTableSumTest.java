@@ -71,17 +71,24 @@ class ConstraintDecisionTableSumTest {
         result.get("constraintExpression"));
 
     List<Map<String, Object>> cases = list(result.get("boundaryCases"));
-    assertEquals(4, cases.size());
+    assertEquals(7, cases.size(), String.valueOf(cases));
     assertCase(cases, "9", false);
     assertCase(cases, "10", true);
     assertCase(cases, "20", true);
     assertCase(cases, "21", false);
-    assertTrue(cases.stream().allMatch(item -> ((Number) item.get("objectCount")).intValue() >= 2));
-    assertTrue(cases.stream().allMatch(item -> ((Number) item.get("associationLinkCount")).intValue() >= 1));
+
+    Map<String, Object> empty = caseByPurpose(cases, "aggregate empty collection");
+    assertEquals(true, empty.get("expectedConstraintValid"));
+    assertEquals(1, ((Number) empty.get("objectCount")).intValue());
+    assertEquals(0, ((Number) empty.get("associationLinkCount")).intValue());
+
+    Map<String, Object> maximum = caseByPurpose(cases, "aggregate maximum relevant cardinality 3");
+    assertEquals(4, ((Number) maximum.get("objectCount")).intValue());
+    assertEquals(3, ((Number) maximum.get("associationLinkCount")).intValue());
 
     Map<String, Object> verification = map(result.get("verification"));
-    assertEquals(4, verification.get("caseCount"));
-    assertEquals(4, verification.get("passedCount"));
+    assertEquals(7, verification.get("caseCount"));
+    assertEquals(7, verification.get("passedCount"));
     assertEquals(true, verification.get("allPassed"));
 
     List<Map<String, Object>> verifiedCases = list(verification.get("cases"));
@@ -107,6 +114,9 @@ class ConstraintDecisionTableSumTest {
     List<Map<String, Object>> cases = list(result.get("boundaryCases"));
     assertCase(cases, "150", true);
     assertCase(cases, "149", false);
+    assertEquals(true, caseByPurpose(cases, "aggregate empty collection").get("expectedConstraintValid"));
+    assertEquals(3, ((Number) caseByPurpose(
+        cases, "aggregate maximum relevant cardinality 3").get("associationLinkCount")).intValue());
 
     Map<String, Object> verification = map(result.get("verification"));
     assertEquals(true, verification.get("allPassed"));
@@ -143,6 +153,15 @@ class ConstraintDecisionTableSumTest {
         .findFirst()
         .orElseThrow(() -> new AssertionError("Missing SUM boundary value " + expectedValue + ": " + cases));
     assertEquals(expectedValid, match.get("expectedConstraintValid"));
+  }
+
+  private Map<String, Object> caseByPurpose(
+      List<Map<String, Object>> cases,
+      String purpose) {
+    return cases.stream()
+        .filter(item -> purpose.equals(item.get("purpose")))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("Missing coverage case '" + purpose + "': " + cases));
   }
 
   private int count(String text, String needle) {
