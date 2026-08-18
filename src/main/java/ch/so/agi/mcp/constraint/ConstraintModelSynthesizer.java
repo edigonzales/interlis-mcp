@@ -1,9 +1,11 @@
 package ch.so.agi.mcp.constraint;
 
+import ch.interlis.ili2c.metamodel.AbstractClassDef;
 import ch.interlis.ili2c.metamodel.AssociationDef;
 import ch.interlis.ili2c.metamodel.AttributeDef;
 import ch.interlis.ili2c.metamodel.AttributeRef;
 import ch.interlis.ili2c.metamodel.Cardinality;
+import ch.interlis.ili2c.metamodel.CompositionType;
 import ch.interlis.ili2c.metamodel.Element;
 import ch.interlis.ili2c.metamodel.EnumerationType;
 import ch.interlis.ili2c.metamodel.Extendable;
@@ -12,7 +14,10 @@ import ch.interlis.ili2c.metamodel.ObjectPath;
 import ch.interlis.ili2c.metamodel.PathEl;
 import ch.interlis.ili2c.metamodel.PathElAbstractClassRole;
 import ch.interlis.ili2c.metamodel.PathElAssocRole;
+import ch.interlis.ili2c.metamodel.PathElRefAttr;
+import ch.interlis.ili2c.metamodel.ReferenceType;
 import ch.interlis.ili2c.metamodel.RoleDef;
+import ch.interlis.ili2c.metamodel.Table;
 import ch.interlis.ili2c.metamodel.TextType;
 import ch.interlis.ili2c.metamodel.TransferDescription;
 import ch.interlis.ili2c.metamodel.Type;
@@ -23,6 +28,7 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,8 +41,8 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>This class deliberately does not solve test goals. A solver supplies an assignment for the IR
  * references; this class validates that assignment against INTERLIS domains/cardinalities and turns
- * it into root/target objects plus association links. That keeps scalar solving independent from
- * INTERLIS transfer topology.</p>
+ * it into root/target objects, references, embedded structures and association links. Shared path
+ * prefixes are materialized only once.</p>
  */
 public final class ConstraintModelSynthesizer {
 
@@ -107,14 +113,40 @@ public final class ConstraintModelSynthesizer {
       if (cap < 1) {
         throw new IllegalArgumentException("cap must be positive.");
       }
-      if (unbounded || maximum > cap) {
-        return cap;
+      return unbounded || maximum > cap ? cap : (int) maximum;
+    }
+  }
+
+  public enum NavigationKind {
+    ASSOCIATION,
+    REFERENCE,
+    COMPOSITION
+  }
+
+  /** One navigational step before the scalar endpoint attribute. */
+  public record NavigationBinding(
+      NavigationKind kind,
+      String name,
+      String targetClassFqn,
+      long minimum,
+      long maximum,
+      boolean unbounded,
+      @Nullable AssociationBinding association) {
+
+    public NavigationBinding {
+      Objects.requireNonNull(kind, "kind");
+      requireName(name, "name");
+      requireName(targetClassFqn, "targetClassFqn");
+      if (minimum < 0 || (!unbounded && maximum < minimum)) {
+        throw new IllegalArgumentException("Invalid navigation cardinality.");
       }
-      return (int) maximum;
+      if (kind == NavigationKind.ASSOCIATION && association == null) {
+        throw new IllegalArgumentException("Association navigation requires association metadata.");
+      }
     }
 
-    String groupKey() {
-      return associationFqn + "|" + roleName + "|" + oppositeRoleName;
+    public boolean multiValued() {
+      return unbounded || maximum > 1;
     }
   }
 
@@ -122,16 +154,30 @@ public final class ConstraintModelSynthesizer {
       ConstraintExpression.Reference reference,
       ValueDomain domain,
       String attributeName,
-      @Nullable AssociationBinding association) {
+      @Nullable AssociationBinding association,
+      List<NavigationBinding> navigation) {
 
     public ReferenceBinding {
       Objects.requireNonNull(reference, "reference");
       Objects.requireNonNull(domain, "domain");
       requireName(attributeName, "attributeName");
+      navigation = navigation == null ? List.of() : List.copyOf(navigation);
+    }
+
+    public ReferenceBinding(
+        ConstraintExpression.Reference reference,
+        ValueDomain domain,
+        String attributeName,
+        @Nullable AssociationBinding association) {
+      this(reference, domain, attributeName, association, List.of());
     }
 
     public boolean associationPath() {
-      return association != null;
+      return navigation.stream().anyMatch(step -> step.kind() == NavigationKind.ASSOCIATION);
+    }
+
+    public boolean navigatedPath() {
+      return !navigation.isEmpty();
     }
   }
 
@@ -158,7 +204,8 @@ public final class ConstraintModelSynthesizer {
   public record GraphObject(
       String classFqn,
       String oid,
-      Map<String, Object> values) {
+      Map<String, Object> values,
+      Map<String, String> references) {
 
     public GraphObject {
       requireName(classFqn, "classFqn");
@@ -166,6 +213,13 @@ public final class ConstraintModelSynthesizer {
       values = values == null
           ? Map.of()
           : Collections.unmodifiableMap(new LinkedHashMap<>(values));
+      references = references == null
+          ? Map.of()
+          : Collections.unmodifiableMap(new LinkedHashMap<>(references));
+    }
+
+    public GraphObject(String classFqn, String oid, Map<String, Object> values) {
+      this(classFqn, oid, values, Map.of());
     }
   }
 
@@ -197,17 +251,173 @@ public final class ConstraintModelSynthesizer {
     }
   }
 
-  private record AssignedReference(ReferenceBinding binding, @Nullable List<Object> values) {
+  private interface MutableCarrier {
+    String key();
+    Map<String, Object> values();
   }
 
-  private static final class AssociationGroup {
-    private final AssociationBinding association;
-    private final boolean collection;
-    private final List<AssignedReference> references = new ArrayList<>();
+  private static final class MutableObject implements MutableCarrier {
+    private final String key;
+    private final String classFqn;
+    private final String oid;
+    private final Map<String, Object> values = new LinkedHashMap<>();
+    private final Map<String, String> references = new LinkedHashMap<>();
 
-    private AssociationGroup(AssociationBinding association, boolean collection) {
-      this.association = association;
-      this.collection = collection;
+    private MutableObject(String key, String classFqn, String oid) {
+      this.key = key;
+      this.classFqn = classFqn;
+      this.oid = oid;
+    }
+
+    @Override
+    public String key() {
+      return key;
+    }
+
+    @Override
+    public Map<String, Object> values() {
+      return values;
+    }
+  }
+
+  private static final class MutableStructure implements MutableCarrier {
+    private final String key;
+    private final Map<String, Object> values = new LinkedHashMap<>();
+
+    private MutableStructure(String key) {
+      this.key = key;
+    }
+
+    @Override
+    public String key() {
+      return key;
+    }
+
+    @Override
+    public Map<String, Object> values() {
+      return values;
+    }
+  }
+
+  private static final class GraphBuilder {
+    private final String oidPrefix;
+    private final MutableObject root;
+    private final List<MutableObject> objects = new ArrayList<>();
+    private final List<GraphLink> links = new ArrayList<>();
+    private final Map<String, List<MutableCarrier>> children = new LinkedHashMap<>();
+    private int objectIndex;
+
+    private GraphBuilder(String contextFqn, String oidPrefix) {
+      this.oidPrefix = oidPrefix;
+      root = new MutableObject("root", contextFqn, oidPrefix + "_root");
+      objects.add(root);
+    }
+
+    private List<MutableCarrier> children(
+        MutableCarrier parent,
+        NavigationBinding step,
+        int count) {
+      String key = parent.key() + "/" + step.kind() + ":" + step.name();
+      List<MutableCarrier> existing = children.get(key);
+      if (existing != null) {
+        if (existing.size() != count) {
+          throw new IllegalArgumentException(
+              "Shared path prefix '" + step.name() + "' requires incompatible target counts "
+                  + existing.size() + " and " + count + ".");
+        }
+        return existing;
+      }
+      validateCount(step, count);
+      List<MutableCarrier> created = new ArrayList<>();
+      for (int i = 0; i < count; i++) {
+        created.add(createChild(parent, step, key + "[" + i + "]"));
+      }
+      List<MutableCarrier> frozen = List.copyOf(created);
+      children.put(key, frozen);
+      attachStructures(parent, step, frozen);
+      return frozen;
+    }
+
+    private @Nullable List<MutableCarrier> existingChildren(
+        MutableCarrier parent,
+        NavigationBinding step) {
+      return children.get(parent.key() + "/" + step.kind() + ":" + step.name());
+    }
+
+    private MutableCarrier createChild(
+        MutableCarrier parent,
+        NavigationBinding step,
+        String key) {
+      return switch (step.kind()) {
+        case ASSOCIATION -> createAssociationChild(parent, step, key);
+        case REFERENCE -> createReferenceChild(parent, step, key);
+        case COMPOSITION -> new MutableStructure(key);
+      };
+    }
+
+    private MutableCarrier createAssociationChild(
+        MutableCarrier parent,
+        NavigationBinding step,
+        String key) {
+      if (!(parent instanceof MutableObject source)) {
+        throw new IllegalArgumentException("Association navigation from an embedded structure is not supported.");
+      }
+      AssociationBinding association = step.association();
+      String targetOid = nextOid();
+      MutableObject target = new MutableObject(key, step.targetClassFqn(), targetOid);
+      objects.add(target);
+      Map<String, String> roles = new LinkedHashMap<>();
+      roles.put(association.roleName(), targetOid);
+      roles.put(association.oppositeRoleName(), source.oid);
+      links.add(new GraphLink(association.associationFqn(), roles));
+      return target;
+    }
+
+    private MutableCarrier createReferenceChild(
+        MutableCarrier parent,
+        NavigationBinding step,
+        String key) {
+      if (!(parent instanceof MutableObject source)) {
+        throw new IllegalArgumentException("Reference-attribute navigation from an embedded structure is not supported.");
+      }
+      String targetOid = nextOid();
+      MutableObject target = new MutableObject(key, step.targetClassFqn(), targetOid);
+      objects.add(target);
+      source.references.put(step.name(), targetOid);
+      return target;
+    }
+
+    private void attachStructures(
+        MutableCarrier parent,
+        NavigationBinding step,
+        List<MutableCarrier> created) {
+      if (step.kind() != NavigationKind.COMPOSITION || created.isEmpty()) {
+        return;
+      }
+      List<Map<String, Object>> values = created.stream()
+          .map(MutableCarrier::values)
+          .toList();
+      if (!step.multiValued() && values.size() == 1) {
+        parent.values().put(step.name(), values.getFirst());
+      } else {
+        parent.values().put(step.name(), values);
+      }
+    }
+
+    private String nextOid() {
+      objectIndex++;
+      return oidPrefix + "_n" + objectIndex;
+    }
+
+    private ObjectGraph finish() {
+      List<GraphObject> result = objects.stream()
+          .map(object -> new GraphObject(
+              object.classFqn,
+              object.oid,
+              object.values,
+              object.references))
+          .toList();
+      return new ObjectGraph(result, links);
     }
   }
 
@@ -243,12 +453,7 @@ public final class ConstraintModelSynthesizer {
     return new ModelBinding(contextFqn, bindings);
   }
 
-  /**
-   * Materializes a complete assignment into root/target objects and association links.
-   *
-   * <p>Every expression reference must occur in {@code assignment}; use
-   * {@link ConstraintExpressionEngine.Undefined#INSTANCE} explicitly for an undefined value.</p>
-   */
+  /** Materializes a complete solver assignment into an INTERLIS-shaped object graph. */
   public static ObjectGraph synthesize(
       ModelBinding binding,
       Map<String, Object> assignment,
@@ -268,77 +473,106 @@ public final class ConstraintModelSynthesizer {
       }
     }
 
-    String rootOid = oidPrefix + "_root";
-    Map<String, Object> rootValues = new LinkedHashMap<>();
-    Map<String, AssociationGroup> groups = new LinkedHashMap<>();
+    GraphBuilder graph = new GraphBuilder(binding.contextFqn(), oidPrefix);
+    List<ReferenceBinding> references = new ArrayList<>(binding.references().values());
+    references.sort(Comparator
+        .comparingInt((ReferenceBinding reference) -> isUndefinedAssignment(
+            assignment.get(reference.reference().name())) ? 1 : 0)
+        .thenComparingInt(reference -> reference.navigation().size()));
 
-    for (ReferenceBinding reference : binding.references().values()) {
+    for (ReferenceBinding reference : references) {
       Object raw = assignment.get(reference.reference().name());
-      if (!reference.associationPath()) {
-        Object scalar = normalizeScalarAssignment(raw, reference.domain());
-        if (scalar == ConstraintExpressionEngine.Undefined.INSTANCE) {
-          if (reference.domain().mandatory()) {
-            throw new IllegalArgumentException(
-                "Mandatory attribute cannot be undefined: " + reference.reference().name());
-          }
-        } else {
-          rootValues.put(reference.attributeName(), scalar);
-        }
-        continue;
+      if (!reference.navigatedPath()) {
+        applyDirectAttribute(graph.root, reference, raw);
+      } else {
+        applyPath(graph, reference, raw);
       }
+    }
+    return graph.finish();
+  }
 
-      AssociationBinding association = reference.association();
-      AssociationGroup group = groups.computeIfAbsent(
-          association.groupKey(),
-          key -> new AssociationGroup(association, reference.reference().type().collection()));
-      if (group.collection != reference.reference().type().collection()) {
+  private static void applyDirectAttribute(
+      MutableObject root,
+      ReferenceBinding reference,
+      @Nullable Object raw) {
+    Object scalar = normalizeScalarAssignment(raw, reference.domain());
+    if (scalar == ConstraintExpressionEngine.Undefined.INSTANCE) {
+      if (reference.domain().mandatory()) {
         throw new IllegalArgumentException(
-            "The same association role cannot be used as both scalar and collection path: "
+            "Mandatory attribute cannot be undefined: " + reference.reference().name());
+      }
+      return;
+    }
+    root.values.put(reference.attributeName(), scalar);
+  }
+
+  private static void applyPath(
+      GraphBuilder graph,
+      ReferenceBinding reference,
+      @Nullable Object raw) {
+    List<Object> values = normalizePathAssignment(raw, reference);
+    List<MutableCarrier> carriers = List.of(graph.root);
+    int multiIndex = multiValuedStepIndex(reference.navigation());
+
+    if (values == null) {
+      carriers = materializeUndefinedPath(graph, reference, carriers);
+      if (!carriers.isEmpty() && reference.domain().mandatory()) {
+        throw new IllegalArgumentException(
+            "Mandatory endpoint attribute cannot be undefined while its path exists: "
                 + reference.reference().name());
       }
-      group.references.add(new AssignedReference(
-          reference,
-          normalizePathAssignment(raw, reference)));
+      return;
     }
 
-    List<GraphObject> objects = new ArrayList<>();
-    objects.add(new GraphObject(binding.contextFqn(), rootOid, rootValues));
-    List<GraphLink> links = new ArrayList<>();
-
-    int groupIndex = 1;
-    for (AssociationGroup group : groups.values()) {
-      int count = targetCount(group);
-      for (int targetIndex = 0; targetIndex < count; targetIndex++) {
-        Map<String, Object> targetValues = new LinkedHashMap<>();
-        for (AssignedReference assigned : group.references) {
-          List<Object> values = assigned.values();
-          if (values == null) {
-            if (assigned.binding().domain().mandatory()) {
-              throw new IllegalArgumentException(
-                  "Target attribute cannot be undefined while its association target exists: "
-                      + assigned.binding().reference().name());
-            }
-            continue;
-          }
-          if (targetIndex >= values.size()) {
-            throw new IllegalArgumentException(
-                "Association-path assignments sharing role '" + group.association.roleName()
-                    + "' must have the same number of target values.");
-          }
-          targetValues.put(assigned.binding().attributeName(), values.get(targetIndex));
-        }
-
-        String targetOid = oidPrefix + "_p" + groupIndex + "_" + (targetIndex + 1);
-        objects.add(new GraphObject(group.association.targetClassFqn(), targetOid, targetValues));
-        Map<String, String> roles = new LinkedHashMap<>();
-        roles.put(group.association.roleName(), targetOid);
-        roles.put(group.association.oppositeRoleName(), rootOid);
-        links.add(new GraphLink(group.association.associationFqn(), roles));
+    for (int stepIndex = 0; stepIndex < reference.navigation().size(); stepIndex++) {
+      NavigationBinding step = reference.navigation().get(stepIndex);
+      int count = stepIndex == multiIndex ? values.size() : 1;
+      List<MutableCarrier> next = new ArrayList<>();
+      for (MutableCarrier carrier : carriers) {
+        next.addAll(graph.children(carrier, step, count));
       }
-      groupIndex++;
+      carriers = List.copyOf(next);
     }
 
-    return new ObjectGraph(objects, links);
+    if (reference.reference().type().collection()) {
+      if (carriers.size() != values.size()) {
+        throw new IllegalArgumentException(
+            "Collection path materialized " + carriers.size() + " endpoints for " + values.size()
+                + " assigned values: " + reference.reference().name());
+      }
+      for (int i = 0; i < values.size(); i++) {
+        carriers.get(i).values().put(reference.attributeName(), values.get(i));
+      }
+    } else {
+      if (carriers.size() != 1 || values.size() != 1) {
+        throw new IllegalArgumentException(
+            "Scalar path must materialize exactly one endpoint: " + reference.reference().name());
+      }
+      carriers.getFirst().values().put(reference.attributeName(), values.getFirst());
+    }
+  }
+
+  private static List<MutableCarrier> materializeUndefinedPath(
+      GraphBuilder graph,
+      ReferenceBinding reference,
+      List<MutableCarrier> initial) {
+    List<MutableCarrier> carriers = initial;
+    for (NavigationBinding step : reference.navigation()) {
+      List<MutableCarrier> next = new ArrayList<>();
+      for (MutableCarrier carrier : carriers) {
+        List<MutableCarrier> existing = graph.existingChildren(carrier, step);
+        if (existing != null) {
+          next.addAll(existing);
+        } else if (step.minimum() > 0) {
+          next.addAll(graph.children(carrier, step, Math.toIntExact(step.minimum())));
+        }
+      }
+      carriers = List.copyOf(next);
+      if (carriers.isEmpty()) {
+        return carriers;
+      }
+    }
+    return carriers;
   }
 
   private static ReferenceBinding bindDirectAttribute(
@@ -355,7 +589,7 @@ public final class ConstraintModelSynthesizer {
     }
     ValueDomain domain = valueDomain(
         attribute.getDomainOrDerivedDomain(), reference.type().scalarKind());
-    return new ReferenceBinding(reference, domain, attribute.getName(), null);
+    return new ReferenceBinding(reference, domain, attribute.getName(), null, List.of());
   }
 
   private static ReferenceBinding bindPath(
@@ -368,46 +602,66 @@ public final class ConstraintModelSynthesizer {
         throw new IllegalArgumentException("Unable to resolve expression path: " + reference.name());
       }
       PathEl[] elements = objectPath.getPathElements();
-      if (elements.length != 2 || !(elements[1] instanceof AttributeRef attributeRef)) {
+      if (elements.length < 2 || !(elements[elements.length - 1] instanceof AttributeRef endpointRef)) {
         throw new IllegalArgumentException(
-            "Object-graph synthesis currently supports one association step Role->Attribute: "
+            "Object-graph synthesis requires a navigated path ending in a scalar attribute: "
                 + reference.name());
       }
 
-      RoleDef role;
-      if (elements[0] instanceof PathElAssocRole associationRole) {
-        role = associationRole.getRole();
-      } else if (elements[0] instanceof PathElAbstractClassRole classRole) {
-        role = classRole.getRole();
-      } else {
-        throw new IllegalArgumentException(
-            "Path does not start with an association role: " + reference.name());
+      List<NavigationBinding> navigation = new ArrayList<>();
+      for (int i = 0; i < elements.length - 1; i++) {
+        navigation.add(navigation(elements[i], reference.name()));
       }
+      long multiValuedSteps = navigation.stream().filter(NavigationBinding::multiValued).count();
+      if (multiValuedSteps > 1) {
+        throw new IllegalArgumentException(
+            "Object-graph synthesis currently supports at most one multi-valued navigation step: "
+                + reference.name());
+      }
+      boolean collection = multiValuedSteps == 1;
+      if (reference.type().collection() != collection) {
+        throw new IllegalArgumentException(
+            "IR collection/scalar path shape does not match model navigation cardinality: "
+                + reference.name());
+      }
+
+      AttributeDef endpoint = endpointRef.getAttr();
+      if (Type.findReal(endpoint.getDomainOrDerivedDomain()) instanceof CompositionType
+          || Type.findReal(endpoint.getDomainOrDerivedDomain()) instanceof ReferenceType) {
+        throw new IllegalArgumentException(
+            "Constraint path endpoint must be a scalar attribute: " + reference.name());
+      }
+      ValueDomain domain = valueDomain(
+          endpoint.getDomainOrDerivedDomain(), reference.type().scalarKind());
+      AssociationBinding solverAssociation = solverAssociation(reference, navigation);
+      return new ReferenceBinding(
+          reference,
+          domain,
+          endpoint.getName(),
+          solverAssociation,
+          navigation);
+    } catch (IllegalArgumentException ex) {
+      throw ex;
+    } catch (Exception ex) {
+      throw new IllegalArgumentException(
+          "Unable to resolve expression path '" + reference.name() + "': " + ex.getMessage(), ex);
+    }
+  }
+
+  private static NavigationBinding navigation(PathEl element, String fullPath) {
+    RoleDef role = role(element);
+    if (role != null) {
       if (!(role.getContainer() instanceof AssociationDef association)
           || role.getOppEnd() == null
           || role.getDestination() == null) {
         throw new IllegalArgumentException(
-            "Association metadata is incomplete for path: " + reference.name());
+            "Association metadata is incomplete for path: " + fullPath);
       }
-
       Cardinality cardinality = role.getCardinality();
       long minimum = cardinality != null ? cardinality.getMinimum() : 1;
       boolean unbounded = cardinality != null && cardinality.getMaximum() == Cardinality.UNBOUND;
       long maximum = cardinality != null ? cardinality.getMaximum() : 1;
-      if (reference.type().collection()) {
-        if (!unbounded && maximum <= 1) {
-          throw new IllegalArgumentException(
-              "Collection IR path requires a multi-valued association role: " + reference.name());
-        }
-      } else if (unbounded || maximum > 1) {
-        throw new IllegalArgumentException(
-            "Scalar IR path cannot navigate a multi-valued association role: " + reference.name());
-      }
-
-      AttributeDef endpoint = attributeRef.getAttr();
-      ValueDomain domain = valueDomain(
-          endpoint.getDomainOrDerivedDomain(), reference.type().scalarKind());
-      AssociationBinding associationBinding = new AssociationBinding(
+      AssociationBinding binding = new AssociationBinding(
           association.getScopedName(null),
           role.getName(),
           role.getOppEnd().getName(),
@@ -415,12 +669,130 @@ public final class ConstraintModelSynthesizer {
           minimum,
           maximum,
           unbounded);
-      return new ReferenceBinding(reference, domain, endpoint.getName(), associationBinding);
-    } catch (IllegalArgumentException ex) {
-      throw ex;
-    } catch (Exception ex) {
+      return new NavigationBinding(
+          NavigationKind.ASSOCIATION,
+          role.getName(),
+          role.getDestination().getScopedName(null),
+          minimum,
+          maximum,
+          unbounded,
+          binding);
+    }
+
+    if (element instanceof PathElRefAttr referenceElement) {
+      AttributeDef attribute = referenceElement.getAttr();
+      Type declared = attribute.getDomainOrDerivedDomain();
+      Type real = Type.findReal(declared);
+      if (!(real instanceof ReferenceType referenceType)) {
+        throw new IllegalArgumentException("Reference path element is not a REFERENCE attribute: " + fullPath);
+      }
+      AbstractClassDef target = referenceType.getReferred();
+      if (!(target instanceof Table table) || !table.isIdentifiable()) {
+        throw new IllegalArgumentException(
+            "Reference path target is not an identifiable class: " + fullPath);
+      }
+      return new NavigationBinding(
+          NavigationKind.REFERENCE,
+          attribute.getName(),
+          table.getScopedName(null),
+          mandatory(declared) ? 1 : 0,
+          1,
+          false,
+          null);
+    }
+
+    if (element instanceof AttributeRef attributeElement) {
+      AttributeDef attribute = attributeElement.getAttr();
+      Type declared = attribute.getDomainOrDerivedDomain();
+      Type real = Type.findReal(declared);
+      if (!(real instanceof CompositionType composition)) {
+        throw new IllegalArgumentException(
+            "Intermediate attribute path element is not a structure/composition: " + fullPath);
+      }
+      Cardinality cardinality = declared.getCardinality();
+      long minimum = cardinality != null
+          ? cardinality.getMinimum()
+          : (declared.isMandatoryConsideringAliases() ? 1 : 0);
+      boolean unbounded = cardinality != null && cardinality.getMaximum() == Cardinality.UNBOUND;
+      long maximum = cardinality != null ? cardinality.getMaximum() : 1;
+      Table component = composition.getComponentType();
+      return new NavigationBinding(
+          NavigationKind.COMPOSITION,
+          attribute.getName(),
+          component.getScopedName(null),
+          minimum,
+          maximum,
+          unbounded,
+          null);
+    }
+
+    throw new IllegalArgumentException(
+        "Unsupported object-path navigation element " + element.getClass().getSimpleName()
+            + " in " + fullPath + ".");
+  }
+
+  /**
+   * Keeps the solver-facing legacy association cardinality without making synthesis depend on it.
+   * For multi-step/reference/composition paths this may be a synthetic path-cardinality binding.
+   */
+  private static @Nullable AssociationBinding solverAssociation(
+      ConstraintExpression.Reference reference,
+      List<NavigationBinding> navigation) {
+    if (navigation.size() == 1 && navigation.getFirst().association() != null) {
+      return navigation.getFirst().association();
+    }
+    NavigationBinding multi = navigation.stream()
+        .filter(NavigationBinding::multiValued)
+        .findFirst()
+        .orElse(null);
+    boolean optional = navigation.stream().anyMatch(step -> step.minimum() == 0);
+    AssociationBinding actual = navigation.stream()
+        .map(NavigationBinding::association)
+        .filter(Objects::nonNull)
+        .findFirst()
+        .orElse(null);
+    if (multi == null && !optional) {
+      return actual;
+    }
+    long minimum = optional ? 0 : multi != null ? multi.minimum() : 1;
+    long maximum = multi != null ? multi.maximum() : 1;
+    boolean unbounded = multi != null && multi.unbounded();
+    String target = navigation.isEmpty()
+        ? reference.name()
+        : navigation.getLast().targetClassFqn();
+    return new AssociationBinding(
+        actual != null ? actual.associationFqn() : "PATH." + reference.name(),
+        actual != null ? actual.roleName() : "pathTarget",
+        actual != null ? actual.oppositeRoleName() : "pathRoot",
+        target,
+        minimum,
+        maximum,
+        unbounded);
+  }
+
+  private static int multiValuedStepIndex(List<NavigationBinding> navigation) {
+    int result = -1;
+    for (int i = 0; i < navigation.size(); i++) {
+      if (navigation.get(i).multiValued()) {
+        if (result >= 0) {
+          throw new IllegalArgumentException("More than one multi-valued path step is not supported.");
+        }
+        result = i;
+      }
+    }
+    return result;
+  }
+
+  private static void validateCount(NavigationBinding step, int count) {
+    if (count < step.minimum()) {
       throw new IllegalArgumentException(
-          "Unable to resolve expression path '" + reference.name() + "': " + ex.getMessage(), ex);
+          "Path step '" + step.name() + "' requires at least " + step.minimum()
+              + " targets but assignment creates " + count + ".");
+    }
+    if (!step.unbounded() && count > step.maximum()) {
+      throw new IllegalArgumentException(
+          "Path step '" + step.name() + "' allows at most " + step.maximum()
+              + " targets but assignment creates " + count + ".");
     }
   }
 
@@ -575,49 +947,8 @@ public final class ConstraintModelSynthesizer {
     return value;
   }
 
-  private static int targetCount(AssociationGroup group) {
-    int definedCount = -1;
-    boolean hasUndefined = false;
-    for (AssignedReference reference : group.references) {
-      if (reference.values() == null) {
-        hasUndefined = true;
-        continue;
-      }
-      int count = reference.values().size();
-      if (definedCount < 0) {
-        definedCount = count;
-      } else if (definedCount != count) {
-        throw new IllegalArgumentException(
-            "Association-path assignments sharing role '" + group.association.roleName()
-                + "' must have the same number of target values.");
-      }
-    }
-
-    int count;
-    if (definedCount >= 0) {
-      count = definedCount;
-    } else if (group.association.minimum() > 0) {
-      count = Math.toIntExact(group.association.minimum());
-    } else {
-      count = 0;
-    }
-
-    if (group.collection && hasUndefined && count > 0) {
-      throw new IllegalArgumentException(
-          "Undefined collection path cannot share existing association targets for role '"
-              + group.association.roleName() + "'.");
-    }
-    if (count < group.association.minimum()) {
-      throw new IllegalArgumentException(
-          "Assignment creates " + count + " targets but association role '"
-              + group.association.roleName() + "' requires at least " + group.association.minimum() + ".");
-    }
-    if (!group.association.unbounded() && count > group.association.maximum()) {
-      throw new IllegalArgumentException(
-          "Assignment creates " + count + " targets but association role '"
-              + group.association.roleName() + "' allows at most " + group.association.maximum() + ".");
-    }
-    return count;
+  private static boolean isUndefinedAssignment(@Nullable Object raw) {
+    return raw == null || raw == ConstraintExpressionEngine.Undefined.INSTANCE;
   }
 
   private static boolean matchesParsedPath(ObjectPath objectPath, String path) {
@@ -635,6 +966,16 @@ public final class ConstraintModelSynthesizer {
       }
     }
     return true;
+  }
+
+  private static @Nullable RoleDef role(PathEl element) {
+    if (element instanceof PathElAssocRole associationRole) {
+      return associationRole.getRole();
+    }
+    if (element instanceof PathElAbstractClassRole classRole) {
+      return classRole.getRole();
+    }
+    return null;
   }
 
   private static void requireName(@Nullable String value, String label) {
