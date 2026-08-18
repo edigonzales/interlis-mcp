@@ -15,7 +15,6 @@ import ch.so.agi.mcp.constraint.ConstraintExpression.Path;
 import ch.so.agi.mcp.constraint.ConstraintExpression.TextLiteral;
 import java.math.BigDecimal;
 import java.math.MathContext;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -199,10 +198,41 @@ public final class ConstraintExpressionEngine {
       case "NUMERIC_MUL" -> numericBinary(arguments, BigDecimal::multiply);
       case "NUMERIC_DIV" -> numericDivide(arguments);
       case "NUMERIC_ABS" -> numericUnary(arguments, BigDecimal::abs);
+      case "NUMERIC_ACOS" -> numericDoubleUnary(
+          arguments, value -> java.lang.Math.acos(java.lang.Math.toRadians(value)));
+      case "NUMERIC_ASIN" -> numericDoubleUnary(
+          arguments, value -> java.lang.Math.asin(java.lang.Math.toRadians(value)));
+      case "NUMERIC_ATAN" -> numericDoubleUnary(
+          arguments, value -> java.lang.Math.atan(java.lang.Math.toRadians(value)));
+      case "NUMERIC_ATAN2" -> numericDoubleBinary(
+          arguments,
+          (ordinate, abscissa) -> java.lang.Math.atan2(
+              java.lang.Math.toDegrees(ordinate),
+              java.lang.Math.toDegrees(abscissa)));
+      case "NUMERIC_CBRT" -> numericCbrt(arguments);
+      case "NUMERIC_COS" -> numericDoubleUnary(
+          arguments, value -> java.lang.Math.cos(java.lang.Math.toRadians(value)));
+      case "NUMERIC_COSH" -> numericDoubleUnary(
+          arguments, value -> java.lang.Math.cosh(java.lang.Math.toRadians(value)));
+      case "NUMERIC_EXP" -> numericDoubleUnary(arguments, java.lang.Math::exp);
+      case "NUMERIC_HYPOT" -> numericDoubleBinary(arguments, java.lang.Math::hypot);
+      case "NUMERIC_LOG" -> numericDoubleUnary(arguments, java.lang.Math::log);
+      case "NUMERIC_LOG10" -> numericDoubleUnary(arguments, java.lang.Math::log10);
+      case "NUMERIC_POW" -> numericDoubleBinary(arguments, java.lang.Math::pow);
+      case "NUMERIC_ROUND" -> numericUnary(
+          arguments, value -> BigDecimal.valueOf(java.lang.Math.round(value.doubleValue())));
+      case "NUMERIC_SIGNUM" -> numericUnary(arguments, value -> BigDecimal.valueOf(value.signum()));
+      case "NUMERIC_SIN" -> numericDoubleUnary(
+          arguments, value -> java.lang.Math.sin(java.lang.Math.toRadians(value)));
+      case "NUMERIC_SINH" -> numericDoubleUnary(
+          arguments, value -> java.lang.Math.sinh(java.lang.Math.toRadians(value)));
+      case "NUMERIC_SQRT" -> numericDoubleUnary(arguments, java.lang.Math::sqrt);
+      case "NUMERIC_TAN" -> numericDoubleUnary(
+          arguments, value -> java.lang.Math.tan(java.lang.Math.toRadians(value)));
+      case "NUMERIC_TANH" -> numericDoubleUnary(
+          arguments, value -> java.lang.Math.tanh(java.lang.Math.toRadians(value)));
       case "NUMERIC_MIN" -> numericBinary(arguments, BigDecimal::min);
       case "NUMERIC_MAX" -> numericBinary(arguments, BigDecimal::max);
-      case "NUMERIC_ROUND" -> numericUnary(arguments, value -> value.setScale(0, RoundingMode.HALF_UP));
-      case "NUMERIC_SIGNUM" -> numericUnary(arguments, value -> BigDecimal.valueOf(value.signum()));
       case "COLLECTION_SUM" -> collectionAggregate(arguments, Aggregate.SUM);
       case "COLLECTION_AVG" -> collectionAggregate(arguments, Aggregate.AVG);
       case "COLLECTION_MIN" -> collectionAggregate(arguments, Aggregate.MIN);
@@ -242,6 +272,16 @@ public final class ConstraintExpressionEngine {
   }
 
   @FunctionalInterface
+  private interface NumericDoubleBinary {
+    double apply(double left, double right);
+  }
+
+  @FunctionalInterface
+  private interface NumericDoubleUnary {
+    double apply(double value);
+  }
+
+  @FunctionalInterface
   private interface TextBinary {
     String apply(String left, String right);
   }
@@ -265,6 +305,40 @@ public final class ConstraintExpressionEngine {
   private static Object numericUnary(List<Object> arguments, NumericUnary operation) {
     BigDecimal value = numeric(arguments.get(0));
     return value == null ? Undefined.INSTANCE : operation.apply(value);
+  }
+
+  private static Object numericDoubleBinary(List<Object> arguments, NumericDoubleBinary operation) {
+    BigDecimal left = numeric(arguments.get(0));
+    BigDecimal right = numeric(arguments.get(1));
+    if (left == null || right == null) {
+      return Undefined.INSTANCE;
+    }
+    return finiteDecimal(operation.apply(left.doubleValue(), right.doubleValue()));
+  }
+
+  private static Object numericDoubleUnary(List<Object> arguments, NumericDoubleUnary operation) {
+    BigDecimal value = numeric(arguments.get(0));
+    if (value == null) {
+      return Undefined.INSTANCE;
+    }
+    return finiteDecimal(operation.apply(value.doubleValue()));
+  }
+
+  private static Object numericCbrt(List<Object> arguments) {
+    BigDecimal value = numeric(arguments.get(0));
+    if (value == null) {
+      return Undefined.INSTANCE;
+    }
+    double result = java.lang.Math.cbrt(value.doubleValue());
+    if (!Double.isFinite(result)) {
+      return Undefined.INSTANCE;
+    }
+    // iox-ili's current Math function implementation returns cbrt.intValue().
+    return BigDecimal.valueOf((int) result);
+  }
+
+  private static Object finiteDecimal(double value) {
+    return Double.isFinite(value) ? BigDecimal.valueOf(value) : Undefined.INSTANCE;
   }
 
   private static Object numericDivide(List<Object> arguments) {
