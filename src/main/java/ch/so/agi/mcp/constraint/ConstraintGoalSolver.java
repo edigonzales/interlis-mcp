@@ -14,6 +14,7 @@ import ch.so.agi.mcp.constraint.ConstraintExpression.Or;
 import ch.so.agi.mcp.constraint.ConstraintExpression.Path;
 import ch.so.agi.mcp.constraint.ConstraintExpression.TextLiteral;
 import java.math.BigDecimal;
+import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -29,15 +30,18 @@ import java.util.Set;
  *
  * <p>The solver derives interesting values from INTERLIS model domains and IR literals, searches a
  * bounded cartesian product and validates every candidate assignment through
- * {@link ConstraintModelSynthesizer}. It is deliberately not a complete SMT solver. Search
- * exhaustion is reported explicitly so a later solver strategy (for example Z3) can replace or
- * complement it without changing the IR or object-graph layers.</p>
+ * {@link ConstraintModelSynthesizer}. Simple numeric equalities additionally drive candidate
+ * derivation backwards through ADD/SUB/MUL/DIV and COLLECTION_SUM instead of relying on unrelated
+ * literal/pivot guesses. It is deliberately not a complete SMT solver. Search exhaustion is
+ * reported explicitly so a later solver strategy (for example Z3) can replace or complement it
+ * without changing the IR or object-graph layers.</p>
  */
 public final class ConstraintGoalSolver {
 
   private static final int MAX_ATTEMPTS = 50_000;
   private static final int MAX_CANDIDATES_PER_REFERENCE = 18;
   private static final int MAX_COLLECTION_SIZE = 3;
+  private static final int MAX_DIRECTED_ANCHORS = 8;
 
   public record Solution(
       ConstraintExpressionEngine.TestGoal goal,
@@ -226,32 +230,23 @@ public final class ConstraintGoalSolver {
       ConstraintExpression expression,
       ConstraintModelSynthesizer.ModelBinding binding,
       ConstraintModelSynthesizer.ReferenceBinding current) {
+    for (BigDecimal directed : directedNumericTargets(expression, current, binding)) {
+      addIfInDomain(candidates, domain, directed);
+    }
+    baseNumericCandidates(candidates, domain, expression);
+  }
+
+  private static void baseNumericCandidates(
+      CandidateSet candidates,
+      ConstraintModelSynthesizer.NumericDomain domain,
+      ConstraintExpression expression) {
     Set<BigDecimal> literals = collectNumericLiterals(expression);
     for (BigDecimal literal : literals) {
       addIfInDomain(candidates, domain, literal);
       addIfInDomain(candidates, domain, literal.subtract(domain.step()));
       addIfInDomain(candidates, domain, literal.add(domain.step()));
     }
-    addIfInDomain(candidates, domain, BigDecimal.ZERO.setScale(domain.step().scale()));
-    addIfInDomain(candidates, domain, BigDecimal.ONE.setScale(domain.step().scale()));
-    if (domain.minimum() != null) {
-      candidates.add(domain.minimum());
-    }
-    if (domain.maximum() != null) {
-      candidates.add(domain.maximum());
-    }
-
-    for (BigDecimal literal : literals) {
-      for (BigDecimal pivot : numericPivots(binding, current)) {
-        addIfInDomain(candidates, domain, literal.subtract(pivot));
-        if (pivot.compareTo(BigDecimal.ZERO) != 0) {
-          try {
-            addIfInDomain(candidates, domain, literal.divide(pivot));
-          } catch (ArithmeticException ignore) {
-          }
-        }
-      }
-    }
+    numericDomainAnchors(domain).forEach(candidates::add);
   }
 
   private static List<Object> collectionCandidates(
@@ -273,7 +268,7 @@ public final class ConstraintGoalSolver {
     ConstraintModelSynthesizer.ValueDomain domain = reference.domain();
     if (domain.kind() == ConstraintExpression.ScalarKind.NUMERIC) {
       CandidateSet elementSet = new CandidateSet();
-      numericCandidates(elementSet, domain.numeric(), expression, binding, reference);
+      baseNumericCandidates(elementSet, domain.numeric(), expression);
       List<Object> elements = elementSet.limit(10).stream()
           .filter(value -> value instanceof BigDecimal)
           .toList();
@@ -284,13 +279,12 @@ public final class ConstraintGoalSolver {
         }
       }
 
-      LinkedHashSet<BigDecimal> totals = new LinkedHashSet<>(collectNumericLiterals(expression));
+      LinkedHashSet<BigDecimal> totals = new LinkedHashSet<>(
+          directedNumericTargets(expression, reference, binding));
       for (BigDecimal literal : collectNumericLiterals(expression)) {
+        totals.add(literal);
         totals.add(literal.subtract(domain.numeric().step()));
         totals.add(literal.add(domain.numeric().step()));
-        for (BigDecimal pivot : numericPivots(binding, reference)) {
-          totals.add(literal.subtract(pivot));
-        }
       }
       for (BigDecimal total : totals) {
         for (int count = firstCount; count <= maximum; count++) {
@@ -318,6 +312,269 @@ public final class ConstraintGoalSolver {
           "Finite collection solver does not support endpoint kind " + domain.kind() + ".");
     }
     return result.limit(MAX_CANDIDATES_PER_REFERENCE);
+  }
+
+  private static Set<BigDecimal> directedNumericTargets(
+      ConstraintExpression expression,
+      ConstraintModelSynthesizer.ReferenceBinding current,
+      ConstraintModelSynthesizer.ModelBinding binding) {
+    LinkedHashSet<BigDecimal> result = new LinkedHashSet<>();
+    collectDirectedTargets(expression, current, binding, result);
+    return result;
+  }
+
+  private static void collectDirectedTargets(
+      ConstraintExpression expression,
+      ConstraintModelSynthesizer.ReferenceBinding current,
+      ConstraintModelSynthesizer.ModelBinding binding,
+      Set<BigDecimal> result) {
+    switch (expression) {
+      case Comparison comparison -> {
+        if (comparison.operator() == ConstraintExpression.ComparisonOperator.EQ) {
+          if (comparison.right() instanceof NumericLiteral literal) {
+            solveNumericExpression(comparison.left(), literal.value(), current, binding, result);
+          } else if (comparison.left() instanceof NumericLiteral literal) {
+            solveNumericExpression(comparison.right(), literal.value(), current, binding, result);
+          }
+        }
+        collectDirectedTargets(comparison.left(), current, binding, result);
+        collectDirectedTargets(comparison.right(), current, binding, result);
+      }
+      case FunctionCall call -> call.arguments().forEach(
+          argument -> collectDirectedTargets(argument, current, binding, result));
+      case Defined defined -> collectDirectedTargets(defined.operand(), current, binding, result);
+      case Not not -> collectDirectedTargets(not.operand(), current, binding, result);
+      case And and -> and.operands().forEach(
+          operand -> collectDirectedTargets(operand, current, binding, result));
+      case Or or -> or.operands().forEach(
+          operand -> collectDirectedTargets(operand, current, binding, result));
+      case Implies implies -> {
+        collectDirectedTargets(implies.antecedent(), current, binding, result);
+        collectDirectedTargets(implies.consequent(), current, binding, result);
+      }
+      default -> {
+      }
+    }
+  }
+
+  private static void solveNumericExpression(
+      ConstraintExpression expression,
+      BigDecimal target,
+      ConstraintModelSynthesizer.ReferenceBinding current,
+      ConstraintModelSynthesizer.ModelBinding binding,
+      Set<BigDecimal> result) {
+    if (sameReference(expression, current) && !current.reference().type().collection()) {
+      result.add(target);
+      return;
+    }
+    if (!(expression instanceof FunctionCall call)) {
+      return;
+    }
+    if ("COLLECTION_SUM".equals(call.semanticId())
+        && current.reference().type().collection()
+        && call.arguments().size() == 1
+        && sameReference(call.arguments().getFirst(), current)) {
+      result.add(target);
+      return;
+    }
+    if (call.arguments().size() != 2 || !isDirectedArithmetic(call.semanticId())) {
+      return;
+    }
+
+    ConstraintExpression left = call.arguments().get(0);
+    ConstraintExpression right = call.arguments().get(1);
+    boolean leftContains = containsReference(left, current.reference().name());
+    boolean rightContains = containsReference(right, current.reference().name());
+    if (leftContains == rightContains) {
+      return;
+    }
+
+    ConstraintExpression variable = leftContains ? left : right;
+    ConstraintExpression other = leftContains ? right : left;
+    for (BigDecimal otherValue : numericAnchors(other, binding)) {
+      BigDecimal nextTarget = switch (call.semanticId()) {
+        case "NUMERIC_ADD" -> target.subtract(otherValue);
+        case "NUMERIC_SUB" -> leftContains
+            ? target.add(otherValue)
+            : otherValue.subtract(target);
+        case "NUMERIC_MUL" -> otherValue.compareTo(BigDecimal.ZERO) == 0
+            ? null
+            : divide(target, otherValue);
+        case "NUMERIC_DIV" -> {
+          if (leftContains) {
+            yield otherValue.compareTo(BigDecimal.ZERO) == 0
+                ? null
+                : target.multiply(otherValue);
+          }
+          if (target.compareTo(BigDecimal.ZERO) == 0) {
+            yield null;
+          }
+          BigDecimal denominator = divide(otherValue, target);
+          yield denominator != null && denominator.compareTo(BigDecimal.ZERO) != 0
+              ? denominator
+              : null;
+        }
+        default -> null;
+      };
+      if (nextTarget != null) {
+        solveNumericExpression(variable, nextTarget, current, binding, result);
+      }
+    }
+  }
+
+  private static boolean isDirectedArithmetic(String semanticId) {
+    return "NUMERIC_ADD".equals(semanticId)
+        || "NUMERIC_SUB".equals(semanticId)
+        || "NUMERIC_MUL".equals(semanticId)
+        || "NUMERIC_DIV".equals(semanticId);
+  }
+
+  private static boolean containsReference(ConstraintExpression expression, String name) {
+    return expression.references().stream().anyMatch(reference -> name.equals(reference.name()));
+  }
+
+  private static boolean sameReference(
+      ConstraintExpression expression,
+      ConstraintModelSynthesizer.ReferenceBinding current) {
+    if (expression instanceof Attribute attribute) {
+      return !current.reference().type().collection()
+          && attribute.name().equals(current.reference().name());
+    }
+    if (expression instanceof Path path) {
+      return path.path().equals(current.reference().name())
+          && path.type().collection() == current.reference().type().collection();
+    }
+    return false;
+  }
+
+  private static List<BigDecimal> numericAnchors(
+      ConstraintExpression expression,
+      ConstraintModelSynthesizer.ModelBinding binding) {
+    if (expression instanceof NumericLiteral literal) {
+      return List.of(literal.value());
+    }
+    String referenceName = directReferenceName(expression);
+    if (referenceName != null && !expression.type().collection()) {
+      ConstraintModelSynthesizer.ReferenceBinding reference = binding.references().get(referenceName);
+      if (reference != null
+          && reference.domain().kind() == ConstraintExpression.ScalarKind.NUMERIC) {
+        return numericDomainAnchors(reference.domain().numeric());
+      }
+      return List.of();
+    }
+    if (!(expression instanceof FunctionCall call)) {
+      return List.of();
+    }
+    if ("COLLECTION_SUM".equals(call.semanticId()) && call.arguments().size() == 1) {
+      String pathName = directReferenceName(call.arguments().getFirst());
+      ConstraintModelSynthesizer.ReferenceBinding reference = pathName == null
+          ? null
+          : binding.references().get(pathName);
+      return reference == null ? List.of() : aggregateAnchors(reference);
+    }
+    if (call.arguments().size() != 2 || !isDirectedArithmetic(call.semanticId())) {
+      return List.of();
+    }
+
+    LinkedHashSet<BigDecimal> result = new LinkedHashSet<>();
+    List<BigDecimal> left = numericAnchors(call.arguments().get(0), binding);
+    List<BigDecimal> right = numericAnchors(call.arguments().get(1), binding);
+    for (BigDecimal leftValue : left) {
+      for (BigDecimal rightValue : right) {
+        BigDecimal value = switch (call.semanticId()) {
+          case "NUMERIC_ADD" -> leftValue.add(rightValue);
+          case "NUMERIC_SUB" -> leftValue.subtract(rightValue);
+          case "NUMERIC_MUL" -> leftValue.multiply(rightValue);
+          case "NUMERIC_DIV" -> rightValue.compareTo(BigDecimal.ZERO) == 0
+              ? null
+              : divide(leftValue, rightValue);
+          default -> null;
+        };
+        if (value != null) {
+          result.add(value);
+          if (result.size() >= MAX_DIRECTED_ANCHORS) {
+            return List.copyOf(result);
+          }
+        }
+      }
+    }
+    return List.copyOf(result);
+  }
+
+  private static String directReferenceName(ConstraintExpression expression) {
+    if (expression instanceof Attribute attribute) {
+      return attribute.name();
+    }
+    if (expression instanceof Path path) {
+      return path.path();
+    }
+    return null;
+  }
+
+  private static List<BigDecimal> numericDomainAnchors(
+      ConstraintModelSynthesizer.NumericDomain domain) {
+    LinkedHashSet<BigDecimal> result = new LinkedHashSet<>();
+    if (domain.minimum() != null) {
+      result.add(domain.minimum());
+    }
+    if (domain.maximum() != null) {
+      result.add(domain.maximum());
+    }
+    BigDecimal zero = BigDecimal.ZERO.setScale(domain.step().scale());
+    if (domain.contains(zero)) {
+      result.add(zero);
+    }
+    BigDecimal one = BigDecimal.ONE.setScale(domain.step().scale());
+    if (domain.contains(one)) {
+      result.add(one);
+    }
+    if (domain.minimum() != null && domain.maximum() != null) {
+      BigDecimal midpoint = domain.minimum().add(domain.maximum())
+          .divide(BigDecimal.valueOf(2), MathContext.DECIMAL128);
+      if (domain.contains(midpoint)) {
+        result.add(midpoint);
+      }
+    }
+    return List.copyOf(result);
+  }
+
+  private static List<BigDecimal> aggregateAnchors(
+      ConstraintModelSynthesizer.ReferenceBinding reference) {
+    if (!reference.reference().type().collection()
+        || reference.association() == null
+        || reference.domain().kind() != ConstraintExpression.ScalarKind.NUMERIC) {
+      return List.of();
+    }
+    int maximum = Math.min(
+        MAX_COLLECTION_SIZE,
+        reference.association().effectiveMaximum(MAX_COLLECTION_SIZE));
+    int minimum = Math.toIntExact(Math.min(reference.association().minimum(), maximum));
+    int firstCount = Math.max(1, minimum);
+    if (firstCount > maximum) {
+      return List.of();
+    }
+
+    LinkedHashSet<BigDecimal> result = new LinkedHashSet<>();
+    List<BigDecimal> elementAnchors = numericDomainAnchors(reference.domain().numeric());
+    LinkedHashSet<Integer> counts = new LinkedHashSet<>();
+    counts.add(firstCount);
+    counts.add(maximum);
+    for (int count : counts) {
+      for (BigDecimal element : elementAnchors) {
+        result.add(element.multiply(BigDecimal.valueOf(count)));
+        if (result.size() >= MAX_DIRECTED_ANCHORS) {
+          return List.copyOf(result);
+        }
+      }
+    }
+    return List.copyOf(result);
+  }
+
+  private static BigDecimal divide(BigDecimal numerator, BigDecimal denominator) {
+    if (denominator.compareTo(BigDecimal.ZERO) == 0) {
+      return null;
+    }
+    return numerator.divide(denominator, MathContext.DECIMAL128);
   }
 
   private static boolean optionalAssociation(ConstraintModelSynthesizer.ReferenceBinding reference) {
@@ -377,33 +634,6 @@ public final class ConstraintGoalSolver {
     List<BigDecimal> result = new ArrayList<>();
     for (int i = 0; i < count; i++) {
       result.add(value);
-    }
-    return List.copyOf(result);
-  }
-
-  private static List<BigDecimal> numericPivots(
-      ConstraintModelSynthesizer.ModelBinding binding,
-      ConstraintModelSynthesizer.ReferenceBinding current) {
-    LinkedHashSet<BigDecimal> result = new LinkedHashSet<>();
-    for (ConstraintModelSynthesizer.ReferenceBinding reference : binding.references().values()) {
-      if (reference == current || reference.domain().kind() != ConstraintExpression.ScalarKind.NUMERIC) {
-        continue;
-      }
-      ConstraintModelSynthesizer.NumericDomain domain = reference.domain().numeric();
-      if (domain.minimum() != null) {
-        result.add(domain.minimum());
-      }
-      if (domain.maximum() != null) {
-        result.add(domain.maximum());
-      }
-      BigDecimal zero = BigDecimal.ZERO.setScale(domain.step().scale());
-      if (domain.contains(zero)) {
-        result.add(zero);
-      }
-      BigDecimal one = BigDecimal.ONE.setScale(domain.step().scale());
-      if (domain.contains(one)) {
-        result.add(one);
-      }
     }
     return List.copyOf(result);
   }
