@@ -89,7 +89,7 @@ class ToolRegistrationContractTest {
     assertThat(structured.get("iliSnippet"))
         .isEqualTo(
             "INTERLIS 2.3;\n\n"
-                + "MODEL TestModel (de) AT \"https://example.org/demo\" VERSION \"2024-01-31\" =\n"
+                + "MODEL TestModel (de) AT \"https://example.org/test\" VERSION \"2024-01-31\" =\n"
                 + "  IMPORTS INTERLIS;\n"
                 + "  IMPORTS GeometryCHLV95_V1;\n\n"
                 + "END TestModel.\n");
