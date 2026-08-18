@@ -1,5 +1,18 @@
 package ch.so.agi.mcp.tools;
 
+import ch.interlis.ili2c.metamodel.AssociationDef;
+import ch.interlis.ili2c.metamodel.AttributeRef;
+import ch.interlis.ili2c.metamodel.Cardinality;
+import ch.interlis.ili2c.metamodel.Element;
+import ch.interlis.ili2c.metamodel.ObjectPath;
+import ch.interlis.ili2c.metamodel.PathEl;
+import ch.interlis.ili2c.metamodel.PathElAbstractClassRole;
+import ch.interlis.ili2c.metamodel.PathElAssocRole;
+import ch.interlis.ili2c.metamodel.RoleDef;
+import ch.interlis.ili2c.metamodel.TransferDescription;
+import ch.interlis.ili2c.metamodel.Viewable;
+import ch.interlis.ili2c.parser.Ili23Parser;
+import ch.so.agi.mcp.service.IliCompilerService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -13,6 +26,7 @@ import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -24,10 +38,20 @@ public class ConstraintDecisionTableTools {
 
   private final ConstraintReviewTools reviewTools;
   private final ConstraintTestTools testTools;
+  private final IliCompilerService compilerService;
 
-  public ConstraintDecisionTableTools(ConstraintReviewTools reviewTools, ConstraintTestTools testTools) {
+  @Autowired
+  public ConstraintDecisionTableTools(
+      ConstraintReviewTools reviewTools,
+      ConstraintTestTools testTools,
+      IliCompilerService compilerService) {
     this.reviewTools = reviewTools;
     this.testTools = testTools;
+    this.compilerService = compilerService;
+  }
+
+  ConstraintDecisionTableTools(ConstraintReviewTools reviewTools, ConstraintTestTools testTools) {
+    this(reviewTools, testTools, new IliCompilerService());
   }
 
   public static class DecisionRow {
@@ -43,13 +67,13 @@ public class ConstraintDecisionTableTools {
 
   @McpTool(
       name = "generateIliConstraintFromDecisionTable",
-      description = "Erzeugt aus einer strukturierten Entscheidungstabelle einen INTERLIS Mandatory Constraint, leitet automatisch Boundary-/Kategoriefaelle ab und beweist den erzeugten Constraint mit testIliConstraint und dem echten ilivalidator. Jede Tabellenzeile beschreibt eine erlaubte Kombination; Bedingungen einer Zeile werden mit AND, mehrere Zeilen mit OR verbunden. Unterstuetzt direkte numerische Attribute mit ==, !=, <, <=, >, >= sowie Boolean- und Enum-Attribute mit == und !=."
+      description = "Erzeugt aus einer strukturierten Entscheidungstabelle einen INTERLIS Mandatory Constraint, leitet automatisch Boundary-/Kategoriefaelle ab und beweist den erzeugten Constraint mit testIliConstraint und dem echten ilivalidator. Jede Tabellenzeile beschreibt eine erlaubte Kombination; Bedingungen einer Zeile werden mit AND, mehrere Zeilen mit OR verbunden. Unterstuetzt direkte numerische, Boolean- und Enum-Attribute sowie einen einzelnen hoechstens einwertigen Association-Pfad Rolle->Attribut; numerisch gelten ==, !=, <, <=, >, >=, fuer Boolean/Enum == und !=."
   )
   public Map<String, Object> generateIliConstraintFromDecisionTable(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext ohne den zu erzeugenden Constraint", required = true) String modelText,
       @McpToolParam(description = "Vollqualifizierter Klassenkontext Model.Topic.Class", required = true) String context,
       @McpToolParam(description = "Technischer Name des zu erzeugenden Constraints", required = true) String constraintName,
-      @McpToolParam(description = "Erlaubte Entscheidungszeilen. Jede Bedingung hat attribute, operator und value. Numerisch: Zahl; Boolean: true/false; Enum: String wie active oder #active.", required = true) List<DecisionRow> rows,
+      @McpToolParam(description = "Erlaubte Entscheidungszeilen. Jede Bedingung hat attribute, operator und value. attribute ist ein direktes Attribut oder ein einfacher Pfad Rolle->Attribut. Numerisch: Zahl; Boolean: true/false; Enum: String wie active oder #active.", required = true) List<DecisionRow> rows,
       @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition", required = false) @Nullable String modelRepositories) {
     String normalizedContext = requireContext(context);
     String normalizedConstraintName = requireIdentifier(constraintName, "constraintName");
@@ -84,11 +108,16 @@ public class ConstraintDecisionTableTools {
           review);
     }
 
-    Map<String, AttributeDomain> domains = attributeDomains(map(review.get("ast")), normalizedRows);
+    Map<String, AttributeDomain> domains = attributeDomains(
+        map(review.get("ast")),
+        proofModelText,
+        normalizedContext,
+        normalizedRows,
+        modelRepositories);
     if (domains.size() != referencedAttributes(normalizedRows).size()) {
       return unavailable(
-          "UNSUPPORTED_ATTRIBUTE_TYPE",
-          "Decision-table proof currently requires every referenced attribute to be a direct NUMERIC, BOOLEAN or ENUM attribute.",
+          "UNSUPPORTED_ATTRIBUTE_PATH_OR_TYPE",
+          "Decision-table proof requires a direct NUMERIC/BOOLEAN/ENUM attribute or exactly one single-valued association role followed by such an attribute. Multi-valued or longer paths are not synthesized here.",
           expression,
           constraintBlock,
           normalizedRows,
@@ -163,7 +192,7 @@ public class ConstraintDecisionTableTools {
         if (condition == null) {
           throw new IllegalArgumentException("Decision row '" + name + "' contains a null condition.");
         }
-        String attribute = requireIdentifier(condition.attribute, "condition attribute");
+        String attribute = requireDecisionPath(condition.attribute);
         String operator = condition.operator == null ? "" : condition.operator.trim();
         if (!OPERATORS.contains(operator)) {
           throw new IllegalArgumentException("Unsupported decision-table operator '" + operator + "'.");
@@ -322,9 +351,17 @@ public class ConstraintDecisionTableTools {
 
   private Map<String, AttributeDomain> attributeDomains(
       Map<String, Object> ast,
-      List<NormalizedRow> rows) {
+      String modelText,
+      String context,
+      List<NormalizedRow> rows,
+      @Nullable String modelRepositories) {
     Map<String, Map<String, Object>> types = new LinkedHashMap<>();
-    collectDirectAttributeTypes(map(ast.get("condition")), types);
+    collectSupportedPathTypes(map(ast.get("condition")), types);
+    Map<String, AssociationPath> associationPaths = resolveAssociationPaths(
+        modelText,
+        context,
+        referencedAttributes(rows),
+        modelRepositories);
 
     Map<String, AttributeDomain> result = new LinkedHashMap<>();
     Map<String, Integer> literalScales = literalScales(rows);
@@ -333,17 +370,23 @@ public class ConstraintDecisionTableTools {
       if (type == null) {
         continue;
       }
+      AssociationPath associationPath = attribute.contains("->") ? associationPaths.get(attribute) : null;
+      if (attribute.contains("->") && associationPath == null) {
+        continue;
+      }
       String kind = String.valueOf(type.getOrDefault("kind", ""));
       if ("NUMERIC".equals(kind)) {
         result.put(attribute, new AttributeDomain(
             ValueKind.NUMERIC,
             numericDomain(type, literalScales.getOrDefault(attribute, 0)),
-            List.of()));
+            List.of(),
+            associationPath));
       } else if ("BOOLEAN".equals(kind)) {
         result.put(attribute, new AttributeDomain(
             ValueKind.BOOLEAN,
             null,
-            List.of("false", "true")));
+            List.of("false", "true"),
+            associationPath));
       } else if ("ENUM".equals(kind)) {
         List<String> values = new ArrayList<>();
         Object rawValues = type.get("values");
@@ -353,13 +396,13 @@ public class ConstraintDecisionTableTools {
             values.add(value.startsWith("#") ? value.substring(1) : value);
           }
         }
-        result.put(attribute, new AttributeDomain(ValueKind.ENUM, null, values));
+        result.put(attribute, new AttributeDomain(ValueKind.ENUM, null, values, associationPath));
       }
     }
     return result;
   }
 
-  private void collectDirectAttributeTypes(
+  private void collectSupportedPathTypes(
       Map<String, Object> node,
       Map<String, Map<String, Object>> sink) {
     if (node.isEmpty()) {
@@ -367,25 +410,121 @@ public class ConstraintDecisionTableTools {
     }
     if ("OBJECT_PATH".equals(node.get("kind")) && !Boolean.TRUE.equals(node.get("collection"))) {
       List<Map<String, Object>> steps = mapList(node.get("steps"));
-      if (steps.size() == 1 && "ATTRIBUTE".equals(steps.getFirst().get("kind"))) {
-        String name = String.valueOf(steps.getFirst().getOrDefault("name", ""));
+      String path = supportedPathName(steps);
+      if (path != null) {
         Map<String, Object> type = map(node.get("type"));
         if (type.isEmpty()) {
-          type = map(steps.getFirst().get("type"));
+          type = map(steps.getLast().get("type"));
         }
-        if (!name.isBlank()) {
-          sink.putIfAbsent(name, type);
-        }
+        sink.putIfAbsent(path, type);
       }
     }
-    collectDirectAttributeTypes(map(node.get("left")), sink);
-    collectDirectAttributeTypes(map(node.get("right")), sink);
-    collectDirectAttributeTypes(map(node.get("operand")), sink);
-    collectDirectAttributeTypes(map(node.get("argument")), sink);
-    collectDirectAttributeTypes(map(node.get("expression")), sink);
+    collectSupportedPathTypes(map(node.get("left")), sink);
+    collectSupportedPathTypes(map(node.get("right")), sink);
+    collectSupportedPathTypes(map(node.get("operand")), sink);
+    collectSupportedPathTypes(map(node.get("argument")), sink);
+    collectSupportedPathTypes(map(node.get("expression")), sink);
     for (Map<String, Object> child : mapList(node.get("children"))) {
-      collectDirectAttributeTypes(child, sink);
+      collectSupportedPathTypes(child, sink);
     }
+  }
+
+  private @Nullable String supportedPathName(List<Map<String, Object>> steps) {
+    if (steps.size() == 1 && "ATTRIBUTE".equals(steps.getFirst().get("kind"))) {
+      return String.valueOf(steps.getFirst().getOrDefault("name", ""));
+    }
+    if (steps.size() == 2
+        && "ROLE".equals(steps.getFirst().get("kind"))
+        && "ATTRIBUTE".equals(steps.getLast().get("kind"))
+        && !Boolean.TRUE.equals(steps.getFirst().get("collection"))) {
+      return steps.getFirst().get("name") + "->" + steps.getLast().get("name");
+    }
+    return null;
+  }
+
+  private Map<String, AssociationPath> resolveAssociationPaths(
+      String modelText,
+      String context,
+      Set<String> attributes,
+      @Nullable String modelRepositories) {
+    Set<String> paths = new LinkedHashSet<>();
+    for (String attribute : attributes) {
+      if (attribute.contains("->")) {
+        paths.add(attribute);
+      }
+    }
+    if (paths.isEmpty()) {
+      return Map.of();
+    }
+
+    IliCompilerService.CompilationResult compilation = compilerService.compile(
+        modelText,
+        modelRepositories,
+        "ili2c_constraint_decision_path_");
+    if (!compilation.valid() || compilation.transferDescription() == null) {
+      return Map.of();
+    }
+    TransferDescription td = compilation.transferDescription();
+    Element contextElement = td.getElement(context);
+    if (!(contextElement instanceof Viewable<?> root)) {
+      return Map.of();
+    }
+
+    Map<String, AssociationPath> result = new LinkedHashMap<>();
+    for (String path : paths) {
+      try {
+        ObjectPath objectPath = Ili23Parser.parseObjectOrAttributePath(td, root, path);
+        if (!matchesParsedPath(objectPath, path)) {
+          continue;
+        }
+        PathEl[] elements = objectPath.getPathElements();
+        if (elements.length != 2 || !(elements[1] instanceof AttributeRef attributeRef)) {
+          continue;
+        }
+        RoleDef role;
+        if (elements[0] instanceof PathElAssocRole associationRole) {
+          role = associationRole.getRole();
+        } else if (elements[0] instanceof PathElAbstractClassRole classRole) {
+          role = classRole.getRole();
+        } else {
+          continue;
+        }
+        Cardinality cardinality = role.getCardinality();
+        if (cardinality != null && cardinality.getMaximum() > 1) {
+          continue;
+        }
+        if (!(role.getContainer() instanceof AssociationDef association)
+            || role.getOppEnd() == null
+            || role.getDestination() == null) {
+          continue;
+        }
+        result.put(path, new AssociationPath(
+            association.getScopedName(null),
+            role.getName(),
+            role.getOppEnd().getName(),
+            role.getDestination().getScopedName(null),
+            attributeRef.getAttr().getName()));
+      } catch (Exception ignore) {
+      }
+    }
+    return result;
+  }
+
+  private boolean matchesParsedPath(ObjectPath objectPath, String path) {
+    if (objectPath == null || objectPath.isDirty()) {
+      return false;
+    }
+    String[] segments = path.split("->", -1);
+    PathEl[] parsedElements = objectPath.getPathElements();
+    if (parsedElements == null || parsedElements.length != segments.length) {
+      return false;
+    }
+    for (int i = 0; i < segments.length; i++) {
+      if (parsedElements[i] == null || !segments[i].equals(parsedElements[i].getName())) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private @Nullable String validateConditionDomains(
@@ -396,11 +535,11 @@ public class ConstraintDecisionTableTools {
         AttributeDomain domain = domains.get(condition.attribute());
         if (domain == null || domain.kind() != condition.literal().kind()) {
           return "Decision condition '" + renderCondition(condition)
-              + "' does not match the model attribute type.";
+              + "' does not match the model attribute/path type.";
         }
         if (domain.kind() == ValueKind.ENUM
             && !domain.values().contains(String.valueOf(condition.literal().value()))) {
-          return "Enum value '" + condition.literal().value() + "' is not declared for attribute '"
+          return "Enum value '" + condition.literal().value() + "' is not declared for attribute/path '"
               + condition.attribute() + "'.";
         }
       }
@@ -448,27 +587,28 @@ public class ConstraintDecisionTableTools {
     int index = 1;
     for (Candidate candidate : unique.values()) {
       boolean expectedValid = tableMatches(rows, candidate.values());
-      ConstraintTestTools.TestObject object = new ConstraintTestTools.TestObject();
-      object.classFqn = context;
-      object.oid = "decision_case_" + index;
-      Map<String, Object> objectValues = new LinkedHashMap<>();
-      candidate.values().forEach((attribute, value) ->
-          objectValues.put(attribute, fixtureValue(value)));
-      object.values = objectValues;
+      Fixture fixture = fixture(context, candidate.values(), domains, index);
 
       ConstraintTestTools.TestCase testCase = new ConstraintTestTools.TestCase();
       testCase.name = "boundary " + index + " - " + candidate.purpose();
       testCase.expectedConstraintValid = expectedValid;
-      testCase.objects = List.of(object);
-      testCase.links = List.of();
+      testCase.objects = fixture.objects();
+      testCase.links = fixture.links();
       cases.add(testCase);
 
+      Map<String, Object> summaryValues = new LinkedHashMap<>();
+      candidate.values().forEach((attribute, value) ->
+          summaryValues.put(attribute, fixtureValue(value)));
       Map<String, Object> summary = new LinkedHashMap<>();
       summary.put("name", testCase.name);
       summary.put("purpose", candidate.purpose());
       summary.put("source", candidate.source());
-      summary.put("values", objectValues);
+      summary.put("values", summaryValues);
       summary.put("expectedConstraintValid", expectedValid);
+      if (!fixture.links().isEmpty()) {
+        summary.put("objectCount", fixture.objects().size());
+        summary.put("associationLinkCount", fixture.links().size());
+      }
       summaries.add(summary);
       index++;
     }
@@ -479,6 +619,54 @@ public class ConstraintDecisionTableTools {
           "No in-domain boundary/category cases could be derived from the decision table.");
     }
     return new BoundaryGeneration(true, cases, summaries, "", "");
+  }
+
+  private Fixture fixture(
+      String context,
+      Map<String, Object> values,
+      Map<String, AttributeDomain> domains,
+      int caseIndex) {
+    String rootOid = "decision_case_" + caseIndex + "_root";
+    ConstraintTestTools.TestObject root = new ConstraintTestTools.TestObject();
+    root.classFqn = context;
+    root.oid = rootOid;
+    Map<String, Object> rootValues = new LinkedHashMap<>();
+    root.values = rootValues;
+
+    Map<String, TargetFixture> targets = new LinkedHashMap<>();
+    for (Map.Entry<String, Object> entry : values.entrySet()) {
+      AttributeDomain domain = domains.get(entry.getKey());
+      if (domain.associationPath() == null) {
+        rootValues.put(entry.getKey(), fixtureValue(entry.getValue()));
+        continue;
+      }
+      AssociationPath path = domain.associationPath();
+      String targetKey = path.associationFqn() + "|" + path.roleName();
+      TargetFixture target = targets.computeIfAbsent(targetKey, key -> new TargetFixture(
+          path,
+          "decision_case_" + caseIndex + "_path_" + (targets.size() + 1),
+          new LinkedHashMap<>()));
+      target.values().put(path.targetAttribute(), fixtureValue(entry.getValue()));
+    }
+
+    List<ConstraintTestTools.TestObject> objects = new ArrayList<>();
+    objects.add(root);
+    List<ConstraintTestTools.TestLink> links = new ArrayList<>();
+    for (TargetFixture target : targets.values()) {
+      ConstraintTestTools.TestObject targetObject = new ConstraintTestTools.TestObject();
+      targetObject.classFqn = target.path().targetClassFqn();
+      targetObject.oid = target.oid();
+      targetObject.values = target.values();
+      objects.add(targetObject);
+
+      ConstraintTestTools.TestLink link = new ConstraintTestTools.TestLink();
+      link.associationFqn = target.path().associationFqn();
+      link.roles = Map.of(
+          target.path().roleName(), target.oid(),
+          target.path().oppositeRoleName(), rootOid);
+      links.add(link);
+    }
+    return new Fixture(objects, links);
   }
 
   private @Nullable Map<String, Object> representative(
@@ -753,6 +941,21 @@ public class ConstraintDecisionTableTools {
     return normalized;
   }
 
+  private String requireDecisionPath(@Nullable String value) {
+    if (value == null || value.isBlank()) {
+      throw new IllegalArgumentException("condition attribute is required.");
+    }
+    String[] parts = value.trim().split("\\s*->\\s*", -1);
+    if (parts.length < 1 || parts.length > 2) {
+      throw new IllegalArgumentException(
+          "condition attribute must be a direct attribute or exactly one association role path Rolle->Attribut.");
+    }
+    for (String part : parts) {
+      requireIdentifier(part, "condition path part");
+    }
+    return String.join("->", parts);
+  }
+
   private String requireIdentifier(@Nullable String value, String label) {
     if (value == null || value.isBlank() || !IDENTIFIER.matcher(value.trim()).matches()) {
       throw new IllegalArgumentException(label + " must be a simple INTERLIS identifier.");
@@ -812,9 +1015,9 @@ public class ConstraintDecisionTableTools {
   private List<String> limitations() {
     return List.of(
         "Decision rows describe allowed combinations only; the generated Mandatory Constraint is their OR-union.",
-        "Direct numeric attributes support ==, !=, <, <=, >, >=; direct BOOLEAN and ENUM attributes support == and !=.",
-        "Numeric cases exercise declared precision boundaries; BOOLEAN cases exercise false/true and ENUM cases exercise every declared enum value.",
-        "Complex paths, functions, associations, aggregates, text values and geometry remain outside the decision-table implementation.");
+        "Direct numeric attributes and one single-valued association path Role->Attribute support ==, !=, <, <=, >, >=; BOOLEAN and ENUM endpoints support == and !=.",
+        "Association-path fixtures contain explicit target objects and association links and are verified through testIliConstraint.",
+        "Multi-valued roles, paths with more than one navigation step, functions, aggregates, text values and geometry remain outside this decision-table implementation.");
   }
 
   @SuppressWarnings("unchecked")
@@ -842,10 +1045,19 @@ public class ConstraintDecisionTableTools {
   private record NormalizedCondition(String attribute, String operator, Literal literal) {
   }
 
+  private record AssociationPath(
+      String associationFqn,
+      String roleName,
+      String oppositeRoleName,
+      String targetClassFqn,
+      String targetAttribute) {
+  }
+
   private record AttributeDomain(
       ValueKind kind,
       @Nullable NumericDomain numeric,
-      List<String> values) {
+      List<String> values,
+      @Nullable AssociationPath associationPath) {
   }
 
   private record NumericDomain(
@@ -862,6 +1074,14 @@ public class ConstraintDecisionTableTools {
   }
 
   private record Candidate(String purpose, String source, Map<String, Object> values) {
+  }
+
+  private record TargetFixture(AssociationPath path, String oid, Map<String, Object> values) {
+  }
+
+  private record Fixture(
+      List<ConstraintTestTools.TestObject> objects,
+      List<ConstraintTestTools.TestLink> links) {
   }
 
   private record BoundaryGeneration(
