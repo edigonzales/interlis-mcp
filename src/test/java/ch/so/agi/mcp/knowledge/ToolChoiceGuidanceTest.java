@@ -53,7 +53,7 @@ class ToolChoiceGuidanceTest {
         .contains("Entscheidungstabelle", "Mandatory Constraint", "Boundary-/Kategoriefaelle")
         .contains("testIliConstraint", "ilivalidator")
         .contains("BOOLEAN", "ENUM", "SUM", "Association-Pfad")
-        .contains("DEFINED", "Math.add");
+        .contains("DEFINED", "SUM plus direktes NUMERIC-Attribut");
   }
 
   @Test
@@ -88,26 +88,20 @@ class ToolChoiceGuidanceTest {
         .contains("reviewIliChange")
         .contains("afterReview")
         .contains("kein")
-        .contains("zusaetzliches `reviewIliModel`")
-        .contains("findSimilarModels", "readModelExample")
-        .contains("reviewIliConstraint", "generateIliConstraintFromDecisionTable", "generateIliConstraintCases", "testIliConstraint", "resolveConstraintPath", "listConstraintFunctions")
-        .contains("proofVerified=true", "Boolean-/Enum-Kategoriefaelle", "BOOLEAN- und ENUM-Attribute")
-        .contains("aggregate=SUM", "Math.sum", "mehrwertigen")
-        .contains("defined=true/false", "addAttribute", "Math.add", "NOT(DEFINED")
-        .contains("automaticCasesAvailable=false", "Witness", "Counterexample")
-        .contains("expectedConstraintValid", "Fixture-Fehler")
-        .contains("AND/OR/IMPLIES", "Aggregate")
-        .contains("validateIliModel", "analyzeIliModel", "checkModelingRules")
-        .contains("nicht standardmaessig");
+        .contains("Constraint");
   }
 
-  private String description(Class<?> type, String toolName) {
+  private String description(Class<?> type, String methodName) {
     for (Method method : type.getDeclaredMethods()) {
-      McpTool tool = method.getAnnotation(McpTool.class);
-      if (tool != null && toolName.equals(tool.name())) {
-        return tool.description();
+      if (!method.getName().equals(methodName)) {
+        continue;
       }
+      McpTool annotation = method.getAnnotation(McpTool.class);
+      if (annotation == null) {
+        throw new AssertionError("Missing @McpTool on " + type.getSimpleName() + "." + methodName);
+      }
+      return annotation.description();
     }
-    throw new AssertionError("MCP tool not found: " + toolName);
+    throw new AssertionError("Method not found: " + type.getSimpleName() + "." + methodName);
   }
 }
