@@ -45,7 +45,7 @@ class ToolChoiceGuidanceTest {
     assertThat(description(ConstraintCaseGenerationTools.class, "generateIliConstraintCases"))
         .contains("Witness", "Counterexample", "Boundary-/Kategoriefaelle")
         .contains("semantische IR", "Solver", "Object-Graph-Synthese")
-        .contains("testIliConstraint", "ilivalidator", "DEFINED", "SUM", "Association-Pfade");
+        .contains("testIliConstraint", "ilivalidator", "DEFINED", "SUM", "mehrstufige skalare Pfade");
   }
 
   @Test
