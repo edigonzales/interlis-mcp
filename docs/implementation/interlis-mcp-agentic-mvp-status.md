@@ -1,6 +1,6 @@
 # Agentic INTERLIS MVP Status
 
-_Last updated: 2026-08-18, after consolidating automatic constraint proof generation and adding logical/edge-case coverage._
+_Last updated: 2026-08-18, after consolidating automatic constraint proof generation, adding logical/edge-case coverage and introducing expression-directed arithmetic solving._
 
 ## Scope
 
@@ -108,17 +108,36 @@ The decision-table frontend and `generateIliConstraintCases` both use this share
 
 ### Solver
 
-`ConstraintGoalSolver` is a deterministic bounded finite-domain solver. It derives candidate values from:
+`ConstraintGoalSolver` remains a deterministic bounded finite-domain solver. It derives candidate values from:
 
 - INTERLIS model domains;
 - literals in the expression;
 - numeric precision steps and boundaries;
 - BOOLEAN and ENUM domains;
-- small collection candidates for association paths and aggregates.
+- small collection candidates for association paths and aggregates;
+- the actual semantic operation for simple numeric equality equations.
 
-It is intentionally **not** claimed to be complete. `NO_SOLUTION_FOUND` currently means that no solution was found in the derived finite candidate set, not that the constraint is mathematically proven unsatisfiable. The solver can also stop with an explicit search-limit result.
+For numeric equalities the solver can now work backwards through `NUMERIC_ADD`, `NUMERIC_SUB`, `NUMERIC_MUL` and `NUMERIC_DIV`. `COLLECTION_SUM` can participate as a numeric term, so a required aggregate total can be derived from another scalar operand and then materialized through the existing collection distributor and object-graph synthesizer.
 
-There is currently no Z3/SMT dependency and no symbolic inverse solver for arbitrary nonlinear functions.
+Examples of the implemented direction are:
+
+```text
+A - B == 20, B = 10
+ -> derive A = 30
+
+A / B == 2, A = 10
+ -> derive B = 5
+
+SUM(items->value) / Factor == 2
+ -> derive compatible SUM/Factor candidates
+ -> distribute the SUM over model-valid collection elements
+```
+
+The previous operation-blind `literal - pivot` and `literal / pivot` guesses have been removed. Expression-derived candidates are still only proposals: every complete assignment is checked by the semantic evaluator and `ConstraintModelSynthesizer`, and generated public proof cases still go through ilivalidator.
+
+It is intentionally **not** claimed to be complete. `NO_SOLUTION_FOUND` still means that no solution was found in the derived finite candidate set, not that the constraint is mathematically proven unsatisfiable. The solver can also stop with an explicit search-limit result.
+
+There is currently no Z3/SMT dependency and no general symbolic inverse solver for arbitrary nonlinear functions or arbitrary nested equations.
 
 ### Model binding and object-graph synthesis
 
@@ -228,17 +247,18 @@ The separate INTERLIS AREA-related standard functions are also not part of the c
 
 ### 3. Solver completeness
 
-The current finite-domain search is deliberately bounded and heuristic. It works well for many comparisons, boundaries and small aggregates, but complex valid constraints can still produce `NO_SOLUTION_FOUND` because the interesting value was not in the candidate set.
+The first expression-directed layer is implemented for simple numeric equalities over ADD/SUB/MUL/DIV and SUM terms, but the solver remains deliberately bounded and incomplete.
 
-The next useful improvement is **expression-directed solving**, for example deriving the missing operand of simple arithmetic equations instead of relying only on a finite candidate list.
+Important remaining cases include:
 
-Possible later improvements include:
-
-- more expression-directed candidate derivation;
-- symbolic handling of arithmetic equations;
-- function-specific inverse/boundary strategies;
-- an optional SMT/Z3 solver adapter if real models justify the dependency;
+- equations where the same reference occurs more than once and cannot be inverted unambiguously;
+- deeper symbolic rearrangement beyond the currently supported arithmetic chain;
+- inequalities that would benefit from algebraic rather than candidate-based solving;
+- nonlinear and non-invertible functions;
+- function-specific inverse strategies where they are actually useful;
 - a clear distinction between "not found" and a genuinely proven UNSAT result.
+
+An optional SMT/Z3 adapter should still only be considered if real production constraints demonstrate that these bounded strategies are insufficient.
 
 ### 4. Coverage completeness
 
@@ -429,15 +449,14 @@ A green compile alone is not enough evidence that a generated business constrain
 
 ## Suggested next implementation order
 
-1. Improve the bounded solver with **expression-directed arithmetic solving** before considering an SMT dependency.
-2. Generalize object-graph synthesis to richer paths and multiple root objects.
-3. Add a systematic **validator-differential test suite** for the semantic evaluator and generated fixtures.
-4. Add a high-level, typed **Mandatory-Constraint authoring/proof tool** that uses the existing semantic pipeline.
-5. Introduce the outer `ConstraintSpec` IR.
-6. Implement **Uniqueness** and **Existence** constraints on top of multi-root synthesis.
-7. Implement **Plausibility** and **Set** constraints with explicit dataset/basket semantics.
-8. Keep geometry/AREA-specific semantics and synthesis as a later specialized extension.
-9. Reconsider SMT/Z3 only when the bounded solver demonstrably blocks relevant production constraints.
+1. Generalize object-graph synthesis to richer paths and multiple root objects.
+2. Add a systematic **validator-differential test suite** for the semantic evaluator and generated fixtures.
+3. Add a high-level, typed **Mandatory-Constraint authoring/proof tool** that uses the existing semantic pipeline.
+4. Introduce the outer `ConstraintSpec` IR.
+5. Implement **Uniqueness** and **Existence** constraints on top of multi-root synthesis.
+6. Implement **Plausibility** and **Set** constraints with explicit dataset/basket semantics.
+7. Keep geometry/AREA-specific semantics and synthesis as a later specialized extension.
+8. Reconsider SMT/Z3 only when the bounded solver demonstrably blocks relevant production constraints.
 
 ## Historical MVP steps
 
