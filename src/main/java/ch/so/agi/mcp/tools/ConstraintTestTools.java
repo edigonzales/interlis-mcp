@@ -23,14 +23,16 @@ import ch.interlis.ili2c.metamodel.TransferDescription;
 import ch.interlis.ili2c.metamodel.Type;
 import ch.interlis.iom.IomObject;
 import ch.interlis.iom_j.Iom_jObject;
-import ch.interlis.iom_j.xtf.XtfReader;
+import ch.interlis.iom_j.xtf.Xtf24Reader;
 import ch.interlis.iom_j.xtf.XtfWriter;
 import ch.interlis.iox.IoxEvent;
 import ch.interlis.iox.IoxException;
 import ch.interlis.iox.IoxLogEvent;
 import ch.interlis.iox.IoxLogging;
+import ch.interlis.iox.IoxReader;
 import ch.interlis.iox_j.EndBasketEvent;
 import ch.interlis.iox_j.EndTransferEvent;
+import ch.interlis.iox_j.IoxIliReader;
 import ch.interlis.iox_j.ObjectEvent;
 import ch.interlis.iox_j.PipelinePool;
 import ch.interlis.iox_j.StartBasketEvent;
@@ -427,9 +429,12 @@ public class ConstraintTestTools {
         new PipelinePool(),
         new Settings());
 
-    XtfReader reader = null;
+    IoxReader reader = null;
     try {
-      reader = new XtfReader(xtfFile.toFile());
+      reader = Xtf24Reader.createReader(xtfFile.toFile());
+      if (reader instanceof IoxIliReader iliReader) {
+        iliReader.setModel(td);
+      }
       IoxEvent event;
       while ((event = reader.read()) != null) {
         validator.validate(event);
