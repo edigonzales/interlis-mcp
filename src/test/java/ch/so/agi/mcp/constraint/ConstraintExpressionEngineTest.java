@@ -10,7 +10,6 @@ import static ch.so.agi.mcp.constraint.ConstraintExpressionEngine.GoalKind.TRUE;
 import static ch.so.agi.mcp.constraint.ConstraintExpressionEngine.GoalKind.UNDEFINED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
@@ -124,15 +123,14 @@ class ConstraintExpressionEngineTest {
   }
 
   @Test
-  void unsupportedFunctionSemanticsFailsExplicitlyInsteadOfGuessing() {
+  void evaluatesStandardSqrtSemantics() {
     ConstraintExpression.FunctionCall sqrt = call(
         "NUMERIC_SQRT", new ConstraintExpression.NumericLiteral(4));
 
-    ConstraintExpressionEngine.UnsupportedFunctionSemanticsException ex = assertThrows(
-        ConstraintExpressionEngine.UnsupportedFunctionSemanticsException.class,
-        () -> ConstraintExpressionEngine.evaluate(
-            sqrt, ConstraintExpressionEngine.EvaluationContext.of(Map.of())));
-    assertEquals("NUMERIC_SQRT", ex.semanticId());
+    Object result = ConstraintExpressionEngine.evaluate(
+        sqrt, ConstraintExpressionEngine.EvaluationContext.of(Map.of()));
+
+    assertEquals(0, ((BigDecimal) result).compareTo(BigDecimal.valueOf(2)));
   }
 
   private ConstraintExpression.FunctionCall call(

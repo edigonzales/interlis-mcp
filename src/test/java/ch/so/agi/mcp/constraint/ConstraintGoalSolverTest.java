@@ -148,20 +148,30 @@ class ConstraintGoalSolverTest {
   void reportsUnsupportedFunctionSemanticsInsteadOfGuessing() {
     ConstraintExpression.Attribute weight = new ConstraintExpression.Attribute(
         "Gewichtung", ConstraintExpression.Type.scalar(NUMERIC));
+    ConstraintExpression.FunctionDefinition unknownFunction = new ConstraintExpression.FunctionDefinition(
+        "MODEL_FUNCTION:SolverModel.custom",
+        List.of(new ConstraintExpression.ArgumentSpec(
+            ConstraintExpression.Type.scalar(NUMERIC),
+            ConstraintExpression.ArgumentSemantics.VALUE)),
+        ConstraintExpression.Type.scalar(NUMERIC),
+        ConstraintExpression.ResultTypeRule.DECLARED,
+        Map.of(
+            ConstraintExpression.IliVersion.ILI_23,
+            new ConstraintExpression.FunctionSyntax("SolverModel.custom")));
     ConstraintExpression expression = new ConstraintExpression.Comparison(
         EQ,
-        call("NUMERIC_SQRT", weight),
+        new ConstraintExpression.FunctionCall(unknownFunction, List.of(weight)),
         new ConstraintExpression.NumericLiteral(10));
     ConstraintModelSynthesizer.ModelBinding binding = binding(expression);
 
     ConstraintGoalSolver.Solution solution = ConstraintGoalSolver.solve(
         new ConstraintExpressionEngine.TestGoal(
-            ConstraintExpressionEngine.GoalKind.TRUE, expression, "sqrt equality"),
+            ConstraintExpressionEngine.GoalKind.TRUE, expression, "unknown function equality"),
         binding);
 
     assertFalse(solution.solved());
     assertEquals("UNSUPPORTED_FUNCTION_SEMANTICS", solution.reasonCode());
-    assertTrue(solution.reason().contains("NUMERIC_SQRT"));
+    assertTrue(solution.reason().contains("MODEL_FUNCTION:SolverModel.custom"));
   }
 
   @Test
