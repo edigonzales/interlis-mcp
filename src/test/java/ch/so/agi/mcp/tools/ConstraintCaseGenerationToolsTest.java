@@ -30,6 +30,14 @@ class ConstraintCaseGenerationToolsTest {
             !!@ name = "ComplexValueRange"
             MANDATORY CONSTRAINT value >= 10 AND value <= 20;
           END Item;
+
+          CLASS Choice =
+            left : MANDATORY 0 .. 1;
+            right : MANDATORY 0 .. 1;
+
+            !!@ name = "EitherSide"
+            MANDATORY CONSTRAINT left == 1 OR right == 1;
+          END Choice;
         END Data;
       END ConstraintAutoCases.
       """;
@@ -148,6 +156,27 @@ class ConstraintCaseGenerationToolsTest {
   }
 
   @Test
+  void verifiesIndependentOrBranchesWithRealValidator() {
+    Map<String, Object> result = tools.generateIliConstraintCases(
+        MODEL,
+        "EitherSide",
+        null);
+
+    assertEquals(true, result.get("automaticCasesAvailable"), String.valueOf(result));
+    List<Map<String, Object>> generated = list(result.get("generatedCases"));
+    assertAssignment(generated, "1", "0", true);
+    assertAssignment(generated, "0", "1", true);
+    assertAssignment(generated, "0", "0", false);
+    assertTrue(generated.stream().anyMatch(item ->
+        "OR branch 1 independently true".equals(item.get("reason"))), String.valueOf(generated));
+    assertTrue(generated.stream().anyMatch(item ->
+        "OR branch 2 independently true".equals(item.get("reason"))), String.valueOf(generated));
+    assertTrue(generated.stream().anyMatch(item ->
+        "OR all branches false".equals(item.get("reason"))), String.valueOf(generated));
+    assertEquals(true, map(result.get("verification")).get("allPassed"));
+  }
+
+  @Test
   void exposesAfuSumAssociationPipelineThroughMcpTool() {
     Map<String, Object> result = tools.generateIliConstraintCases(
         AFU_MODEL,
@@ -161,6 +190,8 @@ class ConstraintCaseGenerationToolsTest {
         ((Number) item.get("associationLinkCount")).intValue() == 0), String.valueOf(generated));
     assertTrue(generated.stream().anyMatch(item ->
         ((Number) item.get("associationLinkCount")).intValue() > 0), String.valueOf(generated));
+    assertTrue(generated.stream().anyMatch(item ->
+        ((Number) item.get("associationLinkCount")).intValue() == 3), String.valueOf(generated));
     assertTrue(generated.stream().anyMatch(item -> Boolean.TRUE.equals(item.get("expectedConstraintValid"))),
         String.valueOf(generated));
     assertTrue(generated.stream().anyMatch(item -> Boolean.FALSE.equals(item.get("expectedConstraintValid"))),
@@ -178,6 +209,23 @@ class ConstraintCaseGenerationToolsTest {
         .orElseThrow(() -> new AssertionError("Missing value " + value + ": " + cases));
     assertEquals(expectedValid, match.get("expectedConstraintValid"));
     assertEquals(expectedValid ? "WITNESS" : "COUNTEREXAMPLE", match.get("purpose"));
+  }
+
+  private void assertAssignment(
+      List<Map<String, Object>> cases,
+      String left,
+      String right,
+      boolean expectedValid) {
+    Map<String, Object> match = cases.stream()
+        .filter(item -> {
+          Map<String, Object> values = map(item.get("values"));
+          return left.equals(String.valueOf(values.get("left")))
+              && right.equals(String.valueOf(values.get("right")));
+        })
+        .findFirst()
+        .orElseThrow(() -> new AssertionError(
+            "Missing assignment left=" + left + ", right=" + right + ": " + cases));
+    assertEquals(expectedValid, match.get("expectedConstraintValid"));
   }
 
   @SuppressWarnings("unchecked")
