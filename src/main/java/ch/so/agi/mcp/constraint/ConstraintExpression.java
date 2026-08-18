@@ -2,26 +2,30 @@ package ch.so.agi.mcp.constraint;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 /**
- * Small typed intermediate representation for constraint expressions.
+ * Small typed, semantic intermediate representation for constraint expressions.
  *
- * <p>The IR is intentionally independent of MCP DTOs, ili2c AST classes and XTF fixture generation.
- * Frontends translate into this representation; rendering, case generation and solver adapters can then
- * operate on the same expression tree.</p>
+ * <p>The IR deliberately separates meaning from INTERLIS surface syntax. Frontends for INTERLIS 2.3,
+ * INTERLIS 2.4, decision tables or other structured rule sources translate into the same semantic
+ * tree. Renderers, case generators and solver adapters can then operate on that tree without
+ * duplicating logic for Math.add versus the INTERLIS 2.4 {@code +} operator, Math versus Math_V2,
+ * or similar syntax differences.</p>
  */
 public sealed interface ConstraintExpression
     permits ConstraintExpression.NumericLiteral,
         ConstraintExpression.BooleanLiteral,
         ConstraintExpression.EnumLiteral,
+        ConstraintExpression.TextLiteral,
         ConstraintExpression.Attribute,
         ConstraintExpression.Path,
-        ConstraintExpression.Sum,
-        ConstraintExpression.Add,
+        ConstraintExpression.FunctionCall,
         ConstraintExpression.Defined,
         ConstraintExpression.Not,
         ConstraintExpression.And,
@@ -32,7 +36,15 @@ public sealed interface ConstraintExpression
   Type type();
 
   default String toInterlis() {
-    return Renderer.render(this);
+    return toInterlis(IliVersion.ILI_23);
+  }
+
+  default String toInterlis(IliVersion version) {
+    return Renderer.render(this, LanguageProfile.forVersion(version));
+  }
+
+  default String toInterlis(LanguageProfile profile) {
+    return Renderer.render(this, profile);
   }
 
   default Set<Reference> references() {
@@ -41,11 +53,48 @@ public sealed interface ConstraintExpression
     return Set.copyOf(result);
   }
 
+  enum IliVersion {
+    ILI_23("2.3"),
+    ILI_24("2.4");
+
+    private final String text;
+
+    IliVersion(String text) {
+      this.text = text;
+    }
+
+    public String text() {
+      return text;
+    }
+  }
+
+  record LanguageProfile(
+      IliVersion version,
+      String mathModel,
+      String textModel,
+      boolean nativeArithmeticOperators) {
+
+    public LanguageProfile {
+      Objects.requireNonNull(version, "version");
+      requireName(mathModel, "mathModel");
+      requireName(textModel, "textModel");
+    }
+
+    public static LanguageProfile forVersion(IliVersion version) {
+      Objects.requireNonNull(version, "version");
+      return switch (version) {
+        case ILI_23 -> new LanguageProfile(ILI_23, "Math", "Text", false);
+        case ILI_24 -> new LanguageProfile(ILI_24, "Math_V2", "Text_V2", true);
+      };
+    }
+  }
+
   enum ScalarKind {
     BOOLEAN,
     NUMERIC,
     ENUM,
     TEXT,
+    MTEXT,
     GEOMETRY,
     UNKNOWN
   }
@@ -53,6 +102,16 @@ public sealed interface ConstraintExpression
   enum ReferenceKind {
     ATTRIBUTE,
     PATH
+  }
+
+  enum ArgumentSemantics {
+    VALUE,
+    ATTRIBUTE_PATH
+  }
+
+  enum ResultTypeRule {
+    DECLARED,
+    PROPAGATE_NULLABILITY
   }
 
   enum ComparisonOperator {
@@ -108,6 +167,71 @@ public sealed interface ConstraintExpression
     }
   }
 
+  record ArgumentSpec(Type type, ArgumentSemantics semantics) {
+    public ArgumentSpec {
+      Objects.requireNonNull(type, "type");
+      Objects.requireNonNull(semantics, "semantics");
+    }
+  }
+
+  sealed interface SurfaceSyntax permits FunctionSyntax, InfixSyntax {
+  }
+
+  record FunctionSyntax(String name) implements SurfaceSyntax {
+    public FunctionSyntax {
+      requireName(name, "function name");
+    }
+  }
+
+  /**
+   * Native binary operator spelling for a language version. Rendering is intentionally fully
+   * parenthesized so solver/IR correctness never depends on a renderer reproducing precedence rules.
+   */
+  record InfixSyntax(String symbol) implements SurfaceSyntax {
+    public InfixSyntax {
+      requireName(symbol, "operator symbol");
+    }
+  }
+
+  record FunctionDefinition(
+      String semanticId,
+      List<ArgumentSpec> arguments,
+      Type declaredResultType,
+      ResultTypeRule resultTypeRule,
+      Map<IliVersion, SurfaceSyntax> surfaceSyntax) {
+
+    public FunctionDefinition {
+      requireName(semanticId, "semanticId");
+      arguments = arguments == null ? List.of() : List.copyOf(arguments);
+      Objects.requireNonNull(declaredResultType, "declaredResultType");
+      requireScalar(declaredResultType, "Function result");
+      Objects.requireNonNull(resultTypeRule, "resultTypeRule");
+      if (surfaceSyntax == null || surfaceSyntax.isEmpty()) {
+        throw new IllegalArgumentException("Function definition requires at least one surface syntax.");
+      }
+      surfaceSyntax = Map.copyOf(new LinkedHashMap<>(surfaceSyntax));
+    }
+
+    public SurfaceSyntax syntax(IliVersion version) {
+      SurfaceSyntax syntax = surfaceSyntax.get(version);
+      if (syntax == null) {
+        throw new IllegalArgumentException(
+            "Function semantics '" + semanticId + "' has no syntax for INTERLIS " + version.text() + ".");
+      }
+      return syntax;
+    }
+
+    private Type resultType(List<ConstraintExpression> actualArguments) {
+      if (resultTypeRule == ResultTypeRule.DECLARED || declaredResultType.nullable()) {
+        return declaredResultType;
+      }
+      boolean nullable = actualArguments.stream().anyMatch(argument -> argument.type().nullable());
+      return nullable
+          ? new Type(declaredResultType.scalarKind(), false, true)
+          : declaredResultType;
+    }
+  }
+
   record NumericLiteral(BigDecimal value) implements ConstraintExpression {
     public NumericLiteral {
       Objects.requireNonNull(value, "value");
@@ -141,6 +265,24 @@ public sealed interface ConstraintExpression
     }
   }
 
+  record TextLiteral(String value, ScalarKind kind) implements ConstraintExpression {
+    public TextLiteral {
+      Objects.requireNonNull(value, "value");
+      if (kind != ScalarKind.TEXT && kind != ScalarKind.MTEXT) {
+        throw new IllegalArgumentException("TextLiteral kind must be TEXT or MTEXT.");
+      }
+    }
+
+    public TextLiteral(String value) {
+      this(value, ScalarKind.TEXT);
+    }
+
+    @Override
+    public Type type() {
+      return Type.scalar(kind);
+    }
+  }
+
   record Attribute(String name, Type type) implements ConstraintExpression {
     public Attribute {
       requireName(name, "attribute name");
@@ -156,33 +298,28 @@ public sealed interface ConstraintExpression
     }
   }
 
-  record Sum(Path path) implements ConstraintExpression {
-    public Sum {
-      Objects.requireNonNull(path, "path");
-      if (!path.type().isCollectionOf(ScalarKind.NUMERIC)) {
-        throw new IllegalArgumentException("SUM requires a collection of NUMERIC values.");
+  record FunctionCall(FunctionDefinition definition, List<ConstraintExpression> arguments)
+      implements ConstraintExpression {
+    public FunctionCall {
+      Objects.requireNonNull(definition, "definition");
+      arguments = arguments == null ? List.of() : List.copyOf(arguments);
+      if (arguments.size() != definition.arguments().size()) {
+        throw new IllegalArgumentException(
+            "Function semantics '" + definition.semanticId() + "' expects "
+                + definition.arguments().size() + " arguments, got " + arguments.size() + ".");
+      }
+      for (int i = 0; i < arguments.size(); i++) {
+        validateArgument(definition, i, arguments.get(i), definition.arguments().get(i));
       }
     }
 
-    @Override
-    public Type type() {
-      // An empty collection makes the INTERLIS Math.sum result undefined.
-      return Type.optionalScalar(ScalarKind.NUMERIC);
-    }
-  }
-
-  record Add(ConstraintExpression left, ConstraintExpression right) implements ConstraintExpression {
-    public Add {
-      requireScalarKind(left, ScalarKind.NUMERIC, "Math.add left operand");
-      requireScalarKind(right, ScalarKind.NUMERIC, "Math.add right operand");
+    public String semanticId() {
+      return definition.semanticId();
     }
 
     @Override
     public Type type() {
-      return new Type(
-          ScalarKind.NUMERIC,
-          false,
-          left.type().nullable() || right.type().nullable());
+      return definition.resultType(arguments);
     }
   }
 
@@ -263,6 +400,29 @@ public sealed interface ConstraintExpression
     }
   }
 
+  private static void validateArgument(
+      FunctionDefinition definition,
+      int index,
+      ConstraintExpression argument,
+      ArgumentSpec spec) {
+    Objects.requireNonNull(argument, "function argument");
+    Type expected = spec.type();
+    Type actual = argument.type();
+    if (expected.collection() != actual.collection()
+        || (expected.scalarKind() != actual.scalarKind()
+            && expected.scalarKind() != ScalarKind.UNKNOWN
+            && actual.scalarKind() != ScalarKind.UNKNOWN)) {
+      throw new IllegalArgumentException(
+          "Function semantics '" + definition.semanticId() + "' argument " + index
+              + " expects " + expected + ", got " + actual + ".");
+    }
+    if (spec.semantics() == ArgumentSemantics.ATTRIBUTE_PATH && !(argument instanceof Path)) {
+      throw new IllegalArgumentException(
+          "Function semantics '" + definition.semanticId() + "' argument " + index
+              + " requires an ATTRIBUTE_PATH.");
+    }
+  }
+
   private static List<ConstraintExpression> validatedBooleanOperands(
       List<ConstraintExpression> operands,
       String label) {
@@ -328,11 +488,7 @@ public sealed interface ConstraintExpression
       case Attribute attribute -> sink.add(new Reference(
           attribute.name(), ReferenceKind.ATTRIBUTE, attribute.type()));
       case Path path -> sink.add(new Reference(path.path(), ReferenceKind.PATH, path.type()));
-      case Sum sum -> collectReferences(sum.path(), sink);
-      case Add add -> {
-        collectReferences(add.left(), sink);
-        collectReferences(add.right(), sink);
-      }
+      case FunctionCall call -> call.arguments().forEach(child -> collectReferences(child, sink));
       case Defined defined -> collectReferences(defined.operand(), sink);
       case Not not -> collectReferences(not.operand(), sink);
       case And and -> and.operands().forEach(child -> collectReferences(child, sink));
@@ -351,6 +507,8 @@ public sealed interface ConstraintExpression
       }
       case EnumLiteral ignored -> {
       }
+      case TextLiteral ignored -> {
+      }
     }
   }
 
@@ -365,41 +523,80 @@ public sealed interface ConstraintExpression
     private Renderer() {
     }
 
-    static String render(ConstraintExpression expression) {
-      return render(expression, 0);
+    static String render(ConstraintExpression expression, LanguageProfile profile) {
+      Objects.requireNonNull(profile, "profile");
+      return render(expression, profile, 0);
     }
 
-    private static String render(ConstraintExpression expression, int parentPrecedence) {
+    private static String render(
+        ConstraintExpression expression,
+        LanguageProfile profile,
+        int parentPrecedence) {
       int precedence = precedence(expression);
       String rendered = switch (expression) {
         case NumericLiteral number -> number.value().stripTrailingZeros().toPlainString();
         case BooleanLiteral bool -> "#" + Boolean.toString(bool.value());
         case EnumLiteral enumeration -> "#" + enumeration.value();
+        case TextLiteral text -> "\"" + escapeText(text.value()) + "\"";
         case Attribute attribute -> attribute.name();
         case Path path -> path.path();
-        case Sum sum -> "Math.sum(\"" + sum.path().path() + "\")";
-        case Add add -> "Math.add(" + render(add.left(), 0) + ", " + render(add.right(), 0) + ")";
-        case Defined defined -> "DEFINED(" + render(defined.operand(), 0) + ")";
-        case Not not -> "NOT(" + render(not.operand(), 0) + ")";
-        case Comparison comparison -> render(comparison.left(), COMPARISON_PRECEDENCE)
+        case FunctionCall call -> renderFunction(call, profile);
+        case Defined defined -> "DEFINED(" + render(defined.operand(), profile, 0) + ")";
+        case Not not -> "NOT(" + render(not.operand(), profile, 0) + ")";
+        case Comparison comparison -> render(comparison.left(), profile, COMPARISON_PRECEDENCE)
             + " " + comparison.operator().interlis() + " "
-            + render(comparison.right(), COMPARISON_PRECEDENCE);
+            + render(comparison.right(), profile, COMPARISON_PRECEDENCE);
         case And and -> and.operands().stream()
-            .map(child -> render(child, AND_PRECEDENCE))
+            .map(child -> render(child, profile, AND_PRECEDENCE))
             .reduce((left, right) -> left + " AND " + right)
             .orElseThrow();
         case Or or -> or.operands().stream()
-            .map(child -> render(child, OR_PRECEDENCE))
+            .map(child -> render(child, profile, OR_PRECEDENCE))
             .reduce((left, right) -> left + " OR " + right)
             .orElseThrow();
-        case Implies implies -> render(implies.antecedent(), IMPLIES_PRECEDENCE)
-            + " IMPLIES " + render(implies.consequent(), IMPLIES_PRECEDENCE);
+        case Implies implies -> render(implies.antecedent(), profile, IMPLIES_PRECEDENCE)
+            + " IMPLIES " + render(implies.consequent(), profile, IMPLIES_PRECEDENCE);
       };
 
       boolean parenthesize = precedence < parentPrecedence
           || expression instanceof And
           || expression instanceof Implies;
       return parenthesize ? "(" + rendered + ")" : rendered;
+    }
+
+    private static String renderFunction(FunctionCall call, LanguageProfile profile) {
+      SurfaceSyntax syntax = call.definition().syntax(profile.version());
+      return switch (syntax) {
+        case FunctionSyntax function -> function.name() + "(" + renderFunctionArguments(call, profile) + ")";
+        case InfixSyntax infix -> {
+          if (call.arguments().size() != 2) {
+            throw new IllegalArgumentException(
+                "Infix syntax requires exactly two arguments for '" + call.semanticId() + "'.");
+          }
+          yield "(" + render(call.arguments().get(0), profile, 0)
+              + " " + infix.symbol() + " "
+              + render(call.arguments().get(1), profile, 0) + ")";
+        }
+      };
+    }
+
+    private static String renderFunctionArguments(FunctionCall call, LanguageProfile profile) {
+      List<String> rendered = new ArrayList<>();
+      for (int i = 0; i < call.arguments().size(); i++) {
+        ConstraintExpression argument = call.arguments().get(i);
+        ArgumentSpec spec = call.definition().arguments().get(i);
+        if (spec.semantics() == ArgumentSemantics.ATTRIBUTE_PATH) {
+          Path path = (Path) argument;
+          rendered.add("\"" + escapeText(path.path()) + "\"");
+        } else {
+          rendered.add(render(argument, profile, 0));
+        }
+      }
+      return String.join(", ", rendered);
+    }
+
+    private static String escapeText(String value) {
+      return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private static int precedence(ConstraintExpression expression) {
@@ -413,10 +610,10 @@ public sealed interface ConstraintExpression
         case NumericLiteral ignored -> ATOMIC_PRECEDENCE;
         case BooleanLiteral ignored -> ATOMIC_PRECEDENCE;
         case EnumLiteral ignored -> ATOMIC_PRECEDENCE;
+        case TextLiteral ignored -> ATOMIC_PRECEDENCE;
         case Attribute ignored -> ATOMIC_PRECEDENCE;
         case Path ignored -> ATOMIC_PRECEDENCE;
-        case Sum ignored -> ATOMIC_PRECEDENCE;
-        case Add ignored -> ATOMIC_PRECEDENCE;
+        case FunctionCall ignored -> ATOMIC_PRECEDENCE;
       };
     }
   }
