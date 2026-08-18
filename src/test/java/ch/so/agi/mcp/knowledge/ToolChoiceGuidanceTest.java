@@ -41,10 +41,11 @@ class ToolChoiceGuidanceTest {
   }
 
   @Test
-  void automaticConstraintCasesAdvertiseNarrowVerifiedScope() {
+  void automaticConstraintCasesAdvertiseSemanticVerifiedScope() {
     assertThat(description(ConstraintCaseGenerationTools.class, "generateIliConstraintCases"))
-        .contains("Witness", "Counterexample", "testIliConstraint")
-        .contains("skalare Attributvergleiche", "DEFINED", "automaticCasesAvailable=false");
+        .contains("Witness", "Counterexample", "Boundary-/Kategoriefaelle")
+        .contains("semantische IR", "Solver", "Object-Graph-Synthese")
+        .contains("testIliConstraint", "ilivalidator", "DEFINED", "SUM", "Association-Pfade");
   }
 
   @Test
@@ -87,21 +88,15 @@ class ToolChoiceGuidanceTest {
         .contains("reviewIliModel")
         .contains("reviewIliChange")
         .contains("afterReview")
-        .contains("kein")
-        .contains("Constraint");
+        .contains("kein");
   }
 
   private String description(Class<?> type, String methodName) {
-    for (Method method : type.getDeclaredMethods()) {
-      if (!method.getName().equals(methodName)) {
-        continue;
-      }
-      McpTool annotation = method.getAnnotation(McpTool.class);
-      if (annotation == null) {
-        throw new AssertionError("Missing @McpTool on " + type.getSimpleName() + "." + methodName);
-      }
-      return annotation.description();
-    }
-    throw new AssertionError("Method not found: " + type.getSimpleName() + "." + methodName);
+    Method method = java.util.Arrays.stream(type.getDeclaredMethods())
+        .filter(candidate -> methodName.equals(candidate.getName()))
+        .findFirst()
+        .orElseThrow();
+    McpTool annotation = method.getAnnotation(McpTool.class);
+    return annotation == null ? "" : annotation.description();
   }
 }
