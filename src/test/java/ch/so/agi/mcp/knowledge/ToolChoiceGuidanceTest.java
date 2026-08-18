@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.analysis.ModelChangeTools;
 import ch.so.agi.mcp.tools.ConstraintCaseGenerationTools;
+import ch.so.agi.mcp.tools.ConstraintDecisionTableTools;
 import ch.so.agi.mcp.tools.ConstraintReviewTools;
 import ch.so.agi.mcp.tools.ConstraintTestTools;
 import ch.so.agi.mcp.tools.ValidationTools;
@@ -47,6 +48,13 @@ class ToolChoiceGuidanceTest {
   }
 
   @Test
+  void decisionTableToolAdvertisesConstraintBoundaryProof() {
+    assertThat(description(ConstraintDecisionTableTools.class, "generateIliConstraintFromDecisionTable"))
+        .contains("Entscheidungstabelle", "Mandatory Constraint", "Boundary-Testfaelle")
+        .contains("AND", "OR", "testIliConstraint", "ilivalidator");
+  }
+
+  @Test
   void lowLevelToolsPointBackToHighLevelReview() {
     assertThat(description(ModelAnalysisTools.class, "analyzeIliModel"))
         .contains("Low-Level-Tool", "gezielte", "reviewIliModel");
@@ -80,7 +88,8 @@ class ToolChoiceGuidanceTest {
         .contains("kein")
         .contains("zusaetzliches `reviewIliModel`")
         .contains("findSimilarModels", "readModelExample")
-        .contains("reviewIliConstraint", "generateIliConstraintCases", "testIliConstraint", "resolveConstraintPath", "listConstraintFunctions")
+        .contains("reviewIliConstraint", "generateIliConstraintFromDecisionTable", "generateIliConstraintCases", "testIliConstraint", "resolveConstraintPath", "listConstraintFunctions")
+        .contains("proofVerified=true", "Boundary-Faelle")
         .contains("automaticCasesAvailable=false", "Witness", "Counterexample")
         .contains("expectedConstraintValid", "Fixture-Fehler")
         .contains("AND/OR/IMPLIES", "Aggregate")
