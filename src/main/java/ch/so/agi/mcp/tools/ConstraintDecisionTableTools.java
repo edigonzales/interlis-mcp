@@ -1,26 +1,14 @@
 package ch.so.agi.mcp.tools;
 
-import ch.interlis.ili2c.metamodel.AssociationDef;
-import ch.interlis.ili2c.metamodel.AttributeRef;
-import ch.interlis.ili2c.metamodel.Cardinality;
-import ch.interlis.ili2c.metamodel.Element;
-import ch.interlis.ili2c.metamodel.EnumerationType;
-import ch.interlis.ili2c.metamodel.NumericType;
-import ch.interlis.ili2c.metamodel.ObjectPath;
-import ch.interlis.ili2c.metamodel.PathEl;
-import ch.interlis.ili2c.metamodel.PathElAbstractClassRole;
-import ch.interlis.ili2c.metamodel.PathElAssocRole;
-import ch.interlis.ili2c.metamodel.RoleDef;
-import ch.interlis.ili2c.metamodel.TransferDescription;
-import ch.interlis.ili2c.metamodel.Type;
-import ch.interlis.ili2c.metamodel.Viewable;
-import ch.interlis.ili2c.parser.Ili23Parser;
+import ch.so.agi.mcp.constraint.ConstraintCoveragePlanner;
 import ch.so.agi.mcp.constraint.ConstraintExpression;
+import ch.so.agi.mcp.constraint.ConstraintExpressionEngine;
+import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer;
 import ch.so.agi.mcp.constraint.StandardFunctionRegistry;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -41,7 +29,6 @@ public class ConstraintDecisionTableTools {
   private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z][A-Za-z0-9_]*");
   private static final Pattern ENUM_VALUE = Pattern.compile("[A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z][A-Za-z0-9_]*)*");
   private static final Pattern INTERLIS_VERSION = Pattern.compile("(?m)^\\s*INTERLIS\\s+(2\\.3|2\\.4)\\s*;");
-  private static final int MAX_AGGREGATE_OBJECTS = 5;
 
   private final ConstraintReviewTools reviewTools;
   private final ConstraintTestTools testTools;
@@ -77,13 +64,13 @@ public class ConstraintDecisionTableTools {
 
   @McpTool(
       name = "generateIliConstraintFromDecisionTable",
-      description = "Erzeugt aus einer strukturierten Entscheidungstabelle einen INTERLIS Mandatory Constraint, leitet automatisch Boundary-/Kategoriefaelle ab und beweist den erzeugten Constraint mit testIliConstraint und dem echten ilivalidator. Unterstuetzt direkte NUMERIC/BOOLEAN/ENUM-Attribute, einen einzelnen hoechstens einwertigen Association-Pfad Rolle->Attribut, SUM auf einem mehrwertigen numerischen Association-Pfad sowie das AFU-Muster DEFINED(SUM) + Math.add(SUM, direktes Attribut) == Ziel bzw. NOT DEFINED(SUM) + direktes Attribut == Ziel."
+      description = "Erzeugt aus einer strukturierten Entscheidungstabelle einen INTERLIS Mandatory Constraint, leitet ueber die gemeinsame semantische IR-/Solver-Pipeline Boundary-/Kategoriefaelle ab und beweist den erzeugten Constraint mit testIliConstraint und dem echten ilivalidator. Unterstuetzt direkte NUMERIC/BOOLEAN/ENUM-Attribute, einen einzelnen hoechstens einwertigen Association-Pfad Rolle->Attribut, SUM auf einem mehrwertigen numerischen Association-Pfad sowie DEFINED/NOT DEFINED und SUM plus direktes NUMERIC-Attribut."
   )
   public Map<String, Object> generateIliConstraintFromDecisionTable(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext ohne den zu erzeugenden Constraint", required = true) String modelText,
       @McpToolParam(description = "Vollqualifizierter Klassenkontext Model.Topic.Class", required = true) String context,
       @McpToolParam(description = "Technischer Name des zu erzeugenden Constraints", required = true) String constraintName,
-      @McpToolParam(description = "Erlaubte Entscheidungszeilen. Standardbedingung: attribute, operator, value. Optional aggregate=SUM. Fuer den AFU-Summenfall: defined=true/false ohne operator/value oder addAttribute=<direktes NUMERIC-Attribut> zusammen mit aggregate=SUM, operator == und numerischem value.", required = true) List<DecisionRow> rows,
+      @McpToolParam(description = "Erlaubte Entscheidungszeilen. Standardbedingung: attribute, operator, value. Optional aggregate=SUM. Fuer Summenpraesenz: defined=true/false ohne operator/value. Fuer Addition: addAttribute=<direktes NUMERIC-Attribut> zusammen mit aggregate=SUM, operator == und numerischem value.", required = true) List<DecisionRow> rows,
       @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition", required = false) @Nullable String modelRepositories) {
     String normalizedContext = requireContext(context);
     String normalizedConstraintName = requireIdentifier(constraintName, "constraintName");
@@ -93,16 +80,6 @@ public class ConstraintDecisionTableTools {
     ConstraintExpression semanticExpression = decisionTableExpression(normalizedRows);
     String expression = semanticExpression.toInterlis(version);
     String constraintBlock = renderConstraintBlock(normalizedContext, normalizedConstraintName, expression);
-    SumAddPresencePattern sumAddPattern = sumAddPresencePattern(normalizedRows);
-    if (hasCompositeSemantics(normalizedRows) && sumAddPattern == null) {
-      return unavailable(
-          "UNSUPPORTED_COMPOSITE_PATTERN",
-          "defined/addAttribute are deliberately limited to the supported SUM-presence plus Math.add(SUM, direct NUMERIC attribute) == target pattern.",
-          expression,
-          constraintBlock,
-          normalizedRows,
-          null);
-    }
 
     String proofModelText;
     try {
@@ -131,40 +108,64 @@ public class ConstraintDecisionTableTools {
           review);
     }
 
-    Map<String, AttributeDomain> domains = attributeDomains(
-        map(review.get("ast")),
+    IliCompilerService.CompilationResult compilation = compilerService.compile(
         proofModelText,
-        normalizedContext,
-        normalizedRows,
-        modelRepositories);
-    if (domains.size() != referencedAttributes(normalizedRows).size()) {
+        modelRepositories,
+        "ili2c_constraint_decision_table_proof_");
+    if (!compilation.valid() || compilation.transferDescription() == null) {
+      return unavailable(
+          "GENERATED_CONSTRAINT_NOT_COMPILABLE",
+          "The generated decision-table constraint could not be compiled for semantic proof generation.",
+          expression,
+          constraintBlock,
+          normalizedRows,
+          review);
+    }
+
+    ConstraintModelSynthesizer.ModelBinding binding;
+    try {
+      binding = ConstraintModelSynthesizer.bind(
+          compilation.transferDescription(),
+          normalizedContext,
+          semanticExpression);
+    } catch (IllegalArgumentException ex) {
       return unavailable(
           "UNSUPPORTED_ATTRIBUTE_PATH_OR_TYPE",
-          "Decision-table proof requires direct NUMERIC/BOOLEAN/ENUM attributes, one single-valued association path, or SUM on one multi-valued bounded non-negative NUMERIC association path.",
+          ex.getMessage(),
           expression,
           constraintBlock,
           normalizedRows,
           review);
     }
 
-    String domainProblem = validateConditionDomains(normalizedRows, domains);
-    if (domainProblem != null) {
+    ConstraintCoveragePlanner.CoveragePlan coverage = ConstraintCoveragePlanner.solve(
+        semanticExpression,
+        binding);
+    if (coverage.cases().isEmpty()) {
+      String reason = coverage.unsolved().isEmpty()
+          ? "No semantic boundary/category probes could be derived."
+          : coverage.unsolved().getFirst().reason();
       return unavailable(
-          "CONDITION_VALUE_TYPE_MISMATCH",
-          domainProblem,
+          "NO_BOUNDARY_CASES",
+          reason,
           expression,
           constraintBlock,
           normalizedRows,
           review);
     }
 
-    BoundaryGeneration boundaries = sumAddPattern != null
-        ? generateSumAddPresenceCases(normalizedContext, sumAddPattern, domains)
-        : generateBoundaryCases(normalizedContext, normalizedRows, domains);
-    if (!boundaries.available()) {
+    ProofCases proofCases;
+    try {
+      proofCases = proofCases(
+          semanticExpression,
+          binding,
+          coverage,
+          normalizedRows,
+          version);
+    } catch (IllegalArgumentException ex) {
       return unavailable(
-          boundaries.reasonCode(),
-          boundaries.reason(),
+          "OBJECT_GRAPH_SYNTHESIS_FAILED",
+          ex.getMessage(),
           expression,
           constraintBlock,
           normalizedRows,
@@ -174,7 +175,7 @@ public class ConstraintDecisionTableTools {
     Map<String, Object> verification = testTools.testIliConstraint(
         proofModelText,
         normalizedConstraintName,
-        boundaries.cases(),
+        proofCases.cases(),
         modelRepositories);
     boolean verified = Boolean.TRUE.equals(verification.get("allPassed"));
 
@@ -186,15 +187,133 @@ public class ConstraintDecisionTableTools {
     result.put("decisionTable", decisionTableSummary(normalizedRows));
     result.put("constraintExpression", expression);
     result.put("constraintBlock", constraintBlock);
-    result.put("boundaryCases", boundaries.summaries());
-    result.put("boundaryCaseCount", boundaries.cases().size());
+    result.put("boundaryCases", proofCases.summaries());
+    result.put("boundaryCaseCount", proofCases.cases().size());
+    result.put("coverageGoalCount", proofCases.cases().size() + coverage.unsolved().size());
+    result.put("coverageSolvedCount", proofCases.cases().size());
+    if (!coverage.unsolved().isEmpty()) {
+      result.put("coverageUnsolved", coverageUnsolved(coverage, version));
+    }
     result.put("verification", verification);
     if (!verified) {
       result.put("reasonCode", "BOUNDARY_PROOF_FAILED");
-      result.put("reason", "The generated proof cases were created, but the validator did not confirm all expected decision-table outcomes.");
+      result.put("reason", "The generated semantic proof cases were created, but the validator did not confirm all expected outcomes.");
     }
     result.put("limitations", limitations());
     return result;
+  }
+
+  private ProofCases proofCases(
+      ConstraintExpression semanticExpression,
+      ConstraintModelSynthesizer.ModelBinding binding,
+      ConstraintCoveragePlanner.CoveragePlan coverage,
+      List<NormalizedRow> rows,
+      ConstraintExpression.IliVersion version) {
+    List<ConstraintTestTools.TestCase> cases = new ArrayList<>();
+    List<Map<String, Object>> summaries = new ArrayList<>();
+    int index = 1;
+    for (ConstraintCoveragePlanner.CoverageCase coverageCase : coverage.cases()) {
+      Map<String, Object> assignment = coverageCase.solution().assignment();
+      boolean expectedValid = ConstraintExpressionEngine.evaluateConstraint(
+          semanticExpression,
+          ConstraintExpressionEngine.EvaluationContext.of(assignment));
+      ConstraintModelSynthesizer.ObjectGraph graph = ConstraintModelSynthesizer.synthesize(
+          binding,
+          assignment,
+          "decision_case_" + index);
+
+      ConstraintTestTools.TestCase testCase = toTestCase(
+          "boundary " + index + " - " + coverageCase.goal().reason(),
+          expectedValid,
+          graph);
+      cases.add(testCase);
+
+      Map<String, Object> summary = new LinkedHashMap<>();
+      summary.put("name", testCase.name);
+      summary.put("purpose", coverageCase.goal().reason());
+      summary.put("source", coverageCase.goal().expression().toInterlis(version));
+      summary.put("values", summaryValues(assignment, rows));
+      summary.put("expectedConstraintValid", expectedValid);
+      summary.put("objectCount", graph.objects().size());
+      summary.put("associationLinkCount", graph.links().size());
+      summaries.add(summary);
+      index++;
+    }
+    return new ProofCases(cases, summaries);
+  }
+
+  private ConstraintTestTools.TestCase toTestCase(
+      String name,
+      boolean expected,
+      ConstraintModelSynthesizer.ObjectGraph graph) {
+    ConstraintTestTools.TestCase testCase = new ConstraintTestTools.TestCase();
+    testCase.name = name;
+    testCase.expectedConstraintValid = expected;
+    testCase.objects = graph.objects().stream().map(object -> {
+      ConstraintTestTools.TestObject result = new ConstraintTestTools.TestObject();
+      result.classFqn = object.classFqn();
+      result.oid = object.oid();
+      result.values = object.values();
+      return result;
+    }).toList();
+    testCase.links = graph.links().stream().map(link -> {
+      ConstraintTestTools.TestLink result = new ConstraintTestTools.TestLink();
+      result.associationFqn = link.associationFqn();
+      result.roles = link.roles();
+      return result;
+    }).toList();
+    return testCase;
+  }
+
+  private Map<String, Object> summaryValues(
+      Map<String, Object> assignment,
+      List<NormalizedRow> rows) {
+    Map<String, Object> result = new LinkedHashMap<>();
+    for (String reference : referencedAttributes(rows)) {
+      Object raw = assignment.get(reference);
+      result.put(reference, summaryAssignmentValue(raw, aggregateForAttribute(rows, reference)));
+    }
+    return result;
+  }
+
+  private Object summaryAssignmentValue(@Nullable Object raw, AggregateKind aggregate) {
+    if (raw == null || raw == ConstraintExpressionEngine.Undefined.INSTANCE) {
+      return "UNDEFINED";
+    }
+    if (aggregate == AggregateKind.SUM && raw instanceof Collection<?> collection) {
+      if (collection.isEmpty()) {
+        return "UNDEFINED";
+      }
+      BigDecimal total = BigDecimal.ZERO;
+      for (Object item : collection) {
+        try {
+          total = total.add(item instanceof BigDecimal decimal
+              ? decimal
+              : new BigDecimal(String.valueOf(item)));
+        } catch (NumberFormatException ex) {
+          return String.valueOf(raw);
+        }
+      }
+      return decimal(total);
+    }
+    if (raw instanceof BigDecimal decimal) {
+      return decimal(decimal);
+    }
+    return raw;
+  }
+
+  private List<Map<String, Object>> coverageUnsolved(
+      ConstraintCoveragePlanner.CoveragePlan coverage,
+      ConstraintExpression.IliVersion version) {
+    return coverage.unsolved().stream().map(solution -> {
+      Map<String, Object> item = new LinkedHashMap<>();
+      item.put("goalKind", solution.goal().kind().name());
+      item.put("purpose", solution.goal().reason());
+      item.put("expression", solution.goal().expression().toInterlis(version));
+      item.put("reasonCode", solution.reasonCode());
+      item.put("reason", solution.reason());
+      return item;
+    }).toList();
   }
 
   private List<NormalizedRow> normalizeRows(@Nullable List<DecisionRow> rows) {
@@ -246,11 +365,12 @@ public class ConstraintDecisionTableTools {
         if (aggregate == AggregateKind.SUM && literal.kind() != ValueKind.NUMERIC) {
           throw new IllegalArgumentException("SUM decision conditions require a numeric comparison value.");
         }
-        if (addAttribute != null) {
-          if (aggregate != AggregateKind.SUM || literal.kind() != ValueKind.NUMERIC || !"==".equals(operator)) {
-            throw new IllegalArgumentException(
-                "addAttribute is deliberately limited to aggregate=SUM with numeric operator ==.");
-          }
+        if (addAttribute != null
+            && (aggregate != AggregateKind.SUM
+                || literal.kind() != ValueKind.NUMERIC
+                || !"==".equals(operator))) {
+          throw new IllegalArgumentException(
+              "addAttribute is deliberately limited to aggregate=SUM with numeric operator ==.");
         }
         if (literal.kind() != ValueKind.NUMERIC && !Set.of("==", "!=").contains(operator)) {
           throw new IllegalArgumentException(
@@ -287,7 +407,7 @@ public class ConstraintDecisionTableTools {
       throw new IllegalArgumentException("Decision-table SUM support currently allows one distinct aggregate path per table.");
     }
     if (addAttributes.size() > 1) {
-      throw new IllegalArgumentException("Decision-table Math.add support currently allows one direct addAttribute per table.");
+      throw new IllegalArgumentException("Decision-table addition support currently allows one direct addAttribute per table.");
     }
   }
 
@@ -404,7 +524,8 @@ public class ConstraintDecisionTableTools {
   }
 
   private ConstraintExpression.FunctionCall standardFunctionCall(
-      String semanticId, ConstraintExpression... arguments) {
+      String semanticId,
+      ConstraintExpression... arguments) {
     StandardFunctionRegistry.StandardFunction function = StandardFunctionRegistry.findBySemanticId(semanticId)
         .orElseThrow(() -> new IllegalStateException("Missing standard function semantics: " + semanticId));
     return new ConstraintExpression.FunctionCall(function.definition(), List.of(arguments));
@@ -441,10 +562,6 @@ public class ConstraintDecisionTableTools {
     return "2.4".equals(matcher.group(1))
         ? ConstraintExpression.IliVersion.ILI_24
         : ConstraintExpression.IliVersion.ILI_23;
-  }
-
-  private String renderCondition(NormalizedCondition condition) {
-    return conditionExpression(condition).toInterlis();
   }
 
   private String renderConstraintBlock(String context, String constraintName, String expression) {
@@ -513,925 +630,6 @@ public class ConstraintDecisionTableTools {
     return text.substring(lineStart, pos);
   }
 
-  private Map<String, AttributeDomain> attributeDomains(
-      Map<String, Object> ast,
-      String modelText,
-      String context,
-      List<NormalizedRow> rows,
-      @Nullable String modelRepositories) {
-    Map<String, Map<String, Object>> directTypes = new LinkedHashMap<>();
-    collectDirectAttributeTypes(map(ast.get("condition")), directTypes);
-    Map<String, AssociationPath> associationPaths = resolveAssociationPaths(
-        modelText, context, referencedAttributes(rows), modelRepositories);
-
-    Map<String, AttributeDomain> result = new LinkedHashMap<>();
-    Map<String, Integer> literalScales = literalScales(rows);
-    for (String attribute : referencedAttributes(rows)) {
-      AggregateKind aggregate = aggregateForAttribute(rows, attribute);
-      int literalScale = literalScales.getOrDefault(attribute, 0);
-
-      if (!attribute.contains("->")) {
-        if (aggregate != AggregateKind.NONE) {
-          continue;
-        }
-        AttributeDomain domain = directDomain(directTypes.get(attribute), literalScale);
-        if (domain != null) {
-          result.put(attribute, domain);
-        }
-        continue;
-      }
-
-      AssociationPath path = associationPaths.get(attribute);
-      if (path == null) {
-        continue;
-      }
-      if (aggregate == AggregateKind.NONE) {
-        if (path.unbounded() || path.maximum() > 1) {
-          continue;
-        }
-        AttributeDomain domain = pathDomain(path, literalScale, AggregateKind.NONE);
-        if (domain != null) {
-          result.put(attribute, domain);
-        }
-      } else if (aggregate == AggregateKind.SUM) {
-        AttributeDomain domain = sumDomain(path, literalScale);
-        if (domain != null) {
-          result.put(attribute, domain);
-        }
-      }
-    }
-    return result;
-  }
-
-  private @Nullable AttributeDomain directDomain(@Nullable Map<String, Object> type, int literalScale) {
-    if (type == null || type.isEmpty()) {
-      return null;
-    }
-    String kind = String.valueOf(type.getOrDefault("kind", ""));
-    if ("NUMERIC".equals(kind)) {
-      return new AttributeDomain(
-          ValueKind.NUMERIC, numericDomain(type, literalScale), List.of(), null, AggregateKind.NONE, null);
-    }
-    if ("BOOLEAN".equals(kind)) {
-      return new AttributeDomain(
-          ValueKind.BOOLEAN, null, List.of("false", "true"), null, AggregateKind.NONE, null);
-    }
-    if ("ENUM".equals(kind)) {
-      return new AttributeDomain(
-          ValueKind.ENUM, null, enumValues(type.get("values")), null, AggregateKind.NONE, null);
-    }
-    return null;
-  }
-
-  private @Nullable AttributeDomain pathDomain(AssociationPath path, int literalScale, AggregateKind aggregate) {
-    Type declared = path.endpointType();
-    Type real = Type.findReal(declared);
-    if (real instanceof NumericType numeric) {
-      NumericDomain numericDomain = numericDomain(numeric, literalScale);
-      return new AttributeDomain(
-          ValueKind.NUMERIC, numericDomain, List.of(), path, aggregate, numericDomain);
-    }
-    if (declared.isBoolean() || real.isBoolean()) {
-      return new AttributeDomain(
-          ValueKind.BOOLEAN, null, List.of("false", "true"), path, aggregate, null);
-    }
-    if (real instanceof EnumerationType enumeration) {
-      return new AttributeDomain(
-          ValueKind.ENUM, null, new ArrayList<>(enumeration.getValues()), path, aggregate, null);
-    }
-    return null;
-  }
-
-  private @Nullable AttributeDomain sumDomain(AssociationPath path, int literalScale) {
-    if ((!path.unbounded() && path.maximum() <= 1) || path.minimum() > 1) {
-      return null;
-    }
-    Type real = Type.findReal(path.endpointType());
-    if (!(real instanceof NumericType numeric)) {
-      return null;
-    }
-    NumericDomain endpoint = numericDomain(numeric, literalScale);
-    if (endpoint.minimum() == null
-        || endpoint.maximum() == null
-        || endpoint.minimum().compareTo(BigDecimal.ZERO) < 0) {
-      return null;
-    }
-
-    int maxObjects = path.effectiveMaximumObjects();
-    BigDecimal aggregateMaximum = endpoint.maximum().multiply(BigDecimal.valueOf(maxObjects));
-    NumericDomain aggregate = new NumericDomain(endpoint.minimum(), aggregateMaximum, endpoint.step());
-    return new AttributeDomain(
-        ValueKind.NUMERIC, aggregate, List.of(), path, AggregateKind.SUM, endpoint);
-  }
-
-  private List<String> enumValues(@Nullable Object rawValues) {
-    List<String> values = new ArrayList<>();
-    if (rawValues instanceof List<?> list) {
-      for (Object raw : list) {
-        String value = String.valueOf(raw);
-        values.add(value.startsWith("#") ? value.substring(1) : value);
-      }
-    }
-    return values;
-  }
-
-  private void collectDirectAttributeTypes(Map<String, Object> node, Map<String, Map<String, Object>> sink) {
-    if (node.isEmpty()) {
-      return;
-    }
-    if ("OBJECT_PATH".equals(node.get("kind")) && !Boolean.TRUE.equals(node.get("collection"))) {
-      List<Map<String, Object>> steps = mapList(node.get("steps"));
-      if (steps.size() == 1 && "ATTRIBUTE".equals(steps.getFirst().get("kind"))) {
-        String name = String.valueOf(steps.getFirst().getOrDefault("name", ""));
-        Map<String, Object> type = map(node.get("type"));
-        if (type.isEmpty()) {
-          type = map(steps.getFirst().get("type"));
-        }
-        if (!name.isBlank()) {
-          sink.putIfAbsent(name, type);
-        }
-      }
-    }
-    collectDirectAttributeTypes(map(node.get("left")), sink);
-    collectDirectAttributeTypes(map(node.get("right")), sink);
-    collectDirectAttributeTypes(map(node.get("operand")), sink);
-    collectDirectAttributeTypes(map(node.get("argument")), sink);
-    collectDirectAttributeTypes(map(node.get("expression")), sink);
-    for (Map<String, Object> child : mapList(node.get("children"))) {
-      collectDirectAttributeTypes(child, sink);
-    }
-  }
-
-  private Map<String, AssociationPath> resolveAssociationPaths(
-      String modelText,
-      String context,
-      Set<String> attributes,
-      @Nullable String modelRepositories) {
-    Set<String> paths = new LinkedHashSet<>();
-    for (String attribute : attributes) {
-      if (attribute.contains("->")) {
-        paths.add(attribute);
-      }
-    }
-    if (paths.isEmpty()) {
-      return Map.of();
-    }
-
-    IliCompilerService.CompilationResult compilation = compilerService.compile(
-        modelText, modelRepositories, "ili2c_constraint_decision_path_");
-    if (!compilation.valid() || compilation.transferDescription() == null) {
-      return Map.of();
-    }
-    TransferDescription td = compilation.transferDescription();
-    Element contextElement = td.getElement(context);
-    if (!(contextElement instanceof Viewable<?> root)) {
-      return Map.of();
-    }
-
-    Map<String, AssociationPath> result = new LinkedHashMap<>();
-    for (String path : paths) {
-      try {
-        ObjectPath objectPath = Ili23Parser.parseObjectOrAttributePath(td, root, path);
-        if (!matchesParsedPath(objectPath, path)) {
-          continue;
-        }
-        PathEl[] elements = objectPath.getPathElements();
-        if (elements.length != 2 || !(elements[1] instanceof AttributeRef attributeRef)) {
-          continue;
-        }
-        RoleDef role;
-        if (elements[0] instanceof PathElAssocRole associationRole) {
-          role = associationRole.getRole();
-        } else if (elements[0] instanceof PathElAbstractClassRole classRole) {
-          role = classRole.getRole();
-        } else {
-          continue;
-        }
-        if (!(role.getContainer() instanceof AssociationDef association)
-            || role.getOppEnd() == null
-            || role.getDestination() == null) {
-          continue;
-        }
-        Cardinality cardinality = role.getCardinality();
-        long minimum = cardinality != null ? cardinality.getMinimum() : 1;
-        boolean unbounded = cardinality != null && cardinality.getMaximum() == Cardinality.UNBOUND;
-        long maximum = cardinality != null ? cardinality.getMaximum() : 1;
-        result.put(path, new AssociationPath(
-            association.getScopedName(null),
-            role.getName(),
-            role.getOppEnd().getName(),
-            role.getDestination().getScopedName(null),
-            attributeRef.getAttr().getName(),
-            attributeRef.getAttr().getDomainOrDerivedDomain(),
-            minimum,
-            maximum,
-            unbounded));
-      } catch (Exception ignore) {
-      }
-    }
-    return result;
-  }
-
-  private boolean matchesParsedPath(ObjectPath objectPath, String path) {
-    if (objectPath == null || objectPath.isDirty()) {
-      return false;
-    }
-    String[] segments = path.split("->", -1);
-    PathEl[] parsedElements = objectPath.getPathElements();
-    if (parsedElements == null || parsedElements.length != segments.length) {
-      return false;
-    }
-    for (int i = 0; i < segments.length; i++) {
-      if (parsedElements[i] == null || !segments[i].trim().equals(parsedElements[i].getName())) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  private @Nullable String validateConditionDomains(
-      List<NormalizedRow> rows, Map<String, AttributeDomain> domains) {
-    for (NormalizedRow row : rows) {
-      for (NormalizedCondition condition : row.conditions()) {
-        AttributeDomain domain = domains.get(condition.attribute());
-        if (domain == null || domain.aggregate() != condition.aggregate()) {
-          return "Decision condition '" + renderCondition(condition)
-              + "' does not match the model attribute/path aggregate semantics.";
-        }
-        if (condition.defined() != null) {
-          if (domain.aggregate() != AggregateKind.SUM || domain.associationPath() == null) {
-            return "DEFINED/NOT DEFINED requires a resolved SUM association path.";
-          }
-          if (!condition.defined() && domain.associationPath().minimum() > 0) {
-            return "NOT DEFINED(SUM) is impossible because the association path requires at least one target object.";
-          }
-          continue;
-        }
-        if (condition.addAttribute() != null) {
-          AttributeDomain addDomain = domains.get(condition.addAttribute());
-          if (domain.kind() != ValueKind.NUMERIC
-              || domain.aggregate() != AggregateKind.SUM
-              || addDomain == null
-              || addDomain.kind() != ValueKind.NUMERIC
-              || addDomain.aggregate() != AggregateKind.NONE
-              || condition.literal() == null
-              || condition.literal().kind() != ValueKind.NUMERIC) {
-            return "Math.add(SUM, addAttribute) requires a NUMERIC SUM path and a direct NUMERIC addAttribute.";
-          }
-          continue;
-        }
-        if (condition.literal() == null || domain.kind() != condition.literal().kind()) {
-          return "Decision condition '" + renderCondition(condition) + "' does not match the model attribute/path type.";
-        }
-        if (domain.kind() == ValueKind.ENUM
-            && !domain.values().contains(String.valueOf(condition.literal().value()))) {
-          return "Enum value '" + condition.literal().value() + "' is not declared for attribute/path '"
-              + condition.attribute() + "'.";
-        }
-      }
-    }
-    return null;
-  }
-
-  private BoundaryGeneration generateBoundaryCases(
-      String context,
-      List<NormalizedRow> rows,
-      Map<String, AttributeDomain> domains) {
-    List<Candidate> candidates = new ArrayList<>();
-
-    for (NormalizedRow row : rows) {
-      Map<String, Object> baseline = representative(row, domains);
-      if (baseline == null) {
-        return BoundaryGeneration.unavailable(
-            "UNSATISFIABLE_DECISION_ROW",
-            "No in-domain assignment satisfies allowed decision row '" + row.name() + "'.");
-      }
-      candidates.add(new Candidate("ROW_WITNESS", row.name(), baseline));
-
-      for (NormalizedCondition condition : row.conditions()) {
-        AttributeDomain domain = domains.get(condition.attribute());
-        for (BoundaryValue boundary : boundaryValues(condition, domain)) {
-          Map<String, Object> values = new LinkedHashMap<>(baseline);
-          values.put(condition.attribute(), boundary.value());
-          if (allValuesInDomain(values, domains)) {
-            candidates.add(new Candidate(
-                boundary.purpose(), row.name() + ": " + renderCondition(condition), values));
-          }
-        }
-      }
-    }
-
-    return buildCases(context, rows, domains, candidates, null);
-  }
-
-  private BoundaryGeneration generateSumAddPresenceCases(
-      String context,
-      SumAddPresencePattern pattern,
-      Map<String, AttributeDomain> domains) {
-    AttributeDomain sumDomain = domains.get(pattern.sumPath());
-    AttributeDomain directDomain = domains.get(pattern.directAttribute());
-    if (sumDomain == null
-        || directDomain == null
-        || sumDomain.kind() != ValueKind.NUMERIC
-        || directDomain.kind() != ValueKind.NUMERIC
-        || sumDomain.numeric() == null
-        || directDomain.numeric() == null
-        || sumDomain.associationPath() == null
-        || sumDomain.endpointNumeric() == null) {
-      return BoundaryGeneration.unavailable(
-          "SUM_ADD_DOMAIN_UNAVAILABLE",
-          "The supported SUM + direct attribute pattern requires resolved bounded numeric domains.");
-    }
-
-    NumericDomain sumNumeric = sumDomain.numeric();
-    NumericDomain directNumeric = directDomain.numeric();
-    BigDecimal target = pattern.target();
-    if (!directNumeric.contains(target)) {
-      return BoundaryGeneration.unavailable(
-          "SUM_ADD_TARGET_OUTSIDE_DIRECT_DOMAIN",
-          "The no-secondary branch requires the target to be valid for the direct attribute.");
-    }
-
-    List<Candidate> candidates = new ArrayList<>();
-    candidates.add(new Candidate(
-        "UNDEFINED_SUM_WITNESS",
-        "NOT DEFINED(SUM) with direct attribute at target",
-        values(pattern, UndefinedValue.INSTANCE, target)));
-
-    BigDecimal directOff = adjacentValue(target, directNumeric, false);
-    if (directOff != null) {
-      candidates.add(new Candidate(
-          "UNDEFINED_SUM_DIRECT_OFF_BY_ONE",
-          "NOT DEFINED(SUM) with direct attribute next to target",
-          values(pattern, UndefinedValue.INSTANCE, directOff)));
-    }
-
-    SumAddWitness witness = sumAddWitness(target, sumNumeric, directNumeric, sumDomain.endpointNumeric(), sumDomain.associationPath());
-    if (witness == null) {
-      return BoundaryGeneration.unavailable(
-          "SUM_ADD_WITNESS_UNAVAILABLE",
-          "No representable positive SUM plus direct attribute assignment reaches the target.");
-    }
-    candidates.add(new Candidate(
-        "DEFINED_SUM_ADD_WITNESS",
-        "DEFINED(SUM) and Math.add(SUM, direct) at target",
-        values(pattern, witness.sum(), witness.direct())));
-
-    BigDecimal belowSum = witness.sum().subtract(sumNumeric.step());
-    if (belowSum.compareTo(BigDecimal.ZERO) >= 0 && sumNumeric.contains(belowSum)) {
-      candidates.add(new Candidate(
-          "SUM_ADD_BELOW_TARGET",
-          "DEFINED(SUM) with combined value one precision step below target",
-          values(pattern, belowSum, witness.direct())));
-    }
-    BigDecimal aboveSum = witness.sum().add(sumNumeric.step());
-    if (sumNumeric.contains(aboveSum)) {
-      candidates.add(new Candidate(
-          "SUM_ADD_ABOVE_TARGET",
-          "DEFINED(SUM) with combined value one precision step above target",
-          values(pattern, aboveSum, witness.direct())));
-    }
-
-    BigDecimal positiveProbe = positiveAggregateProbe(sumNumeric, sumDomain.endpointNumeric(), sumDomain.associationPath());
-    if (positiveProbe != null) {
-      candidates.add(new Candidate(
-          "DEFINED_SUM_WITH_FULL_DIRECT_TARGET",
-          "SUM becomes defined while the direct attribute remains at the no-secondary target",
-          values(pattern, positiveProbe, target)));
-    }
-
-    return buildCases(context, null, domains, candidates, pattern);
-  }
-
-  private Map<String, Object> values(SumAddPresencePattern pattern, Object sum, BigDecimal direct) {
-    Map<String, Object> values = new LinkedHashMap<>();
-    values.put(pattern.sumPath(), sum);
-    values.put(pattern.directAttribute(), direct);
-    return values;
-  }
-
-  private @Nullable BigDecimal adjacentValue(BigDecimal value, NumericDomain domain, boolean abovePreferred) {
-    BigDecimal below = value.subtract(domain.step());
-    BigDecimal above = value.add(domain.step());
-    if (abovePreferred && domain.contains(above)) {
-      return above;
-    }
-    if (domain.contains(below)) {
-      return below;
-    }
-    return domain.contains(above) ? above : null;
-  }
-
-  private @Nullable SumAddWitness sumAddWitness(
-      BigDecimal target,
-      NumericDomain sumDomain,
-      NumericDomain directDomain,
-      NumericDomain endpoint,
-      AssociationPath path) {
-    LinkedHashSet<BigDecimal> sumCandidates = new LinkedHashSet<>();
-    int scale = Math.max(sumDomain.step().scale(), directDomain.step().scale());
-    sumCandidates.add(target.multiply(new BigDecimal("0.4")).setScale(scale, RoundingMode.HALF_UP));
-    sumCandidates.add(target.multiply(new BigDecimal("0.5")).setScale(scale, RoundingMode.HALF_UP));
-    sumCandidates.add(sumDomain.step());
-    if (endpoint.maximum() != null) {
-      sumCandidates.add(endpoint.maximum().min(target));
-    }
-
-    for (BigDecimal sum : sumCandidates) {
-      if (sum.compareTo(BigDecimal.ZERO) <= 0 || !sumDomain.contains(sum)) {
-        continue;
-      }
-      BigDecimal direct = target.subtract(sum);
-      if (!directDomain.contains(direct)) {
-        continue;
-      }
-      if (!aggregateTerms(sum, endpoint, path).isEmpty()) {
-        return new SumAddWitness(sum, direct);
-      }
-    }
-    return null;
-  }
-
-  private @Nullable BigDecimal positiveAggregateProbe(
-      NumericDomain sumDomain,
-      NumericDomain endpoint,
-      AssociationPath path) {
-    LinkedHashSet<BigDecimal> candidates = new LinkedHashSet<>();
-    candidates.add(sumDomain.step());
-    if (endpoint.minimum() != null && endpoint.minimum().compareTo(BigDecimal.ZERO) > 0) {
-      candidates.add(endpoint.minimum());
-    }
-    if (endpoint.maximum() != null) {
-      candidates.add(endpoint.maximum().min(BigDecimal.ONE.max(sumDomain.step())));
-    }
-    for (BigDecimal candidate : candidates) {
-      if (candidate.compareTo(BigDecimal.ZERO) > 0
-          && sumDomain.contains(candidate)
-          && !aggregateTerms(candidate, endpoint, path).isEmpty()) {
-        return candidate;
-      }
-    }
-    return null;
-  }
-
-  private BoundaryGeneration buildCases(
-      String context,
-      @Nullable List<NormalizedRow> rows,
-      Map<String, AttributeDomain> domains,
-      List<Candidate> rawCandidates,
-      @Nullable SumAddPresencePattern pattern) {
-    Map<String, Candidate> unique = new LinkedHashMap<>();
-    for (Candidate candidate : rawCandidates) {
-      unique.putIfAbsent(candidateKey(candidate.values()), candidate);
-    }
-
-    List<ConstraintTestTools.TestCase> cases = new ArrayList<>();
-    List<Map<String, Object>> summaries = new ArrayList<>();
-    int index = 1;
-    for (Candidate candidate : unique.values()) {
-      boolean expectedValid = pattern != null
-          ? sumAddPatternMatches(pattern, candidate.values())
-          : tableMatches(rows, candidate.values());
-      Fixture fixture = fixture(context, candidate.values(), domains, index);
-      if (fixture == null) {
-        return BoundaryGeneration.unavailable(
-            "AGGREGATE_FIXTURE_UNAVAILABLE",
-            "A derived SUM value could not be represented with the supported association target objects.");
-      }
-
-      ConstraintTestTools.TestCase testCase = new ConstraintTestTools.TestCase();
-      testCase.name = "boundary " + index + " - " + candidate.purpose();
-      testCase.expectedConstraintValid = expectedValid;
-      testCase.objects = fixture.objects();
-      testCase.links = fixture.links();
-      cases.add(testCase);
-
-      Map<String, Object> summaryValues = new LinkedHashMap<>();
-      candidate.values().forEach((attribute, value) -> summaryValues.put(attribute, fixtureValue(value)));
-      Map<String, Object> summary = new LinkedHashMap<>();
-      summary.put("name", testCase.name);
-      summary.put("purpose", candidate.purpose());
-      summary.put("source", candidate.source());
-      summary.put("values", summaryValues);
-      summary.put("expectedConstraintValid", expectedValid);
-      summary.put("objectCount", fixture.objects().size());
-      summary.put("associationLinkCount", fixture.links().size());
-      summaries.add(summary);
-      index++;
-    }
-
-    if (cases.isEmpty()) {
-      return BoundaryGeneration.unavailable(
-          "NO_BOUNDARY_CASES", "No in-domain boundary/category cases could be derived from the decision table.");
-    }
-    return new BoundaryGeneration(true, cases, summaries, "", "");
-  }
-
-  private boolean sumAddPatternMatches(SumAddPresencePattern pattern, Map<String, Object> values) {
-    Object rawSum = values.get(pattern.sumPath());
-    Object rawDirect = values.get(pattern.directAttribute());
-    if (!(rawDirect instanceof BigDecimal direct)) {
-      return false;
-    }
-    boolean defined = rawSum instanceof BigDecimal;
-    boolean withSecondary = defined
-        && ((BigDecimal) rawSum).add(direct).compareTo(pattern.target()) == 0;
-    boolean withoutSecondary = !defined && direct.compareTo(pattern.target()) == 0;
-    return withSecondary || withoutSecondary;
-  }
-
-  private @Nullable Fixture fixture(
-      String context,
-      Map<String, Object> values,
-      Map<String, AttributeDomain> domains,
-      int caseIndex) {
-    String rootOid = "decision_case_" + caseIndex + "_root";
-    ConstraintTestTools.TestObject root = new ConstraintTestTools.TestObject();
-    root.classFqn = context;
-    root.oid = rootOid;
-    Map<String, Object> rootValues = new LinkedHashMap<>();
-    root.values = rootValues;
-
-    Map<String, TargetFixture> singleTargets = new LinkedHashMap<>();
-    List<TargetFixture> aggregateTargets = new ArrayList<>();
-    for (Map.Entry<String, Object> entry : values.entrySet()) {
-      AttributeDomain domain = domains.get(entry.getKey());
-      if (domain == null) {
-        return null;
-      }
-      if (domain.associationPath() == null) {
-        if (entry.getValue() != UndefinedValue.INSTANCE) {
-          rootValues.put(entry.getKey(), fixtureValue(entry.getValue()));
-        }
-        continue;
-      }
-      AssociationPath path = domain.associationPath();
-      if (domain.aggregate() == AggregateKind.SUM) {
-        if (entry.getValue() == UndefinedValue.INSTANCE) {
-          if (path.minimum() > 0) {
-            return null;
-          }
-          continue;
-        }
-        if (!(entry.getValue() instanceof BigDecimal total) || domain.endpointNumeric() == null) {
-          return null;
-        }
-        List<BigDecimal> terms = aggregateTerms(total, domain.endpointNumeric(), path);
-        if (terms.isEmpty()) {
-          return null;
-        }
-        for (int i = 0; i < terms.size(); i++) {
-          Map<String, Object> targetValues = new LinkedHashMap<>();
-          targetValues.put(path.targetAttribute(), fixtureValue(terms.get(i)));
-          aggregateTargets.add(new TargetFixture(
-              path, "decision_case_" + caseIndex + "_sum_" + (i + 1), targetValues));
-        }
-      } else {
-        String targetKey = path.associationFqn() + "|" + path.roleName();
-        TargetFixture target = singleTargets.computeIfAbsent(targetKey, key -> new TargetFixture(
-            path,
-            "decision_case_" + caseIndex + "_path_" + (singleTargets.size() + 1),
-            new LinkedHashMap<>()));
-        target.values().put(path.targetAttribute(), fixtureValue(entry.getValue()));
-      }
-    }
-
-    List<ConstraintTestTools.TestObject> objects = new ArrayList<>();
-    objects.add(root);
-    List<ConstraintTestTools.TestLink> links = new ArrayList<>();
-    for (TargetFixture target : singleTargets.values()) {
-      addTargetFixture(objects, links, target, rootOid);
-    }
-    for (TargetFixture target : aggregateTargets) {
-      addTargetFixture(objects, links, target, rootOid);
-    }
-    return new Fixture(objects, links);
-  }
-
-  private void addTargetFixture(
-      List<ConstraintTestTools.TestObject> objects,
-      List<ConstraintTestTools.TestLink> links,
-      TargetFixture target,
-      String rootOid) {
-    ConstraintTestTools.TestObject targetObject = new ConstraintTestTools.TestObject();
-    targetObject.classFqn = target.path().targetClassFqn();
-    targetObject.oid = target.oid();
-    targetObject.values = target.values();
-    objects.add(targetObject);
-
-    ConstraintTestTools.TestLink link = new ConstraintTestTools.TestLink();
-    link.associationFqn = target.path().associationFqn();
-    link.roles = Map.of(
-        target.path().roleName(), target.oid(),
-        target.path().oppositeRoleName(), rootOid);
-    links.add(link);
-  }
-
-  private List<BigDecimal> aggregateTerms(BigDecimal total, NumericDomain endpoint, AssociationPath path) {
-    int maximumObjects = path.effectiveMaximumObjects();
-    int firstCount = maximumObjects > 1 ? 2 : 1;
-    for (int count = firstCount; count <= maximumObjects; count++) {
-      List<BigDecimal> terms = distributeAggregate(total, endpoint, count);
-      if (!terms.isEmpty()) {
-        return terms;
-      }
-    }
-    if (firstCount > 1) {
-      return distributeAggregate(total, endpoint, 1);
-    }
-    return List.of();
-  }
-
-  private List<BigDecimal> distributeAggregate(BigDecimal total, NumericDomain endpoint, int count) {
-    BigDecimal base = endpoint.minimum() != null
-        ? endpoint.minimum()
-        : BigDecimal.ZERO.setScale(endpoint.step().scale());
-    BigDecimal maximum = endpoint.maximum();
-    if (base.compareTo(BigDecimal.ZERO) < 0 || maximum == null) {
-      return List.of();
-    }
-
-    BigDecimal remaining = total.subtract(base.multiply(BigDecimal.valueOf(count)));
-    if (remaining.compareTo(BigDecimal.ZERO) < 0) {
-      return List.of();
-    }
-
-    List<BigDecimal> terms = new ArrayList<>();
-    for (int i = 0; i < count; i++) {
-      BigDecimal capacity = maximum.subtract(base);
-      BigDecimal addition = remaining.min(capacity);
-      BigDecimal value = base.add(addition);
-      terms.add(value);
-      remaining = remaining.subtract(addition);
-    }
-    if (remaining.compareTo(BigDecimal.ZERO) != 0
-        || terms.stream().anyMatch(value -> !endpoint.contains(value))) {
-      return List.of();
-    }
-    return terms;
-  }
-
-  private @Nullable Map<String, Object> representative(
-      NormalizedRow row, Map<String, AttributeDomain> domains) {
-    Map<String, Object> result = new LinkedHashMap<>();
-    domains.forEach((attribute, domain) -> result.put(attribute, defaultValue(domain)));
-
-    Map<String, List<NormalizedCondition>> byAttribute = new LinkedHashMap<>();
-    for (NormalizedCondition condition : row.conditions()) {
-      byAttribute.computeIfAbsent(condition.attribute(), key -> new ArrayList<>()).add(condition);
-    }
-
-    for (Map.Entry<String, List<NormalizedCondition>> entry : byAttribute.entrySet()) {
-      AttributeDomain domain = domains.get(entry.getKey());
-      if (domain == null) {
-        return null;
-      }
-      Object selected = switch (domain.kind()) {
-        case NUMERIC -> numericRepresentative(entry.getValue(), domain.numeric());
-        case BOOLEAN -> List.of(false, true).stream()
-            .filter(value -> entry.getValue().stream().allMatch(condition -> matches(condition, value)))
-            .findFirst()
-            .orElse(null);
-        case ENUM -> domain.values().stream()
-            .filter(value -> entry.getValue().stream().allMatch(condition -> matches(condition, value)))
-            .findFirst()
-            .orElse(null);
-      };
-      if (selected == null) {
-        return null;
-      }
-      result.put(entry.getKey(), selected);
-    }
-    return result;
-  }
-
-  private @Nullable BigDecimal numericRepresentative(
-      List<NormalizedCondition> conditions, NumericDomain domain) {
-    LinkedHashSet<BigDecimal> candidates = new LinkedHashSet<>();
-    for (NormalizedCondition condition : conditions) {
-      if (condition.literal() == null) {
-        return null;
-      }
-      BigDecimal literal = (BigDecimal) condition.literal().value();
-      candidates.add(literal);
-      candidates.add(literal.subtract(domain.step()));
-      candidates.add(literal.add(domain.step()));
-    }
-    if (domain.minimum() != null) {
-      candidates.add(domain.minimum());
-    }
-    if (domain.maximum() != null) {
-      candidates.add(domain.maximum());
-    }
-    if (domain.minimum() != null && domain.maximum() != null) {
-      candidates.add(domain.minimum().add(domain.maximum())
-          .divide(BigDecimal.valueOf(2), domain.step().scale(), RoundingMode.HALF_UP));
-    }
-    candidates.add(BigDecimal.ZERO.setScale(domain.step().scale()));
-
-    return candidates.stream()
-        .filter(domain::contains)
-        .filter(value -> conditions.stream().allMatch(condition -> matches(condition, value)))
-        .findFirst()
-        .orElse(null);
-  }
-
-  private Object defaultValue(AttributeDomain domain) {
-    return switch (domain.kind()) {
-      case NUMERIC -> defaultNumericValue(domain.numeric());
-      case BOOLEAN -> false;
-      case ENUM -> domain.values().isEmpty() ? "" : domain.values().getFirst();
-    };
-  }
-
-  private BigDecimal defaultNumericValue(@Nullable NumericDomain domain) {
-    if (domain == null) {
-      return BigDecimal.ZERO;
-    }
-    BigDecimal zero = BigDecimal.ZERO.setScale(domain.step().scale());
-    if (domain.contains(zero)) {
-      return zero;
-    }
-    if (domain.minimum() != null) {
-      return domain.minimum();
-    }
-    if (domain.maximum() != null) {
-      return domain.maximum();
-    }
-    return zero;
-  }
-
-  private List<BoundaryValue> boundaryValues(NormalizedCondition condition, AttributeDomain domain) {
-    if (condition.literal() == null || condition.operator() == null) {
-      return List.of();
-    }
-    if (domain.kind() == ValueKind.BOOLEAN) {
-      return List.of(new BoundaryValue("BOOLEAN_FALSE", false), new BoundaryValue("BOOLEAN_TRUE", true));
-    }
-    if (domain.kind() == ValueKind.ENUM) {
-      return domain.values().stream().map(value -> new BoundaryValue("ENUM_VALUE", value)).toList();
-    }
-
-    NumericDomain numeric = domain.numeric();
-    BigDecimal literal = (BigDecimal) condition.literal().value();
-    BigDecimal below = literal.subtract(numeric.step());
-    BigDecimal above = literal.add(numeric.step());
-    List<BoundaryValue> result = new ArrayList<>();
-    switch (condition.operator()) {
-      case "==" -> {
-        addIfInDomain(result, numeric, "AT_EQUALITY", literal);
-        if (numeric.contains(below)) {
-          result.add(new BoundaryValue("BELOW_EQUALITY", below));
-        } else {
-          addIfInDomain(result, numeric, "ABOVE_EQUALITY", above);
-        }
-      }
-      case "!=" -> {
-        addIfInDomain(result, numeric, "AT_EXCLUDED_VALUE", literal);
-        if (numeric.contains(below)) {
-          result.add(new BoundaryValue("BELOW_EXCLUDED_VALUE", below));
-        } else {
-          addIfInDomain(result, numeric, "ABOVE_EXCLUDED_VALUE", above);
-        }
-      }
-      case "<" -> {
-        addIfInDomain(result, numeric, "JUST_BELOW_UPPER_BOUND", below);
-        addIfInDomain(result, numeric, "AT_EXCLUSIVE_UPPER_BOUND", literal);
-      }
-      case "<=" -> {
-        addIfInDomain(result, numeric, "AT_INCLUSIVE_UPPER_BOUND", literal);
-        addIfInDomain(result, numeric, "JUST_ABOVE_UPPER_BOUND", above);
-      }
-      case ">" -> {
-        addIfInDomain(result, numeric, "AT_EXCLUSIVE_LOWER_BOUND", literal);
-        addIfInDomain(result, numeric, "JUST_ABOVE_LOWER_BOUND", above);
-      }
-      case ">=" -> {
-        addIfInDomain(result, numeric, "JUST_BELOW_LOWER_BOUND", below);
-        addIfInDomain(result, numeric, "AT_INCLUSIVE_LOWER_BOUND", literal);
-      }
-      default -> {
-      }
-    }
-    return result;
-  }
-
-  private void addIfInDomain(List<BoundaryValue> sink, NumericDomain domain, String purpose, BigDecimal value) {
-    if (domain.contains(value)) {
-      sink.add(new BoundaryValue(purpose, value));
-    }
-  }
-
-  private boolean tableMatches(@Nullable List<NormalizedRow> rows, Map<String, Object> values) {
-    return rows != null && rows.stream().anyMatch(row -> row.conditions().stream()
-        .allMatch(condition -> values.containsKey(condition.attribute())
-            && matches(condition, values.get(condition.attribute()))));
-  }
-
-  private boolean matches(NormalizedCondition condition, Object actual) {
-    if (condition.literal() == null || condition.operator() == null) {
-      return false;
-    }
-    Literal literal = condition.literal();
-    if (literal.kind() == ValueKind.NUMERIC) {
-      if (!(actual instanceof BigDecimal number)) {
-        return false;
-      }
-      int cmp = number.compareTo((BigDecimal) literal.value());
-      return switch (condition.operator()) {
-        case "==" -> cmp == 0;
-        case "!=" -> cmp != 0;
-        case "<" -> cmp < 0;
-        case "<=" -> cmp <= 0;
-        case ">" -> cmp > 0;
-        case ">=" -> cmp >= 0;
-        default -> false;
-      };
-    }
-    boolean equal = literal.value().equals(actual);
-    return "==".equals(condition.operator()) ? equal : !equal;
-  }
-
-  private boolean allValuesInDomain(Map<String, Object> values, Map<String, AttributeDomain> domains) {
-    for (Map.Entry<String, Object> entry : values.entrySet()) {
-      AttributeDomain domain = domains.get(entry.getKey());
-      if (domain == null) {
-        return false;
-      }
-      if (entry.getValue() == UndefinedValue.INSTANCE) {
-        if (domain.aggregate() != AggregateKind.SUM
-            || domain.associationPath() == null
-            || domain.associationPath().minimum() > 0) {
-          return false;
-        }
-        continue;
-      }
-      if (domain.kind() == ValueKind.NUMERIC) {
-        if (!(entry.getValue() instanceof BigDecimal number)
-            || domain.numeric() == null
-            || !domain.numeric().contains(number)) {
-          return false;
-        }
-      } else if (domain.kind() == ValueKind.BOOLEAN) {
-        if (!(entry.getValue() instanceof Boolean)) {
-          return false;
-        }
-      } else if (!domain.values().contains(String.valueOf(entry.getValue()))) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  private NumericDomain numericDomain(Map<String, Object> type, int literalScale) {
-    String typeText = String.valueOf(type.getOrDefault("typeText", ""));
-    BigDecimal minimum = null;
-    BigDecimal maximum = null;
-    int scale = Math.max(0, literalScale);
-    int separator = typeText.indexOf("..");
-    if (separator > 0) {
-      try {
-        minimum = new BigDecimal(typeText.substring(0, separator).trim());
-        maximum = new BigDecimal(typeText.substring(separator + 2).trim());
-        scale = Math.max(scale, Math.max(0, minimum.scale()));
-        scale = Math.max(scale, Math.max(0, maximum.scale()));
-      } catch (NumberFormatException ignore) {
-        minimum = null;
-        maximum = null;
-      }
-    }
-    return new NumericDomain(minimum, maximum, BigDecimal.ONE.movePointLeft(scale));
-  }
-
-  private NumericDomain numericDomain(NumericType numeric, int literalScale) {
-    BigDecimal minimum = numeric.getMinimum() != null ? new BigDecimal(numeric.getMinimum().toString()) : null;
-    BigDecimal maximum = numeric.getMaximum() != null ? new BigDecimal(numeric.getMaximum().toString()) : null;
-    int scale = Math.max(0, literalScale);
-    if (minimum != null) {
-      scale = Math.max(scale, Math.max(0, minimum.scale()));
-    }
-    if (maximum != null) {
-      scale = Math.max(scale, Math.max(0, maximum.scale()));
-    }
-    return new NumericDomain(minimum, maximum, BigDecimal.ONE.movePointLeft(scale));
-  }
-
-  private Map<String, Integer> literalScales(List<NormalizedRow> rows) {
-    Map<String, Integer> result = new LinkedHashMap<>();
-    for (NormalizedRow row : rows) {
-      for (NormalizedCondition condition : row.conditions()) {
-        if (condition.literal() != null && condition.literal().kind() == ValueKind.NUMERIC) {
-          BigDecimal value = (BigDecimal) condition.literal().value();
-          result.merge(condition.attribute(), Math.max(0, value.scale()), Math::max);
-          if (condition.addAttribute() != null) {
-            result.merge(condition.addAttribute(), Math.max(0, value.scale()), Math::max);
-          }
-        }
-      }
-    }
-    return result;
-  }
-
   private Set<String> referencedAttributes(List<NormalizedRow> rows) {
     Set<String> result = new LinkedHashSet<>();
     for (NormalizedRow row : rows) {
@@ -1454,74 +652,6 @@ public class ConstraintDecisionTableTools {
       }
     }
     return AggregateKind.NONE;
-  }
-
-  private boolean hasCompositeSemantics(List<NormalizedRow> rows) {
-    return rows.stream().flatMap(row -> row.conditions().stream())
-        .anyMatch(condition -> condition.defined() != null || condition.addAttribute() != null);
-  }
-
-  private @Nullable SumAddPresencePattern sumAddPresencePattern(List<NormalizedRow> rows) {
-    if (rows.size() != 2) {
-      return null;
-    }
-    for (NormalizedRow definedRow : rows) {
-      NormalizedRow undefinedRow = rows.getFirst() == definedRow ? rows.getLast() : rows.getFirst();
-      if (definedRow.conditions().size() != 2 || undefinedRow.conditions().size() != 2) {
-        continue;
-      }
-      NormalizedCondition defined = definedRow.conditions().stream()
-          .filter(condition -> Boolean.TRUE.equals(condition.defined()))
-          .findFirst().orElse(null);
-      NormalizedCondition add = definedRow.conditions().stream()
-          .filter(condition -> condition.addAttribute() != null)
-          .findFirst().orElse(null);
-      NormalizedCondition notDefined = undefinedRow.conditions().stream()
-          .filter(condition -> Boolean.FALSE.equals(condition.defined()))
-          .findFirst().orElse(null);
-      NormalizedCondition direct = undefinedRow.conditions().stream()
-          .filter(condition -> condition.defined() == null && condition.addAttribute() == null)
-          .findFirst().orElse(null);
-      if (defined == null || add == null || notDefined == null || direct == null) {
-        continue;
-      }
-      if (defined.aggregate() != AggregateKind.SUM
-          || notDefined.aggregate() != AggregateKind.SUM
-          || add.aggregate() != AggregateKind.SUM
-          || direct.aggregate() != AggregateKind.NONE
-          || !defined.attribute().equals(add.attribute())
-          || !defined.attribute().equals(notDefined.attribute())
-          || !direct.attribute().equals(add.addAttribute())
-          || !"==".equals(add.operator())
-          || !"==".equals(direct.operator())
-          || add.literal() == null
-          || direct.literal() == null
-          || add.literal().kind() != ValueKind.NUMERIC
-          || direct.literal().kind() != ValueKind.NUMERIC) {
-        continue;
-      }
-      BigDecimal target = (BigDecimal) add.literal().value();
-      if (target.compareTo((BigDecimal) direct.literal().value()) != 0) {
-        continue;
-      }
-      return new SumAddPresencePattern(defined.attribute(), add.addAttribute(), target);
-    }
-    return null;
-  }
-
-  private String candidateKey(Map<String, Object> values) {
-    return values.entrySet().stream()
-        .sorted(Map.Entry.comparingByKey())
-        .map(entry -> entry.getKey() + "=" + fixtureValue(entry.getValue()))
-        .reduce((left, right) -> left + "|" + right)
-        .orElse("");
-  }
-
-  private Object fixtureValue(Object value) {
-    if (value == UndefinedValue.INSTANCE) {
-      return "UNDEFINED";
-    }
-    return value instanceof BigDecimal number ? decimal(number) : value;
   }
 
   private String requireContext(@Nullable String context) {
@@ -1628,20 +758,10 @@ public class ConstraintDecisionTableTools {
     return List.of(
         "Decision rows describe allowed combinations only; the generated Mandatory Constraint is their OR-union.",
         "Direct numeric attributes and one single-valued association path Role->Attribute support ==, !=, <, <=, >, >=; BOOLEAN and ENUM endpoints support == and !=.",
-        "aggregate=SUM supports one multi-valued Role->NUMERIC path per table. The endpoint must have a bounded non-negative numeric domain; proof fixtures use at most five linked target objects.",
-        "The additional defined/addAttribute fields deliberately support only the production-shaped pattern DEFINED(SUM) AND Math.add(SUM, direct NUMERIC attribute) == target OR direct attribute == target AND NOT(DEFINED(SUM)).",
-        "For NOT DEFINED(SUM), the proof creates no target objects or association links; for DEFINED(SUM), aggregate totals are distributed over real linked target objects before testIliConstraint validates the XTF.",
-        "Longer paths, arbitrary arithmetic/function expressions, multiple SUM paths, text values and geometry remain unsupported rather than guessed.");
-  }
-
-  @SuppressWarnings("unchecked")
-  private Map<String, Object> map(@Nullable Object value) {
-    return value instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
-  }
-
-  @SuppressWarnings("unchecked")
-  private List<Map<String, Object>> mapList(@Nullable Object value) {
-    return value instanceof List<?> list ? (List<Map<String, Object>>) list : List.of();
+        "aggregate=SUM supports one multi-valued Role->NUMERIC path per table. Boundary totals are solved to concrete collection assignments by the shared ConstraintGoalSolver and materialized as real linked objects by ConstraintModelSynthesizer.",
+        "defined=true/false is limited to aggregate=SUM; addAttribute is limited to aggregate=SUM with numeric ==. Their logical combination is no longer handled by an AFU-specific proof branch but by the same semantic IR evaluator/solver as every other supported table.",
+        "Coverage probes are derived from the semantic expression and bound model domains. Unsolvable finite-domain probes are reported in coverageUnsolved instead of being guessed.",
+        "Longer paths, multiple SUM paths, text decision values and geometry remain unsupported rather than guessed.");
   }
 
   private enum ValueKind {
@@ -1653,10 +773,6 @@ public class ConstraintDecisionTableTools {
   private enum AggregateKind {
     NONE,
     SUM
-  }
-
-  private enum UndefinedValue {
-    INSTANCE
   }
 
   private record Literal(ValueKind kind, Object value) {
@@ -1674,71 +790,8 @@ public class ConstraintDecisionTableTools {
       @Nullable Literal literal) {
   }
 
-  private record SumAddPresencePattern(String sumPath, String directAttribute, BigDecimal target) {
-  }
-
-  private record SumAddWitness(BigDecimal sum, BigDecimal direct) {
-  }
-
-  private record AssociationPath(
-      String associationFqn,
-      String roleName,
-      String oppositeRoleName,
-      String targetClassFqn,
-      String targetAttribute,
-      Type endpointType,
-      long minimum,
-      long maximum,
-      boolean unbounded) {
-    private int effectiveMaximumObjects() {
-      if (unbounded || maximum > MAX_AGGREGATE_OBJECTS) {
-        return MAX_AGGREGATE_OBJECTS;
-      }
-      return (int) Math.max(1, maximum);
-    }
-  }
-
-  private record AttributeDomain(
-      ValueKind kind,
-      @Nullable NumericDomain numeric,
-      List<String> values,
-      @Nullable AssociationPath associationPath,
-      AggregateKind aggregate,
-      @Nullable NumericDomain endpointNumeric) {
-  }
-
-  private record NumericDomain(
-      @Nullable BigDecimal minimum,
-      @Nullable BigDecimal maximum,
-      BigDecimal step) {
-    private boolean contains(BigDecimal value) {
-      return (minimum == null || value.compareTo(minimum) >= 0)
-          && (maximum == null || value.compareTo(maximum) <= 0);
-    }
-  }
-
-  private record BoundaryValue(String purpose, Object value) {
-  }
-
-  private record Candidate(String purpose, String source, Map<String, Object> values) {
-  }
-
-  private record TargetFixture(AssociationPath path, String oid, Map<String, Object> values) {
-  }
-
-  private record Fixture(
-      List<ConstraintTestTools.TestObject> objects,
-      List<ConstraintTestTools.TestLink> links) {
-  }
-
-  private record BoundaryGeneration(
-      boolean available,
+  private record ProofCases(
       List<ConstraintTestTools.TestCase> cases,
-      List<Map<String, Object>> summaries,
-      String reasonCode,
-      String reason) {
-    private static BoundaryGeneration unavailable(String reasonCode, String reason) {
-      return new BoundaryGeneration(false, List.of(), List.of(), reasonCode, reason);
-    }
+      List<Map<String, Object>> summaries) {
   }
 }
