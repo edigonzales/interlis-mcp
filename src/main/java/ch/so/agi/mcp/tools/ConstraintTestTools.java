@@ -470,8 +470,9 @@ public class ConstraintTestTools {
       if (!(extendable instanceof AttributeDef attribute) || explicitNames.contains(attribute.getName())) {
         continue;
       }
-      Type type = Type.findReal(attribute.getDomainResolvingAll());
-      int minimum = requiredMultiplicity(type);
+      Type declaredType = attribute.getDomainOrDerivedDomain();
+      Type type = Type.findReal(declaredType);
+      int minimum = requiredMultiplicity(declaredType);
       for (int occurrence = 0; occurrence < minimum; occurrence++) {
         applyDefaultMandatoryValue(object, table, attribute, type, objectIndex, occurrence, objectIdsByClass, basketIds);
       }
