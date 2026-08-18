@@ -438,6 +438,9 @@ public class ConstraintTestTools {
       IoxEvent event;
       while ((event = reader.read()) != null) {
         validator.validate(event);
+        if (event instanceof EndTransferEvent) {
+          break;
+        }
       }
     } catch (Exception e) {
       logging.addSyntheticError("Constraint test validation failed: " + e.getMessage());
