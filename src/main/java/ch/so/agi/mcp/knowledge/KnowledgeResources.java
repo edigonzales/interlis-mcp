@@ -88,10 +88,11 @@ public class KnowledgeResources {
 
         ## Constraints und String-Pfade
 
+        - Einen bestehenden Constraint erklaeren oder technisch pruefen: `reviewIliConstraint`. Das Tool liefert den compilerbasierten AST, Kontext, referenzierte Elemente, Funktionen, Pfade, Typen und strukturelle Edge Cases.
         - Bevor du eine Constraint-Funktion aus Trainingswissen annimmst, pruefe sie mit `listConstraintFunctions`. Beachte insbesondere `origin` und die Parameter-`semanticType`.
-        - Hat ein Parameter `semanticType=ATTRIBUTE_PATH`, erfinde den String-Pfad nicht. Pruefe ihn mit `resolveConstraintPath` im konkreten Klassen-/Association-Kontext.
+        - Hat ein Parameter `semanticType=ATTRIBUTE_PATH`, erfinde den String-Pfad nicht. Pruefe ihn mit `resolveConstraintPath` im konkreten Klassen-/Association-Kontext. `reviewIliConstraint` erledigt dies fuer vorhandene Constraints automatisch.
         - `resolveConstraintPath` verwendet dieselbe ili2c-Objekt-/Attributpfad-Syntax, die iox-ili fuer die bekannten Math-Aggregatfunktionen auswertet.
-        - Diese Werkzeuge erklaeren in diesem Schritt Funktion und Pfad. Sie beweisen noch nicht die fachliche Constraint-Logik und erzeugen noch keine Constraint-Testdaten.
+        - `reviewIliConstraint` prueft in diesem Schritt Struktur und aufloesbare Semantik. Es beweist nicht die beabsichtigte fachliche Regel und erzeugt noch keine Constraint-Testdaten, Witnesses oder Counterexamples.
 
         ## Low-Level nur bei gezieltem Bedarf
 
