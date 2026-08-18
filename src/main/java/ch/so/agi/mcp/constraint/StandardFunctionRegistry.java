@@ -201,10 +201,10 @@ public final class StandardFunctionRegistry {
     functions.add(textBinary("MTEXT_COMPARE_IGNORE_CASE", "compareToIgnoreCaseM", MTEXT, NUMERIC));
     functions.add(textBinary("TEXT_CONCAT", "concat", TEXT, TEXT));
     functions.add(textBinary("MTEXT_CONCAT", "concatM", MTEXT, MTEXT));
-    functions.add(textBinary("TEXT_ENDS_WITH", "endsWith", TEXT, BOOLEAN));
-    functions.add(textBinary("MTEXT_ENDS_WITH", "endsWithM", MTEXT, BOOLEAN));
-    functions.add(textBinary("TEXT_EQUALS_IGNORE_CASE", "equalsIgnoreCase", TEXT, BOOLEAN));
-    functions.add(textBinary("MTEXT_EQUALS_IGNORE_CASE", "equalsIgnoreCaseM", MTEXT, BOOLEAN));
+    functions.add(textBinary("TEXT_ENDS_WITH", "endsWith", TEXT, BOOLEAN, "val", "suffix"));
+    functions.add(textBinary("MTEXT_ENDS_WITH", "endsWithM", MTEXT, BOOLEAN, "val", "suffix"));
+    functions.add(textBinary("TEXT_EQUALS_IGNORE_CASE", "equalsIgnoreCase", TEXT, BOOLEAN, "val", "anotherVal"));
+    functions.add(textBinary("MTEXT_EQUALS_IGNORE_CASE", "equalsIgnoreCaseM", MTEXT, BOOLEAN, "val", "anotherVal"));
     functions.add(textIndexed("TEXT_INDEX_OF", "indexOf", TEXT));
     functions.add(textIndexed("MTEXT_INDEX_OF", "indexOfM", MTEXT));
     functions.add(textIndexed("TEXT_LAST_INDEX_OF", "lastIndexOf", TEXT));
