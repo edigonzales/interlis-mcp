@@ -109,7 +109,7 @@ class ConstraintMultiStepObjectGraphTest {
 
     List<Map<String, Object>> generated = list(result.get("generatedCases"));
     Map<String, Object> boundary = generated.stream()
-        .filter(item -> "at comparison value".equals(item.get("reason")))
+        .filter(item -> "at inclusive lower bound".equals(item.get("reason")))
         .findFirst()
         .orElseThrow(() -> new AssertionError("Missing structure boundary witness: " + generated));
     assertEquals(true, boundary.get("expectedConstraintValid"));
