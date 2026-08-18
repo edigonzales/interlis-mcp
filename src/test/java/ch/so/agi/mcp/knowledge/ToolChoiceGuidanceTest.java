@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.analysis.ModelChangeTools;
 import ch.so.agi.mcp.tools.ConstraintReviewTools;
+import ch.so.agi.mcp.tools.ConstraintTestTools;
 import ch.so.agi.mcp.tools.ValidationTools;
 import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,13 @@ class ToolChoiceGuidanceTest {
     assertThat(description(ConstraintReviewTools.class, "reviewIliConstraint"))
         .contains("AST", "Kontext", "Funktionen", "String-Pfade", "Typen", "Edge Cases")
         .contains("keine Testdaten", "Witnesses", "Counterexamples");
+  }
+
+  @Test
+  void constraintTestAdvertisesExplicitCasesAndScopeBoundary() {
+    assertThat(description(ConstraintTestTools.class, "testIliConstraint"))
+        .contains("explizit", "Testfaellen", "minimales XTF", "ilivalidator")
+        .contains("keine Witnesses", "Counterexamples");
   }
 
   @Test
@@ -64,8 +72,9 @@ class ToolChoiceGuidanceTest {
         .contains("kein")
         .contains("zusaetzliches `reviewIliModel`")
         .contains("findSimilarModels", "readModelExample")
-        .contains("reviewIliConstraint", "resolveConstraintPath", "listConstraintFunctions")
-        .contains("keine Constraint-Testdaten", "Witnesses", "Counterexamples")
+        .contains("reviewIliConstraint", "testIliConstraint", "resolveConstraintPath", "listConstraintFunctions")
+        .contains("expectedConstraintValid", "Fixture-Fehler")
+        .contains("erfindet keine Testfaelle", "Witness-/Counterexample-Erzeugung")
         .contains("validateIliModel", "analyzeIliModel", "checkModelingRules")
         .contains("nicht standardmaessig");
   }
