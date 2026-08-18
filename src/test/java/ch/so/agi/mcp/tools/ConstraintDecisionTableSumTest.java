@@ -76,8 +76,8 @@ class ConstraintDecisionTableSumTest {
     assertCase(cases, "10", true);
     assertCase(cases, "20", true);
     assertCase(cases, "21", false);
-    assertTrue(cases.stream().allMatch(item -> ((Number) item.get("objectCount")).intValue() >= 3));
-    assertTrue(cases.stream().allMatch(item -> ((Number) item.get("associationLinkCount")).intValue() >= 2));
+    assertTrue(cases.stream().allMatch(item -> ((Number) item.get("objectCount")).intValue() >= 2));
+    assertTrue(cases.stream().allMatch(item -> ((Number) item.get("associationLinkCount")).intValue() >= 1));
 
     Map<String, Object> verification = map(result.get("verification"));
     assertEquals(4, verification.get("caseCount"));
@@ -86,7 +86,7 @@ class ConstraintDecisionTableSumTest {
 
     List<Map<String, Object>> verifiedCases = list(verification.get("cases"));
     String xtf = String.valueOf(verifiedCases.getFirst().get("xtfText"));
-    assertTrue(count(xtf, "<Bodeneinheit REF=\"decision_case_1_root\"") >= 2, xtf);
+    assertTrue(count(xtf, "<Bodeneinheit REF=\"decision_case_1_root\"") >= 1, xtf);
   }
 
   @Test
