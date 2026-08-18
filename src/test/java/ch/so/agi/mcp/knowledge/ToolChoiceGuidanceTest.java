@@ -52,7 +52,7 @@ class ToolChoiceGuidanceTest {
     assertThat(description(ConstraintDecisionTableTools.class, "generateIliConstraintFromDecisionTable"))
         .contains("Entscheidungstabelle", "Mandatory Constraint", "Boundary-/Kategoriefaelle")
         .contains("AND", "OR", "testIliConstraint", "ilivalidator")
-        .contains("Boolean", "Enum");
+        .contains("BOOLEAN", "ENUM", "SUM", "Association-Pfad");
   }
 
   @Test
@@ -91,6 +91,7 @@ class ToolChoiceGuidanceTest {
         .contains("findSimilarModels", "readModelExample")
         .contains("reviewIliConstraint", "generateIliConstraintFromDecisionTable", "generateIliConstraintCases", "testIliConstraint", "resolveConstraintPath", "listConstraintFunctions")
         .contains("proofVerified=true", "Boolean-/Enum-Kategoriefaelle", "BOOLEAN- und ENUM-Attribute")
+        .contains("aggregate=SUM", "Math.sum", "mehrwertigen")
         .contains("automaticCasesAvailable=false", "Witness", "Counterexample")
         .contains("expectedConstraintValid", "Fixture-Fehler")
         .contains("AND/OR/IMPLIES", "Aggregate")
