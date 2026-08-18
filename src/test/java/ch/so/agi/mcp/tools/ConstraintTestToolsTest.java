@@ -61,6 +61,23 @@ class ConstraintTestToolsTest {
       END SO_AFU_Bodeneinheiten_20251210.
       """;
 
+  private static final String MANDATORY_BOOLEAN_MODEL = """
+      INTERLIS 2.3;
+
+      MODEL ConstraintFixtureModel (en)
+      AT "https://example.org"
+      VERSION "2026-08-18" =
+        TOPIC Data =
+          CLASS Item =
+            value : MANDATORY 0 .. 100;
+            enabled : MANDATORY BOOLEAN;
+            !!@ name = "ValueAtLeast10"
+            MANDATORY CONSTRAINT value >= 10;
+          END Item;
+        END Data;
+      END ConstraintFixtureModel.
+      """;
+
   private static final String MAIN =
       "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.BodeneinheitHauptauspraegung_Wald";
   private static final String SECONDARY =
@@ -120,6 +137,31 @@ class ConstraintTestToolsTest {
     String linkedXtf = String.valueOf(cases.get(1).get("xtfText"));
     assertTrue(linkedXtf.contains("<Bodeneinheit REF=\"main60\""));
     assertFalse(linkedXtf.contains("<" + ASSOCIATION));
+  }
+
+  @Test
+  void autoFillsMandatoryBooleanAliasInFixture() {
+    ConstraintTestTools.TestObject object = new ConstraintTestTools.TestObject();
+    object.classFqn = "ConstraintFixtureModel.Data.Item";
+    object.oid = "item1";
+    object.values = Map.of("value", 10);
+
+    ConstraintTestTools.TestCase testCase = testCase(
+        "mandatory boolean is auto-filled",
+        true,
+        List.of(object),
+        List.of());
+
+    Map<String, Object> result = tools.testIliConstraint(
+        MANDATORY_BOOLEAN_MODEL,
+        "ValueAtLeast10",
+        List.of(testCase),
+        null);
+
+    assertEquals(true, result.get("allPassed"));
+    List<Map<String, Object>> cases = castList(result.get("cases"));
+    assertEquals(true, cases.getFirst().get("fixtureValid"));
+    assertTrue(String.valueOf(cases.getFirst().get("xtfText")).contains("<enabled>false</enabled>"));
   }
 
   private ConstraintTestTools.TestCase testCase(
