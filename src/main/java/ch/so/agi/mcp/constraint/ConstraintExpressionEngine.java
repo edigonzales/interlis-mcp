@@ -4,7 +4,6 @@ import ch.so.agi.mcp.constraint.ConstraintExpression.And;
 import ch.so.agi.mcp.constraint.ConstraintExpression.Attribute;
 import ch.so.agi.mcp.constraint.ConstraintExpression.BooleanLiteral;
 import ch.so.agi.mcp.constraint.ConstraintExpression.Comparison;
-import ch.so.agi.mcp.constraint.ConstraintExpression.ConstraintExpression;
 import ch.so.agi.mcp.constraint.ConstraintExpression.Defined;
 import ch.so.agi.mcp.constraint.ConstraintExpression.EnumLiteral;
 import ch.so.agi.mcp.constraint.ConstraintExpression.FunctionCall;
@@ -93,11 +92,10 @@ public final class ConstraintExpressionEngine {
   public static boolean evaluateConstraint(
       ConstraintExpression expression,
       EvaluationContext context) {
-    Object value = evaluate(expression, context);
-    return Boolean.TRUE.equals(value);
+    return Boolean.TRUE.equals(evaluate(expression, context));
   }
 
-  /** Evaluates any IR expression and returns either a scalar, a collection, or {@link Undefined#INSTANCE}. */
+  /** Evaluates any IR expression and returns a scalar, collection, or {@link Undefined#INSTANCE}. */
   public static Object evaluate(
       ConstraintExpression expression,
       EvaluationContext context) {
@@ -124,7 +122,7 @@ public final class ConstraintExpressionEngine {
 
   /**
    * Derives semantic coverage obligations independently of domains and XTF fixture construction.
-   * Later synthesis stages can solve these goals against model domains/cardinalities.
+   * Later synthesis stages can solve these goals against model domains and cardinalities.
    */
   public static List<TestGoal> testGoals(ConstraintExpression expression) {
     Objects.requireNonNull(expression, "expression");
@@ -392,24 +390,23 @@ public final class ConstraintExpressionEngine {
       return false;
     }
 
-    int cmp;
     if (left instanceof Number && right instanceof Number) {
-      cmp = number(left).compareTo(number(right));
-    } else {
-      boolean equal = Objects.equals(left, right);
+      int cmp = number(left).compareTo(number(right));
       return switch (comparison.operator()) {
-        case EQ -> equal;
-        case NE -> !equal;
-        default -> false;
+        case EQ -> cmp == 0;
+        case NE -> cmp != 0;
+        case LT -> cmp < 0;
+        case LE -> cmp <= 0;
+        case GT -> cmp > 0;
+        case GE -> cmp >= 0;
       };
     }
+
+    boolean equal = Objects.equals(left, right);
     return switch (comparison.operator()) {
-      case EQ -> cmp == 0;
-      case NE -> cmp != 0;
-      case LT -> cmp < 0;
-      case LE -> cmp <= 0;
-      case GT -> cmp > 0;
-      case GE -> cmp >= 0;
+      case EQ -> equal;
+      case NE -> !equal;
+      default -> false;
     };
   }
 
