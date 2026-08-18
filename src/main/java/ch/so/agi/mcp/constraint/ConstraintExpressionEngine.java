@@ -87,11 +87,11 @@ public final class ConstraintExpressionEngine {
   private ConstraintExpressionEngine() {
   }
 
-  /** Evaluates a constraint. Undefined final truth is treated as not satisfied. */
+  /** Evaluates a Mandatory Constraint. Only an explicit false result is a violation. */
   public static boolean evaluateConstraint(
       ConstraintExpression expression,
       EvaluationContext context) {
-    return Boolean.TRUE.equals(evaluate(expression, context));
+    return !Boolean.FALSE.equals(evaluate(expression, context));
   }
 
   /** Evaluates any IR expression and returns a scalar, collection, or {@link Undefined#INSTANCE}. */
@@ -461,7 +461,7 @@ public final class ConstraintExpressionEngine {
     Object left = evaluate(comparison.left(), context);
     Object right = evaluate(comparison.right(), context);
     if (left == Undefined.INSTANCE || right == Undefined.INSTANCE) {
-      return false;
+      return Undefined.INSTANCE;
     }
 
     if (left instanceof Number && right instanceof Number) {
