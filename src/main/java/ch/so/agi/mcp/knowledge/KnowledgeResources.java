@@ -47,7 +47,7 @@ public class KnowledgeResources {
         4. Erstelle oder erweitere das Modell in kleinen, nachvollziehbaren Schritten. Fachliche Entscheidungen nicht erfinden.
         5. Vergleiche bei Aenderungen eines bestehenden Modells Vorher und Nachher mit `reviewIliChange`.
         6. Verwende `afterReview` zusammen mit `afterCompilerValid` und `afterDiagnostics` als Abschlussreview des Nachher-Stands.
-           Fuehre fuer denselben unveraenderten Nachher-Stand nicht zusaetzzlich `reviewIliModel` aus.
+           Fuehre fuer denselben unveraenderten Nachher-Stand nicht zusaetzlich `reviewIliModel` aus.
         7. Behandle Compilerfehler und automatisierte ERROR-Findings vor WARNING/INFO-Findings.
         8. Liste `manualChecks` und `openQuestions` als fachliche Rueckfragen, ohne Kardinalitaeten, Rollen oder Constraints zu erfinden.
         9. Nutze `analyzeIliModel`, `checkModelingRules` und `validateIliModel` nur fuer gezielte Einzeldiagnosen, nicht als Standard-Dreierfolge.
