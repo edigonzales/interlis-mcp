@@ -15,6 +15,8 @@ import ch.interlis.ili2c.metamodel.TransferDescription;
 import ch.interlis.ili2c.metamodel.Type;
 import ch.interlis.ili2c.metamodel.Viewable;
 import ch.interlis.ili2c.parser.Ili23Parser;
+import ch.so.agi.mcp.constraint.ConstraintExpression;
+import ch.so.agi.mcp.constraint.StandardFunctionRegistry;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -38,6 +40,7 @@ public class ConstraintDecisionTableTools {
   private static final Set<String> OPERATORS = Set.of("==", "!=", "<", "<=", ">", ">=");
   private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z][A-Za-z0-9_]*");
   private static final Pattern ENUM_VALUE = Pattern.compile("[A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z][A-Za-z0-9_]*)*");
+  private static final Pattern INTERLIS_VERSION = Pattern.compile("(?m)^\\s*INTERLIS\\s+(2\\.3|2\\.4)\\s*;");
   private static final int MAX_AGGREGATE_OBJECTS = 5;
 
   private final ConstraintReviewTools reviewTools;
@@ -86,7 +89,9 @@ public class ConstraintDecisionTableTools {
     String normalizedConstraintName = requireIdentifier(constraintName, "constraintName");
     List<NormalizedRow> normalizedRows = normalizeRows(rows);
 
-    String expression = renderExpression(normalizedRows);
+    ConstraintExpression.IliVersion version = iliVersion(modelText);
+    ConstraintExpression semanticExpression = decisionTableExpression(normalizedRows);
+    String expression = semanticExpression.toInterlis(version);
     String constraintBlock = renderConstraintBlock(normalizedContext, normalizedConstraintName, expression);
     SumAddPresencePattern sumAddPattern = sumAddPresencePattern(normalizedRows);
     if (hasCompositeSemantics(normalizedRows) && sumAddPattern == null) {
@@ -337,45 +342,109 @@ public class ConstraintDecisionTableTools {
     }
   }
 
-  private String renderExpression(List<NormalizedRow> rows) {
-    List<String> rowExpressions = new ArrayList<>();
-    for (NormalizedRow row : rows) {
-      List<String> conditions = row.conditions().stream().map(this::renderCondition).toList();
-      String expression = String.join(" AND ", conditions);
-      rowExpressions.add(conditions.size() > 1 ? "(" + expression + ")" : expression);
-    }
-    return rowExpressions.size() == 1
-        ? rowExpressions.getFirst()
-        : rowExpressions.stream()
-            .map(expression -> "(" + expression + ")")
-            .reduce((left, right) -> left + " OR " + right)
-            .orElseThrow();
+  private ConstraintExpression decisionTableExpression(List<NormalizedRow> rows) {
+    List<ConstraintExpression> expressions = rows.stream().map(this::rowExpression).toList();
+    return expressions.size() == 1
+        ? expressions.getFirst()
+        : new ConstraintExpression.Or(expressions);
   }
 
-  private String renderCondition(NormalizedCondition condition) {
-    String operand = condition.aggregate() == AggregateKind.SUM
-        ? "Math.sum(\"" + condition.attribute() + "\")"
-        : condition.attribute();
+  private ConstraintExpression rowExpression(NormalizedRow row) {
+    List<ConstraintExpression> expressions = row.conditions().stream()
+        .map(this::conditionExpression)
+        .toList();
+    return expressions.size() == 1
+        ? expressions.getFirst()
+        : new ConstraintExpression.And(expressions);
+  }
+
+  private ConstraintExpression conditionExpression(NormalizedCondition condition) {
+    ConstraintExpression operand = operandExpression(condition);
     if (condition.defined() != null) {
-      return condition.defined()
-          ? "DEFINED(" + operand + ")"
-          : "NOT(DEFINED(" + operand + "))";
+      ConstraintExpression defined = new ConstraintExpression.Defined(operand);
+      return condition.defined() ? defined : new ConstraintExpression.Not(defined);
     }
     if (condition.addAttribute() != null) {
-      operand = "Math.add(" + operand + ", " + condition.addAttribute() + ")";
+      operand = standardFunctionCall(
+          "NUMERIC_ADD",
+          operand,
+          new ConstraintExpression.Attribute(
+              condition.addAttribute(),
+              ConstraintExpression.Type.scalar(ConstraintExpression.ScalarKind.NUMERIC)));
     }
-    return operand + " " + condition.operator() + " " + renderLiteral(condition.literal());
+    return new ConstraintExpression.Comparison(
+        comparisonOperator(condition.operator()),
+        operand,
+        literalExpression(condition.literal()));
   }
 
-  private String renderLiteral(@Nullable Literal literal) {
+  private ConstraintExpression operandExpression(NormalizedCondition condition) {
+    if (condition.aggregate() == AggregateKind.SUM) {
+      ConstraintExpression.Path path = new ConstraintExpression.Path(
+          condition.attribute(),
+          ConstraintExpression.Type.collection(ConstraintExpression.ScalarKind.NUMERIC));
+      return standardFunctionCall("COLLECTION_SUM", path);
+    }
+    ConstraintExpression.Type type = ConstraintExpression.Type.scalar(
+        scalarKind(condition.literal() != null ? condition.literal().kind() : ValueKind.NUMERIC));
+    return condition.attribute().contains("->")
+        ? new ConstraintExpression.Path(condition.attribute(), type)
+        : new ConstraintExpression.Attribute(condition.attribute(), type);
+  }
+
+  private ConstraintExpression literalExpression(@Nullable Literal literal) {
     if (literal == null) {
       throw new IllegalStateException("Comparison literal is missing.");
     }
     return switch (literal.kind()) {
-      case NUMERIC -> decimal((BigDecimal) literal.value());
-      case BOOLEAN -> "#" + literal.value().toString().toLowerCase();
-      case ENUM -> "#" + literal.value();
+      case NUMERIC -> new ConstraintExpression.NumericLiteral((BigDecimal) literal.value());
+      case BOOLEAN -> new ConstraintExpression.BooleanLiteral((Boolean) literal.value());
+      case ENUM -> new ConstraintExpression.EnumLiteral(String.valueOf(literal.value()));
     };
+  }
+
+  private ConstraintExpression.FunctionCall standardFunctionCall(
+      String semanticId, ConstraintExpression... arguments) {
+    StandardFunctionRegistry.StandardFunction function = StandardFunctionRegistry.findBySemanticId(semanticId)
+        .orElseThrow(() -> new IllegalStateException("Missing standard function semantics: " + semanticId));
+    return new ConstraintExpression.FunctionCall(function.definition(), List.of(arguments));
+  }
+
+  private ConstraintExpression.ComparisonOperator comparisonOperator(@Nullable String operator) {
+    if (operator == null) {
+      throw new IllegalStateException("Comparison operator is missing.");
+    }
+    return switch (operator) {
+      case "==" -> ConstraintExpression.ComparisonOperator.EQ;
+      case "!=" -> ConstraintExpression.ComparisonOperator.NE;
+      case "<" -> ConstraintExpression.ComparisonOperator.LT;
+      case "<=" -> ConstraintExpression.ComparisonOperator.LE;
+      case ">" -> ConstraintExpression.ComparisonOperator.GT;
+      case ">=" -> ConstraintExpression.ComparisonOperator.GE;
+      default -> throw new IllegalArgumentException("Unsupported decision-table operator '" + operator + "'.");
+    };
+  }
+
+  private ConstraintExpression.ScalarKind scalarKind(ValueKind kind) {
+    return switch (kind) {
+      case NUMERIC -> ConstraintExpression.ScalarKind.NUMERIC;
+      case BOOLEAN -> ConstraintExpression.ScalarKind.BOOLEAN;
+      case ENUM -> ConstraintExpression.ScalarKind.ENUM;
+    };
+  }
+
+  private ConstraintExpression.IliVersion iliVersion(String modelText) {
+    Matcher matcher = INTERLIS_VERSION.matcher(modelText == null ? "" : modelText);
+    if (!matcher.find()) {
+      throw new IllegalArgumentException("modelText must declare INTERLIS 2.3 or 2.4.");
+    }
+    return "2.4".equals(matcher.group(1))
+        ? ConstraintExpression.IliVersion.ILI_24
+        : ConstraintExpression.IliVersion.ILI_23;
+  }
+
+  private String renderCondition(NormalizedCondition condition) {
+    return conditionExpression(condition).toInterlis();
   }
 
   private String renderConstraintBlock(String context, String constraintName, String expression) {
