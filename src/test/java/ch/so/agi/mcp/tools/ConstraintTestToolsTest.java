@@ -1,6 +1,7 @@
 package ch.so.agi.mcp.tools;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ch.so.agi.mcp.service.IliCompilerService;
@@ -115,7 +116,10 @@ class ConstraintTestToolsTest {
     assertEquals(false, cases.get(2).get("actualConstraintValid"));
     assertEquals(1, ((Number) cases.get(2).get("targetViolationCount")).intValue());
     assertEquals(true, cases.get(2).get("fixtureValid"));
-    assertTrue(String.valueOf(cases.get(1).get("xtfText")).contains("Bodeneinheit_Nebenauspraegungen_Wald"));
+
+    String linkedXtf = String.valueOf(cases.get(1).get("xtfText"));
+    assertTrue(linkedXtf.contains("<Bodeneinheit REF=\"main60\""));
+    assertFalse(linkedXtf.contains("<" + ASSOCIATION));
   }
 
   private ConstraintTestTools.TestCase testCase(
