@@ -1,5 +1,7 @@
 package ch.so.agi.mcp.tools;
 
+import static ch.so.agi.mcp.constraint.ConstraintExpression.ArgumentSemantics.ATTRIBUTE_PATH;
+
 import ch.interlis.ili2c.Ili2cException;
 import ch.interlis.ili2c.metamodel.AttributeDef;
 import ch.interlis.ili2c.metamodel.AttributeRef;
@@ -19,6 +21,10 @@ import ch.interlis.ili2c.metamodel.TransferDescription;
 import ch.interlis.ili2c.metamodel.Type;
 import ch.interlis.ili2c.metamodel.Viewable;
 import ch.interlis.ili2c.parser.Ili23Parser;
+import ch.so.agi.mcp.constraint.ConstraintExpression.IliVersion;
+import ch.so.agi.mcp.constraint.StandardFunctionRegistry;
+import ch.so.agi.mcp.constraint.StandardFunctionRegistry.Family;
+import ch.so.agi.mcp.constraint.StandardFunctionRegistry.StandardFunction;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -36,29 +42,25 @@ public class ConstraintKnowledgeTools {
 
   private static final String ATTRIBUTE_PATH_SEMANTICS = "ILI23_OBJECT_OR_ATTRIBUTE_PATH";
 
-  private final MathTools mathTools;
-  private final TextTools textTools;
   private final IliCompilerService compilerService;
 
   public ConstraintKnowledgeTools(MathTools mathTools, TextTools textTools, IliCompilerService compilerService) {
-    this.mathTools = mathTools;
-    this.textTools = textTools;
     this.compilerService = compilerService;
   }
 
   @McpTool(
       name = "listConstraintFunctions",
-      description = "Listet bekannte Constraint-Funktionen mit Herkunft, Parametern und semantischen Parametertypen. Math/Text stammen aus INTERLIS-Funktionsmodellen; Validator-Extensions und Modellfunktionen werden als eigene Herkunftskategorien unterschieden."
+      description = "Listet bekannte Constraint-Funktionen mit Herkunft, stabiler semantischer ID, Parametern und semantischen Parametertypen. Math/Text stammen aus INTERLIS-Funktionsmodellen; Validator-Extensions und Modellfunktionen werden als eigene Herkunftskategorien unterschieden."
   )
   public Map<String, Object> listConstraintFunctions(
       @McpToolParam(description = "INTERLIS Sprachversion (2.3 oder 2.4)", required = false) @Nullable String iliVersion) {
-    String version = normalizeIliVersion(iliVersion);
+    IliVersion version = normalizeIliVersion(iliVersion);
     List<Map<String, Object>> functions = new ArrayList<>();
-    appendStandardFunctions(functions, mathTools.listMathFunctions(version), "Math");
-    appendStandardFunctions(functions, textTools.listTextFunctions(version), "Text");
+    appendStandardFunctions(functions, StandardFunctionRegistry.functions(Family.MATH), version);
+    appendStandardFunctions(functions, StandardFunctionRegistry.functions(Family.TEXT), version);
 
     return Map.of(
-        "iliVersion", version,
+        "iliVersion", version.text(),
         "functions", functions,
         "constraintLanguage", List.of(
             languageConstruct("DEFINED", "Prueft, ob ein Wert definiert ist."),
@@ -122,29 +124,25 @@ public class ConstraintKnowledgeTools {
     }
   }
 
-  private void appendStandardFunctions(List<Map<String, Object>> target, Map<String, Object> source, String family) {
-    Object entries = source.get("functions");
-    if (!(entries instanceof List<?> list)) {
-      return;
-    }
-    for (Object entry : list) {
-      if (!(entry instanceof Map<?, ?> map)) {
-        continue;
-      }
-      String function = String.valueOf(map.get("function"));
-      String returns = String.valueOf(map.get("returns"));
-      String name = function.substring(0, function.indexOf('('));
-      String sourceModel = name.substring(0, name.indexOf('.'));
-      boolean attributePath = isAttributePathFunction(name);
-
+  private void appendStandardFunctions(
+      List<Map<String, Object>> target,
+      List<StandardFunction> functions,
+      IliVersion version) {
+    for (StandardFunction function : functions) {
       Map<String, Object> item = new LinkedHashMap<>();
-      item.put("name", name);
-      item.put("signature", function + ": " + returns);
-      item.put("family", family);
+      item.put("name", function.qualifiedName(version));
+      item.put("signature", function.signature(version));
+      item.put("family", function.family() == Family.MATH ? "Math" : "Text");
       item.put("origin", "STANDARD_FUNCTION_MODEL");
-      item.put("sourceModel", sourceModel);
-      item.put("returns", returns);
-      item.put("parameters", parseParameters(function, attributePath));
+      item.put("sourceModel", function.modelName(version));
+      item.put("semanticId", function.semanticId());
+      item.put("returns", function.declaredReturnType());
+      item.put("parameters", function.parameters().stream().map(parameter -> Map.<String, Object>of(
+          "name", parameter.name(),
+          "type", parameter.declaredType(),
+          "semanticType", parameter.semantics().name())).toList());
+      boolean attributePath = function.parameters().stream()
+          .anyMatch(parameter -> parameter.semantics() == ATTRIBUTE_PATH);
       if (attributePath) {
         item.put("pathSemantics", ATTRIBUTE_PATH_SEMANTICS);
         item.put("description", "Der attributePath-String wird von iox-ili im aktuellen Objektkontext mit Ili23Parser.parseObjectOrAttributePath geparst.");
@@ -152,30 +150,6 @@ public class ConstraintKnowledgeTools {
       }
       target.add(item);
     }
-  }
-
-  private List<Map<String, Object>> parseParameters(String function, boolean attributePathFunction) {
-    String body = function.substring(function.indexOf('(') + 1, function.lastIndexOf(')')).trim();
-    if (body.isEmpty()) {
-      return List.of();
-    }
-    List<Map<String, Object>> result = new ArrayList<>();
-    for (String raw : body.split(";")) {
-      String parameter = raw.trim();
-      int colon = parameter.indexOf(':');
-      String name = colon >= 0 ? parameter.substring(0, colon).trim() : parameter;
-      String type = colon >= 0 ? parameter.substring(colon + 1).trim() : "";
-      Map<String, Object> item = new LinkedHashMap<>();
-      item.put("name", name);
-      item.put("type", type);
-      item.put("semanticType", attributePathFunction && "attributePath".equals(name) ? "ATTRIBUTE_PATH" : "VALUE");
-      result.add(item);
-    }
-    return result;
-  }
-
-  private boolean isAttributePathFunction(String name) {
-    return name.endsWith(".avg") || name.endsWith(".max2") || name.endsWith(".min2") || name.endsWith(".sum");
   }
 
   private Map<String, Object> languageConstruct(String name, String description) {
@@ -341,12 +315,13 @@ public class ConstraintKnowledgeTools {
     return normalized;
   }
 
-  private String normalizeIliVersion(@Nullable String iliVersion) {
+  private IliVersion normalizeIliVersion(@Nullable String iliVersion) {
     String version = iliVersion == null || iliVersion.isBlank() ? "2.4" : iliVersion.trim();
-    if (!"2.3".equals(version) && !"2.4".equals(version)) {
-      throw new IllegalArgumentException("iliVersion must be '2.3' oder '2.4'.");
-    }
-    return version;
+    return switch (version) {
+      case "2.3" -> IliVersion.ILI_23;
+      case "2.4" -> IliVersion.ILI_24;
+      default -> throw new IllegalArgumentException("iliVersion must be '2.3' oder '2.4'.");
+    };
   }
 
   private record InvalidPathDiagnostic(String failedSegment, int failedSegmentIndex, List<Map<String, Object>> candidates) {
