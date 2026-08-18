@@ -24,6 +24,7 @@ import ch.interlis.ili2c.metamodel.PathElAbstractClassRole;
 import ch.interlis.ili2c.metamodel.PathElAssocRole;
 import ch.interlis.ili2c.metamodel.PathElRefAttr;
 import ch.interlis.ili2c.metamodel.PlausibilityConstraint;
+import ch.interlis.ili2c.metamodel.PredefinedModel;
 import ch.interlis.ili2c.metamodel.ReferenceType;
 import ch.interlis.ili2c.metamodel.RoleDef;
 import ch.interlis.ili2c.metamodel.SetConstraint;
@@ -573,8 +574,10 @@ public class ConstraintReviewTools {
       result.put("kind", "UNKNOWN");
       return result;
     }
+    boolean booleanType = type.isBoolean()
+        || type == PredefinedModel.getInstance().BOOLEAN.getType();
     Type real = type.resolveAliases();
-    if (real.isBoolean()) {
+    if (booleanType) {
       result.put("kind", "BOOLEAN");
       result.put("typeText", "BOOLEAN");
     } else if (real instanceof NumericType numeric) {
