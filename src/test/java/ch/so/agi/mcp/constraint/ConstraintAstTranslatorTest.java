@@ -80,7 +80,7 @@ class ConstraintAstTranslatorTest {
 
           CONSTRAINTS OF AstModel24.Data.Main =
             !!@ name = "NativeAdd"
-            MANDATORY CONSTRAINT A + B == 100;
+            MANDATORY CONSTRAINT (A + B) == 100;
           END;
         END Data;
       END AstModel24.
