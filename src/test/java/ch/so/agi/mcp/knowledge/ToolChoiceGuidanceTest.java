@@ -51,8 +51,9 @@ class ToolChoiceGuidanceTest {
   void decisionTableToolAdvertisesConstraintBoundaryAndCategoryProof() {
     assertThat(description(ConstraintDecisionTableTools.class, "generateIliConstraintFromDecisionTable"))
         .contains("Entscheidungstabelle", "Mandatory Constraint", "Boundary-/Kategoriefaelle")
-        .contains("AND", "OR", "testIliConstraint", "ilivalidator")
-        .contains("BOOLEAN", "ENUM", "SUM", "Association-Pfad");
+        .contains("testIliConstraint", "ilivalidator")
+        .contains("BOOLEAN", "ENUM", "SUM", "Association-Pfad")
+        .contains("DEFINED", "Math.add");
   }
 
   @Test
@@ -92,6 +93,7 @@ class ToolChoiceGuidanceTest {
         .contains("reviewIliConstraint", "generateIliConstraintFromDecisionTable", "generateIliConstraintCases", "testIliConstraint", "resolveConstraintPath", "listConstraintFunctions")
         .contains("proofVerified=true", "Boolean-/Enum-Kategoriefaelle", "BOOLEAN- und ENUM-Attribute")
         .contains("aggregate=SUM", "Math.sum", "mehrwertigen")
+        .contains("defined=true/false", "addAttribute", "Math.add", "NOT(DEFINED")
         .contains("automaticCasesAvailable=false", "Witness", "Counterexample")
         .contains("expectedConstraintValid", "Fixture-Fehler")
         .contains("AND/OR/IMPLIES", "Aggregate")
