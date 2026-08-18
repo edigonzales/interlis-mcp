@@ -1,6 +1,6 @@
 # Agentic INTERLIS MVP Status
 
-_Last updated: 2026-08-18, after consolidating decision-table proof generation and migrating `generateIliConstraintCases` to the shared semantic constraint pipeline._
+_Last updated: 2026-08-18, after consolidating automatic constraint proof generation and adding logical/edge-case coverage._
 
 ## Scope
 
@@ -88,12 +88,21 @@ A model-defined/custom function can be preserved in the IR, but it has no execut
 
 ### Evaluation, test goals and coverage
 
-`ConstraintExpressionEngine` evaluates semantic expressions and models `UNDEFINED` explicitly. `ConstraintCoveragePlanner` derives model-aware probes such as:
+`ConstraintExpressionEngine` evaluates semantic expressions and models `UNDEFINED` explicitly. `ConstraintCoveragePlanner` derives model-aware probes including:
 
 - numeric values directly below, at and above comparison boundaries;
 - all BOOLEAN values;
 - all ENUM values;
-- DEFINED and UNDEFINED states.
+- DEFINED and UNDEFINED states;
+- `AND`: all operands true plus each direct operand independently false while the other direct operands remain true;
+- `OR`: all operands false plus each direct branch independently true while the other direct branches remain false;
+- all four direct antecedent/consequent truth combinations for `IMPLIES`;
+- both operand truth states for `NOT`;
+- aggregate empty/non-empty states and a maximum relevant `SUM` cardinality within the bounded collection solver;
+- selected numeric function edges: division denominator around zero, `log`/`log10` and `sqrt` around zero, and `round` around `-0.5` and `0.5` where the model precision permits those values;
+- DEFINED/UNDEFINED propagation for standard function calls that depend on optional references.
+
+These logical probes are deliberately described as **MC/DC-like for direct operands**, not as complete MC/DC for arbitrary nested or semantically dependent expressions. If a requested logical pattern cannot be realized in the model or the finite solver cannot find it, it remains visible as an unsolved coverage goal.
 
 The decision-table frontend and `generateIliConstraintCases` both use this shared coverage logic.
 
@@ -123,11 +132,11 @@ The currently strongest path support is:
 - collection-valued association paths;
 - aggregate scenarios such as `Math.sum("Nebenauspraegung->Gewichtung")`.
 
-The AFU weighting constraint is an important production-shaped proof case: DEFINED/NOT DEFINED of a SUM, arithmetic with the direct weight, association target generation and final ilivalidator verification all run through the shared semantic pipeline.
+The AFU weighting constraint is an important production-shaped proof case: DEFINED/NOT DEFINED of a SUM, arithmetic with the direct weight, association target generation and final ilivalidator verification all run through the shared semantic pipeline. Coverage can now also force the empty, non-empty and maximum-relevant association cardinality cases within the solver's current collection cap.
 
 ### Automatic cases for an existing constraint
 
-`generateIliConstraintCases` now uses the complete shared backend:
+`generateIliConstraintCases` uses the complete shared backend:
 
 ```text
 existing MANDATORY constraint
@@ -150,7 +159,15 @@ For example, an existing constraint such as:
 MANDATORY CONSTRAINT value >= 10 AND value <= 20;
 ```
 
-can now produce the model-aware coverage values `9`, `10`, `20` and `21` when the model domain permits them.
+can produce the model-aware coverage values `9`, `10`, `20` and `21` when the model domain permits them.
+
+For a logical rule such as:
+
+```ili
+MANDATORY CONSTRAINT left == 1 OR right == 1;
+```
+
+the coverage planner can additionally request the three semantically important direct-branch patterns `left=true/right=false`, `left=false/right=true`, and `left=false/right=false`, and generated cases are still checked by ilivalidator.
 
 The same MCP tool can also exercise supported association/SUM constraints. Generated responses expose:
 
@@ -167,7 +184,7 @@ The same MCP tool can also exercise supported association/SUM constraints. Gener
 
 ### Decision tables
 
-`generateIliConstraintFromDecisionTable` is now primarily a frontend and orchestrator:
+`generateIliConstraintFromDecisionTable` is primarily a frontend and orchestrator:
 
 ```text
 Decision table
@@ -207,13 +224,15 @@ This is one of the most important foundations for both richer Mandatory Constrai
 
 `GEOMETRY` exists as an IR type, but generic geometry synthesis and geometry predicates are not implemented.
 
-The separate INTERLIS AREA-related standard functions are also not part of the current Math/Text function registry. Geometry should remain a specialized extension rather than being forced into the scalar finite-domain solver.
+The separate INTERLIS AREA-related standard functions are also not part of the current Math/Text function registry. Geometry should remain a specialized extension rather than being forced into the scalar finite-domain solver. This work is currently deliberately lower priority than the remaining non-geometry Mandatory-Constraint gaps.
 
 ### 3. Solver completeness
 
 The current finite-domain search is deliberately bounded and heuristic. It works well for many comparisons, boundaries and small aggregates, but complex valid constraints can still produce `NO_SOLUTION_FOUND` because the interesting value was not in the candidate set.
 
-Possible future improvements:
+The next useful improvement is **expression-directed solving**, for example deriving the missing operand of simple arithmetic equations instead of relying only on a finite candidate list.
+
+Possible later improvements include:
 
 - more expression-directed candidate derivation;
 - symbolic handling of arithmetic equations;
@@ -221,17 +240,17 @@ Possible future improvements:
 - an optional SMT/Z3 solver adapter if real models justify the dependency;
 - a clear distinction between "not found" and a genuinely proven UNSAT result.
 
-### 4. Better coverage goals
+### 4. Coverage completeness
 
-Current coverage is strong for comparison boundaries, BOOLEAN/ENUM domains and DEFINED/UNDEFINED. It is not yet a complete logical coverage system.
+Direct logical branch and selected function/aggregate edge coverage are now implemented, but the coverage planner is intentionally not claimed to be complete.
 
-Useful additions include:
+Remaining useful extensions include:
 
-- explicit branch coverage for each `AND`/`OR`/`IMPLIES` alternative;
-- condition-independence / MC/DC-like cases for complex business rules;
-- function-specific edge cases such as division by zero, logarithm domains and rounding boundaries;
-- aggregate cardinality edges (empty, one, maximum relevant count);
-- systematic checks of undefined/null propagation against ilivalidator semantics.
+- true condition-independence / MC/DC for deeper nested and semantically dependent business rules;
+- additional function-specific domain and discontinuity cases beyond division, logarithm, square root and rounding;
+- richer cardinality strategies for aggregates other than the currently explicit SUM maximum-relevant case;
+- systematic undefined/null-propagation probes across nested expressions;
+- coverage minimization when several semantic obligations can be proven by the same validator-backed fixture.
 
 ### 5. More validator-differential tests
 
@@ -244,6 +263,8 @@ More production constraints should be added as golden tests, especially for:
 - Text/MTEXT functions;
 - INTERLIS 2.4 surface syntax;
 - inheritance and abstract/concrete class contexts.
+
+A dedicated differential suite should compare semantic-evaluator outcomes against generated XTF plus the real validator so divergences become ordinary regression failures.
 
 ## INTERLIS constraint kinds that are still missing
 
@@ -338,7 +359,7 @@ Supporting constraint syntax is only one part of agentic authoring. A useful age
 
 ### Generic Mandatory-Constraint authoring tool
 
-The system can now automatically analyze and prove an **existing** supported Mandatory Constraint through `generateIliConstraintCases`, and a decision table can create a supported constraint through `generateIliConstraintFromDecisionTable`.
+The system can automatically analyze and prove an **existing** supported Mandatory Constraint through `generateIliConstraintCases`, and a decision table can create a supported constraint through `generateIliConstraintFromDecisionTable`.
 
 What is still missing is a general authoring frontend for arbitrary semantic Mandatory-Constraint proposals. Today the agent still has to assemble source text itself unless the intent fits the structured decision-table format.
 
@@ -399,7 +420,7 @@ A high-level creation tool should make the same evidence now exposed by `generat
 
 - solved witness cases;
 - solved counterexamples;
-- boundary/category cases;
+- boundary/category/logical-branch cases;
 - unsolved goals and reason codes;
 - validator results;
 - known limitations of the proof.
@@ -408,14 +429,15 @@ A green compile alone is not enough evidence that a generated business constrain
 
 ## Suggested next implementation order
 
-1. Generalize object-graph synthesis to richer paths and multiple root objects.
-2. Add a high-level, typed **Mandatory-Constraint authoring/proof tool** that uses the existing semantic pipeline.
-3. Improve logical/function/aggregate coverage goals and production differential tests.
-4. Introduce the outer `ConstraintSpec` IR.
-5. Implement **Uniqueness** and **Existence** constraints on top of multi-root synthesis.
-6. Implement **Plausibility** and **Set** constraints with explicit dataset/basket semantics.
-7. Add geometry/AREA-specific semantics and synthesis separately.
-8. Reconsider SMT/Z3 only when the bounded solver demonstrably blocks relevant production constraints.
+1. Improve the bounded solver with **expression-directed arithmetic solving** before considering an SMT dependency.
+2. Generalize object-graph synthesis to richer paths and multiple root objects.
+3. Add a systematic **validator-differential test suite** for the semantic evaluator and generated fixtures.
+4. Add a high-level, typed **Mandatory-Constraint authoring/proof tool** that uses the existing semantic pipeline.
+5. Introduce the outer `ConstraintSpec` IR.
+6. Implement **Uniqueness** and **Existence** constraints on top of multi-root synthesis.
+7. Implement **Plausibility** and **Set** constraints with explicit dataset/basket semantics.
+8. Keep geometry/AREA-specific semantics and synthesis as a later specialized extension.
+9. Reconsider SMT/Z3 only when the bounded solver demonstrably blocks relevant production constraints.
 
 ## Historical MVP steps
 
