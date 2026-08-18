@@ -268,10 +268,12 @@ class ToolRegistrationContractTest {
     expectations.put("findSimilarModels", schema(Set.of(), Set.of("query", "modelText", "modelPurpose", "limit")));
     expectations.put("indexConfiguredModels", schema(Set.of(), Set.of()));
     expectations.put("readModelExample", schema(Set.of("path"), Set.of()));
+    expectations.put("listConstraintFunctions", schema(Set.of(), Set.of("iliVersion")));
     expectations.put("listGeometryTypes", schema(Set.of(), Set.of("iliVersion")));
     expectations.put("listMathFunctions", schema(Set.of(), Set.of("iliVersion")));
     expectations.put("listModelingRules", schema(Set.of(), Set.of("profile")));
     expectations.put("listTextFunctions", schema(Set.of(), Set.of("iliVersion")));
+    expectations.put("resolveConstraintPath", schema(Set.of("modelText", "context", "path"), Set.of("modelRepositories")));
     expectations.put("renameModelElement", schema(Set.of("modelText", "elementFqn", "newName"), Set.of("expectedKind", "modelRepositories")));
     expectations.put("sanitizeIdentifier", schema(Set.of("value"), Set.of()));
     expectations.put("validateFqn", schema(Set.of("fqn"), Set.of()));

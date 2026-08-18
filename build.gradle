@@ -45,6 +45,7 @@ dependencies {
     implementation "org.springframework.boot:spring-boot-starter-validation"
     implementation "org.jspecify:jspecify:1.0.0"
     implementation "ch.ehi:ehibasics:1.4.1"
+    implementation "antlr:antlr:2.7.7"
     implementation "ch.interlis:ili2c-core:5.6.8"
     implementation "ch.interlis:ili2c-tool:5.6.8"
     implementation "ch.interlis:iox-ili:1.24.4"
