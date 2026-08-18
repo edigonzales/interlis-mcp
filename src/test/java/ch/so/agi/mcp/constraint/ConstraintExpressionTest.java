@@ -95,6 +95,25 @@ class ConstraintExpressionTest {
   }
 
   @Test
+  void preservesLogicalPrecedenceWhenExpressionsAreNested() {
+    ConstraintExpression.Attribute a = new ConstraintExpression.Attribute(
+        "a",
+        ConstraintExpression.Type.scalar(BOOLEAN));
+    ConstraintExpression.Attribute b = new ConstraintExpression.Attribute(
+        "b",
+        ConstraintExpression.Type.scalar(BOOLEAN));
+    ConstraintExpression.Attribute c = new ConstraintExpression.Attribute(
+        "c",
+        ConstraintExpression.Type.scalar(BOOLEAN));
+
+    ConstraintExpression expression = new ConstraintExpression.And(List.of(
+        new ConstraintExpression.Or(List.of(a, b)),
+        c));
+
+    assertEquals("((a OR b) AND c)", expression.toInterlis());
+  }
+
+  @Test
   void rejectsInvalidTypedCombinationsEarly() {
     assertThrows(
         IllegalArgumentException.class,
