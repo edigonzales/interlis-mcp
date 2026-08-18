@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.analysis.ModelChangeTools;
+import ch.so.agi.mcp.tools.ConstraintCaseGenerationTools;
 import ch.so.agi.mcp.tools.ConstraintReviewTools;
 import ch.so.agi.mcp.tools.ConstraintTestTools;
 import ch.so.agi.mcp.tools.ValidationTools;
@@ -36,6 +37,13 @@ class ToolChoiceGuidanceTest {
     assertThat(description(ConstraintTestTools.class, "testIliConstraint"))
         .contains("explizit", "Testfaellen", "minimales XTF", "ilivalidator")
         .contains("keine Witnesses", "Counterexamples");
+  }
+
+  @Test
+  void automaticConstraintCasesAdvertiseNarrowVerifiedScope() {
+    assertThat(description(ConstraintCaseGenerationTools.class, "generateIliConstraintCases"))
+        .contains("Witness", "Counterexample", "testIliConstraint")
+        .contains("skalare Attributvergleiche", "DEFINED", "automaticCasesAvailable=false");
   }
 
   @Test
@@ -72,9 +80,10 @@ class ToolChoiceGuidanceTest {
         .contains("kein")
         .contains("zusaetzliches `reviewIliModel`")
         .contains("findSimilarModels", "readModelExample")
-        .contains("reviewIliConstraint", "testIliConstraint", "resolveConstraintPath", "listConstraintFunctions")
+        .contains("reviewIliConstraint", "generateIliConstraintCases", "testIliConstraint", "resolveConstraintPath", "listConstraintFunctions")
+        .contains("automaticCasesAvailable=false", "Witness", "Counterexample")
         .contains("expectedConstraintValid", "Fixture-Fehler")
-        .contains("erfindet keine Testfaelle", "Witness-/Counterexample-Erzeugung")
+        .contains("AND/OR/IMPLIES", "Aggregate")
         .contains("validateIliModel", "analyzeIliModel", "checkModelingRules")
         .contains("nicht standardmaessig");
   }
