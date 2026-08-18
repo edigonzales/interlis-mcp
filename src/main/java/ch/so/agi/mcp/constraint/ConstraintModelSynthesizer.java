@@ -169,7 +169,21 @@ public final class ConstraintModelSynthesizer {
         ValueDomain domain,
         String attributeName,
         @Nullable AssociationBinding association) {
-      this(reference, domain, attributeName, association, List.of());
+      this(
+          reference,
+          domain,
+          attributeName,
+          association,
+          association == null
+              ? List.of()
+              : List.of(new NavigationBinding(
+                  NavigationKind.ASSOCIATION,
+                  association.roleName(),
+                  association.targetClassFqn(),
+                  association.minimum(),
+                  association.maximum(),
+                  association.unbounded(),
+                  association)));
     }
 
     public boolean associationPath() {
@@ -377,13 +391,16 @@ public final class ConstraintModelSynthesizer {
         MutableCarrier parent,
         NavigationBinding step,
         String key) {
-      if (!(parent instanceof MutableObject source)) {
-        throw new IllegalArgumentException("Reference-attribute navigation from an embedded structure is not supported.");
-      }
       String targetOid = nextOid();
       MutableObject target = new MutableObject(key, step.targetClassFqn(), targetOid);
       objects.add(target);
-      source.references.put(step.name(), targetOid);
+      if (parent instanceof MutableObject source) {
+        source.references.put(step.name(), targetOid);
+      } else if (parent instanceof MutableStructure source) {
+        source.values.put(step.name(), targetOid);
+      } else {
+        throw new IllegalArgumentException("Unsupported reference-attribute parent graph node.");
+      }
       return target;
     }
 
