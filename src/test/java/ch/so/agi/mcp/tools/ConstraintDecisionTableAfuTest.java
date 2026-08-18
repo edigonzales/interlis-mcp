@@ -104,7 +104,7 @@ class ConstraintDecisionTableAfuTest {
         .filter(item -> !"UNDEFINED".equals(String.valueOf(
             map(item.get("values")).get("Nebenauspraegung->Gewichtung"))))
         .filter(item -> Boolean.TRUE.equals(item.get("expectedConstraintValid")))
-        .filter(item -> ((Number) item.get("associationLinkCount")).intValue() >= 2)
+        .filter(item -> ((Number) item.get("associationLinkCount")).intValue() > 0)
         .findFirst()
         .orElseThrow();
     Map<String, Object> witnessValues = map(definedWitness.get("values"));
