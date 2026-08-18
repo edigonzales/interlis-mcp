@@ -83,8 +83,8 @@ public sealed interface ConstraintExpression
     public static LanguageProfile forVersion(IliVersion version) {
       Objects.requireNonNull(version, "version");
       return switch (version) {
-        case ILI_23 -> new LanguageProfile(ILI_23, "Math", "Text", false);
-        case ILI_24 -> new LanguageProfile(ILI_24, "Math_V2", "Text_V2", true);
+        case ILI_23 -> new LanguageProfile(version, "Math", "Text", false);
+        case ILI_24 -> new LanguageProfile(version, "Math_V2", "Text_V2", true);
       };
     }
   }
