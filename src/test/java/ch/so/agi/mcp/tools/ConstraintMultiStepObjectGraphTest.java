@@ -27,9 +27,13 @@ class ConstraintMultiStepObjectGraphTest {
             Rate : MANDATORY 0 .. 100;
           END Country;
 
-          CLASS Owner =
+          STRUCTURE OwnerInfo =
             Land : REFERENCE TO Country;
             Adresse : Address;
+          END OwnerInfo;
+
+          CLASS Owner =
+            Info : MANDATORY OwnerInfo;
           END Owner;
 
           CLASS Parcel =
@@ -44,11 +48,11 @@ class ConstraintMultiStepObjectGraphTest {
           CONSTRAINTS OF RichPathModel.Data.Parcel =
             !!@ name = "SharedReferencePath"
             MANDATORY CONSTRAINT
-              Eigentuemer->Land->Code >= 10
-              AND Eigentuemer->Land->Rate <= 20;
+              Eigentuemer->Info->Land->Code >= 10
+              AND Eigentuemer->Info->Land->Rate <= 20;
 
             !!@ name = "StructurePath"
-            MANDATORY CONSTRAINT Eigentuemer->Adresse->PLZ >= 3000;
+            MANDATORY CONSTRAINT Eigentuemer->Info->Adresse->PLZ >= 3000;
           END;
         END Data;
       END RichPathModel.
@@ -63,7 +67,7 @@ class ConstraintMultiStepObjectGraphTest {
       reviewTools, testTools, compilerService);
 
   @Test
-  void reusesSharedAssociationAndReferencePrefixesAndValidatesTheGraph() {
+  void reusesSharedAssociationStructureAndReferencePrefixesAndValidatesTheGraph() {
     Map<String, Object> result = tools.generateIliConstraintCases(
         MODEL,
         "SharedReferencePath",
@@ -81,8 +85,8 @@ class ConstraintMultiStepObjectGraphTest {
     assertEquals(3, ((Number) allTrue.get("objectCount")).intValue(), String.valueOf(allTrue));
     assertEquals(1, ((Number) allTrue.get("associationLinkCount")).intValue(), String.valueOf(allTrue));
     Map<String, Object> values = map(allTrue.get("values"));
-    assertTrue(values.containsKey("Eigentuemer->Land->Code"), String.valueOf(values));
-    assertTrue(values.containsKey("Eigentuemer->Land->Rate"), String.valueOf(values));
+    assertTrue(values.containsKey("Eigentuemer->Info->Land->Code"), String.valueOf(values));
+    assertTrue(values.containsKey("Eigentuemer->Info->Land->Rate"), String.valueOf(values));
 
     Map<String, Object> verification = map(result.get("verification"));
     assertEquals(true, verification.get("allPassed"), String.valueOf(verification));
@@ -94,7 +98,7 @@ class ConstraintMultiStepObjectGraphTest {
   }
 
   @Test
-  void writesStructureNavigationAsNestedXtfAndValidatesIt() {
+  void writesNestedStructureNavigationAsNestedXtfAndValidatesIt() {
     Map<String, Object> result = tools.generateIliConstraintCases(
         MODEL,
         "StructurePath",
@@ -116,7 +120,8 @@ class ConstraintMultiStepObjectGraphTest {
     assertEquals(true, verification.get("allPassed"), String.valueOf(verification));
     assertTrue(list(verification.get("cases")).stream().anyMatch(item -> {
       String xtf = String.valueOf(item.get("xtfText"));
-      return xtf.contains("<Adresse>")
+      return xtf.contains("<Info>")
+          && xtf.contains("<Adresse>")
           && xtf.contains("<PLZ>3000</PLZ>");
     }), String.valueOf(verification));
   }
