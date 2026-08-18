@@ -355,37 +355,69 @@ public sealed interface ConstraintExpression
   }
 
   final class Renderer {
+    private static final int IMPLIES_PRECEDENCE = 10;
+    private static final int OR_PRECEDENCE = 20;
+    private static final int AND_PRECEDENCE = 30;
+    private static final int COMPARISON_PRECEDENCE = 40;
+    private static final int UNARY_PRECEDENCE = 50;
+    private static final int ATOMIC_PRECEDENCE = 60;
+
     private Renderer() {
     }
 
     static String render(ConstraintExpression expression) {
-      return switch (expression) {
+      return render(expression, 0);
+    }
+
+    private static String render(ConstraintExpression expression, int parentPrecedence) {
+      int precedence = precedence(expression);
+      String rendered = switch (expression) {
         case NumericLiteral number -> number.value().stripTrailingZeros().toPlainString();
         case BooleanLiteral bool -> "#" + Boolean.toString(bool.value());
         case EnumLiteral enumeration -> "#" + enumeration.value();
         case Attribute attribute -> attribute.name();
         case Path path -> path.path();
         case Sum sum -> "Math.sum(\"" + sum.path().path() + "\")";
-        case Add add -> "Math.add(" + render(add.left()) + ", " + render(add.right()) + ")";
-        case Defined defined -> "DEFINED(" + render(defined.operand()) + ")";
-        case Not not -> "NOT(" + render(not.operand()) + ")";
-        case Comparison comparison -> render(comparison.left())
-            + " " + comparison.operator().interlis() + " " + render(comparison.right());
-        case And and -> parenthesized(and.operands(), " AND ");
+        case Add add -> "Math.add(" + render(add.left(), 0) + ", " + render(add.right(), 0) + ")";
+        case Defined defined -> "DEFINED(" + render(defined.operand(), 0) + ")";
+        case Not not -> "NOT(" + render(not.operand(), 0) + ")";
+        case Comparison comparison -> render(comparison.left(), COMPARISON_PRECEDENCE)
+            + " " + comparison.operator().interlis() + " "
+            + render(comparison.right(), COMPARISON_PRECEDENCE);
+        case And and -> and.operands().stream()
+            .map(child -> render(child, AND_PRECEDENCE))
+            .reduce((left, right) -> left + " AND " + right)
+            .orElseThrow();
         case Or or -> or.operands().stream()
-            .map(Renderer::render)
+            .map(child -> render(child, OR_PRECEDENCE))
             .reduce((left, right) -> left + " OR " + right)
             .orElseThrow();
-        case Implies implies -> "(" + render(implies.antecedent())
-            + " IMPLIES " + render(implies.consequent()) + ")";
+        case Implies implies -> render(implies.antecedent(), IMPLIES_PRECEDENCE)
+            + " IMPLIES " + render(implies.consequent(), IMPLIES_PRECEDENCE);
       };
+
+      boolean parenthesize = precedence < parentPrecedence
+          || expression instanceof And
+          || expression instanceof Implies;
+      return parenthesize ? "(" + rendered + ")" : rendered;
     }
 
-    private static String parenthesized(List<ConstraintExpression> expressions, String separator) {
-      return "(" + expressions.stream()
-          .map(Renderer::render)
-          .reduce((left, right) -> left + separator + right)
-          .orElseThrow() + ")";
+    private static int precedence(ConstraintExpression expression) {
+      return switch (expression) {
+        case Implies ignored -> IMPLIES_PRECEDENCE;
+        case Or ignored -> OR_PRECEDENCE;
+        case And ignored -> AND_PRECEDENCE;
+        case Comparison ignored -> COMPARISON_PRECEDENCE;
+        case Defined ignored -> UNARY_PRECEDENCE;
+        case Not ignored -> UNARY_PRECEDENCE;
+        case NumericLiteral ignored -> ATOMIC_PRECEDENCE;
+        case BooleanLiteral ignored -> ATOMIC_PRECEDENCE;
+        case EnumLiteral ignored -> ATOMIC_PRECEDENCE;
+        case Attribute ignored -> ATOMIC_PRECEDENCE;
+        case Path ignored -> ATOMIC_PRECEDENCE;
+        case Sum ignored -> ATOMIC_PRECEDENCE;
+        case Add ignored -> ATOMIC_PRECEDENCE;
+      };
     }
   }
 }
