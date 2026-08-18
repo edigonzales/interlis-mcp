@@ -1,11 +1,22 @@
 package ch.so.agi.mcp.tools;
 
+import ch.interlis.ili2c.metamodel.Constraint;
+import ch.interlis.ili2c.metamodel.Container;
+import ch.interlis.ili2c.metamodel.Model;
+import ch.interlis.ili2c.metamodel.TransferDescription;
+import ch.so.agi.mcp.constraint.ConstraintAstTranslator;
+import ch.so.agi.mcp.constraint.ConstraintCoveragePlanner;
+import ch.so.agi.mcp.constraint.ConstraintExpression;
+import ch.so.agi.mcp.constraint.ConstraintExpressionEngine;
+import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer;
+import ch.so.agi.mcp.service.IliCompilerService;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
@@ -14,19 +25,22 @@ import org.springframework.stereotype.Component;
 @Component
 public class ConstraintCaseGenerationTools {
 
-  private static final Set<String> COMPARISON_OPERATORS = Set.of("==", "!=", "<", "<=", ">", ">=");
-
   private final ConstraintReviewTools reviewTools;
   private final ConstraintTestTools testTools;
+  private final IliCompilerService compilerService;
 
-  public ConstraintCaseGenerationTools(ConstraintReviewTools reviewTools, ConstraintTestTools testTools) {
+  public ConstraintCaseGenerationTools(
+      ConstraintReviewTools reviewTools,
+      ConstraintTestTools testTools,
+      IliCompilerService compilerService) {
     this.reviewTools = reviewTools;
     this.testTools = testTools;
+    this.compilerService = compilerService;
   }
 
   @McpTool(
       name = "generateIliConstraintCases",
-      description = "Erzeugt fuer kleine, sicher unterstuetzte INTERLIS-Mandatory-Constraints automatisch einen Witness und einen Counterexample und verifiziert beide mit testIliConstraint. Unterstuetzt zunaechst direkte skalare Attributvergleiche mit Literalen sowie DEFINED/NOT DEFINED auf optionalen direkten Attributen. Fuer komplexe Ausdruecke, Pfade, Funktionen oder Aggregate wird nicht geraten, sondern automaticCasesAvailable=false geliefert."
+      description = "Erzeugt fuer unterstuetzte INTERLIS Mandatory Constraints automatisch modellbewusste Witness-, Counterexample- und Boundary-/Kategoriefaelle. Verwendet die gemeinsame Pipeline ili2c AST -> semantische IR -> Coverage Planner -> Solver -> Object-Graph-Synthese und beweist alle erzeugten Faelle mit testIliConstraint und dem echten ilivalidator. Unterstuetzt damit insbesondere logische Kombinationen, NUMERIC/BOOLEAN/ENUM/TEXT, DEFINED, Standardfunktionen, einwertige Association-Pfade und SUM auf mehrwertigen numerischen Association-Pfaden, soweit IR, Solver und Synthesizer die Semantik abdecken."
   )
   public Map<String, Object> generateIliConstraintCases(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,
@@ -40,30 +54,55 @@ public class ConstraintCaseGenerationTools {
           review);
     }
 
-    Map<String, Object> ast = map(review.get("ast"));
-    if (!"MANDATORY_CONSTRAINT".equals(ast.get("kind"))) {
+    IliCompilerService.CompilationResult compilation = compilerService.compile(
+        modelText, modelRepositories, "ili2c_constraint_cases_");
+    if (!compilation.valid() || compilation.transferDescription() == null) {
       return unavailable(
-          "UNSUPPORTED_CONSTRAINT_KIND",
-          "Automatic cases currently support Mandatory Constraints only.",
+          "MODEL_COMPILATION_FAILED",
+          "The model could not be compiled for semantic constraint case generation.",
           review);
     }
 
-    Map<String, Object> context = map(review.get("context"));
-    String classFqn = String.valueOf(context.getOrDefault("scopedName", ""));
-    if (classFqn.isBlank()) {
-      return unavailable("UNSUPPORTED_CONTEXT", "Constraint context is not an identifiable class context.", review);
-    }
-
-    Map<String, Object> condition = unwrapGroup(map(ast.get("condition")));
-    GeneratedCases generated = generate(condition, classFqn);
-    if (generated == null) {
+    Constraint compiledConstraint = findConstraint(compilation.transferDescription(), constraint);
+    if (compiledConstraint == null) {
       return unavailable(
-          "UNSUPPORTED_EXPRESSION",
-          "Automatic cases currently require one direct scalar attribute comparison with a literal, DEFINED(attribute), or NOT(DEFINED(attribute)).",
+          "CONSTRAINT_LOOKUP_FAILED",
+          "The reviewed constraint could not be resolved uniquely in the compiled model.",
           review);
     }
-    if (generated.cases().isEmpty()) {
-      return unavailable(generated.reasonCode(), generated.reason(), review);
+
+    ConstraintAstTranslator.Translation translation;
+    try {
+      translation = ConstraintAstTranslator.translate(compiledConstraint);
+    } catch (ConstraintAstTranslator.TranslationException ex) {
+      return unavailable(ex.reasonCode(), ex.getMessage(), review);
+    }
+
+    ConstraintExpression expression = translation.expression();
+    ConstraintModelSynthesizer.ModelBinding binding;
+    try {
+      binding = ConstraintModelSynthesizer.bind(
+          compilation.transferDescription(), translation.contextFqn(), expression);
+    } catch (IllegalArgumentException ex) {
+      return unavailable("MODEL_BINDING_UNAVAILABLE", ex.getMessage(), review);
+    }
+
+    ConstraintCoveragePlanner.CoveragePlan coverage = ConstraintCoveragePlanner.solve(expression, binding);
+    if (coverage.cases().isEmpty()) {
+      String reasonCode = coverage.unsolved().isEmpty()
+          ? "NO_COVERAGE_CASES"
+          : coverage.unsolved().getFirst().reasonCode();
+      String reason = coverage.unsolved().isEmpty()
+          ? "No semantic coverage cases could be derived for the constraint."
+          : coverage.unsolved().getFirst().reason();
+      return unavailable(reasonCode, reason, review);
+    }
+
+    GeneratedCases generated;
+    try {
+      generated = generateCases(expression, translation.version(), binding, coverage);
+    } catch (IllegalArgumentException ex) {
+      return unavailable("OBJECT_GRAPH_SYNTHESIS_FAILED", ex.getMessage(), review);
     }
 
     Map<String, Object> verification = testTools.testIliConstraint(
@@ -77,381 +116,157 @@ public class ConstraintCaseGenerationTools {
     response.put("automaticCasesAvailable", verified);
     response.put("automaticCasesGenerated", true);
     response.put("generationVerified", verified);
-    response.put("pattern", generated.pattern());
+    response.put("pattern", "SEMANTIC_IR_COVERAGE");
     response.put("constraint", review.get("constraint"));
     response.put("context", review.get("context"));
     response.put("generatedCases", generated.summaries());
+    response.put("coverageGoalCount", coverage.cases().size() + coverage.unsolved().size());
+    response.put("coverageSolvedCount", coverage.cases().size());
+    response.put("coverageComplete", coverage.unsolved().isEmpty());
+    if (!coverage.unsolved().isEmpty()) {
+      response.put("coverageUnsolved", coverageUnsolved(coverage, translation.version()));
+    }
     response.put("verification", verification);
     if (!verified) {
       response.put("reasonCode", "GENERATED_CASES_NOT_VERIFIED");
-      response.put("reason", "Candidate cases were generated but the real validator did not confirm both expected outcomes.");
+      response.put(
+          "reason",
+          "Semantic cases were generated, but the real validator did not confirm all expected outcomes.");
     }
     response.put("limitations", limitations());
     return response;
   }
 
-  private GeneratedCases generate(Map<String, Object> condition, String classFqn) {
-    String kind = String.valueOf(condition.getOrDefault("kind", ""));
-    if (COMPARISON_OPERATORS.contains(kind)) {
-      return generateComparison(condition, classFqn, kind);
+  private GeneratedCases generateCases(
+      ConstraintExpression expression,
+      ConstraintExpression.IliVersion version,
+      ConstraintModelSynthesizer.ModelBinding binding,
+      ConstraintCoveragePlanner.CoveragePlan coverage) {
+    List<ConstraintTestTools.TestCase> cases = new ArrayList<>();
+    List<Map<String, Object>> summaries = new ArrayList<>();
+    int index = 1;
+    for (ConstraintCoveragePlanner.CoverageCase coverageCase : coverage.cases()) {
+      Map<String, Object> assignment = coverageCase.solution().assignment();
+      boolean expectedValid = ConstraintExpressionEngine.evaluateConstraint(
+          expression, ConstraintExpressionEngine.EvaluationContext.of(assignment));
+      ConstraintModelSynthesizer.ObjectGraph graph = ConstraintModelSynthesizer.synthesize(
+          binding, assignment, "auto_case_" + index);
+
+      ConstraintTestTools.TestCase testCase = toTestCase(
+          "automatic case " + index + " - " + coverageCase.goal().reason(),
+          expectedValid,
+          graph);
+      cases.add(testCase);
+
+      Map<String, Object> summary = new LinkedHashMap<>();
+      summary.put("purpose", expectedValid ? "WITNESS" : "COUNTEREXAMPLE");
+      summary.put("name", testCase.name);
+      summary.put("reason", coverageCase.goal().reason());
+      summary.put("source", coverageCase.goal().expression().toInterlis(version));
+      summary.put("expectedConstraintValid", expectedValid);
+      summary.put("values", summaryAssignment(assignment));
+      summary.put("objectCount", graph.objects().size());
+      summary.put("associationLinkCount", graph.links().size());
+      addSingleReferenceCompatibility(summary, assignment);
+      summaries.add(summary);
+      index++;
     }
-    if ("DEFINED".equals(kind)) {
-      return generateDefined(condition, classFqn, false);
-    }
-    if ("NOT".equals(kind)) {
-      Map<String, Object> operand = unwrapGroup(map(condition.get("operand")));
-      if ("DEFINED".equals(operand.get("kind"))) {
-        return generateDefined(operand, classFqn, true);
-      }
-    }
-    return null;
+    return new GeneratedCases(cases, summaries);
   }
 
-  private GeneratedCases generateComparison(
-      Map<String, Object> condition,
-      String classFqn,
-      String operator) {
-    Map<String, Object> left = unwrapGroup(map(condition.get("left")));
-    Map<String, Object> right = unwrapGroup(map(condition.get("right")));
-
-    AttributeOperand attribute;
-    LiteralOperand literal;
-    String normalizedOperator = operator;
-    if (isDirectAttribute(left) && isLiteral(right)) {
-      attribute = attributeOperand(left);
-      literal = literalOperand(right);
-    } else if (isLiteral(left) && isDirectAttribute(right)) {
-      attribute = attributeOperand(right);
-      literal = literalOperand(left);
-      normalizedOperator = reverse(operator);
-    } else {
-      return null;
-    }
-    if (attribute == null || literal == null) {
-      return null;
-    }
-
-    ValuePair pair = comparisonValues(attribute.type(), literal, normalizedOperator);
-    if (pair == null) {
-      return new GeneratedCases(
-          "SCALAR_COMPARISON",
-          List.of(),
-          List.of(),
-          "NO_IN_DOMAIN_WITNESS_COUNTEREXAMPLE_PAIR",
-          "The attribute domain does not provide both an in-domain witness and an in-domain counterexample for this comparison.");
-    }
-
-    ConstraintTestTools.TestCase witness = testCase(
-        "automatic witness",
-        true,
-        classFqn,
-        "auto_witness",
-        attribute.name(),
-        pair.witness(),
-        true);
-    ConstraintTestTools.TestCase counterexample = testCase(
-        "automatic counterexample",
-        false,
-        classFqn,
-        "auto_counterexample",
-        attribute.name(),
-        pair.counterexample(),
-        true);
-
-    List<Map<String, Object>> summaries = List.of(
-        summary("WITNESS", witness, attribute.name(), pair.witness()),
-        summary("COUNTEREXAMPLE", counterexample, attribute.name(), pair.counterexample()));
-    return new GeneratedCases(
-        "SCALAR_COMPARISON " + normalizedOperator,
-        List.of(witness, counterexample),
-        summaries,
-        "",
-        "");
-  }
-
-  private GeneratedCases generateDefined(
-      Map<String, Object> defined,
-      String classFqn,
-      boolean negated) {
-    Map<String, Object> argument = unwrapGroup(map(defined.get("argument")));
-    if (!isDirectAttribute(argument)) {
-      return null;
-    }
-    AttributeOperand attribute = attributeOperand(argument);
-    if (attribute == null) {
-      return null;
-    }
-    if (attribute.mandatory()) {
-      return new GeneratedCases(
-          negated ? "NOT_DEFINED" : "DEFINED",
-          List.of(),
-          List.of(),
-          "MANDATORY_ATTRIBUTE_CANNOT_BE_OMITTED",
-          "DEFINED/NOT DEFINED automatic cases require an optional attribute so the undefined fixture remains valid.");
-    }
-
-    Object sample = sampleValue(attribute.type());
-    if (sample == null) {
-      return new GeneratedCases(
-          negated ? "NOT_DEFINED" : "DEFINED",
-          List.of(),
-          List.of(),
-          "UNSUPPORTED_ATTRIBUTE_TYPE",
-          "No safe scalar sample value is available for this attribute type.");
-    }
-
-    ConstraintTestTools.TestCase definedCase = testCase(
-        negated ? "automatic counterexample" : "automatic witness",
-        !negated,
-        classFqn,
-        negated ? "auto_counterexample" : "auto_witness",
-        attribute.name(),
-        sample,
-        true);
-    ConstraintTestTools.TestCase undefinedCase = testCase(
-        negated ? "automatic witness" : "automatic counterexample",
-        negated,
-        classFqn,
-        negated ? "auto_witness" : "auto_counterexample",
-        attribute.name(),
-        null,
-        false);
-
-    ConstraintTestTools.TestCase witness = negated ? undefinedCase : definedCase;
-    ConstraintTestTools.TestCase counterexample = negated ? definedCase : undefinedCase;
-    List<Map<String, Object>> summaries = List.of(
-        summary("WITNESS", witness, attribute.name(), negated ? null : sample),
-        summary("COUNTEREXAMPLE", counterexample, attribute.name(), negated ? sample : null));
-    return new GeneratedCases(
-        negated ? "NOT_DEFINED" : "DEFINED",
-        List.of(witness, counterexample),
-        summaries,
-        "",
-        "");
-  }
-
-  private ConstraintTestTools.TestCase testCase(
+  private ConstraintTestTools.TestCase toTestCase(
       String name,
       boolean expected,
-      String classFqn,
-      String oid,
-      String attribute,
-      @Nullable Object value,
-      boolean includeValue) {
-    ConstraintTestTools.TestObject object = new ConstraintTestTools.TestObject();
-    object.classFqn = classFqn;
-    object.oid = oid;
-    object.values = includeValue && value != null ? Map.of(attribute, value) : Map.of();
-
+      ConstraintModelSynthesizer.ObjectGraph graph) {
     ConstraintTestTools.TestCase testCase = new ConstraintTestTools.TestCase();
     testCase.name = name;
     testCase.expectedConstraintValid = expected;
-    testCase.objects = List.of(object);
-    testCase.links = List.of();
+    testCase.objects = graph.objects().stream().map(object -> {
+      ConstraintTestTools.TestObject result = new ConstraintTestTools.TestObject();
+      result.classFqn = object.classFqn();
+      result.oid = object.oid();
+      result.values = object.values();
+      return result;
+    }).toList();
+    testCase.links = graph.links().stream().map(link -> {
+      ConstraintTestTools.TestLink result = new ConstraintTestTools.TestLink();
+      result.associationFqn = link.associationFqn();
+      result.roles = link.roles();
+      return result;
+    }).toList();
     return testCase;
   }
 
-  private Map<String, Object> summary(
-      String purpose,
-      ConstraintTestTools.TestCase testCase,
-      String attribute,
-      @Nullable Object value) {
+  private Map<String, Object> summaryAssignment(Map<String, Object> assignment) {
     Map<String, Object> result = new LinkedHashMap<>();
-    result.put("purpose", purpose);
-    result.put("name", testCase.name);
-    result.put("expectedConstraintValid", testCase.expectedConstraintValid);
-    result.put("attribute", attribute);
-    if (value != null) {
-      result.put("value", value);
-    } else {
-      result.put("attributeOmitted", true);
-    }
+    assignment.forEach((name, value) -> result.put(name, summaryValue(value)));
     return result;
   }
 
-  private ValuePair comparisonValues(
-      Map<String, Object> type,
-      LiteralOperand literal,
-      String operator) {
-    String typeKind = String.valueOf(type.getOrDefault("kind", ""));
-    if ("NUMERIC".equals(typeKind) && "NUMERIC_LITERAL".equals(literal.kind())) {
-      return numericComparisonValues(type, literal.value(), operator);
+  private Object summaryValue(@Nullable Object value) {
+    if (value == null || value == ConstraintExpressionEngine.Undefined.INSTANCE) {
+      return "UNDEFINED";
     }
-    if (("TEXT".equals(typeKind) || "MTEXT".equals(typeKind))
-        && "TEXT_LITERAL".equals(literal.kind())
-        && ("==".equals(operator) || "!=".equals(operator))) {
-      String expected = literal.value();
-      String alternative = alternativeText(type, expected);
-      if (alternative == null) {
-        return null;
-      }
-      return "==".equals(operator)
-          ? new ValuePair(expected, alternative)
-          : new ValuePair(alternative, expected);
+    if (value instanceof BigDecimal number) {
+      return number.stripTrailingZeros().toPlainString();
     }
-    return null;
+    if (value instanceof Collection<?> collection) {
+      return collection.stream().map(this::summaryValue).toList();
+    }
+    return value;
   }
 
-  private ValuePair numericComparisonValues(
-      Map<String, Object> type,
-      String literalText,
-      String operator) {
-    BigDecimal literal;
-    try {
-      literal = new BigDecimal(literalText);
-    } catch (NumberFormatException ex) {
-      return null;
+  private void addSingleReferenceCompatibility(
+      Map<String, Object> summary,
+      Map<String, Object> assignment) {
+    if (assignment.size() != 1) {
+      return;
     }
-    NumericDomain domain = numericDomain(type, literal);
-    if (!domain.contains(literal)) {
-      return null;
+    Map.Entry<String, Object> entry = assignment.entrySet().iterator().next();
+    summary.put("attribute", entry.getKey());
+    Object value = entry.getValue();
+    if (value == null || value == ConstraintExpressionEngine.Undefined.INSTANCE) {
+      summary.put("attributeOmitted", true);
+    } else {
+      summary.put("value", summaryValue(value));
     }
-
-    BigDecimal below = literal.subtract(domain.step());
-    BigDecimal above = literal.add(domain.step());
-    boolean belowValid = domain.contains(below);
-    boolean aboveValid = domain.contains(above);
-
-    return switch (operator) {
-      case "==" -> aboveValid
-          ? new ValuePair(decimal(literal), decimal(above))
-          : belowValid ? new ValuePair(decimal(literal), decimal(below)) : null;
-      case "!=" -> aboveValid
-          ? new ValuePair(decimal(above), decimal(literal))
-          : belowValid ? new ValuePair(decimal(below), decimal(literal)) : null;
-      case "<" -> belowValid ? new ValuePair(decimal(below), decimal(literal)) : null;
-      case "<=" -> aboveValid ? new ValuePair(decimal(literal), decimal(above)) : null;
-      case ">" -> aboveValid ? new ValuePair(decimal(above), decimal(literal)) : null;
-      case ">=" -> belowValid ? new ValuePair(decimal(literal), decimal(below)) : null;
-      default -> null;
-    };
   }
 
-  private NumericDomain numericDomain(Map<String, Object> type, BigDecimal literal) {
-    String typeText = String.valueOf(type.getOrDefault("typeText", ""));
-    BigDecimal minimum = null;
-    BigDecimal maximum = null;
-    int scale = Math.max(0, literal.scale());
-    int separator = typeText.indexOf("..");
-    if (separator > 0) {
-      try {
-        minimum = new BigDecimal(typeText.substring(0, separator).trim());
-        maximum = new BigDecimal(typeText.substring(separator + 2).trim());
-        scale = Math.max(scale, Math.max(0, minimum.scale()));
-        scale = Math.max(scale, Math.max(0, maximum.scale()));
-      } catch (NumberFormatException ignore) {
-        minimum = null;
-        maximum = null;
+  private List<Map<String, Object>> coverageUnsolved(
+      ConstraintCoveragePlanner.CoveragePlan coverage,
+      ConstraintExpression.IliVersion version) {
+    return coverage.unsolved().stream().map(solution -> {
+      Map<String, Object> result = new LinkedHashMap<>();
+      result.put("goal", solution.goal().kind().name());
+      result.put("reason", solution.goal().reason());
+      result.put("expression", solution.goal().expression().toInterlis(version));
+      result.put("reasonCode", solution.reasonCode());
+      result.put("solverReason", solution.reason());
+      return result;
+    }).toList();
+  }
+
+  private @Nullable Constraint findConstraint(TransferDescription td, String requestedName) {
+    List<Constraint> matches = new ArrayList<>();
+    for (Model model : td.getModelsFromLastFile()) {
+      collectConstraints(model, requestedName, matches);
+    }
+    return matches.size() == 1 ? matches.getFirst() : null;
+  }
+
+  private void collectConstraints(Container<?> container, String requestedName, List<Constraint> sink) {
+    Iterator<?> iterator = container.iterator();
+    while (iterator.hasNext()) {
+      Object child = iterator.next();
+      if (child instanceof Constraint constraint) {
+        if (requestedName.equals(constraint.getName())
+            || requestedName.equals(constraint.getScopedName())) {
+          sink.add(constraint);
+        }
+      } else if (child instanceof Container<?> nested) {
+        collectConstraints(nested, requestedName, sink);
       }
     }
-    BigDecimal step = BigDecimal.ONE.movePointLeft(scale);
-    return new NumericDomain(minimum, maximum, step);
-  }
-
-  private String decimal(BigDecimal value) {
-    return value.toPlainString();
-  }
-
-  private @Nullable String alternativeText(Map<String, Object> type, String literal) {
-    int maxLength = textMaxLength(type);
-    String candidate = "x".equals(literal) ? "y" : "x";
-    if (maxLength == 0) {
-      return null;
-    }
-    return candidate;
-  }
-
-  private int textMaxLength(Map<String, Object> type) {
-    String typeText = String.valueOf(type.getOrDefault("typeText", ""));
-    int star = typeText.indexOf('*');
-    if (star < 0) {
-      return -1;
-    }
-    try {
-      return Integer.parseInt(typeText.substring(star + 1));
-    } catch (NumberFormatException ex) {
-      return -1;
-    }
-  }
-
-  private @Nullable Object sampleValue(Map<String, Object> type) {
-    String kind = String.valueOf(type.getOrDefault("kind", ""));
-    if ("NUMERIC".equals(kind)) {
-      NumericDomain domain = numericDomain(type, BigDecimal.ZERO);
-      if (domain.contains(BigDecimal.ZERO)) {
-        return "0";
-      }
-      if (domain.minimum() != null) {
-        return decimal(domain.minimum());
-      }
-      if (domain.maximum() != null) {
-        return decimal(domain.maximum());
-      }
-      return "0";
-    }
-    if ("TEXT".equals(kind) || "MTEXT".equals(kind)) {
-      return textMaxLength(type) == 0 ? null : "x";
-    }
-    if ("BOOLEAN".equals(kind)) {
-      return true;
-    }
-    if ("ENUM".equals(kind) && type.get("values") instanceof List<?> values && !values.isEmpty()) {
-      return String.valueOf(values.getFirst());
-    }
-    return null;
-  }
-
-  private boolean isDirectAttribute(Map<String, Object> node) {
-    if (!"OBJECT_PATH".equals(node.get("kind")) || Boolean.TRUE.equals(node.get("collection"))) {
-      return false;
-    }
-    List<Map<String, Object>> steps = mapList(node.get("steps"));
-    return steps.size() == 1 && "ATTRIBUTE".equals(steps.getFirst().get("kind"));
-  }
-
-  private @Nullable AttributeOperand attributeOperand(Map<String, Object> node) {
-    if (!isDirectAttribute(node)) {
-      return null;
-    }
-    Map<String, Object> step = mapList(node.get("steps")).getFirst();
-    String name = String.valueOf(step.getOrDefault("name", ""));
-    if (name.isBlank()) {
-      return null;
-    }
-    Map<String, Object> type = !map(node.get("type")).isEmpty()
-        ? map(node.get("type"))
-        : map(step.get("type"));
-    return new AttributeOperand(name, type, Boolean.TRUE.equals(step.get("mandatory")));
-  }
-
-  private boolean isLiteral(Map<String, Object> node) {
-    String kind = String.valueOf(node.getOrDefault("kind", ""));
-    return "NUMERIC_LITERAL".equals(kind) || "TEXT_LITERAL".equals(kind);
-  }
-
-  private @Nullable LiteralOperand literalOperand(Map<String, Object> node) {
-    if (!isLiteral(node) || node.get("value") == null) {
-      return null;
-    }
-    return new LiteralOperand(String.valueOf(node.get("kind")), String.valueOf(node.get("value")));
-  }
-
-  private String reverse(String operator) {
-    return switch (operator) {
-      case "<" -> ">";
-      case "<=" -> ">=";
-      case ">" -> "<";
-      case ">=" -> "<=";
-      default -> operator;
-    };
-  }
-
-  private Map<String, Object> unwrapGroup(Map<String, Object> node) {
-    Map<String, Object> current = node;
-    while ("GROUP".equals(current.get("kind"))) {
-      current = map(current.get("expression"));
-    }
-    return current;
   }
 
   private Map<String, Object> unavailable(
@@ -476,45 +291,14 @@ public class ConstraintCaseGenerationTools {
 
   private List<String> limitations() {
     return List.of(
-        "Automatic generation intentionally supports only small scalar Mandatory Constraint patterns.",
-        "AND/OR/IMPLIES, multi-step paths, associations, functions, aggregates and structured or geometry values are not synthesized in this step.",
-        "automaticCasesAvailable=true is returned only after the generated witness and counterexample both pass testIliConstraint with the expected outcomes.");
-  }
-
-  @SuppressWarnings("unchecked")
-  private Map<String, Object> map(@Nullable Object value) {
-    return value instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
-  }
-
-  @SuppressWarnings("unchecked")
-  private List<Map<String, Object>> mapList(@Nullable Object value) {
-    return value instanceof List<?> list ? (List<Map<String, Object>>) list : List.of();
-  }
-
-  private record AttributeOperand(String name, Map<String, Object> type, boolean mandatory) {
-  }
-
-  private record LiteralOperand(String kind, String value) {
-  }
-
-  private record ValuePair(Object witness, Object counterexample) {
-  }
-
-  private record NumericDomain(
-      @Nullable BigDecimal minimum,
-      @Nullable BigDecimal maximum,
-      BigDecimal step) {
-    private boolean contains(BigDecimal value) {
-      return (minimum == null || value.compareTo(minimum) >= 0)
-          && (maximum == null || value.compareTo(maximum) <= 0);
-    }
+        "Automatic semantic generation currently supports MANDATORY CONSTRAINT only.",
+        "The supported expression subset is bounded by ConstraintAstTranslator, ConstraintGoalSolver and ConstraintModelSynthesizer; unsupported nodes, custom function semantics, longer paths, geometry and more complex object graphs are reported explicitly rather than guessed.",
+        "The finite-domain solver is deliberately not complete; coverageComplete=false and coverageUnsolved expose goals that could not be solved.",
+        "automaticCasesAvailable=true is returned only after every generated case passes testIliConstraint with the expected outcome using the real ilivalidator.");
   }
 
   private record GeneratedCases(
-      String pattern,
       List<ConstraintTestTools.TestCase> cases,
-      List<Map<String, Object>> summaries,
-      String reasonCode,
-      String reason) {
+      List<Map<String, Object>> summaries) {
   }
 }
