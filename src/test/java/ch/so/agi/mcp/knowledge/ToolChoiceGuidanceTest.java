@@ -88,15 +88,21 @@ class ToolChoiceGuidanceTest {
         .contains("reviewIliModel")
         .contains("reviewIliChange")
         .contains("afterReview")
-        .contains("kein");
+        .contains("kein")
+        .contains("Constraint");
   }
 
   private String description(Class<?> type, String methodName) {
-    Method method = java.util.Arrays.stream(type.getDeclaredMethods())
-        .filter(candidate -> methodName.equals(candidate.getName()))
-        .findFirst()
-        .orElseThrow();
-    McpTool annotation = method.getAnnotation(McpTool.class);
-    return annotation == null ? "" : annotation.description();
+    for (Method method : type.getDeclaredMethods()) {
+      if (!method.getName().equals(methodName)) {
+        continue;
+      }
+      McpTool annotation = method.getAnnotation(McpTool.class);
+      if (annotation == null) {
+        throw new AssertionError("Missing @McpTool on " + type.getSimpleName() + "." + methodName);
+      }
+      return annotation.description();
+    }
+    throw new AssertionError("Method not found: " + type.getSimpleName() + "." + methodName);
   }
 }
