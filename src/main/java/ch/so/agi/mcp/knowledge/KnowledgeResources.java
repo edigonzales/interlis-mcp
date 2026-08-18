@@ -89,12 +89,14 @@ public class KnowledgeResources {
         ## Constraints und String-Pfade
 
         - Einen bestehenden Constraint erklaeren oder technisch pruefen: `reviewIliConstraint`. Das Tool liefert den compilerbasierten AST, Kontext, referenzierte Elemente, Funktionen, Pfade, Typen und strukturelle Edge Cases.
-        - Wenn konkrete fachliche Beispiele fuer gueltige und ungueltige Faelle vorliegen, pruefe sie mit `testIliConstraint`. Jeder Testfall gibt `expectedConstraintValid`, Objekte und optional Referenzen bzw. Association-Links explizit vor; das Tool erzeugt daraus XTF und prueft den ausgewaehlten Constraint mit dem Validator.
+        - Wenn du fuer einen kleinen Constraint automatisch einen gueltigen und einen ungueltigen Fall suchst, verwende `generateIliConstraintCases`. Das Tool generiert nur fuer explizit unterstuetzte AST-Muster und liefert sonst `automaticCasesAvailable=false` statt Werte zu raten.
+        - `generateIliConstraintCases` verifiziert jeden automatisch erzeugten Witness und Counterexample mit `testIliConstraint`. `automaticCasesAvailable=true` bedeutet daher, dass beide erzeugten XTF-Faelle mit dem echten Validator das erwartete Ergebnis geliefert haben.
+        - Der aktuelle automatische Umfang ist bewusst klein: direkte skalare Attributvergleiche mit Literalen (`==`, `!=`, `<`, `<=`, `>`, `>=`) sowie `DEFINED(attribute)` und `NOT(DEFINED(attribute))` fuer optionale direkte Attribute. AND/OR/IMPLIES, mehrstufige Pfade, Associations, Funktionen, Aggregate und strukturierte/geometrische Werte werden noch nicht synthetisiert.
+        - Wenn konkrete fachliche Beispiele fuer gueltige und ungueltige Faelle vorliegen, pruefe sie weiterhin mit `testIliConstraint`. Jeder Testfall gibt `expectedConstraintValid`, Objekte und optional Referenzen bzw. Association-Links explizit vor; das Tool erzeugt daraus XTF und prueft den ausgewaehlten Constraint mit dem Validator.
         - `testIliConstraint` isoliert den ausgewaehlten Constraint, laesst aber Typ-, Multiplizitaets- und Transferpruefungen aktiv. Nicht zum Ziel-Constraint gehoerende Fehler werden deshalb als Fixture-Fehler ausgewiesen statt als Constraint-Ergebnis interpretiert.
         - Bevor du eine Constraint-Funktion aus Trainingswissen annimmst, pruefe sie mit `listConstraintFunctions`. Beachte insbesondere `origin` und die Parameter-`semanticType`.
         - Hat ein Parameter `semanticType=ATTRIBUTE_PATH`, erfinde den String-Pfad nicht. Pruefe ihn mit `resolveConstraintPath` im konkreten Klassen-/Association-Kontext. `reviewIliConstraint` erledigt dies fuer vorhandene Constraints automatisch.
         - `resolveConstraintPath` verwendet dieselbe ili2c-Objekt-/Attributpfad-Syntax, die iox-ili fuer die bekannten Math-Aggregatfunktionen auswertet.
-        - `testIliConstraint` erfindet keine Testfaelle. Automatische Witness-/Counterexample-Erzeugung gehoert in den naechsten Ausbauschritt; in diesem Schritt stammen die Faelle explizit vom Agenten bzw. aus fachlichen Vorgaben.
 
         ## Low-Level nur bei gezieltem Bedarf
 
