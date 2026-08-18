@@ -79,7 +79,7 @@ class ConstraintDecisionTableAssociationPathTest {
 
     List<Map<String, Object>> verifiedCases = list(verification.get("cases"));
     String xtf = String.valueOf(verifiedCases.getFirst().get("xtfText"));
-    assertTrue(xtf.contains("<Bodeneinheit REF=\"decision_case_1_path_1\""), xtf);
+    assertTrue(xtf.contains("<Bodeneinheit REF=\"decision_case_1_p1_1\""), xtf);
   }
 
   @Test
