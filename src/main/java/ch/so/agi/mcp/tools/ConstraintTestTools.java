@@ -317,6 +317,7 @@ public class ConstraintTestTools {
           preparedObject.values(),
           currentObjectIndex,
           prepared.objectIdsByClass(),
+          prepared.objectsByOid(),
           prepared.basketIds());
       applyReferences(object, table, preparedObject.references(), prepared.objectsByOid(), prepared.basketIds());
       Topic topic = (Topic) table.getContainer(Topic.class);
@@ -580,6 +581,7 @@ public class ConstraintTestTools {
       Map<String, Object> values,
       int objectIndex,
       Map<Table, List<String>> objectIdsByClass,
+      Map<String, PreparedObject> objectsByOid,
       Map<Topic, String> basketIds) {
     for (Map.Entry<String, Object> entry : values.entrySet()) {
       if (entry.getKey() == null || entry.getKey().isBlank() || entry.getValue() == null) {
@@ -596,7 +598,10 @@ public class ConstraintTestTools {
             entry.getValue(),
             objectIndex,
             objectIdsByClass,
+            objectsByOid,
             basketIds);
+      } else if (type instanceof ReferenceType) {
+        applyReferenceValue(object, table, name, entry.getValue(), objectsByOid, basketIds);
       } else if (entry.getValue() instanceof List<?> list) {
         for (Object value : list) {
           if (value != null) {
@@ -616,6 +621,7 @@ public class ConstraintTestTools {
       Object raw,
       int objectIndex,
       Map<Table, List<String>> objectIdsByClass,
+      Map<String, PreparedObject> objectsByOid,
       Map<Topic, String> basketIds) {
     List<?> occurrences = raw instanceof List<?> list ? list : List.of(raw);
     Table component = composition.getComponentType();
@@ -633,8 +639,41 @@ public class ConstraintTestTools {
           nestedValues.keySet(),
           objectIdsByClass,
           basketIds);
-      applyValues(nested, component, nestedValues, objectIndex, objectIdsByClass, basketIds);
+      applyValues(
+          nested,
+          component,
+          nestedValues,
+          objectIndex,
+          objectIdsByClass,
+          objectsByOid,
+          basketIds);
       owner.addattrobj(attributeName, nested);
+    }
+  }
+
+  private void applyReferenceValue(
+      Iom_jObject owner,
+      Table sourceTable,
+      String attributeName,
+      Object raw,
+      Map<String, PreparedObject> objectsByOid,
+      Map<Topic, String> basketIds) {
+    if (raw instanceof List<?>) {
+      throw new IllegalArgumentException(
+          "REFERENCE assignment for '" + attributeName + "' requires one target OID.");
+    }
+    String oid = String.valueOf(raw).trim();
+    PreparedObject target = objectsByOid.get(oid);
+    if (target == null) {
+      throw new IllegalArgumentException(
+          "REFERENCE assignment for '" + attributeName + "' points to unknown OID " + raw + ".");
+    }
+    IomObject ref = owner.addattrobj(attributeName, Iom_jObject.REF);
+    ref.setobjectrefoid(target.oid());
+    Topic sourceTopic = (Topic) sourceTable.getContainer(Topic.class);
+    Topic targetTopic = (Topic) target.table().getContainer(Topic.class);
+    if (sourceTopic != null && targetTopic != null && sourceTopic != targetTopic) {
+      ref.setobjectrefbid(basketIds.get(targetTopic));
     }
   }
 
