@@ -15,6 +15,7 @@ import ch.interlis.ili2c.metamodel.Extendable;
 import ch.interlis.ili2c.metamodel.Model;
 import ch.interlis.ili2c.metamodel.NumericType;
 import ch.interlis.ili2c.metamodel.ReferenceType;
+import ch.interlis.ili2c.metamodel.RoleDef;
 import ch.interlis.ili2c.metamodel.Table;
 import ch.interlis.ili2c.metamodel.TextType;
 import ch.interlis.ili2c.metamodel.Topic;
@@ -292,6 +293,7 @@ public class ConstraintTestTools {
 
   private void writeCaseXtf(TransferDescription td, PreparedCase prepared, Path xtfFile) throws IOException {
     Map<Topic, List<Iom_jObject>> objectsByTopic = new LinkedHashMap<>();
+    Map<String, Iom_jObject> iomObjectsByOid = new LinkedHashMap<>();
     int objectIndex = 1;
     for (PreparedObject preparedObject : prepared.objects()) {
       Table table = preparedObject.table();
@@ -309,9 +311,14 @@ public class ConstraintTestTools {
       applyReferences(object, table, preparedObject.references(), prepared.objectsByOid(), prepared.basketIds());
       Topic topic = (Topic) table.getContainer(Topic.class);
       objectsByTopic.computeIfAbsent(topic, key -> new ArrayList<>()).add(object);
+      iomObjectsByOid.put(preparedObject.oid(), object);
     }
 
     for (PreparedLink link : prepared.links()) {
+      if (link.association().isLightweight()) {
+        applyEmbeddedLink(link, prepared, iomObjectsByOid);
+        continue;
+      }
       Iom_jObject associationObject = new Iom_jObject(link.association().getScopedName(null), null);
       Topic associationTopic = (Topic) link.association().getContainer(Topic.class);
       for (Map.Entry<String, String> role : link.roles().entrySet()) {
@@ -356,6 +363,43 @@ public class ConstraintTestTools {
     } catch (IoxException e) {
       throw new IOException("Unable to create XTF writer for explicit constraint test.", e);
     }
+  }
+
+  private void applyEmbeddedLink(
+      PreparedLink link,
+      PreparedCase prepared,
+      Map<String, Iom_jObject> iomObjectsByOid) {
+    RoleDef embeddedEnd = link.association().getRoleWhereEmbedded();
+    if (embeddedEnd == null) {
+      throw new IllegalStateException("Lightweight association has no embedded role: "
+          + link.association().getScopedName(null));
+    }
+    RoleDef referenceRole = embeddedEnd.getOppEnd();
+    PreparedObject owner = linkedObject(link, embeddedEnd, prepared);
+    PreparedObject target = linkedObject(link, referenceRole, prepared);
+    Iom_jObject ownerObject = iomObjectsByOid.get(owner.oid());
+    IomObject ref = ownerObject.addattrobj(referenceRole.getName(), Iom_jObject.REF);
+    ref.setobjectrefoid(target.oid());
+
+    Topic ownerTopic = (Topic) owner.table().getContainer(Topic.class);
+    Topic targetTopic = (Topic) target.table().getContainer(Topic.class);
+    if (ownerTopic != null && targetTopic != null && ownerTopic != targetTopic) {
+      ref.setobjectrefbid(prepared.basketIds().get(targetTopic));
+    }
+  }
+
+  private PreparedObject linkedObject(PreparedLink link, RoleDef role, PreparedCase prepared) {
+    String oid = link.roles().get(role.getName());
+    if (oid == null || oid.isBlank()) {
+      throw new IllegalArgumentException("Association link for '"
+          + link.association().getScopedName(null) + "' requires role '" + role.getName() + "'.");
+    }
+    PreparedObject object = prepared.objectsByOid().get(oid.trim());
+    if (object == null) {
+      throw new IllegalArgumentException("Association link role '" + role.getName()
+          + "' references unknown OID " + oid + ".");
+    }
+    return object;
   }
 
   private ValidationOutcome validateCase(
