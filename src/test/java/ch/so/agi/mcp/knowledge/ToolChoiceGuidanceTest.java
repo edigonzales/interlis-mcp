@@ -50,19 +50,21 @@ class ToolChoiceGuidanceTest {
   }
 
   @Test
-  void automaticConstraintCasesAdvertiseSemanticVerifiedScope() {
+  void automaticConstraintCasesAdvertiseSemanticVerifiedScopeAndCompiledReuse() {
     assertThat(description(ConstraintCaseGenerationTools.class, "generateIliConstraintCases"))
         .contains("Witness", "Counterexample", "Boundary-/Kategoriefaelle")
         .contains("semantische IR", "Solver", "Object-Graph-Synthese")
-        .contains("testIliConstraint", "ilivalidator", "DEFINED", "SUM", "mehrstufige skalare Pfade");
+        .contains("einmal kompilierten Constraint-Kontext", "Validator-Fixtures")
+        .contains("DEFINED", "SUM", "mehrstufige skalare Pfade");
   }
 
   @Test
-  void mandatoryAuthoringAdvertisesTypedRoundTripAndValidatorProof() {
+  void mandatoryAuthoringAdvertisesTypedRoundTripSourcePreservationAndValidatorProof() {
     assertThat(description(ConstraintAuthoringTools.class, "authorIliMandatoryConstraint"))
         .contains("Mandatory Constraint", "semantischen Node-Liste")
+        .contains("source-preserving", "Before und After kompiliert")
         .contains("AST->IR", "Coverage", "Solver", "Object-Graph", "ilivalidator")
-        .contains("ATTRIBUTE", "PATH", "FUNCTION", "COMPARE", "COLLECTION_SUM");
+        .contains("ATTRIBUTE", "PATH", "FUNCTION", "COMPARE");
   }
 
   @Test

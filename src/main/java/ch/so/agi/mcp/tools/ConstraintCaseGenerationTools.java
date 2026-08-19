@@ -1,90 +1,93 @@
 package ch.so.agi.mcp.tools;
 
-import ch.interlis.ili2c.metamodel.Constraint;
-import ch.interlis.ili2c.metamodel.Container;
-import ch.interlis.ili2c.metamodel.Model;
-import ch.interlis.ili2c.metamodel.TransferDescription;
-import ch.so.agi.mcp.constraint.ConstraintAstTranslator;
+import ch.interlis.ili2c.generator.Interlis2Generator;
+import ch.so.agi.mcp.constraint.CompiledConstraintContext;
+import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.constraint.ConstraintCoveragePlanner;
 import ch.so.agi.mcp.constraint.ConstraintExpression;
 import ch.so.agi.mcp.constraint.ConstraintExpressionEngine;
 import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer;
+import ch.so.agi.mcp.constraint.SemanticConstraint;
 import ch.so.agi.mcp.service.IliCompilerService;
+import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
 public class ConstraintCaseGenerationTools {
 
-  private final ConstraintReviewTools reviewTools;
-  private final ConstraintTestTools testTools;
-  private final IliCompilerService compilerService;
+  private final ConstraintContextService contextService;
 
+  @Autowired
+  public ConstraintCaseGenerationTools(
+      IliCompilerService compilerService,
+      ConstraintContextService contextService) {
+    this.contextService = contextService;
+  }
+
+  /** Compatibility constructor used by existing focused tests. */
   public ConstraintCaseGenerationTools(
       ConstraintReviewTools reviewTools,
       ConstraintTestTools testTools,
       IliCompilerService compilerService) {
-    this.reviewTools = reviewTools;
-    this.testTools = testTools;
-    this.compilerService = compilerService;
+    this(compilerService, new ConstraintContextService(compilerService));
   }
 
   @McpTool(
       name = "generateIliConstraintCases",
-      description = "Erzeugt fuer unterstuetzte INTERLIS Mandatory Constraints automatisch modellbewusste Witness-, Counterexample- und Boundary-/Kategoriefaelle. Verwendet die gemeinsame Pipeline ili2c AST -> semantische IR -> Coverage Planner -> Solver -> Object-Graph-Synthese und beweist alle erzeugten Faelle mit testIliConstraint und dem echten ilivalidator. Unterstuetzt damit insbesondere logische Kombinationen, NUMERIC/BOOLEAN/ENUM/TEXT, DEFINED, Standardfunktionen, mehrstufige skalare Pfade ueber Associations/Referenzattribute/Structures sowie SUM auf geeigneten mehrwertigen numerischen Pfaden, soweit IR, Solver und Synthesizer die Semantik abdecken."
+      description = "Erzeugt fuer unterstuetzte INTERLIS Mandatory Constraints automatisch modellbewusste Witness-, Counterexample- und Boundary-/Kategoriefaelle. Verwendet einen einmal kompilierten Constraint-Kontext fuer AST/semantische IR, Coverage Planner, Solver, Object-Graph-Synthese und Validator-Fixtures. Unterstuetzt damit insbesondere logische Kombinationen, NUMERIC/BOOLEAN/ENUM/TEXT, DEFINED, Standardfunktionen, mehrstufige skalare Pfade ueber Associations/Referenzattribute/Structures sowie SUM auf geeigneten mehrwertigen numerischen Pfaden, soweit IR, Solver und Synthesizer die Semantik abdecken."
   )
   public Map<String, Object> generateIliConstraintCases(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,
       @McpToolParam(description = "Constraint-Name oder vollqualifizierter Constraint-Name", required = true) String constraint,
       @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition", required = false) @Nullable String modelRepositories) {
-    Map<String, Object> review = reviewTools.reviewIliConstraint(modelText, constraint, modelRepositories);
-    if (!Boolean.TRUE.equals(review.get("valid"))) {
+    ConstraintContextService.Resolution resolution = contextService.compileAndResolve(
+        modelText,
+        constraint,
+        modelRepositories,
+        "ili2c_constraint_cases_");
+    if (!resolution.available()) {
       return unavailable(
-          "MODEL_OR_CONSTRAINT_REVIEW_UNAVAILABLE",
-          "The constraint must compile and be reviewable before automatic cases can be generated.",
-          review);
+          resolution.reasonCode() != null ? resolution.reasonCode() : "MODEL_OR_CONSTRAINT_REVIEW_UNAVAILABLE",
+          resolution.reason() != null ? resolution.reason() : "The constraint could not be resolved.",
+          null,
+          resolution.compilation().messages());
     }
+    return generateCompiledConstraintCases(resolution.context());
+  }
 
-    IliCompilerService.CompilationResult compilation = compilerService.compile(
-        modelText, modelRepositories, "ili2c_constraint_cases_");
-    if (!compilation.valid() || compilation.transferDescription() == null) {
+  /**
+   * Internal B2 entry point for callers that already own the compiled model and resolved constraint.
+   * No ili2c compilation is performed by this method.
+   */
+  Map<String, Object> generateCompiledConstraintCases(CompiledConstraintContext context) {
+    Objects.requireNonNull(context, "context");
+    if (!(context.semantics() instanceof SemanticConstraint.Mandatory mandatory)) {
       return unavailable(
-          "MODEL_COMPILATION_FAILED",
-          "The model could not be compiled for semantic constraint case generation.",
-          review);
+          "UNSUPPORTED_CONSTRAINT_KIND",
+          "Automatic semantic generation currently supports MANDATORY CONSTRAINT only; got "
+              + context.semantics().kind() + ".",
+          context,
+          context.compilation().messages());
     }
 
-    Constraint compiledConstraint = findConstraint(compilation.transferDescription(), constraint);
-    if (compiledConstraint == null) {
-      return unavailable(
-          "CONSTRAINT_LOOKUP_FAILED",
-          "The reviewed constraint could not be resolved uniquely in the compiled model.",
-          review);
-    }
-
-    ConstraintAstTranslator.Translation translation;
-    try {
-      translation = ConstraintAstTranslator.translate(compiledConstraint);
-    } catch (ConstraintAstTranslator.TranslationException ex) {
-      return unavailable(ex.reasonCode(), ex.getMessage(), review);
-    }
-
-    ConstraintExpression expression = translation.expression();
+    ConstraintExpression expression = mandatory.condition();
     ConstraintModelSynthesizer.ModelBinding binding;
     try {
       binding = ConstraintModelSynthesizer.bind(
-          compilation.transferDescription(), translation.contextFqn(), expression);
+          context.transferDescription(), mandatory.contextFqn(), expression);
     } catch (IllegalArgumentException ex) {
-      return unavailable("MODEL_BINDING_UNAVAILABLE", ex.getMessage(), review);
+      return unavailable("MODEL_BINDING_UNAVAILABLE", ex.getMessage(), context, context.compilation().messages());
     }
 
     ConstraintCoveragePlanner.CoveragePlan coverage = ConstraintCoveragePlanner.solve(expression, binding);
@@ -95,21 +98,17 @@ public class ConstraintCaseGenerationTools {
       String reason = coverage.unsolved().isEmpty()
           ? "No semantic coverage cases could be derived for the constraint."
           : coverage.unsolved().getFirst().reason();
-      return unavailable(reasonCode, reason, review);
+      return unavailable(reasonCode, reason, context, context.compilation().messages());
     }
 
     GeneratedCases generated;
     try {
-      generated = generateCases(expression, translation.version(), binding, coverage);
+      generated = generateCases(expression, mandatory.version(), binding, coverage);
     } catch (IllegalArgumentException ex) {
-      return unavailable("OBJECT_GRAPH_SYNTHESIS_FAILED", ex.getMessage(), review);
+      return unavailable("OBJECT_GRAPH_SYNTHESIS_FAILED", ex.getMessage(), context, context.compilation().messages());
     }
 
-    Map<String, Object> verification = testTools.testIliConstraint(
-        modelText,
-        constraint,
-        generated.cases(),
-        modelRepositories);
+    Map<String, Object> verification = verifyUsingCompiledContext(context, generated.cases());
     boolean verified = Boolean.TRUE.equals(verification.get("allPassed"));
 
     Map<String, Object> response = new LinkedHashMap<>();
@@ -117,14 +116,14 @@ public class ConstraintCaseGenerationTools {
     response.put("automaticCasesGenerated", true);
     response.put("generationVerified", verified);
     response.put("pattern", "SEMANTIC_IR_COVERAGE");
-    response.put("constraint", review.get("constraint"));
-    response.put("context", review.get("context"));
+    response.put("constraint", constraintSummary(context));
+    response.put("context", contextSummary(context));
     response.put("generatedCases", generated.summaries());
     response.put("coverageGoalCount", coverage.cases().size() + coverage.unsolved().size());
     response.put("coverageSolvedCount", coverage.cases().size());
     response.put("coverageComplete", coverage.unsolved().isEmpty());
     if (!coverage.unsolved().isEmpty()) {
-      response.put("coverageUnsolved", coverageUnsolved(coverage, translation.version()));
+      response.put("coverageUnsolved", coverageUnsolved(coverage, mandatory.version()));
     }
     response.put("verification", verification);
     if (!verified) {
@@ -135,6 +134,18 @@ public class ConstraintCaseGenerationTools {
     }
     response.put("limitations", limitations());
     return response;
+  }
+
+  private Map<String, Object> verifyUsingCompiledContext(
+      CompiledConstraintContext context,
+      List<ConstraintTestTools.TestCase> cases) {
+    IliCompilerService precompiledCompiler = new PrecompiledCompiler(context);
+    ConstraintTestTools validator = new ConstraintTestTools(precompiledCompiler);
+    return validator.testIliConstraint(
+        context.modelText(),
+        context.constraintFqn(),
+        cases,
+        context.modelRepositories());
   }
 
   private GeneratedCases generateCases(
@@ -247,44 +258,55 @@ public class ConstraintCaseGenerationTools {
     }).toList();
   }
 
-  private @Nullable Constraint findConstraint(TransferDescription td, String requestedName) {
-    List<Constraint> matches = new ArrayList<>();
-    for (Model model : td.getModelsFromLastFile()) {
-      collectConstraints(model, requestedName, matches);
-    }
-    return matches.size() == 1 ? matches.getFirst() : null;
+  private Map<String, Object> constraintSummary(CompiledConstraintContext context) {
+    Map<String, Object> result = new LinkedHashMap<>();
+    result.put("name", context.constraint().getName());
+    result.put("scopedName", context.constraint().getScopedName());
+    result.put("kind", switch (context.semantics().kind()) {
+      case MANDATORY -> "MANDATORY_CONSTRAINT";
+      case UNIQUE -> "UNIQUENESS_CONSTRAINT";
+      case EXISTENCE -> "EXISTENCE_CONSTRAINT";
+      case PLAUSIBILITY -> "PLAUSIBILITY_CONSTRAINT";
+      case SET -> "SET_CONSTRAINT";
+    });
+    result.put("sourceLine", context.constraint().getSourceLine());
+    result.put("definitionText", definitionText(context));
+    return result;
   }
 
-  private void collectConstraints(Container<?> container, String requestedName, List<Constraint> sink) {
-    Iterator<?> iterator = container.iterator();
-    while (iterator.hasNext()) {
-      Object child = iterator.next();
-      if (child instanceof Constraint constraint) {
-        if (requestedName.equals(constraint.getName())
-            || requestedName.equals(constraint.getScopedName())) {
-          sink.add(constraint);
-        }
-      } else if (child instanceof Container<?> nested) {
-        collectConstraints(nested, requestedName, sink);
-      }
-    }
+  private String definitionText(CompiledConstraintContext context) {
+    StringWriter writer = new StringWriter();
+    Interlis2Generator generator =
+        Interlis2Generator.generateElements(writer, context.transferDescription());
+    generator.printConstraint(context.constraint(), true);
+    return writer.toString().strip();
+  }
+
+  private Map<String, Object> contextSummary(CompiledConstraintContext context) {
+    Object container = context.constraint().getContainer();
+    return Map.of(
+        "scopedName", context.contextFqn(),
+        "kind", container != null ? container.getClass().getSimpleName() : "UNKNOWN",
+        "pathContextAvailable", container instanceof ch.interlis.ili2c.metamodel.Viewable<?>);
   }
 
   private Map<String, Object> unavailable(
       String reasonCode,
       String reason,
-      Map<String, Object> review) {
+      @Nullable CompiledConstraintContext context,
+      List<?> compilerMessages) {
     Map<String, Object> response = new LinkedHashMap<>();
     response.put("automaticCasesAvailable", false);
     response.put("automaticCasesGenerated", false);
     response.put("generationVerified", false);
     response.put("reasonCode", reasonCode);
     response.put("reason", reason);
-    if (review.get("constraint") != null) {
-      response.put("constraint", review.get("constraint"));
+    if (context != null) {
+      response.put("constraint", constraintSummary(context));
+      response.put("context", contextSummary(context));
     }
-    if (review.get("context") != null) {
-      response.put("context", review.get("context"));
+    if (compilerMessages != null && !compilerMessages.isEmpty()) {
+      response.put("compilerMessages", compilerMessages);
     }
     response.put("limitations", limitations());
     return response;
@@ -295,11 +317,44 @@ public class ConstraintCaseGenerationTools {
         "Automatic semantic generation currently supports MANDATORY CONSTRAINT only.",
         "Multi-step scalar paths can mix association roles, reference attributes and structures. A path currently supports at most one multi-valued navigation step; cross-topic/cross-basket graphs, geometry and unsupported custom function semantics remain explicit limitations.",
         "The finite-domain solver is deliberately not complete; coverageComplete=false and coverageUnsolved expose goals that could not be solved.",
-        "automaticCasesAvailable=true is returned only after every generated case passes testIliConstraint with the expected outcome using the real ilivalidator.");
+        "automaticCasesAvailable=true is returned only after every generated case passes the real ilivalidator with the expected outcome.");
   }
 
   private record GeneratedCases(
       List<ConstraintTestTools.TestCase> cases,
       List<Map<String, Object>> summaries) {
+  }
+
+  /**
+   * Adapter for the legacy explicit-case tool while B2 moves compilation ownership to the shared
+   * context. It rejects any attempt to compile a different model, so hidden recompilation cannot
+   * silently re-enter the pipeline.
+   */
+  private static final class PrecompiledCompiler extends IliCompilerService {
+    private final CompiledConstraintContext context;
+
+    private PrecompiledCompiler(CompiledConstraintContext context) {
+      this.context = Objects.requireNonNull(context, "context");
+    }
+
+    @Override
+    public CompilationResult compile(
+        String modelText,
+        String modelRepositories,
+        String tempPrefix) {
+      if (!context.modelText().equals(modelText)) {
+        throw new IllegalStateException("Compiled constraint pipeline attempted to compile a different model text.");
+      }
+      String expectedRepos = normalize(context.modelRepositories());
+      String actualRepos = normalize(modelRepositories);
+      if (!Objects.equals(expectedRepos, actualRepos)) {
+        throw new IllegalStateException("Compiled constraint pipeline changed modelRepositories.");
+      }
+      return context.compilation();
+    }
+
+    private String normalize(@Nullable String value) {
+      return value == null || value.isBlank() ? null : value.trim();
+    }
   }
 }
