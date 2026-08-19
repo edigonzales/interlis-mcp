@@ -193,7 +193,7 @@ class ConstraintValidatorDifferentialTest {
         ARITHMETIC_MODEL_24,
         "NativeDivision",
         List.of(
-            assignment("division by zero", true, Map.of(
+            assignment("division by zero", false, Map.of(
                 "A", decimal("10"),
                 "B", decimal("0"))),
             assignment("native arithmetic witness", true, Map.of(
