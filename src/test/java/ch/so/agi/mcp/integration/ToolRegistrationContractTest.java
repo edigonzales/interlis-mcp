@@ -263,6 +263,44 @@ class ToolRegistrationContractTest {
     assertThat(structured.get("requiredIn")).asList().hasSize(2);
   }
 
+  @Test
+  void authorIliPlausibilityConstraintDeserializesPopulationSpec() throws Exception {
+    SyncToolSpecification author = specsByName().get("authorIliPlausibilityConstraint");
+
+    String modelText = "INTERLIS 2.4;\n\n"
+        + "MODEL PlausDemo (de) AT \"https://example.org/demo\" VERSION \"2026-08-19\" =\n"
+        + "  TOPIC Data =\n"
+        + "    CLASS Item =\n"
+        + "      value : MANDATORY 0..100;\n"
+        + "    END Item;\n"
+        + "  END Data;\n"
+        + "END PlausDemo.\n";
+
+    var response = author.callHandler().apply(null,
+        new McpSchema.CallToolRequest("authorIliPlausibilityConstraint", Map.of(
+            "modelText", modelText,
+            "context", "PlausDemo.Data.Item",
+            "constraintName", "UsuallyHigh",
+            "direction", "AT_LEAST",
+            "percentage", 80,
+            "rootNodeId", "root",
+            "nodes", List.of(
+                Map.of("id", "value", "kind", "ATTRIBUTE", "name", "value"),
+                Map.of("id", "threshold", "kind", "NUMERIC", "value", 10),
+                Map.of("id", "root", "kind", "COMPARE", "operator", ">=",
+                    "children", List.of("value", "threshold"))))));
+
+    Map<String, Object> structured = extractStructuredContent(response);
+    assertThat(structured.get("generated")).isEqualTo(true);
+    assertThat(structured.get("proofVerified")).isEqualTo(true);
+    assertThat(structured.get("direction")).isEqualTo("AT_LEAST");
+    assertThat(structured.get("percentage")).isEqualTo("80");
+    assertThat(structured.get("updatedModelText").toString())
+        .contains("!!@ name = \"UsuallyHigh\"")
+        .contains(">= 80%")
+        .contains("value >= 10");
+  }
+
   private Map<String, SyncToolSpecification> specsByName() {
     return toolSpecifications.stream()
         .collect(Collectors.toMap(spec -> spec.tool().name(), spec -> spec, (left, right) -> left, LinkedHashMap::new));
@@ -344,6 +382,7 @@ class ToolRegistrationContractTest {
     expectations.put("generateIliConstraintCases", schema(Set.of("modelText", "constraint"), Set.of("modelRepositories")));
     expectations.put("generateIliConstraintFromDecisionTable", schema(Set.of("modelText", "context", "constraintName", "rows"), Set.of("modelRepositories")));
     expectations.put("authorIliMandatoryConstraint", schema(Set.of("modelText", "context", "constraintName", "rootNodeId", "nodes"), Set.of("modelRepositories")));
+    expectations.put("authorIliPlausibilityConstraint", schema(Set.of("modelText", "context", "constraintName", "direction", "percentage", "rootNodeId", "nodes"), Set.of("modelRepositories")));
     expectations.put("authorIliExistenceConstraint", schema(Set.of("modelText", "context", "constraintName", "restrictedPath", "requiredIn"), Set.of("modelRepositories")));
     expectations.put("testIliConstraint", schema(Set.of("modelText", "constraint", "cases"), Set.of("modelRepositories")));
     expectations.put("findSimilarModels", schema(Set.of(), Set.of("query", "modelText", "modelPurpose", "limit")));

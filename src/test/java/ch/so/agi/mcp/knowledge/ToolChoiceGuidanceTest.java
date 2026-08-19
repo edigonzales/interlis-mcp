@@ -51,14 +51,15 @@ class ToolChoiceGuidanceTest {
   }
 
   @Test
-  void automaticConstraintCasesAdvertiseMandatoryUniqueAndExtendedExistenceScope() {
+  void automaticConstraintCasesAdvertiseMandatoryUniqueExistenceAndPlausibilityScope() {
     assertThat(description(ConstraintCaseGenerationTools.class, "generateIliConstraintCases"))
-        .contains("Mandatory", "UNIQUE", "EXISTENCE")
+        .contains("Mandatory", "UNIQUE", "EXISTENCE", "PLAUSIBILITY")
         .contains("Witness", "Counterexample", "Boundary-/Kategoriefaelle")
         .contains("semantische IR", "Solver", "Object-Graph-Synthese")
         .contains("einmal kompilierten Constraint-Kontext", "Validator-Fixtures")
         .contains("WHERE", "(BASKET)", "LOCAL", "STRUCTURE", "COMPOSITION", "ilivalidator")
-        .contains("REFERENCE", "COORD", "Safety-Reason-Codes");
+        .contains("REFERENCE", "COORD", "Safety-Reason-Codes")
+        .contains("Populationen", "Prozentgrenze");
   }
 
   @Test
@@ -68,6 +69,14 @@ class ToolChoiceGuidanceTest {
         .contains("source-preserving", "Before und After kompiliert")
         .contains("AST->IR", "Coverage", "Solver", "Object-Graph", "ilivalidator")
         .contains("ATTRIBUTE", "PATH", "FUNCTION", "COMPARE");
+  }
+
+  @Test
+  void plausibilityAuthoringAdvertisesPopulationSemanticsAndTwoCompileRoundTrip() {
+    assertThat(description(ConstraintAuthoringTools.class, "authorIliPlausibilityConstraint"))
+        .contains("PLAUSIBILITY", "direction", "percentage", "semantischen Node-Liste")
+        .contains("source-preserving", "Before/After je genau einmal")
+        .contains("constraint-level IR", "Mehrfachobjekt", "ilivalidator");
   }
 
   @Test
@@ -123,6 +132,9 @@ class ToolChoiceGuidanceTest {
         .contains("afterReview")
         .contains("STRUCTURE")
         .contains("EXISTENCE_REFERENCE_VALUE_PROOF_UNSAFE")
+        .contains("authorIliPlausibilityConstraint")
+        .contains("UNDEFINED_COUNTS_AS_SUCCESS")
+        .contains("SET")
         .contains("Constraint");
   }
 
