@@ -50,12 +50,13 @@ class ToolChoiceGuidanceTest {
   }
 
   @Test
-  void automaticConstraintCasesAdvertiseSemanticVerifiedScopeAndCompiledReuse() {
+  void automaticConstraintCasesAdvertiseMandatoryAndUniqueVerifiedScope() {
     assertThat(description(ConstraintCaseGenerationTools.class, "generateIliConstraintCases"))
+        .contains("Mandatory", "UNIQUE")
         .contains("Witness", "Counterexample", "Boundary-/Kategoriefaelle")
         .contains("semantische IR", "Solver", "Object-Graph-Synthese")
         .contains("einmal kompilierten Constraint-Kontext", "Validator-Fixtures")
-        .contains("DEFINED", "SUM", "mehrstufige skalare Pfade");
+        .contains("WHERE", "(BASKET)", "LOCAL", "ilivalidator");
   }
 
   @Test
