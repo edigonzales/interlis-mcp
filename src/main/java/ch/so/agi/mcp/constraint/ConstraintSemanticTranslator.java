@@ -14,6 +14,7 @@ import ch.interlis.ili2c.metamodel.MandatoryConstraint;
 import ch.interlis.ili2c.metamodel.Model;
 import ch.interlis.ili2c.metamodel.NumericType;
 import ch.interlis.ili2c.metamodel.ObjectPath;
+import ch.interlis.ili2c.metamodel.PathElRefAttr;
 import ch.interlis.ili2c.metamodel.PlausibilityConstraint;
 import ch.interlis.ili2c.metamodel.SetConstraint;
 import ch.interlis.ili2c.metamodel.TextType;
@@ -233,21 +234,15 @@ public final class ConstraintSemanticTranslator {
     return new SemanticConstraint.ConstraintPath(
         rootFqn,
         path.toString(),
-        path.isAttributePath(),
+        attributeEndpoint(path),
         targetViewableFqn(path),
         endpointType(path));
   }
 
-  /**
-   * Returns the viewable reached by an object-valued path without calling {@link ObjectPath#getViewable()}
-   * for scalar attribute paths.
-   *
-   * <p>ili2c's {@link AttributeRef#getViewable()} assumes the referenced attribute is a composition and
-   * casts its domain accordingly. Calling {@code ObjectPath.getViewable()} for a scalar NUMERIC/TEXT
-   * attribute therefore throws {@link ClassCastException}. For composition attributes we can obtain
-   * the component type safely from the declared domain; scalar attribute paths intentionally have no
-   * target viewable.</p>
-   */
+  private static boolean attributeEndpoint(ObjectPath path) {
+    return path.isAttributePath() || path.getLastPathEl() instanceof PathElRefAttr;
+  }
+
   private static @Nullable String targetViewableFqn(ObjectPath path) {
     if (!path.isAttributePath()) {
       return path.getViewable() != null ? path.getViewable().getScopedName() : null;
@@ -283,7 +278,7 @@ public final class ConstraintSemanticTranslator {
     } else {
       kind = ConstraintExpression.ScalarKind.UNKNOWN;
     }
-    boolean nullable = path.isAttributePath() && !declared.isMandatoryConsideringAliases();
+    boolean nullable = attributeEndpoint(path) && !declared.isMandatoryConsideringAliases();
     return new ConstraintExpression.Type(kind, false, nullable);
   }
 

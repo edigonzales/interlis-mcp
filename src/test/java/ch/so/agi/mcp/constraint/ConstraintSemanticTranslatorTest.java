@@ -24,6 +24,13 @@ class ConstraintSemanticTranslatorTest {
             attrOther : 0..10;
           END ClassOther;
 
+          CLASS RefEntity =
+          END RefEntity;
+
+          CLASS RefTarget =
+            ref : REFERENCE TO RefEntity;
+          END RefTarget;
+
           STRUCTURE StructA =
             structAttr : TEXT*100;
           END StructA;
@@ -31,9 +38,11 @@ class ConstraintSemanticTranslatorTest {
           CLASS ClassA =
             attr1 : MANDATORY 0..999;
             attr2 : BAG {1..*} OF StructA;
+            ref : REFERENCE TO RefEntity;
             MANDATORY CONSTRAINT NamedMandatory: attr1 > 1;
             CONSTRAINT NamedPlausibility: <= 80% attr1 > 2;
             EXISTENCE CONSTRAINT NamedExistence: attr1 REQUIRED IN ClassOther : attrOther;
+            EXISTENCE CONSTRAINT NamedReferenceExistence: ref REQUIRED IN RefTarget : ref;
             UNIQUE (BASKET) NamedUniqueBasket: attr1;
             UNIQUE NamedUniqueLocal: (LOCAL) attr2 : structAttr;
             SET CONSTRAINT (BASKET) NamedSetBasket: INTERLIS.objectCount(ALL) >= 0;
@@ -118,6 +127,28 @@ class ConstraintSemanticTranslatorTest {
       assertThat(path.targetViewableFqn()).isNull();
       assertThat(path.endpointType().scalarKind())
           .isEqualTo(ConstraintExpression.ScalarKind.NUMERIC);
+    });
+  }
+
+  @Test
+  void referenceToEndpointStillTranslatesAsExistenceAttributePath() {
+    SemanticConstraint.Existence semantic = assertKind(
+        ConstraintSemanticTranslator.translate(constraint("NamedReferenceExistence")),
+        SemanticConstraint.Existence.class);
+
+    assertThat(semantic.restrictedAttribute()).satisfies(path -> {
+      assertThat(path.rootFqn()).isEqualTo("ModelA.TopicA.ClassA");
+      assertThat(path.path()).isEqualTo("ref");
+      assertThat(path.attributePath()).isTrue();
+      assertThat(path.targetViewableFqn()).isEqualTo("ModelA.TopicA.RefEntity");
+      assertThat(path.endpointType().scalarKind()).isEqualTo(ConstraintExpression.ScalarKind.UNKNOWN);
+    });
+    assertThat(semantic.requiredIn()).singleElement().satisfies(path -> {
+      assertThat(path.rootFqn()).isEqualTo("ModelA.TopicA.RefTarget");
+      assertThat(path.path()).isEqualTo("ref");
+      assertThat(path.attributePath()).isTrue();
+      assertThat(path.targetViewableFqn()).isEqualTo("ModelA.TopicA.RefEntity");
+      assertThat(path.endpointType().scalarKind()).isEqualTo(ConstraintExpression.ScalarKind.UNKNOWN);
     });
   }
 

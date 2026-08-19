@@ -50,7 +50,7 @@ public class ExistenceConstraintAuthoringTools {
 
   @McpTool(
       name = "authorIliExistenceConstraint",
-      description = "Erzeugt einen skalaren INTERLIS EXISTENCE CONSTRAINT aus explizitem restrictedPath und einer Liste von REQUIRED-IN-Zielen mit jeweils viewableFqn plus attributePath. Loest Source- und Target-Pfade gegen den kompilierten Before-AST auf, fuegt den Constraint source-preserving ein, kompiliert Before/After je genau einmal, prueft den AST->constraint-level-IR Roundtrip und beweist Witness/Counterexample-Faelle mit echtem ilivalidator. Unterstuetzt in B7 skalare NUMERIC/BOOLEAN/ENUM/TEXT/MTEXT-Pfade; Structure-/Geometry-Sondersemantik folgt in B8."
+      description = "Erzeugt einen skalaren INTERLIS EXISTENCE CONSTRAINT aus explizitem restrictedPath und einer Liste von REQUIRED-IN-Zielen mit jeweils viewableFqn plus attributePath. Loest Source- und Target-Pfade gegen den kompilierten Before-AST auf, fuegt den Constraint source-preserving ein, kompiliert Before/After je genau einmal, prueft den AST->constraint-level-IR Roundtrip und beweist Witness/Counterexample-Faelle mit echtem ilivalidator. Typed Authoring unterstuetzt NUMERIC/BOOLEAN/ENUM/TEXT/MTEXT-Pfade. Direkte STRUCTURE-EXISTENCE-Proofs fuer bestehende Constraints werden von generateIliConstraintCases abgedeckt; Geometrie-/REFERENCE-Grenzen werden dort explizit als Safety-Codes ausgewiesen."
   )
   public Map<String, Object> authorIliExistenceConstraint(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext ohne den zu erzeugenden EXISTENCE Constraint", required = true) String modelText,
@@ -199,8 +199,9 @@ public class ExistenceConstraintAuthoringTools {
           "The EXISTENCE constraint compiled and round-tripped to typed IR, but its generated proof was not fully verified."));
     }
     result.put("limitations", List.of(
-        "B7 authoring/proof supports scalar NUMERIC, BOOLEAN, ENUM, TEXT and MTEXT EXISTENCE paths.",
-        "Structure equality, geometry and special EXISTENCE comparison semantics are deferred to B8.",
+        "Typed EXISTENCE authoring supports scalar NUMERIC, BOOLEAN, ENUM, TEXT and MTEXT paths.",
+        "B8 extends automatic proof of existing constraints to safe direct STRUCTURE equality; typed STRUCTURE authoring is intentionally not added to this scalar authoring tool.",
+        "REFERENCE and geometry forms use explicit proof safety gates instead of scalar emulation.",
         "A successful proofVerified=true means every generated proof fixture was confirmed by the real ilivalidator."));
     return result;
   }
@@ -308,7 +309,8 @@ public class ExistenceConstraintAuthoringTools {
     for (SemanticConstraint.ConstraintPath path : paths) {
       ConstraintExpression.Type type = path.endpointType();
       if (type.collection()) {
-        return "Collection-valued EXISTENCE path is outside B7 scalar scope: " + path.rootFqn() + ":" + path.path();
+        return "Collection-valued EXISTENCE path is outside typed scalar authoring scope: "
+            + path.rootFqn() + ":" + path.path();
       }
       ConstraintExpression.ScalarKind kind = type.scalarKind();
       if (kind != ConstraintExpression.ScalarKind.NUMERIC
@@ -316,7 +318,7 @@ public class ExistenceConstraintAuthoringTools {
           && kind != ConstraintExpression.ScalarKind.ENUM
           && kind != ConstraintExpression.ScalarKind.TEXT
           && kind != ConstraintExpression.ScalarKind.MTEXT) {
-        return "EXISTENCE endpoint type " + kind + " is outside B7 scalar scope: "
+        return "EXISTENCE endpoint type " + kind + " is outside typed scalar authoring scope: "
             + path.rootFqn() + ":" + path.path();
       }
     }
