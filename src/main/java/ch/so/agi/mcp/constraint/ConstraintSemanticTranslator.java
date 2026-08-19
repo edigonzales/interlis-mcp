@@ -3,12 +3,15 @@ package ch.so.agi.mcp.constraint;
 import ch.interlis.ili2c.metamodel.AbstractCoordType;
 import ch.interlis.ili2c.metamodel.AttributeRef;
 import ch.interlis.ili2c.metamodel.CompositionType;
+import ch.interlis.ili2c.metamodel.Constant;
 import ch.interlis.ili2c.metamodel.Constraint;
 import ch.interlis.ili2c.metamodel.Element;
 import ch.interlis.ili2c.metamodel.EnumTreeValueType;
 import ch.interlis.ili2c.metamodel.EnumerationType;
 import ch.interlis.ili2c.metamodel.Evaluable;
 import ch.interlis.ili2c.metamodel.ExistenceConstraint;
+import ch.interlis.ili2c.metamodel.Expression;
+import ch.interlis.ili2c.metamodel.FunctionCall;
 import ch.interlis.ili2c.metamodel.LineType;
 import ch.interlis.ili2c.metamodel.MandatoryConstraint;
 import ch.interlis.ili2c.metamodel.Model;
@@ -20,6 +23,7 @@ import ch.interlis.ili2c.metamodel.SetConstraint;
 import ch.interlis.ili2c.metamodel.TextType;
 import ch.interlis.ili2c.metamodel.Type;
 import ch.interlis.ili2c.metamodel.UniquenessConstraint;
+import ch.interlis.ili2c.metamodel.Viewable;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -188,6 +192,12 @@ public final class ConstraintSemanticTranslator {
           "MISSING_SET_CONDITION",
           "Set constraint has no condition: " + scopedName);
     }
+
+    SemanticConstraint.ObjectCountSetCondition objectCount = translateObjectCountCondition(condition);
+    if (objectCount != null) {
+      return objectCount;
+    }
+
     try {
       return new SemanticConstraint.ValueSetCondition(
           ConstraintAstTranslator.translate(condition, version));
@@ -197,6 +207,130 @@ public final class ConstraintSemanticTranslator {
           condition.getClass().getName(),
           condition.toString());
     }
+  }
+
+  private static SemanticConstraint.ObjectCountSetCondition translateObjectCountCondition(
+      Evaluable condition) {
+    ComparisonParts comparison = comparisonParts(condition);
+    if (comparison == null) {
+      return null;
+    }
+
+    ObjectCountCall left = objectCountCall(comparison.left());
+    BigDecimal right = numericConstant(comparison.right());
+    if (left != null && right != null) {
+      return new SemanticConstraint.ObjectCountSetCondition(
+          allObjects(left.objects()), comparison.operator(), right);
+    }
+
+    ObjectCountCall rightCall = objectCountCall(comparison.right());
+    BigDecimal leftConstant = numericConstant(comparison.left());
+    if (rightCall != null && leftConstant != null) {
+      return new SemanticConstraint.ObjectCountSetCondition(
+          allObjects(rightCall.objects()), reverse(comparison.operator()), leftConstant);
+    }
+    return null;
+  }
+
+  private static @Nullable ObjectCountCall objectCountCall(Evaluable expression) {
+    if (!(expression instanceof FunctionCall call)
+        || call.getFunction() == null
+        || !"INTERLIS.objectCount".equals(call.getFunction().getScopedName())) {
+      return null;
+    }
+    Evaluable[] arguments = call.getArguments();
+    if (arguments == null || arguments.length != 1
+        || !(arguments[0] instanceof ch.interlis.ili2c.metamodel.Objects objects)) {
+      return null;
+    }
+    return new ObjectCountCall(objects);
+  }
+
+  private static SemanticConstraint.AllObjects allObjects(
+      ch.interlis.ili2c.metamodel.Objects objects) {
+    Viewable<?> context = objects.getContext();
+    if (context == null || context.getScopedName() == null || context.getScopedName().isBlank()) {
+      throw new TranslationException(
+          "SET_ALL_CONTEXT_MISSING",
+          "ili2c Objects/ALL node has no semantic context.");
+    }
+    String baseFqn = objects.getBase() != null ? objects.getBase().getScopedName() : null;
+    List<String> restrictedTo = new ArrayList<>();
+    Iterator<?> iterator = objects.iteratorRestrictedTo();
+    while (iterator.hasNext()) {
+      Object candidate = iterator.next();
+      if (!(candidate instanceof Viewable<?> viewable)
+          || viewable.getScopedName() == null
+          || viewable.getScopedName().isBlank()) {
+        throw new TranslationException(
+            "SET_ALL_RESTRICTION_INVALID",
+            "ili2c Objects/ALL node contains an invalid RESTRICTION target.");
+      }
+      restrictedTo.add(viewable.getScopedName());
+    }
+    return new SemanticConstraint.AllObjects(
+        context.getScopedName(),
+        baseFqn,
+        restrictedTo);
+  }
+
+  private static @Nullable BigDecimal numericConstant(Evaluable expression) {
+    if (!(expression instanceof Constant.Numeric numeric)) {
+      return null;
+    }
+    return new BigDecimal(numeric.getValue().toString()).stripTrailingZeros();
+  }
+
+  private static @Nullable ComparisonParts comparisonParts(Evaluable condition) {
+    if (condition instanceof Expression.Equality expression) {
+      return new ComparisonParts(
+          ConstraintExpression.ComparisonOperator.EQ,
+          expression.getLeft(),
+          expression.getRight());
+    }
+    if (condition instanceof Expression.Inequality expression) {
+      return new ComparisonParts(
+          ConstraintExpression.ComparisonOperator.NE,
+          expression.getLeft(),
+          expression.getRight());
+    }
+    if (condition instanceof Expression.GreaterThan expression) {
+      return new ComparisonParts(
+          ConstraintExpression.ComparisonOperator.GT,
+          expression.getLeft(),
+          expression.getRight());
+    }
+    if (condition instanceof Expression.GreaterThanOrEqual expression) {
+      return new ComparisonParts(
+          ConstraintExpression.ComparisonOperator.GE,
+          expression.getLeft(),
+          expression.getRight());
+    }
+    if (condition instanceof Expression.LessThan expression) {
+      return new ComparisonParts(
+          ConstraintExpression.ComparisonOperator.LT,
+          expression.getLeft(),
+          expression.getRight());
+    }
+    if (condition instanceof Expression.LessThanOrEqual expression) {
+      return new ComparisonParts(
+          ConstraintExpression.ComparisonOperator.LE,
+          expression.getLeft(),
+          expression.getRight());
+    }
+    return null;
+  }
+
+  private static ConstraintExpression.ComparisonOperator reverse(
+      ConstraintExpression.ComparisonOperator operator) {
+    return switch (operator) {
+      case EQ -> ConstraintExpression.ComparisonOperator.EQ;
+      case NE -> ConstraintExpression.ComparisonOperator.NE;
+      case LT -> ConstraintExpression.ComparisonOperator.GT;
+      case LE -> ConstraintExpression.ComparisonOperator.GE;
+      case GT -> ConstraintExpression.ComparisonOperator.LT;
+      case GE -> ConstraintExpression.ComparisonOperator.LE;
+    };
   }
 
   private static @Nullable ConstraintExpression translateOptional(
@@ -315,6 +449,15 @@ public final class ConstraintSemanticTranslator {
     throw new TranslationException(
         "MISSING_MODEL_CONTEXT",
         "Constraint is not contained in an INTERLIS model: " + constraint.getName());
+  }
+
+  private record ComparisonParts(
+      ConstraintExpression.ComparisonOperator operator,
+      Evaluable left,
+      Evaluable right) {
+  }
+
+  private record ObjectCountCall(ch.interlis.ili2c.metamodel.Objects objects) {
   }
 
   private record Metadata(

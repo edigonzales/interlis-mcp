@@ -169,7 +169,7 @@ class ConstraintSemanticTranslatorTest {
   }
 
   @Test
-  void setConstraintGetsTypedEnvelopeWithoutPretendingAllIsAlreadySupported() {
+  void translatesSetObjectCountAllIntoTypedObjectSetIr() {
     SemanticConstraint.Set semantic = assertKind(
         ConstraintSemanticTranslator.translate(constraint("NamedSetBasket")),
         SemanticConstraint.Set.class);
@@ -177,12 +177,18 @@ class ConstraintSemanticTranslatorTest {
     assertThat(semantic.kind()).isEqualTo(SemanticConstraint.Kind.SET);
     assertThat(semantic.perBasket()).isTrue();
     assertThat(semantic.preCondition()).isNull();
-    assertThat(semantic.condition())
-        .isInstanceOf(SemanticConstraint.UntranslatedSetCondition.class);
-    SemanticConstraint.UntranslatedSetCondition condition =
-        (SemanticConstraint.UntranslatedSetCondition) semantic.condition();
-    assertThat(condition.reasonCode()).isEqualTo("UNSUPPORTED_AST_NODE");
-    assertThat(condition.metamodelType()).isNotBlank();
+    SemanticConstraint.ObjectCountSetCondition condition = assertKind(
+        semantic.condition(),
+        SemanticConstraint.ObjectCountSetCondition.class);
+    assertThat(condition.operator()).isEqualTo(ConstraintExpression.ComparisonOperator.GE);
+    assertThat(condition.threshold()).isEqualByComparingTo(BigDecimal.ZERO);
+    SemanticConstraint.AllObjects all = assertKind(
+        condition.objects(),
+        SemanticConstraint.AllObjects.class);
+    assertThat(all.contextFqn()).isEqualTo("ModelA.TopicA.ClassA");
+    assertThat(all.baseFqn()).isNull();
+    assertThat(all.restrictedToFqns()).isEmpty();
+    assertThat(all.plain()).isTrue();
   }
 
   @Test
@@ -236,8 +242,8 @@ class ConstraintSemanticTranslatorTest {
     }
   }
 
-  private <T extends SemanticConstraint> T assertKind(
-      SemanticConstraint semantic,
+  private <T> T assertKind(
+      Object semantic,
       Class<T> type) {
     assertThat(semantic).isInstanceOf(type);
     return type.cast(semantic);

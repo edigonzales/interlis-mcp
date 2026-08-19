@@ -11,6 +11,7 @@ import ch.so.agi.mcp.tools.ConstraintDecisionTableTools;
 import ch.so.agi.mcp.tools.ConstraintReviewTools;
 import ch.so.agi.mcp.tools.ConstraintTestTools;
 import ch.so.agi.mcp.tools.ExistenceConstraintAuthoringTools;
+import ch.so.agi.mcp.tools.SetConstraintAuthoringTools;
 import ch.so.agi.mcp.tools.ValidationTools;
 import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
@@ -51,15 +52,16 @@ class ToolChoiceGuidanceTest {
   }
 
   @Test
-  void automaticConstraintCasesAdvertiseMandatoryUniqueExistenceAndPlausibilityScope() {
+  void automaticConstraintCasesAdvertiseAllFiveConstraintKindsAndSetScope() {
     assertThat(description(ConstraintCaseGenerationTools.class, "generateIliConstraintCases"))
-        .contains("Mandatory", "UNIQUE", "EXISTENCE", "PLAUSIBILITY")
-        .contains("Witness", "Counterexample", "Boundary-/Kategoriefaelle")
+        .contains("Mandatory", "UNIQUE", "EXISTENCE", "PLAUSIBILITY", "SET")
+        .contains("Witness", "Counterexample", "Boundary")
         .contains("semantische IR", "Solver", "Object-Graph-Synthese")
         .contains("einmal kompilierten Constraint-Kontext", "Validator-Fixtures")
         .contains("WHERE", "(BASKET)", "LOCAL", "STRUCTURE", "COMPOSITION", "ilivalidator")
         .contains("REFERENCE", "COORD", "Safety-Reason-Codes")
-        .contains("Populationen", "Prozentgrenze");
+        .contains("Populationen", "Prozentgrenze")
+        .contains("objectCount(ALL)", "Scope-Semantik");
   }
 
   @Test
@@ -85,6 +87,15 @@ class ToolChoiceGuidanceTest {
         .contains("EXISTENCE CONSTRAINT", "restrictedPath", "viewableFqn", "attributePath")
         .contains("source-preserving", "Before/After je genau einmal")
         .contains("AST->constraint-level-IR", "NUMERIC", "TEXT", "ilivalidator");
+  }
+
+  @Test
+  void setAuthoringAdvertisesTypedAllWhereBasketAndTwoCompileProof() {
+    assertThat(description(SetConstraintAuthoringTools.class, "authorIliSetConstraint"))
+        .contains("SET CONSTRAINT", "objectCount(ALL)", "perBasket", "where")
+        .contains("source-preserving", "Before/After je genau einmal")
+        .contains("constraint-level SET-IR", "global-vs-Basket", "ilivalidator")
+        .contains("Geometry-aware");
   }
 
   @Test

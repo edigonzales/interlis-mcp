@@ -45,7 +45,7 @@ public class ConstraintCaseGenerationTools {
 
   @McpTool(
       name = "generateIliConstraintCases",
-      description = "Erzeugt fuer unterstuetzte INTERLIS Mandatory-, UNIQUE-, EXISTENCE- und PLAUSIBILITY-Constraints automatisch modellbewusste Witness-, Counterexample- und Boundary-/Kategoriefaelle. Verwendet einen einmal kompilierten Constraint-Kontext fuer AST/semantische IR, Solver/Object-Graph-Synthese und Validator-Fixtures. Mandatory nutzt die bestehende Expression-Coverage-Pipeline. UNIQUE prueft globale, WHERE-, (BASKET)- und LOCAL-Semantik. EXISTENCE prueft skalare Werte sowie direkte STRUCTURE/COMPOSITION-Gleichheit member-wise; REFERENCE-, COORD- und komplexe Geometrieformen werden mit expliziten Safety-Reason-Codes als nicht automatisch beweisbar ausgewiesen statt approximiert. PLAUSIBILITY erzeugt echte Populationen knapp unter, auf und ueber der Prozentgrenze und verifiziert die Gesamtquote mit dem realen ilivalidator."
+      description = "Erzeugt fuer unterstuetzte INTERLIS Mandatory-, UNIQUE-, EXISTENCE-, PLAUSIBILITY- und SET-Constraints automatisch modellbewusste Witness-, Counterexample-, Boundary- und Scope-Faelle. Verwendet einen einmal kompilierten Constraint-Kontext fuer AST/semantische IR, Solver/Object-Graph-Synthese und Validator-Fixtures. Mandatory nutzt die bestehende Expression-Coverage-Pipeline. UNIQUE prueft globale, WHERE-, (BASKET)- und LOCAL-Semantik. EXISTENCE prueft skalare Werte sowie direkte STRUCTURE/COMPOSITION-Gleichheit member-wise; REFERENCE-, COORD- und komplexe Geometrieformen werden mit expliziten Safety-Reason-Codes als nicht automatisch beweisbar ausgewiesen statt approximiert. PLAUSIBILITY erzeugt echte Populationen knapp unter, auf und ueber der Prozentgrenze. SET unterstuetzt den typisierten objectCount(ALL)-Proof inklusive WHERE-Filterung und globaler vs. (BASKET)-Scope-Semantik. Alle generierten Faelle werden mit dem realen ilivalidator verifiziert."
   )
   public Map<String, Object> generateIliConstraintCases(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,
@@ -84,9 +84,12 @@ public class ConstraintCaseGenerationTools {
     if (context.semantics() instanceof SemanticConstraint.Plausibility plausibility) {
       return generatePlausibilityConstraintCases(context, plausibility);
     }
+    if (context.semantics() instanceof SemanticConstraint.Set set) {
+      return generateSetConstraintCases(context, set);
+    }
     return unavailable(
         "UNSUPPORTED_CONSTRAINT_KIND",
-        "Automatic semantic generation currently supports MANDATORY, UNIQUE, supported EXISTENCE forms and PLAUSIBILITY; got "
+        "Automatic semantic generation supports the five INTERLIS constraint kinds for their documented proof-capable subsets; got "
             + context.semantics().kind() + ".",
         context,
         context.compilation().messages());
@@ -313,6 +316,92 @@ public class ConstraintCaseGenerationTools {
     return response;
   }
 
+  private Map<String, Object> generateSetConstraintCases(
+      CompiledConstraintContext context,
+      SemanticConstraint.Set set) {
+    SetConstraintCasePlanner.Plan plan;
+    try {
+      plan = SetConstraintCasePlanner.plan(context, set);
+    } catch (IllegalArgumentException ex) {
+      return unavailable(
+          "SET_PROOF_PLANNING_FAILED",
+          ex.getMessage(),
+          context,
+          context.compilation().messages());
+    }
+
+    if (plan.cases().isEmpty()) {
+      Map<String, Object> first = plan.unsolved().isEmpty() ? Map.of() : plan.unsolved().getFirst();
+      return unavailable(
+          String.valueOf(first.getOrDefault("reasonCode", "NO_SET_PROOF_CASES")),
+          String.valueOf(first.getOrDefault(
+              "reason",
+              "No validator-backed SET objectCount proof case could be synthesized for this model shape.")),
+          context,
+          context.compilation().messages());
+    }
+
+    Map<String, Object> verification = verifyUsingCompiledContext(context, plan.cases());
+    boolean verified = Boolean.TRUE.equals(verification.get("allPassed"));
+
+    Map<String, Object> response = new LinkedHashMap<>();
+    response.put("automaticCasesAvailable", verified);
+    response.put("automaticCasesGenerated", true);
+    response.put("generationVerified", verified);
+    response.put("pattern", "SET_OBJECT_COUNT_PROOF");
+    response.put("constraint", constraintSummary(context));
+    response.put("context", contextSummary(context));
+    response.put("set", setSummary(set));
+    response.put("generatedCases", plan.summaries());
+    response.put("coverageGoalCount", plan.goalCount());
+    response.put("coverageSolvedCount", plan.cases().size());
+    response.put("coverageComplete", plan.complete());
+    if (!plan.unsolved().isEmpty()) {
+      response.put("coverageUnsolved", plan.unsolved());
+    }
+    response.put("verification", verification);
+    if (!verified) {
+      response.put("reasonCode", "GENERATED_CASES_NOT_VERIFIED");
+      response.put(
+          "reason",
+          "SET objectCount cases were generated, but the real validator did not confirm all expected outcomes.");
+    }
+    response.put("limitations", limitations());
+    return response;
+  }
+
+  private Map<String, Object> setSummary(SemanticConstraint.Set set) {
+    Map<String, Object> result = new LinkedHashMap<>();
+    result.put("perBasket", set.perBasket());
+    result.put("wherePresent", set.preCondition() != null);
+    if (set.preCondition() != null) {
+      result.put("where", set.preCondition().toInterlis(set.version()));
+    }
+    result.put("conditionKind", set.condition().getClass().getSimpleName());
+    if (set.condition() instanceof SemanticConstraint.ObjectCountSetCondition objectCount) {
+      result.put("operator", switch (objectCount.operator()) {
+        case EQ -> "==";
+        case NE -> "!=";
+        case LT -> "<";
+        case LE -> "<=";
+        case GT -> ">";
+        case GE -> ">=";
+      });
+      result.put("threshold", objectCount.threshold().stripTrailingZeros().toPlainString());
+      if (objectCount.objects() instanceof SemanticConstraint.AllObjects all) {
+        result.put("objectSet", "ALL");
+        result.put("allContextFqn", all.contextFqn());
+        if (all.baseFqn() != null) {
+          result.put("allBaseFqn", all.baseFqn());
+        }
+        if (!all.restrictedToFqns().isEmpty()) {
+          result.put("allRestrictedToFqns", all.restrictedToFqns());
+        }
+      }
+    }
+    return Map.copyOf(result);
+  }
+
   private Map<String, Object> verifyUsingCompiledContext(
       CompiledConstraintContext context,
       List<ConstraintTestTools.TestCase> cases) {
@@ -491,7 +580,9 @@ public class ConstraintCaseGenerationTools {
 
   private List<String> limitations() {
     return List.of(
-        "Automatic semantic generation supports MANDATORY, UNIQUE, supported EXISTENCE constraints and PLAUSIBILITY. SET still requires its dedicated object-set semantic proof stage.",
+        "Automatic semantic generation covers all five INTERLIS constraint kinds for their documented proof-capable subsets. SET currently proves typed INTERLIS.objectCount(ALL) comparisons, including direct WHERE filtering and global versus (BASKET) scope.",
+        "SET preserves ili2c ALL base/RESTRICTION metadata but automatic proof currently accepts plain ALL only. Geometry-aware SET functions such as INTERLIS.areAreas/areAreas2 remain explicit unsupported boundaries rather than being approximated.",
+        "SET WHERE proof requires the finite-domain solver to synthesize one direct included and one direct excluded context object without auxiliary graph objects or links. More complex WHERE graphs remain coverageUnsolved.",
         "PLAUSIBILITY proof uses the real population semantics: condition TRUE and validator skipEvaluation count as successful members, and successful/total*100 is compared with the declared >= or <= threshold. Boundary populations are capped at 20 context objects per generated case.",
         "PLAUSIBILITY population synthesis requires each generated condition member graph to contain exactly one object of the constraint context so the percentage denominator cannot change silently; unsupported graph shapes remain coverageUnsolved.",
         "EXISTENCE proof supports scalar NUMERIC, BOOLEAN, ENUM, TEXT and MTEXT paths plus direct STRUCTURE/COMPOSITION equality for the same component type, small compatible cardinalities and identical source/target attribute names.",

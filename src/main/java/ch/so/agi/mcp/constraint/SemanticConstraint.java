@@ -184,8 +184,41 @@ public sealed interface SemanticConstraint
     }
   }
 
-  /** Base for SET-condition semantics. B10 will add typed OBJECTS OF / ALL variants here. */
-  sealed interface SetCondition permits ValueSetCondition, UntranslatedSetCondition {
+  /** Object-set expression used as an actual argument to an OBJECTS OF function parameter. */
+  sealed interface ObjectSetExpression permits AllObjects {
+  }
+
+  /**
+   * Typed form of ili2c's {@code Objects} AST node, rendered by INTERLIS as {@code ALL}.
+   *
+   * <p>The base and RESTRICTION metadata are preserved even though the first automatic proof slice
+   * intentionally supports only plain ALL. This avoids losing semantic information while keeping
+   * proof support conservative.</p>
+   */
+  record AllObjects(
+      String contextFqn,
+      @Nullable String baseFqn,
+      List<String> restrictedToFqns) implements ObjectSetExpression {
+
+    public AllObjects {
+      contextFqn = requireText(contextFqn, "ALL contextFqn");
+      if (baseFqn != null && baseFqn.isBlank()) {
+        baseFqn = null;
+      }
+      restrictedToFqns = restrictedToFqns == null ? List.of() : List.copyOf(restrictedToFqns);
+      if (restrictedToFqns.stream().anyMatch(value -> value == null || value.isBlank())) {
+        throw new IllegalArgumentException("ALL restrictedToFqns must contain only non-empty names.");
+      }
+    }
+
+    public boolean plain() {
+      return baseFqn == null && restrictedToFqns.isEmpty();
+    }
+  }
+
+  /** Base for SET-condition semantics. */
+  sealed interface SetCondition
+      permits ValueSetCondition, ObjectCountSetCondition, UntranslatedSetCondition {
   }
 
   /** A SET condition that already fits the existing scalar/value expression IR. */
@@ -196,11 +229,26 @@ public sealed interface SemanticConstraint
   }
 
   /**
-   * Explicit placeholder for SET-only AST nodes not yet represented by the value expression IR.
+   * Proof-capable SET subset: comparison of {@code INTERLIS.objectCount(ALL)} with a numeric value.
+   */
+  record ObjectCountSetCondition(
+      ObjectSetExpression objects,
+      ConstraintExpression.ComparisonOperator operator,
+      BigDecimal threshold) implements SetCondition {
+
+    public ObjectCountSetCondition {
+      Objects.requireNonNull(objects, "objects");
+      Objects.requireNonNull(operator, "operator");
+      Objects.requireNonNull(threshold, "threshold");
+      threshold = threshold.stripTrailingZeros();
+    }
+  }
+
+  /**
+   * Explicit placeholder for SET-only AST nodes outside the currently executable SET IR.
    *
-   * <p>This is intentionally not a proof-capable semantic node. It preserves the compiled AST
-   * boundary without pretending that constructs such as {@code ALL} already have executable
-   * semantics. B10 replaces these placeholders with real set-expression nodes.</p>
+   * <p>This remains intentionally non-proof-capable. Unknown functions and geometry-aware SET
+   * semantics are surfaced explicitly instead of being approximated.</p>
    */
   record UntranslatedSetCondition(
       String reasonCode,
