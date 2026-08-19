@@ -43,15 +43,16 @@ public class KnowledgeResources {
 
         1. Klaere Modellzweck, fachliche Begriffe, Quellsysteme, Publikationsbedarf und offene Fragen.
         2. Suche bei Bedarf passende Beispiele mit `findSimilarModels` und lies ein ausgewaehltes Modell mit `readModelExample`.
-        3. Wenn ein bestehendes vollstaendiges Modell vorliegt, ermittle den Ausgangszustand mit `reviewIliModel`.
-        4. Erstelle oder erweitere das Modell in kleinen, nachvollziehbaren Schritten. Fachliche Entscheidungen nicht erfinden.
-        5. Vergleiche bei Aenderungen eines bestehenden Modells Vorher und Nachher mit `reviewIliChange`.
-        6. Verwende `afterReview` zusammen mit `afterCompilerValid` und `afterDiagnostics` als Abschlussreview des Nachher-Stands.
-           Fuehre fuer denselben unveraenderten Nachher-Stand nicht zusaetzlich `reviewIliModel` aus.
+        3. Fuer eine von `applyIliModelChange` unterstuetzte Aenderung eines bestehenden Modells verwende das semantische
+           Change-Tool statt den Quelltext selbst umzuschreiben. Aktuell ist `ADD_ATTRIBUTE` fuer CLASS und STRUCTURE unterstuetzt.
+        4. Ein erfolgreiches `APPLIED`-Resultat von `applyIliModelChange` enthaelt den semantischen Diff und `afterReview` als
+           Abschlussgate. Fuer denselben unveraenderten Nachher-Stand nicht zusaetzlich `reviewIliChange` oder `reviewIliModel` ausfuehren.
+        5. Fuer noch nicht unterstuetzte Aenderungen bearbeite den Modelltext gezielt und vergleiche Vorher und Nachher mit `reviewIliChange`.
+        6. Fuer einen einzelnen vollstaendigen Modellstand ohne Vorher-Stand verwende `reviewIliModel`.
         7. Behandle Compilerfehler und automatisierte ERROR-Findings vor WARNING/INFO-Findings.
         8. Liste `manualChecks` und `openQuestions` als fachliche Rueckfragen, ohne Kardinalitaeten, Rollen oder Constraints zu erfinden.
         9. Nutze `analyzeIliModel`, `checkModelingRules` und `validateIliModel` nur fuer gezielte Einzeldiagnosen, nicht als Standard-Dreierfolge.
-        10. Wenn der Modelltext nach `reviewIliChange` erneut geaendert wird, pruefe den neuen Nachher-Stand erneut mit `reviewIliChange`.
+        10. Wenn ein bereits gepruefter Nachher-Stand erneut geaendert wird, pruefe den neuen Stand wieder mit dem passenden High-Level-Tool.
         11. Liefere am Schluss Modelltext, semantische Aenderungen, Review-Resultat und offene fachliche Entscheide.
         """);
   }
@@ -79,21 +80,37 @@ public class KnowledgeResources {
 
         - Vollstaendigen aktuellen Modellstand ohne Vorher-Stand pruefen: `reviewIliModel`.
           Es kombiniert ili2c, Strukturanalyse, automatisierte Regeln, manuelle Checks und offene fachliche Fragen.
-        - Vorher-/Nachher-Aenderung pruefen: `reviewIliChange`.
+        - Unterstuetzte semantische Aenderung an einem bestehenden Modell ausfuehren: `applyIliModelChange`.
+          Aktuell wird `ADD_ATTRIBUTE` fuer CLASS und STRUCTURE unterstuetzt. Das Tool arbeitet source-preserving, kompiliert
+          Vorher und Nachher hoechstens einmal und prueft den semantischen Diff auf unerwartete Kollateralaenderungen.
+          Bei `APPLIED` bilden `afterCompilerValid`, `afterDiagnostics`, semantischer Diff und `afterReview` das Abschlussgate;
+          fuer denselben unveraenderten Nachher-Stand kein zusaetzliches `reviewIliChange` oder `reviewIliModel` ausfuehren.
+        - Vorher-/Nachher-Aenderung pruefen, wenn die Aenderung nicht von `applyIliModelChange` unterstuetzt wird: `reviewIliChange`.
           Es liefert den semantischen Diff und prueft gleichzeitig das After-Modell. `afterReview` bildet zusammen mit
           `afterCompilerValid` und `afterDiagnostics` den Abschlussreview; fuer denselben unveraenderten Nachher-Stand ist kein
           zusaetzliches `reviewIliModel` erforderlich.
         - Passendes Modellierungsmuster suchen: `findSimilarModels` -> `readModelExample`.
           Treffer dienen nur der Discovery; lies einen relevanten Treffer vollstaendig, bevor du das Muster uebernimmst.
 
+        ## Semantic Model Changes
+
+        - `ADD_ATTRIBUTE`: `request.operation=ADD_ATTRIBUTE`, `addAttribute.containerFqn` bezeichnet eine lokale CLASS oder
+          STRUCTURE und `addAttribute.attribute` verwendet dieselbe strikt typisierte `AttributeLineRequest`-Struktur wie
+          `createAttributeLine`. Bestehende oder geerbte Attributnamen werden abgelehnt.
+        - Das Tool gibt `updatedModelText` nur bei `status=APPLIED` frei. Wenn der erzeugte Quelltext zwar kompiliert, der
+          semantische Diff aber mehr als die verlangte Operation enthaelt, wird `UNEXPECTED_SEMANTIC_CHANGE` geliefert und nur
+          `candidateModelText` zur Diagnose ausgegeben.
+        - Ziele aus importierten Modellen werden nicht veraendert. Noch nicht unterstuetzte Operationen nicht durch freie
+          Change-Payloads emulieren; Quelltext gezielt bearbeiten und anschliessend `reviewIliChange` verwenden.
+
         ## Constraints und String-Pfade
 
         - Einen bestehenden Constraint erklaeren oder technisch pruefen: `reviewIliConstraint`. Das Tool liefert den compilerbasierten AST, Kontext, referenzierte Elemente, Funktionen, Pfade, Typen und strukturelle Edge Cases.
         - Einen neuen allgemeinen `MANDATORY CONSTRAINT` aus einer fachlich bereits geklaerten Regel erzeugen: `authorIliMandatoryConstraint`. Formuliere die Regel als semantische Node-Liste mit `ATTRIBUTE`, `PATH`, Literalen, `FUNCTION`, `DEFINED`, `NOT`, `AND`, `OR`, `IMPLIES` und `COMPARE`. Verwende fuer Standardfunktionen die stabile `semanticId` aus `listConstraintFunctions`, nicht eine geratene versionsabhaengige Schreibweise.
-        - `authorIliMandatoryConstraint` rendert die Node-Liste fuer die Sprachversion des Modells, kompiliert den Vorschlag mit ili2c, uebersetzt den kompilierten AST zurueck in die typisierte semantische IR und beweist ihn anschliessend ueber dieselbe Coverage-/Solver-/Object-Graph-Pipeline wie bestehende Mandatory Constraints mit echtem XTF und ilivalidator. `proofVerified=true` bedeutet, dass alle erzeugten Proof-Faelle vom Validator bestaetigt wurden; ungelöste Coverage-Ziele bleiben sichtbar.
+        - `authorIliMandatoryConstraint` rendert die Node-Liste fuer die Sprachversion des Modells, kompiliert den Vorschlag mit ili2c, uebersetzt den kompilierten AST zurueck in die typisierte semantische IR und beweist ihn anschliessend ueber dieselbe Coverage-/Solver-/Object-Graph-Pipeline wie bestehende Mandatory Constraints mit echtem XTF und ilivalidator. `proofVerified=true` bedeutet, dass alle erzeugten Proof-Faelle vom Validator bestaetigt wurden; ungeloeste Coverage-Ziele bleiben sichtbar.
         - Wenn die fachliche Regel bereits als Entscheidungstabelle mit erlaubten Zeilen vorliegt, verwende weiterhin `generateIliConstraintFromDecisionTable`. Dieses spezialisierte Frontend ist kompakter: Bedingungen einer Zeile werden mit AND und mehrere erlaubte Zeilen mit OR verbunden; die Proof-Pipeline dahinter ist dieselbe semantische Infrastruktur.
         - Fuer einen bereits bestehenden unterstuetzten Mandatory Constraint verwende `generateIliConstraintCases`, wenn automatisch Witnesses, Counterexamples, Boundary-/Kategoriefaelle und logische Branch-Faelle erzeugt werden sollen. Das Tool uebersetzt den echten ili2c-AST in die semantische IR und verifiziert die erzeugten Objektgraphen mit `testIliConstraint` und ilivalidator.
-        - Der aktuelle automatische Mandatory-Umfang umfasst insbesondere direkte skalare Attribute, numerische/Boolean-/Enum-Vergleiche, `DEFINED`, `NOT`, `AND`, `OR`, `IMPLIES`, bekannte Math-/Text-Funktionen, SUM/Aggregate sowie mehrstufige skalare Navigation ueber Associations, Structures/Compositions und `REFERENCE TO`. Die Objektgraph-Synthese bleibt bewusst begrenzt, insbesondere auf hoechstens einen mehrwertigen Navigationsschritt pro Pfad; ungelöste Faelle werden explizit gemeldet statt geraten.
+        - Der aktuelle automatische Mandatory-Umfang umfasst insbesondere direkte skalare Attribute, numerische/Boolean-/Enum-Vergleiche, `DEFINED`, `NOT`, `AND`, `OR`, `IMPLIES`, bekannte Math-/Text-Funktionen, SUM/Aggregate sowie mehrstufige skalare Navigation ueber Associations, Structures/Compositions und `REFERENCE TO`. Die Objektgraph-Synthese bleibt bewusst begrenzt, insbesondere auf hoechstens einen mehrwertigen Navigationsschritt pro Pfad; ungeloeste Faelle werden explizit gemeldet statt geraten.
         - Wenn konkrete fachliche Beispiele fuer gueltige und ungueltige Faelle vorliegen, pruefe sie weiterhin mit `testIliConstraint`. Jeder Testfall gibt `expectedConstraintValid`, Objekte und optional Referenzen bzw. Association-Links explizit vor; das Tool erzeugt daraus XTF und prueft den ausgewaehlten Constraint mit dem Validator.
         - `testIliConstraint` isoliert den ausgewaehlten Constraint, laesst aber Typ-, Multiplizitaets- und Transferpruefungen aktiv. Nicht zum Ziel-Constraint gehoerende Fehler werden deshalb als Fixture-Fehler ausgewiesen statt als Constraint-Ergebnis interpretiert.
         - Bevor du eine Constraint-Funktion aus Trainingswissen annimmst, pruefe sie mit `listConstraintFunctions`. Beachte insbesondere `origin`, `semanticId` und die Parameter-`semanticType`.
@@ -111,7 +128,7 @@ public class KnowledgeResources {
 
         Nach einem passenden High-Level-Review nicht standardmaessig noch `validateIliModel`, `analyzeIliModel` und `checkModelingRules` aufrufen. Nutze eines davon nur, wenn das High-Level-Resultat eine konkrete Detailfrage offenlaesst.
 
-        Snippet-, Rename- und Formatting-Tools sind lokale Konstruktionshilfen. Fuer einen einzelnen Modellstand ohne Baseline entscheidet `reviewIliModel`; bei einer Vorher-/Nachher-Aenderung entscheidet `reviewIliChange`. Technisch generierte Namen oder andere fachliche Platzhalter sind keine fachlichen Entscheide.
+        Snippet-, Rename- und Formatting-Tools sind lokale Konstruktionshilfen. Fuer einen einzelnen Modellstand ohne Baseline entscheidet `reviewIliModel`; fuer unterstuetzte semantische Aenderungen `applyIliModelChange`; bei einer sonstigen Vorher-/Nachher-Aenderung entscheidet `reviewIliChange`. Technisch generierte Namen oder andere fachliche Platzhalter sind keine fachlichen Entscheide.
         """);
   }
 

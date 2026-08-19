@@ -183,18 +183,18 @@ class AgenticGoldenScenariosTest {
   }
 
   @Test
-  void agentGuidanceUsesChangeReviewAsFinalGate() {
+  void agentGuidanceUsesSemanticChangeOrChangeReviewAsFinalGate() {
     String toolGuide = new KnowledgeResources(null, null).toolGuide().toString();
     String agentPrompt = new AgentPrompts().interlisModelingAgent().toString();
 
     assertThat(toolGuide)
+        .contains("applyIliModelChange")
         .contains("afterReview")
-        .contains("kein")
-        .contains("zusaetzliches `reviewIliModel`");
+        .contains("kein zusaetzliches `reviewIliChange` oder `reviewIliModel`");
     assertThat(agentPrompt)
+        .contains("applyIliModelChange")
         .contains("afterReview")
-        .contains("nicht")
-        .contains("routinemaessig noch `reviewIliModel`");
+        .contains("nicht routinemaessig noch `reviewIliChange` oder `reviewIliModel`");
   }
 
   @Test

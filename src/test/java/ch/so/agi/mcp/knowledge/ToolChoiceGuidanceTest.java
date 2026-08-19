@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.analysis.ModelChangeTools;
+import ch.so.agi.mcp.change.IliModelChangeTools;
 import ch.so.agi.mcp.tools.ConstraintAuthoringTools;
 import ch.so.agi.mcp.tools.ConstraintCaseGenerationTools;
 import ch.so.agi.mcp.tools.ConstraintDecisionTableTools;
@@ -25,6 +26,13 @@ class ToolChoiceGuidanceTest {
     assertThat(description(ModelChangeTools.class, "reviewIliChange"))
         .contains("Standard-Tool", "Vorher- und ein Nachher-Stand", "Nicht fuer einen einzelnen Modellstand")
         .contains("reviewIliModel");
+  }
+
+  @Test
+  void semanticChangeToolAdvertisesSupportedScopeAndFinalGate() {
+    assertThat(description(IliModelChangeTools.class, "applyIliModelChange"))
+        .contains("Standard-Tool", "source-preserving", "ADD_ATTRIBUTE", "CLASS", "STRUCTURE")
+        .contains("afterReview", "APPLIED", "reviewIliChange");
   }
 
   @Test
@@ -95,9 +103,11 @@ class ToolChoiceGuidanceTest {
     assertThat(guide)
         .contains("interlis://knowledge/tool-guide")
         .contains("reviewIliModel")
+        .contains("applyIliModelChange")
+        .contains("ADD_ATTRIBUTE")
+        .contains("UNEXPECTED_SEMANTIC_CHANGE")
         .contains("reviewIliChange")
         .contains("afterReview")
-        .contains("kein")
         .contains("Constraint");
   }
 
