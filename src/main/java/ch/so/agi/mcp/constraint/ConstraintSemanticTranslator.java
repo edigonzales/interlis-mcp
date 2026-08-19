@@ -209,7 +209,7 @@ public final class ConstraintSemanticTranslator {
     }
   }
 
-  private static @Nullable SemanticConstraint.ObjectCountSetCondition translateObjectCountCondition(
+  private static SemanticConstraint.ObjectCountSetCondition translateObjectCountCondition(
       Evaluable condition) {
     ComparisonParts comparison = comparisonParts(condition);
     if (comparison == null) {
