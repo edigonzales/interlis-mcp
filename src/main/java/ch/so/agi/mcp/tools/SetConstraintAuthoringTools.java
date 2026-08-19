@@ -19,6 +19,7 @@ import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /** High-level typed authoring for proof-capable SET objectCount(ALL) constraints. */
@@ -47,6 +48,7 @@ public class SetConstraintAuthoringTools {
   private final ConstraintContextService contextService;
   private final ConstraintSourceEditService sourceEditService;
 
+  @Autowired
   public SetConstraintAuthoringTools(
       IliCompilerService compilerService,
       ConstraintCaseGenerationTools caseGenerationTools,
