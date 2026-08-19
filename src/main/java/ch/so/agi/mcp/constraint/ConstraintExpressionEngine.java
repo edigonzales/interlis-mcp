@@ -344,8 +344,13 @@ public final class ConstraintExpressionEngine {
   private static Object numericDivide(List<Object> arguments) {
     BigDecimal left = numeric(arguments.get(0));
     BigDecimal right = numeric(arguments.get(1));
-    if (left == null || right == null || right.compareTo(BigDecimal.ZERO) == 0) {
+    if (left == null || right == null) {
       return Undefined.INSTANCE;
+    }
+    if (right.compareTo(BigDecimal.ZERO) == 0) {
+      // iox-ili evaluates Math.div and INTERLIS 2.4 native division with Java double
+      // semantics. Division by zero therefore yields +/-Infinity or NaN, not UNDEFINED.
+      return left.doubleValue() / right.doubleValue();
     }
     return left.divide(right, MathContext.DECIMAL128);
   }
@@ -464,8 +469,8 @@ public final class ConstraintExpressionEngine {
       return Undefined.INSTANCE;
     }
 
-    if (left instanceof Number && right instanceof Number) {
-      int cmp = number(left).compareTo(number(right));
+    if (left instanceof Number leftNumber && right instanceof Number rightNumber) {
+      int cmp = compareNumbers(leftNumber, rightNumber);
       return switch (comparison.operator()) {
         case EQ -> cmp == 0;
         case NE -> cmp != 0;
@@ -482,6 +487,16 @@ public final class ConstraintExpressionEngine {
       case NE -> !equal;
       default -> false;
     };
+  }
+
+  private static int compareNumbers(Number left, Number right) {
+    double leftDouble = left.doubleValue();
+    double rightDouble = right.doubleValue();
+    if (!Double.isFinite(leftDouble) || !Double.isFinite(rightDouble)) {
+      // Mirrors iox-ili Value.compareDouble(), including its NaN behavior.
+      return leftDouble < rightDouble ? -1 : (leftDouble == rightDouble ? 0 : 1);
+    }
+    return number(left).compareTo(number(right));
   }
 
   private static Object not(Object value) {

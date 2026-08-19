@@ -1,6 +1,6 @@
 # Agentic INTERLIS MVP Status
 
-_Last updated: 2026-08-18, after consolidating automatic constraint proof generation, adding logical/edge-case coverage, expression-directed arithmetic solving and richer multi-step object-graph synthesis._
+_Last updated: 2026-08-19, after consolidating automatic constraint proof generation, adding logical/edge-case coverage, expression-directed arithmetic solving, richer multi-step object-graph synthesis and validator-differential regression tests._
 
 ## Scope
 
@@ -152,7 +152,9 @@ The supported path shape is now substantially broader:
 - association-role navigation;
 - `REFERENCE TO` attribute navigation;
 - structure/composition navigation;
-- mixtures such as `Eigentuemer->Land->Code`;
+- reference navigation originating inside an embedded structure;
+- mixtures such as `Eigentuemer->Info->Land->Code`;
+- nested structures such as `Eigentuemer->Info->Adresse->PLZ`;
 - collection paths with **one** multi-valued navigation step;
 - aggregate scenarios such as `Math.sum("Nebenauspraegung->Gewichtung")`;
 - several related paths with a common prefix.
@@ -160,13 +162,13 @@ The supported path shape is now substantially broader:
 Common prefixes are materialized as a small path tree. For example,
 
 ```text
-Eigentuemer->Land->Code
-Eigentuemer->Land->Rate
+Eigentuemer->Info->Land->Code
+Eigentuemer->Info->Land->Rate
 ```
 
-reuse one `Eigentuemer` target and one `Land` target. The two endpoint values therefore describe the same object graph instead of creating duplicate independent association/reference chains.
+reuse one `Eigentuemer` target, one `Info` structure and one `Land` target. The two endpoint values therefore describe the same object graph instead of creating duplicate independent association/reference chains.
 
-Identifiable reference targets are emitted as ordinary graph objects and the source object's `references` map points at their OIDs. Structures remain embedded values; the constraint test fixture writer can serialize nested maps/lists of maps to XTF and auto-fill ordinary mandatory scalar members that are not relevant to the tested constraint.
+Identifiable reference targets are emitted as ordinary graph objects. Structures remain embedded values; the constraint test fixture writer can serialize nested maps/lists of maps to XTF, including `REFERENCE TO` members inside nested structures, and auto-fill ordinary mandatory scalar members that are not relevant to the tested constraint.
 
 The AFU weighting constraint remains an important production-shaped proof case: DEFINED/NOT DEFINED of a SUM, arithmetic with the direct weight, association target generation and final ilivalidator verification all run through the shared semantic pipeline. Coverage can also force the empty, non-empty and maximum-relevant association cardinality cases within the solver's current collection cap.
 
@@ -239,18 +241,48 @@ The old decision-table-specific domain model, truth evaluator, AFU special case,
 
 The decision-table input format itself is still deliberately narrower than the backend. It currently focuses on NUMERIC/BOOLEAN/ENUM conditions, one-step association paths and the supported SUM/presence patterns.
 
+### Validator-differential regression suite
+
+`ConstraintValidatorDifferentialTest` now protects the contract between our semantic evaluator and the real validator independently of solver and coverage behavior.
+
+Each differential case contains an explicit assignment and an explicit expected Mandatory-Constraint result. The same assignment is then checked through both paths:
+
+```text
+INTERLIS model
+ -> ili2c AST
+ -> semantic ConstraintExpression
+ -> ConstraintExpressionEngine
+
+same assignment
+ -> ConstraintModelSynthesizer
+ -> XTF fixture
+ -> ConstraintTestTools
+ -> ilivalidator
+```
+
+The test fails if the evaluator does not produce the explicit expected result, if the generated fixture is invalid, or if ilivalidator observes a different constraint result.
+
+The initial differential suite covers:
+
+- undefined arguments of a standard Math function;
+- ordinary valid/invalid Math-function results;
+- TEXT and MTEXT functions including undefined inputs;
+- INTERLIS 2.4 native arithmetic and division by zero;
+- inherited attributes in a concrete subclass constraint context;
+- multi-step association/structure paths with present and absent optional nested values.
+
+The assignments are intentionally explicit rather than solver-generated so that a solver change cannot hide an evaluator/validator semantic divergence. The suite should continue to grow when production constraints expose additional edge cases.
+
 ## Important remaining work inside `MANDATORY CONSTRAINT`
 
 Even before adding other INTERLIS constraint kinds, the Mandatory-Constraint support can still be generalized further.
 
 ### 1. Remaining path and object-graph shapes
 
-Multi-step scalar navigation and shared path-prefix synthesis are implemented, but the graph synthesizer deliberately remains bounded. Important remaining cases include:
+Multi-step scalar navigation, structured references and shared path-prefix synthesis are implemented, but the graph synthesizer deliberately remains bounded. Important remaining cases include:
 
 - paths with more than one multi-valued navigation step, which require nested collection/cartesian semantics instead of one flat assignment list;
-- reference-attribute navigation originating inside an embedded structure;
 - direct multi-valued scalar attributes and other transfer shapes that are not represented by the current path assignment model;
-- more complex nested structured values containing their own references;
 - multiple independent root objects in one semantic solution;
 - cross-topic and cross-basket object graphs where the model permits or requires them.
 
@@ -289,20 +321,17 @@ Remaining useful extensions include:
 - systematic undefined/null-propagation probes across nested expressions;
 - coverage minimization when several semantic obligations can be proven by the same validator-backed fixture.
 
-### 5. More validator-differential tests
+### 5. Differential-suite expansion
 
-The evaluator intentionally mirrors validator semantics, but the safest way to maintain that contract is to continuously compare semantic evaluation with real ilivalidator behavior.
+A dedicated validator-differential suite now exists, so this is no longer a missing architectural component. It should nevertheless be expanded incrementally with production cases where semantic subtleties matter, for example:
 
-More production constraints should be added as golden tests, especially for:
+- additional standard Math/Text function edge behavior;
+- aggregate empty/non-empty semantics beyond the existing production-shaped SUM tests;
+- deeper nested undefined propagation;
+- further inheritance/extension combinations;
+- INTERLIS 2.3/2.4 cases where equivalent IR semantics have different surface syntax.
 
-- undefined function arguments;
-- arithmetic edge cases;
-- Text/MTEXT functions;
-- INTERLIS 2.4 surface syntax;
-- inheritance and abstract/concrete class contexts;
-- multi-step path undefined/cardinality behavior.
-
-A dedicated differential suite should compare semantic-evaluator outcomes against generated XTF plus the real validator so divergences become ordinary regression failures.
+This should remain regression work rather than a separate semantic subsystem: ilivalidator stays the oracle and every discovered difference should either correct our evaluator or be recorded as an explicit unsupported semantic boundary.
 
 ## INTERLIS constraint kinds that are still missing
 
@@ -467,14 +496,13 @@ A green compile alone is not enough evidence that a generated business constrain
 
 ## Suggested next implementation order
 
-1. Add a systematic **validator-differential test suite** for the semantic evaluator and generated fixtures.
-2. Add a high-level, typed **Mandatory-Constraint authoring/proof tool** that uses the existing semantic pipeline.
-3. Introduce the outer `ConstraintSpec` IR.
-4. Add multiple-root object synthesis as required by dataset-level constraint kinds.
-5. Implement **Uniqueness** and **Existence** constraints on top of multi-root synthesis.
-6. Implement **Plausibility** and **Set** constraints with explicit dataset/basket semantics.
-7. Keep geometry/AREA-specific semantics and synthesis as a later specialized extension.
-8. Reconsider SMT/Z3 only when the bounded solver demonstrably blocks relevant production constraints.
+1. Add a high-level, typed **Mandatory-Constraint authoring/proof tool** that uses the existing semantic pipeline.
+2. Introduce the outer `ConstraintSpec` IR.
+3. Add multiple-root object synthesis as required by dataset-level constraint kinds.
+4. Implement **Uniqueness** and **Existence** constraints on top of multi-root synthesis.
+5. Implement **Plausibility** and **Set** constraints with explicit dataset/basket semantics.
+6. Keep geometry/AREA-specific semantics and synthesis as a later specialized extension.
+7. Reconsider SMT/Z3 only when the bounded solver demonstrably blocks relevant production constraints.
 
 ## Historical MVP steps
 
