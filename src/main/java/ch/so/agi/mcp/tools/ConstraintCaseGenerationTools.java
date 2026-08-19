@@ -45,7 +45,7 @@ public class ConstraintCaseGenerationTools {
 
   @McpTool(
       name = "generateIliConstraintCases",
-      description = "Erzeugt fuer unterstuetzte INTERLIS Mandatory Constraints automatisch modellbewusste Witness-, Counterexample- und Boundary-/Kategoriefaelle. Verwendet einen einmal kompilierten Constraint-Kontext fuer AST/semantische IR, Coverage Planner, Solver, Object-Graph-Synthese und Validator-Fixtures. Unterstuetzt damit insbesondere logische Kombinationen, NUMERIC/BOOLEAN/ENUM/TEXT, DEFINED, Standardfunktionen, mehrstufige skalare Pfade ueber Associations/Referenzattribute/Structures sowie SUM auf geeigneten mehrwertigen numerischen Pfaden, soweit IR, Solver und Synthesizer die Semantik abdecken."
+      description = "Erzeugt fuer unterstuetzte INTERLIS Mandatory- und UNIQUE-Constraints automatisch modellbewusste Witness-, Counterexample- und Boundary-/Kategoriefaelle. Verwendet einen einmal kompilierten Constraint-Kontext fuer AST/semantische IR, Solver/Object-Graph-Synthese und Validator-Fixtures. Mandatory nutzt die bestehende Expression-Coverage-Pipeline. UNIQUE prueft globale, WHERE-, (BASKET)- und LOCAL-Semantik inklusive Duplicate-, Scope- und soweit modellierbar Undefined-Key-Faellen; jeder erzeugte Fall wird mit echtem ilivalidator verifiziert."
   )
   public Map<String, Object> generateIliConstraintCases(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,
@@ -72,15 +72,23 @@ public class ConstraintCaseGenerationTools {
    */
   Map<String, Object> generateCompiledConstraintCases(CompiledConstraintContext context) {
     Objects.requireNonNull(context, "context");
-    if (!(context.semantics() instanceof SemanticConstraint.Mandatory mandatory)) {
-      return unavailable(
-          "UNSUPPORTED_CONSTRAINT_KIND",
-          "Automatic semantic generation currently supports MANDATORY CONSTRAINT only; got "
-              + context.semantics().kind() + ".",
-          context,
-          context.compilation().messages());
+    if (context.semantics() instanceof SemanticConstraint.Mandatory mandatory) {
+      return generateMandatoryConstraintCases(context, mandatory);
     }
+    if (context.semantics() instanceof SemanticConstraint.Unique unique) {
+      return generateUniqueConstraintCases(context, unique);
+    }
+    return unavailable(
+        "UNSUPPORTED_CONSTRAINT_KIND",
+        "Automatic semantic generation currently supports MANDATORY and UNIQUE constraints; got "
+            + context.semantics().kind() + ".",
+        context,
+        context.compilation().messages());
+  }
 
+  private Map<String, Object> generateMandatoryConstraintCases(
+      CompiledConstraintContext context,
+      SemanticConstraint.Mandatory mandatory) {
     ConstraintExpression expression = mandatory.condition();
     ConstraintModelSynthesizer.ModelBinding binding;
     try {
@@ -131,6 +139,59 @@ public class ConstraintCaseGenerationTools {
       response.put(
           "reason",
           "Semantic cases were generated, but the real validator did not confirm all expected outcomes.");
+    }
+    response.put("limitations", limitations());
+    return response;
+  }
+
+  private Map<String, Object> generateUniqueConstraintCases(
+      CompiledConstraintContext context,
+      SemanticConstraint.Unique unique) {
+    UniqueConstraintCasePlanner.Plan plan;
+    try {
+      plan = UniqueConstraintCasePlanner.plan(context, unique);
+    } catch (IllegalArgumentException ex) {
+      return unavailable(
+          "UNIQUE_PROOF_PLANNING_FAILED",
+          ex.getMessage(),
+          context,
+          context.compilation().messages());
+    }
+
+    if (plan.cases().isEmpty()) {
+      Map<String, Object> first = plan.unsolved().isEmpty() ? Map.of() : plan.unsolved().getFirst();
+      return unavailable(
+          String.valueOf(first.getOrDefault("reasonCode", "NO_UNIQUE_PROOF_CASES")),
+          String.valueOf(first.getOrDefault(
+              "reason",
+              "No validator-backed UNIQUE proof case could be synthesized for this model shape.")),
+          context,
+          context.compilation().messages());
+    }
+
+    Map<String, Object> verification = verifyUsingCompiledContext(context, plan.cases());
+    boolean verified = Boolean.TRUE.equals(verification.get("allPassed"));
+
+    Map<String, Object> response = new LinkedHashMap<>();
+    response.put("automaticCasesAvailable", verified);
+    response.put("automaticCasesGenerated", true);
+    response.put("generationVerified", verified);
+    response.put("pattern", "UNIQUE_SEMANTIC_PROOF");
+    response.put("constraint", constraintSummary(context));
+    response.put("context", contextSummary(context));
+    response.put("generatedCases", plan.summaries());
+    response.put("coverageGoalCount", plan.goalCount());
+    response.put("coverageSolvedCount", plan.cases().size());
+    response.put("coverageComplete", plan.complete());
+    if (!plan.unsolved().isEmpty()) {
+      response.put("coverageUnsolved", plan.unsolved());
+    }
+    response.put("verification", verification);
+    if (!verified) {
+      response.put("reasonCode", "GENERATED_CASES_NOT_VERIFIED");
+      response.put(
+          "reason",
+          "UNIQUE proof cases were generated, but the real validator did not confirm all expected outcomes.");
     }
     response.put("limitations", limitations());
     return response;
@@ -314,8 +375,10 @@ public class ConstraintCaseGenerationTools {
 
   private List<String> limitations() {
     return List.of(
-        "Automatic semantic generation currently supports MANDATORY CONSTRAINT only.",
-        "Multi-step scalar paths can mix association roles, reference attributes and structures. A path currently supports at most one multi-valued navigation step; cross-topic/cross-basket graphs, geometry and unsupported custom function semantics remain explicit limitations.",
+        "Automatic semantic generation supports MANDATORY and UNIQUE constraints. EXISTENCE, PLAUSIBILITY and SET still require their dedicated semantic proof stages.",
+        "Global UNIQUE keys reuse the existing scalar path binder/object-graph synthesizer; the same navigation limit of at most one multi-valued step and no geometry key synthesis applies.",
+        "LOCAL UNIQUE proof currently requires a direct structure/composition prefix and direct scalar member keys. Navigated LOCAL member keys are reported as unsolved rather than approximated.",
+        "UNIQUE WHERE uses the finite-domain expression solver. If the predicate cannot be solved both true and false, or the false branch cannot preserve the same key, coverageComplete=false exposes the missing proof goal.",
         "The finite-domain solver is deliberately not complete; coverageComplete=false and coverageUnsolved expose goals that could not be solved.",
         "automaticCasesAvailable=true is returned only after every generated case passes the real ilivalidator with the expected outcome.");
   }
