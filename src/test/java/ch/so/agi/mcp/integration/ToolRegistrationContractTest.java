@@ -189,6 +189,41 @@ class ToolRegistrationContractTest {
     assertThat(structured.get("functions")).asList().isNotEmpty();
   }
 
+  @Test
+  void applyIliModelChangeDeserializesTypedAddAttributeRequest() throws Exception {
+    SyncToolSpecification applyIliModelChange = specsByName().get("applyIliModelChange");
+
+    String modelText = "INTERLIS 2.4;\n\n"
+        + "MODEL DemoModel (de) AT \"https://example.org/demo\" VERSION \"2026-08-19\" =\n"
+        + "  TOPIC Data =\n"
+        + "    CLASS Building =\n"
+        + "      name : TEXT*20;\n"
+        + "    END Building;\n"
+        + "  END Data;\n"
+        + "END DemoModel.\n";
+
+    var response = applyIliModelChange.callHandler().apply(null,
+        new McpSchema.CallToolRequest("applyIliModelChange", Map.of(
+            "modelText", modelText,
+            "request", Map.of(
+                "operation", "ADD_ATTRIBUTE",
+                "addAttribute", Map.of(
+                    "containerFqn", "DemoModel.Data.Building",
+                    "attribute", Map.of(
+                        "name", "egid",
+                        "mandatory", true,
+                        "typeSpec", Map.of(
+                            "baseType", Map.of(
+                                "kind", "TEXT",
+                                "length", 14))))))));
+
+    Map<String, Object> structured = extractStructuredContent(response);
+    assertThat(structured.get("status")).isEqualTo("APPLIED");
+    assertThat(structured.get("targetFqn")).isEqualTo("DemoModel.Data.Building.egid");
+    assertThat(structured.get("updatedModelText").toString())
+        .contains("egid : MANDATORY TEXT*14;");
+  }
+
   private Map<String, SyncToolSpecification> specsByName() {
     return toolSpecifications.stream()
         .collect(Collectors.toMap(spec -> spec.tool().name(), spec -> spec, (left, right) -> left, LinkedHashMap::new));
@@ -265,6 +300,7 @@ class ToolRegistrationContractTest {
     expectations.put("checkModelingRules", schema(Set.of("modelText"), Set.of("modelPurpose", "modelRepositories", "ruleIds", "profile")));
     expectations.put("reviewIliModel", schema(Set.of("modelText"), Set.of("modelPurpose", "ruleProfile", "modelRepositories")));
     expectations.put("reviewIliChange", schema(Set.of("beforeModelText", "afterModelText"), Set.of("modelRepositories")));
+    expectations.put("applyIliModelChange", schema(Set.of("modelText", "request"), Set.of("modelRepositories", "modelPurpose", "ruleProfile")));
     expectations.put("reviewIliConstraint", schema(Set.of("modelText", "constraint"), Set.of("modelRepositories")));
     expectations.put("generateIliConstraintCases", schema(Set.of("modelText", "constraint"), Set.of("modelRepositories")));
     expectations.put("generateIliConstraintFromDecisionTable", schema(Set.of("modelText", "context", "constraintName", "rows"), Set.of("modelRepositories")));
