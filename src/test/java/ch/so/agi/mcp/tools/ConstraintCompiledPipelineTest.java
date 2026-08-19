@@ -3,6 +3,7 @@ package ch.so.agi.mcp.tools;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.so.agi.mcp.service.IliCompilerService;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,19 @@ class ConstraintCompiledPipelineTest {
             value : MANDATORY 0 .. 100;
             !!@ name = "ValueAtLeast10"
             MANDATORY CONSTRAINT value >= 10;
+          END Item;
+        END Data;
+      END ReuseTest.
+      """;
+
+  private static final String MODEL_WITH_PLAUSIBILITY = """
+      INTERLIS 2.4;
+
+      MODEL ReuseTest (en) AT "https://example.org" VERSION "2026-08-19" =
+        TOPIC Data =
+          CLASS Item =
+            value : MANDATORY 0 .. 100;
+            CONSTRAINT ValueUsuallyHigh: >= 80% value >= 10;
           END Item;
         END Data;
       END ReuseTest.
@@ -50,6 +64,21 @@ class ConstraintCompiledPipelineTest {
   }
 
   @Test
+  void plausibilityCaseGenerationCompilesModelExactlyOnce() {
+    CountingCompiler compiler = new CountingCompiler();
+    ConstraintCaseGenerationTools tools = caseTools(compiler);
+
+    Map<String, Object> result = tools.generateIliConstraintCases(
+        MODEL_WITH_PLAUSIBILITY,
+        "ValueUsuallyHigh",
+        null);
+
+    assertThat(result.get("generationVerified")).isEqualTo(true);
+    assertThat(result.get("pattern")).isEqualTo("PLAUSIBILITY_POPULATION_PROOF");
+    assertThat(compiler.calls).isEqualTo(1);
+  }
+
+  @Test
   void mandatoryAuthoringCompilesBeforeAndAfterExactlyOnce() {
     CountingCompiler compiler = new CountingCompiler();
     ConstraintCaseGenerationTools cases = caseTools(compiler);
@@ -78,6 +107,44 @@ class ConstraintCompiledPipelineTest {
         .contains("CONSTRAINTS OF ReuseTest.Data.Item =")
         .contains("!!@ name = \"ValueAtLeast10\"")
         .contains("MANDATORY CONSTRAINT")
+        .contains("END Data;");
+    assertThat(result.get("sourceEdit")).isNotNull();
+  }
+
+  @Test
+  void plausibilityAuthoringCompilesBeforeAndAfterExactlyOnce() {
+    CountingCompiler compiler = new CountingCompiler();
+    ConstraintCaseGenerationTools cases = caseTools(compiler);
+    ConstraintAuthoringTools tools = new ConstraintAuthoringTools(compiler, cases);
+
+    ConstraintAuthoringTools.ExpressionNode attribute = node("value", "ATTRIBUTE");
+    attribute.name = "value";
+    ConstraintAuthoringTools.ExpressionNode threshold = node("threshold", "NUMERIC");
+    threshold.value = 10;
+    ConstraintAuthoringTools.ExpressionNode comparison = node("root", "COMPARE");
+    comparison.operator = ">=";
+    comparison.children = List.of("value", "threshold");
+
+    Map<String, Object> result = tools.authorIliPlausibilityConstraint(
+        MODEL_WITHOUT_CONSTRAINT,
+        "ReuseTest.Data.Item",
+        "ValueUsuallyHigh",
+        "AT_LEAST",
+        new BigDecimal("80"),
+        "root",
+        List.of(attribute, threshold, comparison),
+        null);
+
+    assertThat(result.get("generated")).isEqualTo(true);
+    assertThat(result.get("proofVerified")).isEqualTo(true);
+    assertThat(result.get("direction")).isEqualTo("AT_LEAST");
+    assertThat(result.get("percentage")).isEqualTo("80");
+    assertThat(compiler.calls).isEqualTo(2);
+    assertThat(result.get("updatedModelText").toString())
+        .contains("CONSTRAINTS OF ReuseTest.Data.Item =")
+        .contains("!!@ name = \"ValueUsuallyHigh\"")
+        .contains("CONSTRAINT")
+        .contains(">= 80%")
         .contains("END Data;");
     assertThat(result.get("sourceEdit")).isNotNull();
   }

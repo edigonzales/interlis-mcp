@@ -201,6 +201,164 @@ public class ConstraintAuthoringTools {
     return result;
   }
 
+  @McpTool(
+      name = "authorIliPlausibilityConstraint",
+      description = "Erzeugt einen INTERLIS PLAUSIBILITY Constraint aus direction (AT_LEAST/>= oder AT_MOST/<=), percentage und derselben strukturierten semantischen Node-Liste wie authorIliMandatoryConstraint. Fuegt den Constraint source-preserving ein, kompiliert Before/After je genau einmal, prueft Direction/Percentage/Context ueber die constraint-level IR und beweist die Population-Semantik mit echten Mehrfachobjekt-XTF-Faellen und ilivalidator."
+  )
+  public Map<String, Object> authorIliPlausibilityConstraint(
+      @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext ohne den zu erzeugenden PLAUSIBILITY Constraint", required = true) String modelText,
+      @McpToolParam(description = "Vollqualifizierter Klassenkontext Model.Topic.Class", required = true) String context,
+      @McpToolParam(description = "Technischer Name des zu erzeugenden PLAUSIBILITY Constraints", required = true) String constraintName,
+      @McpToolParam(description = "AT_LEAST bzw. >= oder AT_MOST bzw. <=", required = true) String direction,
+      @McpToolParam(description = "Prozentgrenze zwischen 0 und 100", required = true) BigDecimal percentage,
+      @McpToolParam(description = "ID des Wurzelknotens der semantischen Bedingung", required = true) String rootNodeId,
+      @McpToolParam(description = "Flache semantische Node-Liste wie bei authorIliMandatoryConstraint. Die gerenderte Wurzel muss eine BOOLEAN-Bedingung ergeben.", required = true) List<ExpressionNode> nodes,
+      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition", required = false) @Nullable String modelRepositories) {
+    String normalizedContext;
+    String normalizedName;
+    SemanticConstraint.PlausibilityDirection normalizedDirection;
+    BigDecimal normalizedPercentage;
+    ConstraintExpression.IliVersion version;
+    RenderResult rendered;
+    try {
+      normalizedContext = requireContext(context);
+      normalizedName = requireIdentifier(constraintName, "constraintName");
+      normalizedDirection = requirePlausibilityDirection(direction);
+      normalizedPercentage = requirePercentage(percentage);
+      version = iliVersion(modelText);
+      rendered = render(rootNodeId, nodes, version);
+    } catch (IllegalArgumentException ex) {
+      return unavailable("INVALID_AUTHORING_SPEC", ex.getMessage(), null, null, null);
+    }
+
+    IliCompilerService.CompilationResult beforeCompilation = compilerService.compile(
+        modelText,
+        modelRepositories,
+        "ili2c_plausibility_authoring_before_");
+    if (!beforeCompilation.valid() || beforeCompilation.transferDescription() == null) {
+      Map<String, Object> result = unavailable(
+          "BEFORE_MODEL_NOT_COMPILABLE",
+          "The supplied model must compile before a source-preserving PLAUSIBILITY constraint can be inserted.",
+          rendered.expression(),
+          null,
+          rendered.requiredFunctionModels());
+      result.put("compilerMessages", beforeCompilation.messages());
+      return result;
+    }
+
+    String constraintBlock = renderPlausibilityConstraintBlock(
+        normalizedContext,
+        normalizedName,
+        normalizedDirection,
+        normalizedPercentage,
+        rendered.expression());
+    ConstraintSourceEditService.PreparedInsertion insertion;
+    try {
+      insertion = sourceEditService.insertConstraintBlock(
+          modelText,
+          beforeCompilation,
+          normalizedContext,
+          constraintBlock);
+    } catch (IllegalArgumentException ex) {
+      return unavailable(
+          "CONSTRAINT_INSERTION_FAILED",
+          ex.getMessage(),
+          rendered.expression(),
+          constraintBlock,
+          rendered.requiredFunctionModels());
+    }
+
+    String expectedConstraintFqn = normalizedContext + "." + normalizedName;
+    ConstraintContextService.Resolution afterResolution = contextService.compileAndResolve(
+        insertion.updatedModelText(),
+        expectedConstraintFqn,
+        modelRepositories,
+        "ili2c_plausibility_authoring_after_");
+    if (!afterResolution.available()) {
+      Map<String, Object> result = unavailable(
+          afterResolution.compilation().valid()
+              ? afterResolution.reasonCode()
+              : "GENERATED_CONSTRAINT_NOT_COMPILABLE",
+          afterResolution.compilation().valid()
+              ? afterResolution.reason()
+              : "The structured PLAUSIBILITY proposal could not be compiled in the supplied model.",
+          rendered.expression(),
+          constraintBlock,
+          rendered.requiredFunctionModels());
+      result.put("compilerMessages", afterResolution.compilation().messages());
+      result.put("candidateModelText", insertion.updatedModelText());
+      result.put("sourceEdit", insertion.sourceEdit());
+      return result;
+    }
+
+    CompiledConstraintContext compiled = afterResolution.context();
+    if (!(compiled.semantics() instanceof SemanticConstraint.Plausibility plausibility)) {
+      return unavailable(
+          "CONSTRAINT_KIND_ROUND_TRIP_MISMATCH",
+          "Compiled constraint is not a PLAUSIBILITY Constraint: " + compiled.semantics().kind(),
+          rendered.expression(),
+          constraintBlock,
+          rendered.requiredFunctionModels());
+    }
+    if (!normalizedContext.equals(plausibility.contextFqn())) {
+      return unavailable(
+          "CONTEXT_ROUND_TRIP_MISMATCH",
+          "Compiled PLAUSIBILITY context differs from the requested context: " + plausibility.contextFqn(),
+          rendered.expression(),
+          constraintBlock,
+          rendered.requiredFunctionModels());
+    }
+    if (normalizedDirection != plausibility.direction()) {
+      return unavailable(
+          "PLAUSIBILITY_DIRECTION_ROUND_TRIP_MISMATCH",
+          "Compiled PLAUSIBILITY direction differs from the request: " + plausibility.direction(),
+          rendered.expression(),
+          constraintBlock,
+          rendered.requiredFunctionModels());
+    }
+    if (normalizedPercentage.compareTo(plausibility.percentage()) != 0) {
+      return unavailable(
+          "PLAUSIBILITY_PERCENTAGE_ROUND_TRIP_MISMATCH",
+          "Compiled PLAUSIBILITY percentage differs from the request: " + plausibility.percentage(),
+          rendered.expression(),
+          constraintBlock,
+          rendered.requiredFunctionModels());
+    }
+
+    ConstraintExpression typedExpression = plausibility.condition();
+    Map<String, Object> proof = caseGenerationTools.generateCompiledConstraintCases(compiled);
+    boolean verified = Boolean.TRUE.equals(proof.get("generationVerified"));
+
+    Map<String, Object> result = new LinkedHashMap<>();
+    result.put("generated", true);
+    result.put("proofVerified", verified);
+    result.put("constraintName", normalizedName);
+    result.put("context", normalizedContext);
+    result.put("iliVersion", version.text());
+    result.put("direction", normalizedDirection.name());
+    result.put("percentage", normalizedPercentage.stripTrailingZeros().toPlainString());
+    result.put("constraintExpression", rendered.expression());
+    result.put("typedCanonicalExpression", typedExpression.toInterlis(version));
+    result.put("constraintBlock", constraintBlock);
+    result.put("updatedModelText", insertion.updatedModelText());
+    result.put("sourceEdit", insertion.sourceEdit());
+    result.put("typedReferences", typedReferences(typedExpression));
+    result.put("requiredFunctionModels", rendered.requiredFunctionModels());
+    result.put("proof", proof);
+    copyIfPresent(proof, result, "coverageGoalCount");
+    copyIfPresent(proof, result, "coverageSolvedCount");
+    copyIfPresent(proof, result, "coverageComplete");
+    copyIfPresent(proof, result, "coverageUnsolved");
+    if (!verified) {
+      result.put("reasonCode", proof.getOrDefault("reasonCode", "PLAUSIBILITY_PROOF_NOT_VERIFIED"));
+      result.put("reason", proof.getOrDefault(
+          "reason",
+          "The PLAUSIBILITY Constraint compiled and translated to typed IR, but its generated population proof was not fully verified."));
+    }
+    result.put("limitations", limitations());
+    return result;
+  }
+
   private RenderResult render(
       String rootNodeId,
       @Nullable List<ExpressionNode> nodes,
@@ -427,6 +585,21 @@ public class ConstraintAuthoringTools {
         + "END;";
   }
 
+  private String renderPlausibilityConstraintBlock(
+      String context,
+      String constraintName,
+      SemanticConstraint.PlausibilityDirection direction,
+      BigDecimal percentage,
+      String expression) {
+    String operator = direction == SemanticConstraint.PlausibilityDirection.AT_LEAST ? ">=" : "<=";
+    return "CONSTRAINTS OF " + context + " =\n"
+        + "  !!@ name = \"" + constraintName + "\"\n"
+        + "  CONSTRAINT\n"
+        + "    " + operator + " " + percentage.stripTrailingZeros().toPlainString()
+        + "% " + expression + ";\n"
+        + "END;";
+  }
+
   private ConstraintExpression.IliVersion iliVersion(String modelText) {
     Matcher matcher = INTERLIS_VERSION.matcher(modelText == null ? "" : modelText);
     if (!matcher.find()) {
@@ -445,6 +618,29 @@ public class ConstraintAuthoringTools {
     }
     for (String part : parts) {
       requireIdentifier(part, "context part");
+    }
+    return normalized;
+  }
+
+  private SemanticConstraint.PlausibilityDirection requirePlausibilityDirection(
+      @Nullable String direction) {
+    String normalized = requireText(direction, "direction").toUpperCase(Locale.ROOT);
+    return switch (normalized) {
+      case "AT_LEAST", ">=" -> SemanticConstraint.PlausibilityDirection.AT_LEAST;
+      case "AT_MOST", "<=" -> SemanticConstraint.PlausibilityDirection.AT_MOST;
+      default -> throw new IllegalArgumentException(
+          "direction must be AT_LEAST/>= or AT_MOST/<=.");
+    };
+  }
+
+  private BigDecimal requirePercentage(@Nullable BigDecimal percentage) {
+    if (percentage == null) {
+      throw new IllegalArgumentException("percentage is required.");
+    }
+    BigDecimal normalized = percentage.stripTrailingZeros();
+    if (normalized.compareTo(BigDecimal.ZERO) < 0
+        || normalized.compareTo(BigDecimal.valueOf(100)) > 0) {
+      throw new IllegalArgumentException("percentage must be between 0 and 100.");
     }
     return normalized;
   }
@@ -545,7 +741,8 @@ public class ConstraintAuthoringTools {
 
   private List<String> limitations() {
     return List.of(
-        "The authoring frontend creates MANDATORY CONSTRAINT only; other INTERLIS constraint kinds require their own constraint-level semantics.",
+        "The structured expression authoring frontend creates MANDATORY and PLAUSIBILITY constraints; UNIQUE, EXISTENCE and SET use or require their own constraint-level authoring semantics.",
+        "PLAUSIBILITY authoring proves population percentages with generated multi-object fixtures; boundary populations are intentionally bounded and unsolved TRUE/FALSE condition branches remain visible as incomplete coverage.",
         "FUNCTION nodes intentionally accept only semantic IDs from the StandardFunctionRegistry; unsupported custom/model functions remain explicit rather than being rendered heuristically.",
         "Standard function models listed in requiredFunctionModels must be available/imported by the supplied model when their INTERLIS surface syntax requires a function call.",
         "Proof generation inherits the bounded solver/object-graph limits exposed by generateIliConstraintCases; unsolved coverage goals remain visible instead of being treated as proof.",

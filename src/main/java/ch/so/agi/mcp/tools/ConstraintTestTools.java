@@ -1077,8 +1077,9 @@ public class ConstraintTestTools {
       if (event.getDataSource() != null && !event.getDataSource().isBlank()) {
         message.put("file", event.getDataSource());
       }
-      if (event.getSourceLineNr() > 0) {
-        message.put("line", event.getSourceLineNr());
+      Integer sourceLine = event.getSourceLineNr();
+      if (sourceLine != null && sourceLine > 0) {
+        message.put("line", sourceLine);
       }
       messages.add(message);
     }

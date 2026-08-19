@@ -45,7 +45,7 @@ public class ConstraintCaseGenerationTools {
 
   @McpTool(
       name = "generateIliConstraintCases",
-      description = "Erzeugt fuer unterstuetzte INTERLIS Mandatory-, UNIQUE- und EXISTENCE-Constraints automatisch modellbewusste Witness-, Counterexample- und Boundary-/Kategoriefaelle. Verwendet einen einmal kompilierten Constraint-Kontext fuer AST/semantische IR, Solver/Object-Graph-Synthese und Validator-Fixtures. Mandatory nutzt die bestehende Expression-Coverage-Pipeline. UNIQUE prueft globale, WHERE-, (BASKET)- und LOCAL-Semantik. EXISTENCE prueft skalare Werte sowie direkte STRUCTURE/COMPOSITION-Gleichheit member-wise; REFERENCE-, COORD- und komplexe Geometrieformen werden mit expliziten Safety-Reason-Codes als nicht automatisch beweisbar ausgewiesen statt approximiert. Jeder erzeugte Fall wird mit echtem ilivalidator verifiziert."
+      description = "Erzeugt fuer unterstuetzte INTERLIS Mandatory-, UNIQUE-, EXISTENCE- und PLAUSIBILITY-Constraints automatisch modellbewusste Witness-, Counterexample- und Boundary-/Kategoriefaelle. Verwendet einen einmal kompilierten Constraint-Kontext fuer AST/semantische IR, Solver/Object-Graph-Synthese und Validator-Fixtures. Mandatory nutzt die bestehende Expression-Coverage-Pipeline. UNIQUE prueft globale, WHERE-, (BASKET)- und LOCAL-Semantik. EXISTENCE prueft skalare Werte sowie direkte STRUCTURE/COMPOSITION-Gleichheit member-wise; REFERENCE-, COORD- und komplexe Geometrieformen werden mit expliziten Safety-Reason-Codes als nicht automatisch beweisbar ausgewiesen statt approximiert. PLAUSIBILITY erzeugt echte Populationen knapp unter, auf und ueber der Prozentgrenze und verifiziert die Gesamtquote mit dem realen ilivalidator."
   )
   public Map<String, Object> generateIliConstraintCases(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,
@@ -81,9 +81,12 @@ public class ConstraintCaseGenerationTools {
     if (context.semantics() instanceof SemanticConstraint.Existence existence) {
       return generateExistenceConstraintCases(context, existence);
     }
+    if (context.semantics() instanceof SemanticConstraint.Plausibility plausibility) {
+      return generatePlausibilityConstraintCases(context, plausibility);
+    }
     return unavailable(
         "UNSUPPORTED_CONSTRAINT_KIND",
-        "Automatic semantic generation currently supports MANDATORY, UNIQUE and supported EXISTENCE forms; got "
+        "Automatic semantic generation currently supports MANDATORY, UNIQUE, supported EXISTENCE forms and PLAUSIBILITY; got "
             + context.semantics().kind() + ".",
         context,
         context.compilation().messages());
@@ -248,6 +251,63 @@ public class ConstraintCaseGenerationTools {
       response.put(
           "reason",
           "EXISTENCE proof cases were generated, but the real validator did not confirm all expected outcomes.");
+    }
+    response.put("limitations", limitations());
+    return response;
+  }
+
+  private Map<String, Object> generatePlausibilityConstraintCases(
+      CompiledConstraintContext context,
+      SemanticConstraint.Plausibility plausibility) {
+    PlausibilityConstraintCasePlanner.Plan plan;
+    try {
+      plan = PlausibilityConstraintCasePlanner.plan(context, plausibility);
+    } catch (IllegalArgumentException ex) {
+      return unavailable(
+          "PLAUSIBILITY_PROOF_PLANNING_FAILED",
+          ex.getMessage(),
+          context,
+          context.compilation().messages());
+    }
+
+    if (plan.cases().isEmpty()) {
+      Map<String, Object> first = plan.unsolved().isEmpty() ? Map.of() : plan.unsolved().getFirst();
+      return unavailable(
+          String.valueOf(first.getOrDefault("reasonCode", "NO_PLAUSIBILITY_PROOF_CASES")),
+          String.valueOf(first.getOrDefault(
+              "reason",
+              "No validator-backed PLAUSIBILITY population case could be synthesized for this model shape.")),
+          context,
+          context.compilation().messages());
+    }
+
+    Map<String, Object> verification = verifyUsingCompiledContext(context, plan.cases());
+    boolean verified = Boolean.TRUE.equals(verification.get("allPassed"));
+
+    Map<String, Object> response = new LinkedHashMap<>();
+    response.put("automaticCasesAvailable", verified);
+    response.put("automaticCasesGenerated", true);
+    response.put("generationVerified", verified);
+    response.put("pattern", "PLAUSIBILITY_POPULATION_PROOF");
+    response.put("constraint", constraintSummary(context));
+    response.put("context", contextSummary(context));
+    response.put("plausibility", Map.of(
+        "direction", plausibility.direction().name(),
+        "percentage", plausibility.percentage().stripTrailingZeros().toPlainString(),
+        "condition", plausibility.condition().toInterlis(plausibility.version())));
+    response.put("generatedCases", plan.summaries());
+    response.put("coverageGoalCount", plan.goalCount());
+    response.put("coverageSolvedCount", plan.cases().size());
+    response.put("coverageComplete", plan.complete());
+    if (!plan.unsolved().isEmpty()) {
+      response.put("coverageUnsolved", plan.unsolved());
+    }
+    response.put("verification", verification);
+    if (!verified) {
+      response.put("reasonCode", "GENERATED_CASES_NOT_VERIFIED");
+      response.put(
+          "reason",
+          "PLAUSIBILITY population cases were generated, but the real validator did not confirm all expected outcomes.");
     }
     response.put("limitations", limitations());
     return response;
@@ -431,7 +491,9 @@ public class ConstraintCaseGenerationTools {
 
   private List<String> limitations() {
     return List.of(
-        "Automatic semantic generation supports MANDATORY, UNIQUE and supported EXISTENCE constraints. PLAUSIBILITY and SET still require their dedicated semantic proof stages.",
+        "Automatic semantic generation supports MANDATORY, UNIQUE, supported EXISTENCE constraints and PLAUSIBILITY. SET still requires its dedicated object-set semantic proof stage.",
+        "PLAUSIBILITY proof uses the real population semantics: condition TRUE and validator skipEvaluation count as successful members, and successful/total*100 is compared with the declared >= or <= threshold. Boundary populations are capped at 20 context objects per generated case.",
+        "PLAUSIBILITY population synthesis requires each generated condition member graph to contain exactly one object of the constraint context so the percentage denominator cannot change silently; unsupported graph shapes remain coverageUnsolved.",
         "EXISTENCE proof supports scalar NUMERIC, BOOLEAN, ENUM, TEXT and MTEXT paths plus direct STRUCTURE/COMPOSITION equality for the same component type, small compatible cardinalities and identical source/target attribute names.",
         "REFERENCE-valued EXISTENCE is intentionally guarded by EXISTENCE_REFERENCE_VALUE_PROOF_UNSAFE; current validator behavior is not used as a substitute for a value-discriminating equality proof.",
         "COORD EXISTENCE has dedicated validator semantics but no arbitrary value-aware automatic fixture injection yet. POLYLINE/SURFACE/AREA fixtures are likewise not synthesized automatically; these boundaries are returned with explicit reason codes.",
