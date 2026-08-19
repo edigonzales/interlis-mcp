@@ -45,7 +45,7 @@ public class ConstraintCaseGenerationTools {
 
   @McpTool(
       name = "generateIliConstraintCases",
-      description = "Erzeugt fuer unterstuetzte INTERLIS Mandatory-, UNIQUE- und skalare EXISTENCE-Constraints automatisch modellbewusste Witness-, Counterexample- und Boundary-/Kategoriefaelle. Verwendet einen einmal kompilierten Constraint-Kontext fuer AST/semantische IR, Solver/Object-Graph-Synthese und Validator-Fixtures. Mandatory nutzt die bestehende Expression-Coverage-Pipeline. UNIQUE prueft globale, WHERE-, (BASKET)- und LOCAL-Semantik. EXISTENCE prueft definierte Source-Werte gegen REQUIRED-IN-Zielpfade, fehlende und abweichende Zielwerte, OR-Targets sowie optionale undefinierte Source-Werte; jeder erzeugte Fall wird mit echtem ilivalidator verifiziert."
+      description = "Erzeugt fuer unterstuetzte INTERLIS Mandatory-, UNIQUE- und EXISTENCE-Constraints automatisch modellbewusste Witness-, Counterexample- und Boundary-/Kategoriefaelle. Verwendet einen einmal kompilierten Constraint-Kontext fuer AST/semantische IR, Solver/Object-Graph-Synthese und Validator-Fixtures. Mandatory nutzt die bestehende Expression-Coverage-Pipeline. UNIQUE prueft globale, WHERE-, (BASKET)- und LOCAL-Semantik. EXISTENCE prueft skalare Werte sowie direkte STRUCTURE/COMPOSITION-Gleichheit member-wise; REFERENCE-, COORD- und komplexe Geometrieformen werden mit expliziten Safety-Reason-Codes als nicht automatisch beweisbar ausgewiesen statt approximiert. Jeder erzeugte Fall wird mit echtem ilivalidator verifiziert."
   )
   public Map<String, Object> generateIliConstraintCases(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,
@@ -83,7 +83,7 @@ public class ConstraintCaseGenerationTools {
     }
     return unavailable(
         "UNSUPPORTED_CONSTRAINT_KIND",
-        "Automatic semantic generation currently supports MANDATORY, UNIQUE and scalar EXISTENCE constraints; got "
+        "Automatic semantic generation currently supports MANDATORY, UNIQUE and supported EXISTENCE forms; got "
             + context.semantics().kind() + ".",
         context,
         context.compilation().messages());
@@ -220,7 +220,7 @@ public class ConstraintCaseGenerationTools {
           String.valueOf(first.getOrDefault("reasonCode", "NO_EXISTENCE_PROOF_CASES")),
           String.valueOf(first.getOrDefault(
               "reason",
-              "No validator-backed scalar EXISTENCE proof case could be synthesized for this model shape.")),
+              "No validator-backed EXISTENCE proof case could be synthesized for this model shape.")),
           context,
           context.compilation().messages());
     }
@@ -431,8 +431,11 @@ public class ConstraintCaseGenerationTools {
 
   private List<String> limitations() {
     return List.of(
-        "Automatic semantic generation supports MANDATORY, UNIQUE and scalar EXISTENCE constraints. PLAUSIBILITY and SET still require their dedicated semantic proof stages.",
-        "Scalar EXISTENCE proof supports NUMERIC, BOOLEAN, ENUM, TEXT and MTEXT source/target paths through the existing binder. Structure equality, geometry and other special EXISTENCE comparison semantics are deferred to B8.",
+        "Automatic semantic generation supports MANDATORY, UNIQUE and supported EXISTENCE constraints. PLAUSIBILITY and SET still require their dedicated semantic proof stages.",
+        "EXISTENCE proof supports scalar NUMERIC, BOOLEAN, ENUM, TEXT and MTEXT paths plus direct STRUCTURE/COMPOSITION equality for the same component type, small compatible cardinalities and identical source/target attribute names.",
+        "REFERENCE-valued EXISTENCE is intentionally guarded by EXISTENCE_REFERENCE_VALUE_PROOF_UNSAFE; current validator behavior is not used as a substitute for a value-discriminating equality proof.",
+        "COORD EXISTENCE has dedicated validator semantics but no arbitrary value-aware automatic fixture injection yet. POLYLINE/SURFACE/AREA fixtures are likewise not synthesized automatically; these boundaries are returned with explicit reason codes.",
+        "Navigated non-scalar EXISTENCE paths are reported as unsupported instead of approximated.",
         "Global UNIQUE keys reuse the existing scalar path binder/object-graph synthesizer; the same navigation limit of at most one multi-valued step and no geometry key synthesis applies.",
         "LOCAL UNIQUE proof currently requires a direct structure/composition prefix and direct scalar member keys. Navigated LOCAL member keys are reported as unsolved rather than approximated.",
         "UNIQUE WHERE uses the finite-domain expression solver. If the predicate cannot be solved both true and false, or the false branch cannot preserve the same key, coverageComplete=false exposes the missing proof goal.",

@@ -51,13 +51,14 @@ class ToolChoiceGuidanceTest {
   }
 
   @Test
-  void automaticConstraintCasesAdvertiseMandatoryUniqueAndExistenceVerifiedScope() {
+  void automaticConstraintCasesAdvertiseMandatoryUniqueAndExtendedExistenceScope() {
     assertThat(description(ConstraintCaseGenerationTools.class, "generateIliConstraintCases"))
         .contains("Mandatory", "UNIQUE", "EXISTENCE")
         .contains("Witness", "Counterexample", "Boundary-/Kategoriefaelle")
         .contains("semantische IR", "Solver", "Object-Graph-Synthese")
         .contains("einmal kompilierten Constraint-Kontext", "Validator-Fixtures")
-        .contains("WHERE", "(BASKET)", "LOCAL", "REQUIRED-IN", "ilivalidator");
+        .contains("WHERE", "(BASKET)", "LOCAL", "STRUCTURE", "COMPOSITION", "ilivalidator")
+        .contains("REFERENCE", "COORD", "Safety-Reason-Codes");
   }
 
   @Test
@@ -74,8 +75,7 @@ class ToolChoiceGuidanceTest {
     assertThat(description(ExistenceConstraintAuthoringTools.class, "authorIliExistenceConstraint"))
         .contains("EXISTENCE CONSTRAINT", "restrictedPath", "viewableFqn", "attributePath")
         .contains("source-preserving", "Before/After je genau einmal")
-        .contains("AST->constraint-level-IR", "NUMERIC", "TEXT", "ilivalidator")
-        .contains("B8");
+        .contains("AST->constraint-level-IR", "NUMERIC", "TEXT", "ilivalidator");
   }
 
   @Test
@@ -121,6 +121,8 @@ class ToolChoiceGuidanceTest {
         .contains("UNEXPECTED_SEMANTIC_CHANGE")
         .contains("reviewIliChange")
         .contains("afterReview")
+        .contains("STRUCTURE")
+        .contains("EXISTENCE_REFERENCE_VALUE_PROOF_UNSAFE")
         .contains("Constraint");
   }
 
