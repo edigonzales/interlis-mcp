@@ -35,7 +35,7 @@ public class ConstraintTools {
   }
 
   @McpTool(name = "createSetConstraint",
-        description = "SET CONSTRAINT: Params: expr (required), iliDoc, metaAttributes.")
+        description = "Legacy-Low-Level-Helper fuer einen freien SET-Ausdruck. Er erzeugt nur ein Snippet und bietet weder typisierte OBJECTS-OF/ALL-Semantik noch source-preserving Einfuegung oder Validator-Proof. Fuer neue objectCount(ALL)-SET-Regeln bevorzuge authorIliSetConstraint mit operator/threshold, optionalem where und perBasket.")
   public Map<String,Object> setConstraint(
       @McpToolParam(description = "Mengen-Ausdruck", required = true) String expr,
       @McpToolParam(description = "IliDoc-Blockkommentar direkt vor der Constraint", required = false) @Nullable String iliDoc,
