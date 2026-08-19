@@ -224,6 +224,45 @@ class ToolRegistrationContractTest {
         .contains("egid : MANDATORY TEXT*14;");
   }
 
+  @Test
+  void authorIliExistenceConstraintDeserializesExplicitRequiredInTargets() throws Exception {
+    SyncToolSpecification author = specsByName().get("authorIliExistenceConstraint");
+
+    String modelText = "INTERLIS 2.4;\n\n"
+        + "MODEL ExistDemo (de) AT \"https://example.org/demo\" VERSION \"2026-08-19\" =\n"
+        + "  TOPIC Data =\n"
+        + "    CLASS TargetA =\n"
+        + "      code : 0..10;\n"
+        + "    END TargetA;\n"
+        + "    CLASS TargetB =\n"
+        + "      code : 0..10;\n"
+        + "    END TargetB;\n"
+        + "    CLASS Source =\n"
+        + "      code : MANDATORY 0..10;\n"
+        + "    END Source;\n"
+        + "  END Data;\n"
+        + "END ExistDemo.\n";
+
+    var response = author.callHandler().apply(null,
+        new McpSchema.CallToolRequest("authorIliExistenceConstraint", Map.of(
+            "modelText", modelText,
+            "context", "ExistDemo.Data.Source",
+            "constraintName", "CodeExists",
+            "restrictedPath", "code",
+            "requiredIn", List.of(
+                Map.of("viewableFqn", "ExistDemo.Data.TargetA", "attributePath", "code"),
+                Map.of("viewableFqn", "ExistDemo.Data.TargetB", "attributePath", "code")))));
+
+    Map<String, Object> structured = extractStructuredContent(response);
+    assertThat(structured.get("generated")).isEqualTo(true);
+    assertThat(structured.get("proofVerified")).isEqualTo(true);
+    assertThat(structured.get("updatedModelText").toString())
+        .contains("EXISTENCE CONSTRAINT")
+        .contains("ExistDemo.Data.TargetA : code")
+        .contains("OR ExistDemo.Data.TargetB : code");
+    assertThat(structured.get("requiredIn")).asList().hasSize(2);
+  }
+
   private Map<String, SyncToolSpecification> specsByName() {
     return toolSpecifications.stream()
         .collect(Collectors.toMap(spec -> spec.tool().name(), spec -> spec, (left, right) -> left, LinkedHashMap::new));
@@ -305,6 +344,7 @@ class ToolRegistrationContractTest {
     expectations.put("generateIliConstraintCases", schema(Set.of("modelText", "constraint"), Set.of("modelRepositories")));
     expectations.put("generateIliConstraintFromDecisionTable", schema(Set.of("modelText", "context", "constraintName", "rows"), Set.of("modelRepositories")));
     expectations.put("authorIliMandatoryConstraint", schema(Set.of("modelText", "context", "constraintName", "rootNodeId", "nodes"), Set.of("modelRepositories")));
+    expectations.put("authorIliExistenceConstraint", schema(Set.of("modelText", "context", "constraintName", "restrictedPath", "requiredIn"), Set.of("modelRepositories")));
     expectations.put("testIliConstraint", schema(Set.of("modelText", "constraint", "cases"), Set.of("modelRepositories")));
     expectations.put("findSimilarModels", schema(Set.of(), Set.of("query", "modelText", "modelPurpose", "limit")));
     expectations.put("indexConfiguredModels", schema(Set.of(), Set.of()));
