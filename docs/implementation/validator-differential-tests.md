@@ -17,7 +17,13 @@ same assignment
   -> ilivalidator
 ```
 
-The semantic evaluator result becomes `expectedConstraintValid` for the validator-backed case. Therefore a difference between the internal semantic result and ilivalidator fails as an ordinary JUnit regression.
+Each assignment also carries an explicit expected Mandatory-Constraint outcome. The test therefore checks three things independently:
+
+1. the semantic evaluator produces the expected result;
+2. the same assignment can be materialized as a valid model-aware XTF fixture;
+3. ilivalidator observes the same constraint result.
+
+A difference between the internal semantic result and ilivalidator fails as an ordinary JUnit regression. Explicit expectations also prevent a false positive where evaluator and fixture accidentally agree on the same wrong behavior.
 
 The initial suite covers:
 
