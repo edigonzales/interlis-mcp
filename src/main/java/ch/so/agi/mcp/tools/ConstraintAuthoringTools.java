@@ -1,16 +1,14 @@
 package ch.so.agi.mcp.tools;
 
-import ch.interlis.ili2c.metamodel.Constraint;
-import ch.interlis.ili2c.metamodel.Container;
-import ch.interlis.ili2c.metamodel.Model;
-import ch.interlis.ili2c.metamodel.TransferDescription;
-import ch.so.agi.mcp.constraint.ConstraintAstTranslator;
+import ch.so.agi.mcp.constraint.CompiledConstraintContext;
+import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.constraint.ConstraintExpression;
+import ch.so.agi.mcp.constraint.ConstraintSourceEditService;
+import ch.so.agi.mcp.constraint.SemanticConstraint;
 import ch.so.agi.mcp.constraint.StandardFunctionRegistry;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -22,6 +20,7 @@ import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -34,12 +33,30 @@ public class ConstraintAuthoringTools {
 
   private final IliCompilerService compilerService;
   private final ConstraintCaseGenerationTools caseGenerationTools;
+  private final ConstraintContextService contextService;
+  private final ConstraintSourceEditService sourceEditService;
 
+  @Autowired
+  public ConstraintAuthoringTools(
+      IliCompilerService compilerService,
+      ConstraintCaseGenerationTools caseGenerationTools,
+      ConstraintContextService contextService,
+      ConstraintSourceEditService sourceEditService) {
+    this.compilerService = compilerService;
+    this.caseGenerationTools = caseGenerationTools;
+    this.contextService = contextService;
+    this.sourceEditService = sourceEditService;
+  }
+
+  /** Compatibility constructor used by existing focused tests. */
   public ConstraintAuthoringTools(
       IliCompilerService compilerService,
       ConstraintCaseGenerationTools caseGenerationTools) {
-    this.compilerService = compilerService;
-    this.caseGenerationTools = caseGenerationTools;
+    this(
+        compilerService,
+        caseGenerationTools,
+        new ConstraintContextService(compilerService),
+        new ConstraintSourceEditService());
   }
 
   /** Flat semantic node used by the MCP schema; child expressions are referenced by node ID. */
@@ -54,7 +71,7 @@ public class ConstraintAuthoringTools {
 
   @McpTool(
       name = "authorIliMandatoryConstraint",
-      description = "Erzeugt einen INTERLIS Mandatory Constraint aus einer strukturierten semantischen Node-Liste und beweist ihn mit der bestehenden AST->IR->Coverage->Solver->Object-Graph->ilivalidator Pipeline. Knotenarten: ATTRIBUTE, PATH, NUMERIC, BOOLEAN, ENUM, TEXT, MTEXT, FUNCTION, DEFINED, NOT, AND, OR, IMPLIES, COMPARE. FUNCTION.name ist die stabile semanticId aus listConstraintFunctions, z.B. NUMERIC_ADD oder COLLECTION_SUM. PATH wird insbesondere fuer ATTRIBUTE_PATH-Argumente wie SUM verwendet. Das Tool kompiliert den Vorschlag mit ili2c, uebersetzt den kompilierten AST erneut in die typisierte ConstraintExpression-IR und liefert Witness-/Counterexample-/Boundary-Beweise des echten ilivalidators."
+      description = "Erzeugt einen INTERLIS Mandatory Constraint aus einer strukturierten semantischen Node-Liste, fuegt ihn source-preserving in das bestehende Modell ein und beweist ihn mit der AST->IR->Coverage->Solver->Object-Graph->ilivalidator Pipeline. Knotenarten: ATTRIBUTE, PATH, NUMERIC, BOOLEAN, ENUM, TEXT, MTEXT, FUNCTION, DEFINED, NOT, AND, OR, IMPLIES, COMPARE. FUNCTION.name ist die stabile semanticId aus listConstraintFunctions. Das Modell wird im Erfolgsfall genau als Before und After kompiliert; Proof-Stufen verwenden danach denselben kompilierten After-Kontext weiter."
   )
   public Map<String, Object> authorIliMandatoryConstraint(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext ohne den zu erzeugenden Constraint", required = true) String modelText,
@@ -76,13 +93,32 @@ public class ConstraintAuthoringTools {
       return unavailable("INVALID_AUTHORING_SPEC", ex.getMessage(), null, null, null);
     }
 
+    IliCompilerService.CompilationResult beforeCompilation = compilerService.compile(
+        modelText,
+        modelRepositories,
+        "ili2c_constraint_authoring_before_");
+    if (!beforeCompilation.valid() || beforeCompilation.transferDescription() == null) {
+      Map<String, Object> result = unavailable(
+          "BEFORE_MODEL_NOT_COMPILABLE",
+          "The supplied model must compile before a source-preserving constraint can be inserted.",
+          rendered.expression(),
+          null,
+          rendered.requiredFunctionModels());
+      result.put("compilerMessages", beforeCompilation.messages());
+      return result;
+    }
+
     String constraintBlock = renderConstraintBlock(
         normalizedContext,
         normalizedName,
         rendered.expression());
-    String proofModelText;
+    ConstraintSourceEditService.PreparedInsertion insertion;
     try {
-      proofModelText = insertConstraintBlock(modelText, normalizedContext, constraintBlock);
+      insertion = sourceEditService.insertConstraintBlock(
+          modelText,
+          beforeCompilation,
+          normalizedContext,
+          constraintBlock);
     } catch (IllegalArgumentException ex) {
       return unavailable(
           "CONSTRAINT_INSERTION_FAILED",
@@ -92,56 +128,49 @@ public class ConstraintAuthoringTools {
           rendered.requiredFunctionModels());
     }
 
-    IliCompilerService.CompilationResult compilation = compilerService.compile(
-        proofModelText,
+    String expectedConstraintFqn = normalizedContext + "." + normalizedName;
+    ConstraintContextService.Resolution afterResolution = contextService.compileAndResolve(
+        insertion.updatedModelText(),
+        expectedConstraintFqn,
         modelRepositories,
-        "ili2c_constraint_authoring_");
-    if (!compilation.valid() || compilation.transferDescription() == null) {
+        "ili2c_constraint_authoring_after_");
+    if (!afterResolution.available()) {
       Map<String, Object> result = unavailable(
-          "GENERATED_CONSTRAINT_NOT_COMPILABLE",
-          "The structured Mandatory proposal could not be compiled in the supplied model.",
+          afterResolution.compilation().valid()
+              ? afterResolution.reasonCode()
+              : "GENERATED_CONSTRAINT_NOT_COMPILABLE",
+          afterResolution.compilation().valid()
+              ? afterResolution.reason()
+              : "The structured Mandatory proposal could not be compiled in the supplied model.",
           rendered.expression(),
           constraintBlock,
           rendered.requiredFunctionModels());
-      result.put("compilerMessages", compilation.messages());
+      result.put("compilerMessages", afterResolution.compilation().messages());
+      result.put("candidateModelText", insertion.updatedModelText());
+      result.put("sourceEdit", insertion.sourceEdit());
       return result;
     }
 
-    Constraint compiledConstraint = findConstraint(compilation.transferDescription(), normalizedName);
-    if (compiledConstraint == null) {
+    CompiledConstraintContext compiled = afterResolution.context();
+    if (!(compiled.semantics() instanceof SemanticConstraint.Mandatory mandatory)) {
       return unavailable(
-          "CONSTRAINT_LOOKUP_FAILED",
-          "The generated Mandatory Constraint could not be resolved uniquely after compilation.",
+          "CONSTRAINT_KIND_ROUND_TRIP_MISMATCH",
+          "Compiled constraint is not a Mandatory Constraint: " + compiled.semantics().kind(),
           rendered.expression(),
           constraintBlock,
           rendered.requiredFunctionModels());
     }
-
-    ConstraintAstTranslator.Translation translation;
-    try {
-      translation = ConstraintAstTranslator.translate(compiledConstraint);
-    } catch (ConstraintAstTranslator.TranslationException ex) {
-      return unavailable(
-          ex.reasonCode(),
-          ex.getMessage(),
-          rendered.expression(),
-          constraintBlock,
-          rendered.requiredFunctionModels());
-    }
-    if (!normalizedContext.equals(translation.contextFqn())) {
+    if (!normalizedContext.equals(mandatory.contextFqn())) {
       return unavailable(
           "CONTEXT_ROUND_TRIP_MISMATCH",
-          "Compiled constraint context differs from the requested context: " + translation.contextFqn(),
+          "Compiled constraint context differs from the requested context: " + mandatory.contextFqn(),
           rendered.expression(),
           constraintBlock,
           rendered.requiredFunctionModels());
     }
 
-    ConstraintExpression typedExpression = translation.expression();
-    Map<String, Object> proof = caseGenerationTools.generateIliConstraintCases(
-        proofModelText,
-        normalizedName,
-        modelRepositories);
+    ConstraintExpression typedExpression = mandatory.condition();
+    Map<String, Object> proof = caseGenerationTools.generateCompiledConstraintCases(compiled);
     boolean verified = Boolean.TRUE.equals(proof.get("generationVerified"));
 
     Map<String, Object> result = new LinkedHashMap<>();
@@ -153,6 +182,8 @@ public class ConstraintAuthoringTools {
     result.put("constraintExpression", rendered.expression());
     result.put("typedCanonicalExpression", typedExpression.toInterlis(version));
     result.put("constraintBlock", constraintBlock);
+    result.put("updatedModelText", insertion.updatedModelText());
+    result.put("sourceEdit", insertion.sourceEdit());
     result.put("typedReferences", typedReferences(typedExpression));
     result.put("requiredFunctionModels", rendered.requiredFunctionModels());
     result.put("proof", proof);
@@ -349,7 +380,8 @@ public class ConstraintAuthoringTools {
     if (value instanceof Boolean bool) {
       return new ConstraintExpression.BooleanLiteral(bool);
     }
-    if (value instanceof String text && ("true".equalsIgnoreCase(text) || "false".equalsIgnoreCase(text))) {
+    if (value instanceof String text
+        && ("true".equalsIgnoreCase(text) || "false".equalsIgnoreCase(text))) {
       return new ConstraintExpression.BooleanLiteral(Boolean.parseBoolean(text));
     }
     throw new IllegalArgumentException("BOOLEAN.value must be true or false.");
@@ -393,87 +425,6 @@ public class ConstraintAuthoringTools {
         + "  MANDATORY CONSTRAINT\n"
         + "    " + expression + ";\n"
         + "END;";
-  }
-
-  private String insertConstraintBlock(String modelText, String context, String constraintBlock) {
-    String[] parts = context.split("\\.");
-    String modelName = parts[0];
-    String topicName = parts[1];
-
-    Matcher modelMatcher = Pattern.compile(
-        "(?m)^\\s*(?:(?:CONTRACTED|REFSYSTEM|SYMBOLOGY|TYPE)\\s+)?MODEL\\s+" + Pattern.quote(modelName) + "\\b")
-        .matcher(modelText);
-    if (!modelMatcher.find()) {
-      throw new IllegalArgumentException("Model '" + modelName + "' was not found in modelText.");
-    }
-    int modelStart = modelMatcher.start();
-
-    Matcher modelEndMatcher = Pattern.compile(
-        "(?m)^\\s*END\\s+" + Pattern.quote(modelName) + "\\s*\\.")
-        .matcher(modelText);
-    if (!modelEndMatcher.find(modelStart)) {
-      throw new IllegalArgumentException("End of model '" + modelName + "' was not found.");
-    }
-    int modelEnd = modelEndMatcher.start();
-
-    Matcher topicMatcher = Pattern.compile(
-        "(?m)^\\s*TOPIC\\s+" + Pattern.quote(topicName) + "\\b")
-        .matcher(modelText);
-    if (!topicMatcher.find(modelStart) || topicMatcher.start() >= modelEnd) {
-      throw new IllegalArgumentException("Topic '" + topicName + "' was not found in model '" + modelName + "'.");
-    }
-
-    Matcher topicEndMatcher = Pattern.compile(
-        "(?m)^\\s*END\\s+" + Pattern.quote(topicName) + "\\s*;")
-        .matcher(modelText);
-    topicEndMatcher.region(topicMatcher.start(), modelEnd);
-    int insertAt = -1;
-    while (topicEndMatcher.find()) {
-      insertAt = topicEndMatcher.start();
-    }
-    if (insertAt < 0) {
-      throw new IllegalArgumentException("End of topic '" + topicName + "' was not found.");
-    }
-
-    String indentation = leadingWhitespace(modelText, insertAt);
-    String indentedBlock = constraintBlock.lines()
-        .map(line -> indentation + "  " + line)
-        .reduce((left, right) -> left + "\n" + right)
-        .orElse(constraintBlock);
-    return modelText.substring(0, insertAt) + indentedBlock + "\n\n" + modelText.substring(insertAt);
-  }
-
-  private String leadingWhitespace(String text, int offset) {
-    int lineStart = text.lastIndexOf('\n', Math.max(0, offset - 1));
-    lineStart = lineStart < 0 ? 0 : lineStart + 1;
-    int pos = lineStart;
-    while (pos < text.length() && (text.charAt(pos) == ' ' || text.charAt(pos) == '\t')) {
-      pos++;
-    }
-    return text.substring(lineStart, pos);
-  }
-
-  private @Nullable Constraint findConstraint(TransferDescription td, String requestedName) {
-    List<Constraint> matches = new ArrayList<>();
-    for (Model model : td.getModelsFromLastFile()) {
-      collectConstraints(model, requestedName, matches);
-    }
-    return matches.size() == 1 ? matches.getFirst() : null;
-  }
-
-  private void collectConstraints(Container<?> container, String requestedName, List<Constraint> sink) {
-    Iterator<?> iterator = container.iterator();
-    while (iterator.hasNext()) {
-      Object child = iterator.next();
-      if (child instanceof Constraint constraint) {
-        if (requestedName.equals(constraint.getName())
-            || requestedName.equals(constraint.getScopedName())) {
-          sink.add(constraint);
-        }
-      } else if (child instanceof Container<?> nested) {
-        collectConstraints(nested, requestedName, sink);
-      }
-    }
   }
 
   private ConstraintExpression.IliVersion iliVersion(String modelText) {
@@ -577,8 +528,8 @@ public class ConstraintAuthoringTools {
     Map<String, Object> result = new LinkedHashMap<>();
     result.put("generated", false);
     result.put("proofVerified", false);
-    result.put("reasonCode", reasonCode);
-    result.put("reason", reason);
+    result.put("reasonCode", reasonCode != null ? reasonCode : "CONSTRAINT_AUTHORING_UNAVAILABLE");
+    result.put("reason", reason != null ? reason : "Constraint authoring is unavailable.");
     if (expression != null) {
       result.put("constraintExpression", expression);
     }
