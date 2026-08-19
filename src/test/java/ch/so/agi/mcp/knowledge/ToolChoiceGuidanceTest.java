@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.analysis.ModelChangeTools;
+import ch.so.agi.mcp.tools.ConstraintAuthoringTools;
 import ch.so.agi.mcp.tools.ConstraintCaseGenerationTools;
 import ch.so.agi.mcp.tools.ConstraintDecisionTableTools;
 import ch.so.agi.mcp.tools.ConstraintReviewTools;
@@ -46,6 +47,14 @@ class ToolChoiceGuidanceTest {
         .contains("Witness", "Counterexample", "Boundary-/Kategoriefaelle")
         .contains("semantische IR", "Solver", "Object-Graph-Synthese")
         .contains("testIliConstraint", "ilivalidator", "DEFINED", "SUM", "mehrstufige skalare Pfade");
+  }
+
+  @Test
+  void mandatoryAuthoringAdvertisesTypedRoundTripAndValidatorProof() {
+    assertThat(description(ConstraintAuthoringTools.class, "authorIliMandatoryConstraint"))
+        .contains("Mandatory Constraint", "semantischen Node-Liste")
+        .contains("AST->IR", "Coverage", "Solver", "Object-Graph", "ilivalidator")
+        .contains("ATTRIBUTE", "PATH", "FUNCTION", "COMPARE", "COLLECTION_SUM");
   }
 
   @Test
