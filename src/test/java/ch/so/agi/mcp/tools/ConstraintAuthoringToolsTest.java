@@ -40,6 +40,36 @@ class ConstraintAuthoringToolsTest {
       END ConstraintAuthoring24.
       """;
 
+  private static final String SUM_MODEL_23 = """
+      INTERLIS 2.3;
+
+      CONTRACTED TYPE MODEL Math (en) AT "http://www.interlis.ch/models"
+      VERSION "2018-11-19" =
+        FUNCTION sum(attributePath: TEXT): NUMERIC;
+      END Math.
+
+      MODEL ConstraintAuthoringSum23 (en)
+      AT "https://example.org"
+      VERSION "2026-08-19" =
+        IMPORTS Math;
+
+        TOPIC Data =
+          CLASS Main =
+            code : MANDATORY TEXT*20;
+          END Main;
+
+          CLASS Secondary =
+            weight : MANDATORY 0 .. 100;
+          END Secondary;
+
+          ASSOCIATION MainSecondary =
+            MainObject -- {1} Main;
+            Secondaries -- {0..3} Secondary;
+          END MainSecondary;
+        END Data;
+      END ConstraintAuthoringSum23.
+      """;
+
   private final IliCompilerService compilerService = new IliCompilerService();
   private final ConstraintKnowledgeTools knowledgeTools = new ConstraintKnowledgeTools(
       new MathTools(), new TextTools(), compilerService);
@@ -110,6 +140,43 @@ class ConstraintAuthoringToolsTest {
     assertTrue(String.valueOf(result.get("constraintExpression")).contains("(A + B)"));
     assertEquals(List.of(), result.get("requiredFunctionModels"));
     assertEquals(true, map(result.get("proof")).get("generationVerified"));
+  }
+
+  @Test
+  void authorsAttributePathAggregateAndProvesPresenceWithValidator() {
+    List<ConstraintAuthoringTools.ExpressionNode> nodes = List.of(
+        node("weights", "PATH", "Secondaries->weight", null, null, null),
+        node("sum", "FUNCTION", "COLLECTION_SUM", null, null, List.of("weights")),
+        node("root", "DEFINED", null, null, null, List.of("sum")));
+
+    Map<String, Object> result = tools.authorIliMandatoryConstraint(
+        SUM_MODEL_23,
+        "ConstraintAuthoringSum23.Data.Main",
+        "SecondaryWeightPresent",
+        "root",
+        nodes,
+        null);
+
+    assertEquals(true, result.get("generated"), String.valueOf(result));
+    assertEquals(true, result.get("proofVerified"), String.valueOf(result));
+    assertEquals(List.of("Math"), result.get("requiredFunctionModels"));
+    assertTrue(String.valueOf(result.get("constraintExpression"))
+        .contains("Math.sum(\"Secondaries->weight\")"));
+
+    List<Map<String, Object>> references = list(result.get("typedReferences"));
+    assertEquals(1, references.size());
+    assertEquals("Secondaries->weight", references.getFirst().get("name"));
+    assertEquals(true, references.getFirst().get("collection"));
+
+    Map<String, Object> proof = map(result.get("proof"));
+    List<Map<String, Object>> generatedCases = list(proof.get("generatedCases"));
+    assertTrue(generatedCases.stream().anyMatch(item ->
+        Boolean.FALSE.equals(item.get("expectedConstraintValid"))
+            && ((Number) item.get("associationLinkCount")).intValue() == 0), String.valueOf(generatedCases));
+    assertTrue(generatedCases.stream().anyMatch(item ->
+        Boolean.TRUE.equals(item.get("expectedConstraintValid"))
+            && ((Number) item.get("associationLinkCount")).intValue() > 0), String.valueOf(generatedCases));
+    assertEquals(true, map(proof.get("verification")).get("allPassed"));
   }
 
   @Test
