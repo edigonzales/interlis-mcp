@@ -6,6 +6,7 @@ import ch.interlis.ili2c.metamodel.AbstractCoordType;
 import ch.interlis.ili2c.metamodel.AssociationDef;
 import ch.interlis.ili2c.metamodel.AttributeDef;
 import ch.interlis.ili2c.metamodel.Cardinality;
+import ch.interlis.ili2c.metamodel.CompositionType;
 import ch.interlis.ili2c.metamodel.Constraint;
 import ch.interlis.ili2c.metamodel.Container;
 import ch.interlis.ili2c.metamodel.Element;
@@ -97,7 +98,7 @@ public class ConstraintTestTools {
   public Map<String, Object> testIliConstraint(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,
       @McpToolParam(description = "Constraint-Name oder vollqualifizierter Constraint-Name", required = true) String constraint,
-      @McpToolParam(description = "Explizite Testfaelle. Jeder Fall enthaelt name, expectedConstraintValid, objects und optional links. Object values sind skalare Werte oder Listen skalarer Werte; references und link roles enthalten Ziel-OIDs.", required = true) List<TestCase> cases,
+      @McpToolParam(description = "Explizite Testfaelle. Jeder Fall enthaelt name, expectedConstraintValid, objects und optional links. Object values sind skalare Werte, Listen skalarer Werte oder verschachtelte Maps/Listen fuer STRUCTURE-Attribute; references und link roles enthalten Ziel-OIDs.", required = true) List<TestCase> cases,
       @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition", required = false) @Nullable String modelRepositories) {
     if (cases == null || cases.isEmpty()) {
       throw new IllegalArgumentException("At least one explicit constraint test case is required.");
@@ -152,7 +153,7 @@ public class ConstraintTestTools {
     response.put("automaticCasesGenerated", false);
     response.put("limitations", List.of(
         "Test cases are supplied explicitly by the agent; no witness or counterexample generation is performed.",
-        "Complex structured values and geometries are not part of this explicit-case MVP; use scalar values, references and association links.",
+        "Scalar values, references, association links and nested STRUCTURE value maps are supported; geometry remains outside this explicit-case MVP.",
         "Other INTERLIS constraints are disabled while the selected constraint is tested, but type, multiplicity and transfer checks remain active."));
     return response;
   }
@@ -302,14 +303,22 @@ public class ConstraintTestTools {
       Iom_jObject object = new Iom_jObject(table.getScopedName(null), preparedObject.oid());
       Set<String> explicitNames = new LinkedHashSet<>(preparedObject.values().keySet());
       explicitNames.addAll(preparedObject.references().keySet());
+      int currentObjectIndex = objectIndex++;
       fillMandatoryAttributes(
           object,
           table,
-          objectIndex++,
+          currentObjectIndex,
           explicitNames,
           prepared.objectIdsByClass(),
           prepared.basketIds());
-      applyValues(object, preparedObject.values());
+      applyValues(
+          object,
+          table,
+          preparedObject.values(),
+          currentObjectIndex,
+          prepared.objectIdsByClass(),
+          prepared.objectsByOid(),
+          prepared.basketIds());
       applyReferences(object, table, preparedObject.references(), prepared.objectsByOid(), prepared.basketIds());
       Topic topic = (Topic) table.getContainer(Topic.class);
       objectsByTopic.computeIfAbsent(topic, key -> new ArrayList<>()).add(object);
@@ -566,28 +575,137 @@ public class ConstraintTestTools {
         + "; supply a simpler fixture or validate handcrafted XTF with validateXtf.");
   }
 
-  private void applyValues(Iom_jObject object, Map<String, Object> values) {
+  private void applyValues(
+      Iom_jObject object,
+      Table table,
+      Map<String, Object> values,
+      int objectIndex,
+      Map<Table, List<String>> objectIdsByClass,
+      Map<String, PreparedObject> objectsByOid,
+      Map<Topic, String> basketIds) {
     for (Map.Entry<String, Object> entry : values.entrySet()) {
       if (entry.getKey() == null || entry.getKey().isBlank() || entry.getValue() == null) {
         continue;
       }
-      if (entry.getValue() instanceof List<?> list) {
+      String name = entry.getKey().trim();
+      AttributeDef attribute = findAttribute(table, name);
+      Type type = attribute != null ? Type.findReal(attribute.getDomainOrDerivedDomain()) : null;
+      if (type instanceof CompositionType composition) {
+        applyCompositionValue(
+            object,
+            name,
+            composition,
+            entry.getValue(),
+            objectIndex,
+            objectIdsByClass,
+            objectsByOid,
+            basketIds);
+      } else if (type instanceof ReferenceType) {
+        applyReferenceValue(object, table, name, entry.getValue(), objectsByOid, basketIds);
+      } else if (entry.getValue() instanceof List<?> list) {
         for (Object value : list) {
           if (value != null) {
-            object.addattrvalue(entry.getKey().trim(), scalarValue(value));
+            object.addattrvalue(name, scalarValue(value));
           }
         }
       } else {
-        object.addattrvalue(entry.getKey().trim(), scalarValue(entry.getValue()));
+        object.addattrvalue(name, scalarValue(entry.getValue()));
       }
     }
+  }
+
+  private void applyCompositionValue(
+      Iom_jObject owner,
+      String attributeName,
+      CompositionType composition,
+      Object raw,
+      int objectIndex,
+      Map<Table, List<String>> objectIdsByClass,
+      Map<String, PreparedObject> objectsByOid,
+      Map<Topic, String> basketIds) {
+    List<?> occurrences = raw instanceof List<?> list ? list : List.of(raw);
+    Table component = composition.getComponentType();
+    for (Object occurrence : occurrences) {
+      if (!(occurrence instanceof Map<?, ?> rawValues)) {
+        throw new IllegalArgumentException(
+            "STRUCTURE assignment for '" + attributeName + "' requires a map or list of maps.");
+      }
+      Map<String, Object> nestedValues = stringKeyedMap(rawValues, attributeName);
+      Iom_jObject nested = new Iom_jObject(component.getScopedName(null), null);
+      fillMandatoryAttributes(
+          nested,
+          component,
+          objectIndex,
+          nestedValues.keySet(),
+          objectIdsByClass,
+          basketIds);
+      applyValues(
+          nested,
+          component,
+          nestedValues,
+          objectIndex,
+          objectIdsByClass,
+          objectsByOid,
+          basketIds);
+      owner.addattrobj(attributeName, nested);
+    }
+  }
+
+  private void applyReferenceValue(
+      Iom_jObject owner,
+      Table sourceTable,
+      String attributeName,
+      Object raw,
+      Map<String, PreparedObject> objectsByOid,
+      Map<Topic, String> basketIds) {
+    if (raw instanceof List<?>) {
+      throw new IllegalArgumentException(
+          "REFERENCE assignment for '" + attributeName + "' requires one target OID.");
+    }
+    String oid = String.valueOf(raw).trim();
+    PreparedObject target = objectsByOid.get(oid);
+    if (target == null) {
+      throw new IllegalArgumentException(
+          "REFERENCE assignment for '" + attributeName + "' points to unknown OID " + raw + ".");
+    }
+    IomObject ref = owner.addattrobj(attributeName, Iom_jObject.REF);
+    ref.setobjectrefoid(target.oid());
+    Topic sourceTopic = (Topic) sourceTable.getContainer(Topic.class);
+    Topic targetTopic = (Topic) target.table().getContainer(Topic.class);
+    if (sourceTopic != null && targetTopic != null && sourceTopic != targetTopic) {
+      ref.setobjectrefbid(basketIds.get(targetTopic));
+    }
+  }
+
+  private Map<String, Object> stringKeyedMap(Map<?, ?> values, String attributeName) {
+    Map<String, Object> result = new LinkedHashMap<>();
+    for (Map.Entry<?, ?> entry : values.entrySet()) {
+      if (!(entry.getKey() instanceof String key) || key.isBlank()) {
+        throw new IllegalArgumentException(
+            "STRUCTURE assignment for '" + attributeName + "' requires non-empty string attribute names.");
+      }
+      result.put(key, entry.getValue());
+    }
+    return result;
+  }
+
+  private @Nullable AttributeDef findAttribute(Table table, String name) {
+    Iterator<Extendable> attributes = table.getAttributes();
+    while (attributes.hasNext()) {
+      Extendable element = attributes.next();
+      if (element instanceof AttributeDef attribute && name.equals(attribute.getName())) {
+        return attribute;
+      }
+    }
+    return null;
   }
 
   private String scalarValue(Object value) {
     if (value instanceof String || value instanceof Number || value instanceof Boolean) {
       return String.valueOf(value);
     }
-    throw new IllegalArgumentException("Explicit constraint test values must be string, number, boolean or a list of those values.");
+    throw new IllegalArgumentException(
+        "Explicit constraint test scalar values must be string, number or boolean; STRUCTURE values use nested maps.");
   }
 
   private void applyReferences(

@@ -1,7 +1,9 @@
 package ch.so.agi.mcp.constraint;
 
+import ch.interlis.ili2c.metamodel.AttributeDef;
 import ch.interlis.ili2c.metamodel.AttributeRef;
 import ch.interlis.ili2c.metamodel.Cardinality;
+import ch.interlis.ili2c.metamodel.CompositionType;
 import ch.interlis.ili2c.metamodel.Constant;
 import ch.interlis.ili2c.metamodel.Constraint;
 import ch.interlis.ili2c.metamodel.Element;
@@ -18,6 +20,7 @@ import ch.interlis.ili2c.metamodel.ObjectPath;
 import ch.interlis.ili2c.metamodel.PathEl;
 import ch.interlis.ili2c.metamodel.PathElAbstractClassRole;
 import ch.interlis.ili2c.metamodel.PathElAssocRole;
+import ch.interlis.ili2c.metamodel.PathElRefAttr;
 import ch.interlis.ili2c.metamodel.RoleDef;
 import ch.interlis.ili2c.metamodel.TextType;
 import ch.interlis.ili2c.metamodel.Type;
@@ -103,6 +106,13 @@ public final class ConstraintAstTranslator {
         container.getScopedName(),
         version,
         expression);
+  }
+
+  public static ConstraintExpression translate(
+      Evaluable evaluable,
+      ConstraintExpression.IliVersion version) {
+    Objects.requireNonNull(evaluable, "evaluable");
+    return new ConstraintAstTranslator(version).translateEvaluable(evaluable);
   }
 
   private ConstraintExpression translateEvaluable(Evaluable evaluable) {
@@ -285,23 +295,49 @@ public final class ConstraintAstTranslator {
 
     boolean collection = false;
     boolean nullable = endpointType.nullable();
-    for (PathEl element : elements) {
-      RoleDef role = role(element);
-      if (role == null) {
-        continue;
-      }
-      Cardinality cardinality = role.getCardinality();
-      long minimum = cardinality != null ? cardinality.getMinimum() : 1;
-      long maximum = cardinality != null ? cardinality.getMaximum() : 1;
-      boolean unbounded = cardinality != null && maximum == Cardinality.UNBOUND;
-      collection |= unbounded || maximum > 1;
-      nullable |= minimum == 0;
+    for (int i = 0; i < elements.length - 1; i++) {
+      PathShape shape = pathShape(elements[i]);
+      collection |= shape.collection();
+      nullable |= shape.nullable();
     }
 
     ConstraintExpression.Type pathType = collection
         ? ConstraintExpression.Type.collection(endpointType.scalarKind())
         : new ConstraintExpression.Type(endpointType.scalarKind(), false, nullable);
     return new ConstraintExpression.Path(objectPath.toString(), pathType);
+  }
+
+  private PathShape pathShape(PathEl element) {
+    RoleDef role = role(element);
+    if (role != null) {
+      return pathShape(role.getCardinality(), false);
+    }
+    if (element instanceof PathElRefAttr reference) {
+      Type declared = reference.getAttr().getDomainOrDerivedDomain();
+      return new PathShape(false, !declared.isMandatoryConsideringAliases());
+    }
+    if (element instanceof AttributeRef attributeRef) {
+      AttributeDef attribute = attributeRef.getAttr();
+      Type declared = attribute.getDomainOrDerivedDomain();
+      Type real = Type.findReal(declared);
+      if (real instanceof CompositionType) {
+        return pathShape(real.getCardinality(), !declared.isMandatoryConsideringAliases());
+      }
+    }
+    return new PathShape(false, false);
+  }
+
+  private PathShape pathShape(Cardinality cardinality, boolean nullableWithoutCardinality) {
+    if (cardinality == null) {
+      return new PathShape(false, nullableWithoutCardinality);
+    }
+    long maximum = cardinality.getMaximum();
+    return new PathShape(
+        maximum == Cardinality.UNBOUND || maximum > 1,
+        cardinality.getMinimum() == 0 || nullableWithoutCardinality);
+  }
+
+  private record PathShape(boolean collection, boolean nullable) {
   }
 
   private ConstraintExpression translateConstant(Constant constant) {

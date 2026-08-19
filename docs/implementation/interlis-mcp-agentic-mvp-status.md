@@ -1,6 +1,6 @@
 # Agentic INTERLIS MVP Status
 
-_Last updated: 2026-08-18, after consolidating automatic constraint proof generation, adding logical/edge-case coverage and introducing expression-directed arithmetic solving._
+_Last updated: 2026-08-18, after consolidating automatic constraint proof generation, adding logical/edge-case coverage, expression-directed arithmetic solving and richer multi-step object-graph synthesis._
 
 ## Scope
 
@@ -74,9 +74,11 @@ INTERLIS 2.3 and 2.4 are represented through language profiles. For example, `Ma
 
 ### ili2c AST -> IR
 
-`ConstraintAstTranslator` translates compiled ili2c AST nodes directly into the semantic IR. It deliberately does not use the map-shaped review AST as an intermediate representation.
+`ConstraintAstTranslator` translates compiled ili2c AST nodes directly into the semantic IR. It deliberately does not use the map-shaped AST returned by `reviewIliConstraint`; that map remains an API representation, while the translator is the typed semantic adapter used by evaluator, solver and fixture synthesis.
 
 The translator currently accepts `MandatoryConstraint` only. Unsupported constraint kinds fail explicitly instead of being guessed.
+
+Object-path typing includes endpoint type plus nullability/cardinality introduced by supported association-role, reference-attribute and structure/composition navigation. This allows the solver and synthesizer to distinguish scalar from collection paths and optional from mandatory path prefixes.
 
 ### Standard functions
 
@@ -117,7 +119,7 @@ The decision-table frontend and `generateIliConstraintCases` both use this share
 - small collection candidates for association paths and aggregates;
 - the actual semantic operation for simple numeric equality equations.
 
-For numeric equalities the solver can now work backwards through `NUMERIC_ADD`, `NUMERIC_SUB`, `NUMERIC_MUL` and `NUMERIC_DIV`. `COLLECTION_SUM` can participate as a numeric term, so a required aggregate total can be derived from another scalar operand and then materialized through the existing collection distributor and object-graph synthesizer.
+For numeric equalities the solver can work backwards through `NUMERIC_ADD`, `NUMERIC_SUB`, `NUMERIC_MUL` and `NUMERIC_DIV`. `COLLECTION_SUM` can participate as a numeric term, so a required aggregate total can be derived from another scalar operand and then materialized through the existing collection distributor and object-graph synthesizer.
 
 Examples of the implemented direction are:
 
@@ -141,17 +143,32 @@ There is currently no Z3/SMT dependency and no general symbolic inverse solver f
 
 ### Model binding and object-graph synthesis
 
-`ConstraintModelSynthesizer` binds IR references to the ili2c model and creates concrete objects and association links from a solver assignment.
+`ConstraintModelSynthesizer` binds IR references to the ili2c model and creates concrete objects, reference attributes, embedded structures and association links from a solver assignment.
 
-The currently strongest path support is:
+The supported path shape is now substantially broader:
 
 - direct scalar attributes;
-- one association step `Role->Attribute`;
-- scalar association paths where the role cardinality permits one target;
-- collection-valued association paths;
-- aggregate scenarios such as `Math.sum("Nebenauspraegung->Gewichtung")`.
+- multiple scalar navigation steps in one path;
+- association-role navigation;
+- `REFERENCE TO` attribute navigation;
+- structure/composition navigation;
+- mixtures such as `Eigentuemer->Land->Code`;
+- collection paths with **one** multi-valued navigation step;
+- aggregate scenarios such as `Math.sum("Nebenauspraegung->Gewichtung")`;
+- several related paths with a common prefix.
 
-The AFU weighting constraint is an important production-shaped proof case: DEFINED/NOT DEFINED of a SUM, arithmetic with the direct weight, association target generation and final ilivalidator verification all run through the shared semantic pipeline. Coverage can now also force the empty, non-empty and maximum-relevant association cardinality cases within the solver's current collection cap.
+Common prefixes are materialized as a small path tree. For example,
+
+```text
+Eigentuemer->Land->Code
+Eigentuemer->Land->Rate
+```
+
+reuse one `Eigentuemer` target and one `Land` target. The two endpoint values therefore describe the same object graph instead of creating duplicate independent association/reference chains.
+
+Identifiable reference targets are emitted as ordinary graph objects and the source object's `references` map points at their OIDs. Structures remain embedded values; the constraint test fixture writer can serialize nested maps/lists of maps to XTF and auto-fill ordinary mandatory scalar members that are not relevant to the tested constraint.
+
+The AFU weighting constraint remains an important production-shaped proof case: DEFINED/NOT DEFINED of a SUM, arithmetic with the direct weight, association target generation and final ilivalidator verification all run through the shared semantic pipeline. Coverage can also force the empty, non-empty and maximum-relevant association cardinality cases within the solver's current collection cap.
 
 ### Automatic cases for an existing constraint
 
@@ -188,7 +205,7 @@ MANDATORY CONSTRAINT left == 1 OR right == 1;
 
 the coverage planner can additionally request the three semantically important direct-branch patterns `left=true/right=false`, `left=false/right=true`, and `left=false/right=false`, and generated cases are still checked by ilivalidator.
 
-The same MCP tool can also exercise supported association/SUM constraints. Generated responses expose:
+The same MCP tool can exercise supported association/SUM and multi-step scalar path constraints. Generated responses expose:
 
 - solved cases;
 - witness/counterexample classification according to the complete constraint;
@@ -224,20 +241,20 @@ The decision-table input format itself is still deliberately narrower than the b
 
 ## Important remaining work inside `MANDATORY CONSTRAINT`
 
-Even before adding other INTERLIS constraint kinds, the Mandatory-Constraint support can be made substantially more general.
+Even before adding other INTERLIS constraint kinds, the Mandatory-Constraint support can still be generalized further.
 
-### 1. More path and object-graph shapes
+### 1. Remaining path and object-graph shapes
 
-The current generic synthesizer is intentionally small. Missing or insufficiently generalized cases include:
+Multi-step scalar navigation and shared path-prefix synthesis are implemented, but the graph synthesizer deliberately remains bounded. Important remaining cases include:
 
-- paths with more than one navigation step;
-- nested structures/compositions;
-- reference-attribute navigation;
-- several related paths that require a more complex shared object graph;
-- direct multi-valued attributes/structures;
-- cross-topic and cross-basket object graphs where the model permits/requires them.
+- paths with more than one multi-valued navigation step, which require nested collection/cartesian semantics instead of one flat assignment list;
+- reference-attribute navigation originating inside an embedded structure;
+- direct multi-valued scalar attributes and other transfer shapes that are not represented by the current path assignment model;
+- more complex nested structured values containing their own references;
+- multiple independent root objects in one semantic solution;
+- cross-topic and cross-basket object graphs where the model permits or requires them.
 
-This is one of the most important foundations for both richer Mandatory Constraints and the future Existence/Uniqueness implementations.
+The multiple-root and cross-object capabilities are especially important foundations for future Existence and Uniqueness constraints. They should be added because those constraint kinds need them, rather than by making the Mandatory synthesizer arbitrarily complex in advance.
 
 ### 2. Geometry and AREA semantics
 
@@ -282,7 +299,8 @@ More production constraints should be added as golden tests, especially for:
 - arithmetic edge cases;
 - Text/MTEXT functions;
 - INTERLIS 2.4 surface syntax;
-- inheritance and abstract/concrete class contexts.
+- inheritance and abstract/concrete class contexts;
+- multi-step path undefined/cardinality behavior.
 
 A dedicated differential suite should compare semantic-evaluator outcomes against generated XTF plus the real validator so divergences become ordinary regression failures.
 
@@ -449,10 +467,10 @@ A green compile alone is not enough evidence that a generated business constrain
 
 ## Suggested next implementation order
 
-1. Generalize object-graph synthesis to richer paths and multiple root objects.
-2. Add a systematic **validator-differential test suite** for the semantic evaluator and generated fixtures.
-3. Add a high-level, typed **Mandatory-Constraint authoring/proof tool** that uses the existing semantic pipeline.
-4. Introduce the outer `ConstraintSpec` IR.
+1. Add a systematic **validator-differential test suite** for the semantic evaluator and generated fixtures.
+2. Add a high-level, typed **Mandatory-Constraint authoring/proof tool** that uses the existing semantic pipeline.
+3. Introduce the outer `ConstraintSpec` IR.
+4. Add multiple-root object synthesis as required by dataset-level constraint kinds.
 5. Implement **Uniqueness** and **Existence** constraints on top of multi-root synthesis.
 6. Implement **Plausibility** and **Set** constraints with explicit dataset/basket semantics.
 7. Keep geometry/AREA-specific semantics and synthesis as a later specialized extension.

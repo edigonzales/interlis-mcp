@@ -40,7 +40,7 @@ public class ConstraintCaseGenerationTools {
 
   @McpTool(
       name = "generateIliConstraintCases",
-      description = "Erzeugt fuer unterstuetzte INTERLIS Mandatory Constraints automatisch modellbewusste Witness-, Counterexample- und Boundary-/Kategoriefaelle. Verwendet die gemeinsame Pipeline ili2c AST -> semantische IR -> Coverage Planner -> Solver -> Object-Graph-Synthese und beweist alle erzeugten Faelle mit testIliConstraint und dem echten ilivalidator. Unterstuetzt damit insbesondere logische Kombinationen, NUMERIC/BOOLEAN/ENUM/TEXT, DEFINED, Standardfunktionen, einwertige Association-Pfade und SUM auf mehrwertigen numerischen Association-Pfaden, soweit IR, Solver und Synthesizer die Semantik abdecken."
+      description = "Erzeugt fuer unterstuetzte INTERLIS Mandatory Constraints automatisch modellbewusste Witness-, Counterexample- und Boundary-/Kategoriefaelle. Verwendet die gemeinsame Pipeline ili2c AST -> semantische IR -> Coverage Planner -> Solver -> Object-Graph-Synthese und beweist alle erzeugten Faelle mit testIliConstraint und dem echten ilivalidator. Unterstuetzt damit insbesondere logische Kombinationen, NUMERIC/BOOLEAN/ENUM/TEXT, DEFINED, Standardfunktionen, mehrstufige skalare Pfade ueber Associations/Referenzattribute/Structures sowie SUM auf geeigneten mehrwertigen numerischen Pfaden, soweit IR, Solver und Synthesizer die Semantik abdecken."
   )
   public Map<String, Object> generateIliConstraintCases(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,
@@ -186,6 +186,7 @@ public class ConstraintCaseGenerationTools {
       result.classFqn = object.classFqn();
       result.oid = object.oid();
       result.values = object.values();
+      result.references = object.references();
       return result;
     }).toList();
     testCase.links = graph.links().stream().map(link -> {
@@ -292,7 +293,7 @@ public class ConstraintCaseGenerationTools {
   private List<String> limitations() {
     return List.of(
         "Automatic semantic generation currently supports MANDATORY CONSTRAINT only.",
-        "The supported expression subset is bounded by ConstraintAstTranslator, ConstraintGoalSolver and ConstraintModelSynthesizer; unsupported nodes, custom function semantics, longer paths, geometry and more complex object graphs are reported explicitly rather than guessed.",
+        "Multi-step scalar paths can mix association roles, reference attributes and structures. A path currently supports at most one multi-valued navigation step; cross-topic/cross-basket graphs, geometry and unsupported custom function semantics remain explicit limitations.",
         "The finite-domain solver is deliberately not complete; coverageComplete=false and coverageUnsolved expose goals that could not be solved.",
         "automaticCasesAvailable=true is returned only after every generated case passes testIliConstraint with the expected outcome using the real ilivalidator.");
   }
