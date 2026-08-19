@@ -21,10 +21,10 @@ import org.junit.jupiter.api.Test;
 /**
  * Differential regression tests for semantic Mandatory-Constraint evaluation.
  *
- * <p>Each case is evaluated once by {@link ConstraintExpressionEngine}, materialized through the
- * normal model-aware object-graph synthesizer, and then checked independently by the real
- * iox-ili/ilivalidator runtime through {@link ConstraintTestTools}. The evaluator result is used as
- * the expected validator outcome; any semantic divergence therefore fails this suite.</p>
+ * <p>Each case has an explicit semantic expectation, is evaluated by {@link
+ * ConstraintExpressionEngine}, materialized through the normal model-aware object-graph
+ * synthesizer, and then checked independently by the real iox-ili/ilivalidator runtime through
+ * {@link ConstraintTestTools}. Any semantic or validator divergence therefore fails this suite.</p>
  */
 class ConstraintValidatorDifferentialTest {
 
@@ -158,11 +158,11 @@ class ConstraintValidatorDifferentialTest {
         FUNCTION_MODEL_23,
         "SqrtThree",
         List.of(
-            assignment("undefined argument", Map.of(
+            assignment("undefined argument", true, Map.of(
                 "A", ConstraintExpressionEngine.Undefined.INSTANCE)),
-            assignment("ordinary counterexample", Map.of(
+            assignment("ordinary counterexample", false, Map.of(
                 "A", decimal("4"))),
-            assignment("sqrt witness", Map.of(
+            assignment("sqrt witness", true, Map.of(
                 "A", decimal("9")))));
   }
 
@@ -172,19 +172,19 @@ class ConstraintValidatorDifferentialTest {
         FUNCTION_MODEL_23,
         "TextPrefix",
         List.of(
-            assignment("undefined text", Map.of(
+            assignment("undefined text", true, Map.of(
                 "Label", ConstraintExpressionEngine.Undefined.INSTANCE)),
-            assignment("text witness", Map.of("Label", "Abc")),
-            assignment("text counterexample", Map.of("Label", "xbc"))));
+            assignment("text witness", true, Map.of("Label", "Abc")),
+            assignment("text counterexample", false, Map.of("Label", "xbc"))));
 
     assertDifferential(
         FUNCTION_MODEL_23,
         "MTextEqualsIgnoreCase",
         List.of(
-            assignment("undefined mtext", Map.of(
+            assignment("undefined mtext", true, Map.of(
                 "Note", ConstraintExpressionEngine.Undefined.INSTANCE)),
-            assignment("mtext witness", Map.of("Note", "abc")),
-            assignment("mtext counterexample", Map.of("Note", "abd"))));
+            assignment("mtext witness", true, Map.of("Note", "abc")),
+            assignment("mtext counterexample", false, Map.of("Note", "abd"))));
   }
 
   @Test
@@ -193,13 +193,13 @@ class ConstraintValidatorDifferentialTest {
         ARITHMETIC_MODEL_24,
         "NativeDivision",
         List.of(
-            assignment("division by zero", Map.of(
+            assignment("division by zero", true, Map.of(
                 "A", decimal("10"),
                 "B", decimal("0"))),
-            assignment("native arithmetic witness", Map.of(
+            assignment("native arithmetic witness", true, Map.of(
                 "A", decimal("10"),
                 "B", decimal("5"))),
-            assignment("native arithmetic counterexample", Map.of(
+            assignment("native arithmetic counterexample", false, Map.of(
                 "A", decimal("10"),
                 "B", decimal("4")))));
   }
@@ -210,21 +210,30 @@ class ConstraintValidatorDifferentialTest {
         INHERITANCE_MODEL_23,
         "InheritedLowerBound",
         List.of(
-            assignment("below inherited boundary", Map.of("Value", decimal("9"))),
-            assignment("at inherited boundary", Map.of("Value", decimal("10"))),
-            assignment("above inherited boundary", Map.of("Value", decimal("11")))));
+            assignment("below inherited boundary", false, Map.of("Value", decimal("9"))),
+            assignment("at inherited boundary", true, Map.of("Value", decimal("10"))),
+            assignment("above inherited boundary", true, Map.of("Value", decimal("11")))));
   }
 
   @Test
   void matchesValidatorForMultiStepUndefinedAndCardinalitySemantics() {
-    List<DifferentialAssignment> assignments = List.of(
-        assignment("optional nested structure absent", Map.of(
-            "Eigentuemer->Info->Adresse->PLZ", ConstraintExpressionEngine.Undefined.INSTANCE)),
-        assignment("nested structure present", Map.of(
-            "Eigentuemer->Info->Adresse->PLZ", decimal("3000"))));
+    Map<String, Object> absent = Map.of(
+        "Eigentuemer->Info->Adresse->PLZ", ConstraintExpressionEngine.Undefined.INSTANCE);
+    Map<String, Object> present = Map.of(
+        "Eigentuemer->Info->Adresse->PLZ", decimal("3000"));
 
-    assertDifferential(MULTI_STEP_MODEL_23, "PathDefined", assignments);
-    assertDifferential(MULTI_STEP_MODEL_23, "PathLowerBound", assignments);
+    assertDifferential(
+        MULTI_STEP_MODEL_23,
+        "PathDefined",
+        List.of(
+            assignment("optional nested structure absent", false, absent),
+            assignment("nested structure present", true, present)));
+    assertDifferential(
+        MULTI_STEP_MODEL_23,
+        "PathLowerBound",
+        List.of(
+            assignment("optional nested structure absent", true, absent),
+            assignment("nested structure present", true, present)));
   }
 
   private void assertDifferential(
@@ -250,6 +259,10 @@ class ConstraintValidatorDifferentialTest {
       boolean semanticValid = ConstraintExpressionEngine.evaluateConstraint(
           expression,
           ConstraintExpressionEngine.EvaluationContext.of(differential.values()));
+      assertEquals(
+          differential.expectedConstraintValid(),
+          semanticValid,
+          () -> "Unexpected semantic result for " + constraintName + " / " + differential.name());
       semanticOutcomes.add(semanticValid);
 
       ConstraintModelSynthesizer.ObjectGraph graph = ConstraintModelSynthesizer.synthesize(
@@ -333,8 +346,11 @@ class ConstraintValidatorDifferentialTest {
     }
   }
 
-  private DifferentialAssignment assignment(String name, Map<String, Object> values) {
-    return new DifferentialAssignment(name, values);
+  private DifferentialAssignment assignment(
+      String name,
+      boolean expectedConstraintValid,
+      Map<String, Object> values) {
+    return new DifferentialAssignment(name, expectedConstraintValid, values);
   }
 
   private BigDecimal decimal(String value) {
@@ -346,7 +362,10 @@ class ConstraintValidatorDifferentialTest {
     return (List<Map<String, Object>>) value;
   }
 
-  private record DifferentialAssignment(String name, Map<String, Object> values) {
+  private record DifferentialAssignment(
+      String name,
+      boolean expectedConstraintValid,
+      Map<String, Object> values) {
     private DifferentialAssignment {
       values = Map.copyOf(new LinkedHashMap<>(values));
     }
