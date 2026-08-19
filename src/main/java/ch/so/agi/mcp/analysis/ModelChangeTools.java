@@ -7,6 +7,7 @@ import java.util.Map;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -15,12 +16,19 @@ public class ModelChangeTools {
   private final IliCompilerService compilerService;
   private final ModelChangeReviewService reviewService;
 
+  @Autowired
   public ModelChangeTools(
+      IliCompilerService compilerService,
+      ModelChangeReviewService reviewService) {
+    this.compilerService = compilerService;
+    this.reviewService = reviewService;
+  }
+
+  ModelChangeTools(
       IliCompilerService compilerService,
       ModelAnalysisTools analysisTools,
       ModelingRuleTools ruleTools) {
-    this.compilerService = compilerService;
-    this.reviewService = new ModelChangeReviewService(analysisTools, ruleTools);
+    this(compilerService, new ModelChangeReviewService(analysisTools, ruleTools));
   }
 
   @McpTool(
