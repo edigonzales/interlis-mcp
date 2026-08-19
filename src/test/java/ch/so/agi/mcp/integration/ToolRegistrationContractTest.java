@@ -301,6 +301,44 @@ class ToolRegistrationContractTest {
         .contains("value >= 10");
   }
 
+  @Test
+  void authorIliSetConstraintDeserializesTypedWhereAndVerifiesProof() throws Exception {
+    SyncToolSpecification author = specsByName().get("authorIliSetConstraint");
+
+    String modelText = "INTERLIS 2.4;\n\n"
+        + "MODEL SetDemo (de) AT \"https://example.org/demo\" VERSION \"2026-08-19\" =\n"
+        + "  TOPIC Data =\n"
+        + "    CLASS Item =\n"
+        + "      value : MANDATORY 0..10;\n"
+        + "    END Item;\n"
+        + "  END Data;\n"
+        + "END SetDemo.\n";
+
+    var response = author.callHandler().apply(null,
+        new McpSchema.CallToolRequest("authorIliSetConstraint", Map.of(
+            "modelText", modelText,
+            "context", "SetDemo.Data.Item",
+            "constraintName", "AtLeastTwoHigh",
+            "operator", ">=",
+            "threshold", 2,
+            "perBasket", false,
+            "where", Map.of(
+                "attribute", "value",
+                "operator", ">=",
+                "valueKind", "NUMERIC",
+                "value", 5))));
+
+    Map<String, Object> structured = extractStructuredContent(response);
+    assertThat(structured.get("generated")).as("%s", structured).isEqualTo(true);
+    assertThat(structured.get("proofVerified")).as("%s", structured).isEqualTo(true);
+    assertThat(structured.get("whereExpression")).isEqualTo("value >= 5");
+    assertThat(structured.get("updatedModelText").toString())
+        .contains("SET CONSTRAINT WHERE value >= 5:")
+        .contains("INTERLIS.objectCount(ALL) >= 2;");
+    assertThat(((Map<?, ?>) structured.get("proof")).get("pattern"))
+        .isEqualTo("SET_OBJECT_COUNT_PROOF");
+  }
+
   private Map<String, SyncToolSpecification> specsByName() {
     return toolSpecifications.stream()
         .collect(Collectors.toMap(spec -> spec.tool().name(), spec -> spec, (left, right) -> left, LinkedHashMap::new));
@@ -384,6 +422,7 @@ class ToolRegistrationContractTest {
     expectations.put("authorIliMandatoryConstraint", schema(Set.of("modelText", "context", "constraintName", "rootNodeId", "nodes"), Set.of("modelRepositories")));
     expectations.put("authorIliPlausibilityConstraint", schema(Set.of("modelText", "context", "constraintName", "direction", "percentage", "rootNodeId", "nodes"), Set.of("modelRepositories")));
     expectations.put("authorIliExistenceConstraint", schema(Set.of("modelText", "context", "constraintName", "restrictedPath", "requiredIn"), Set.of("modelRepositories")));
+    expectations.put("authorIliSetConstraint", schema(Set.of("modelText", "context", "constraintName", "operator", "threshold"), Set.of("perBasket", "where", "modelRepositories")));
     expectations.put("testIliConstraint", schema(Set.of("modelText", "constraint", "cases"), Set.of("modelRepositories")));
     expectations.put("findSimilarModels", schema(Set.of(), Set.of("query", "modelText", "modelPurpose", "limit")));
     expectations.put("indexConfiguredModels", schema(Set.of(), Set.of()));
