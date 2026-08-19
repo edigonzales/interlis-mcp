@@ -24,7 +24,7 @@ public class ModelChangeTools {
     this.reviewService = reviewService;
   }
 
-  ModelChangeTools(
+  public ModelChangeTools(
       IliCompilerService compilerService,
       ModelAnalysisTools analysisTools,
       ModelingRuleTools ruleTools) {
