@@ -45,7 +45,7 @@ public class ConstraintCaseGenerationTools {
 
   @McpTool(
       name = "generateIliConstraintCases",
-      description = "Erzeugt fuer unterstuetzte INTERLIS Mandatory- und UNIQUE-Constraints automatisch modellbewusste Witness-, Counterexample- und Boundary-/Kategoriefaelle. Verwendet einen einmal kompilierten Constraint-Kontext fuer AST/semantische IR, Solver/Object-Graph-Synthese und Validator-Fixtures. Mandatory nutzt die bestehende Expression-Coverage-Pipeline. UNIQUE prueft globale, WHERE-, (BASKET)- und LOCAL-Semantik inklusive Duplicate-, Scope- und soweit modellierbar Undefined-Key-Faellen; jeder erzeugte Fall wird mit echtem ilivalidator verifiziert."
+      description = "Erzeugt fuer unterstuetzte INTERLIS Mandatory-, UNIQUE- und skalare EXISTENCE-Constraints automatisch modellbewusste Witness-, Counterexample- und Boundary-/Kategoriefaelle. Verwendet einen einmal kompilierten Constraint-Kontext fuer AST/semantische IR, Solver/Object-Graph-Synthese und Validator-Fixtures. Mandatory nutzt die bestehende Expression-Coverage-Pipeline. UNIQUE prueft globale, WHERE-, (BASKET)- und LOCAL-Semantik. EXISTENCE prueft definierte Source-Werte gegen REQUIRED-IN-Zielpfade, fehlende und abweichende Zielwerte, OR-Targets sowie optionale undefinierte Source-Werte; jeder erzeugte Fall wird mit echtem ilivalidator verifiziert."
   )
   public Map<String, Object> generateIliConstraintCases(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,
@@ -78,9 +78,12 @@ public class ConstraintCaseGenerationTools {
     if (context.semantics() instanceof SemanticConstraint.Unique unique) {
       return generateUniqueConstraintCases(context, unique);
     }
+    if (context.semantics() instanceof SemanticConstraint.Existence existence) {
+      return generateExistenceConstraintCases(context, existence);
+    }
     return unavailable(
         "UNSUPPORTED_CONSTRAINT_KIND",
-        "Automatic semantic generation currently supports MANDATORY and UNIQUE constraints; got "
+        "Automatic semantic generation currently supports MANDATORY, UNIQUE and scalar EXISTENCE constraints; got "
             + context.semantics().kind() + ".",
         context,
         context.compilation().messages());
@@ -192,6 +195,59 @@ public class ConstraintCaseGenerationTools {
       response.put(
           "reason",
           "UNIQUE proof cases were generated, but the real validator did not confirm all expected outcomes.");
+    }
+    response.put("limitations", limitations());
+    return response;
+  }
+
+  private Map<String, Object> generateExistenceConstraintCases(
+      CompiledConstraintContext context,
+      SemanticConstraint.Existence existence) {
+    ExistenceConstraintCasePlanner.Plan plan;
+    try {
+      plan = ExistenceConstraintCasePlanner.plan(context, existence);
+    } catch (IllegalArgumentException ex) {
+      return unavailable(
+          "EXISTENCE_PROOF_PLANNING_FAILED",
+          ex.getMessage(),
+          context,
+          context.compilation().messages());
+    }
+
+    if (plan.cases().isEmpty()) {
+      Map<String, Object> first = plan.unsolved().isEmpty() ? Map.of() : plan.unsolved().getFirst();
+      return unavailable(
+          String.valueOf(first.getOrDefault("reasonCode", "NO_EXISTENCE_PROOF_CASES")),
+          String.valueOf(first.getOrDefault(
+              "reason",
+              "No validator-backed scalar EXISTENCE proof case could be synthesized for this model shape.")),
+          context,
+          context.compilation().messages());
+    }
+
+    Map<String, Object> verification = verifyUsingCompiledContext(context, plan.cases());
+    boolean verified = Boolean.TRUE.equals(verification.get("allPassed"));
+
+    Map<String, Object> response = new LinkedHashMap<>();
+    response.put("automaticCasesAvailable", verified);
+    response.put("automaticCasesGenerated", true);
+    response.put("generationVerified", verified);
+    response.put("pattern", "EXISTENCE_SEMANTIC_PROOF");
+    response.put("constraint", constraintSummary(context));
+    response.put("context", contextSummary(context));
+    response.put("generatedCases", plan.summaries());
+    response.put("coverageGoalCount", plan.goalCount());
+    response.put("coverageSolvedCount", plan.cases().size());
+    response.put("coverageComplete", plan.complete());
+    if (!plan.unsolved().isEmpty()) {
+      response.put("coverageUnsolved", plan.unsolved());
+    }
+    response.put("verification", verification);
+    if (!verified) {
+      response.put("reasonCode", "GENERATED_CASES_NOT_VERIFIED");
+      response.put(
+          "reason",
+          "EXISTENCE proof cases were generated, but the real validator did not confirm all expected outcomes.");
     }
     response.put("limitations", limitations());
     return response;
@@ -375,7 +431,8 @@ public class ConstraintCaseGenerationTools {
 
   private List<String> limitations() {
     return List.of(
-        "Automatic semantic generation supports MANDATORY and UNIQUE constraints. EXISTENCE, PLAUSIBILITY and SET still require their dedicated semantic proof stages.",
+        "Automatic semantic generation supports MANDATORY, UNIQUE and scalar EXISTENCE constraints. PLAUSIBILITY and SET still require their dedicated semantic proof stages.",
+        "Scalar EXISTENCE proof supports NUMERIC, BOOLEAN, ENUM, TEXT and MTEXT source/target paths through the existing binder. Structure equality, geometry and other special EXISTENCE comparison semantics are deferred to B8.",
         "Global UNIQUE keys reuse the existing scalar path binder/object-graph synthesizer; the same navigation limit of at most one multi-valued step and no geometry key synthesis applies.",
         "LOCAL UNIQUE proof currently requires a direct structure/composition prefix and direct scalar member keys. Navigated LOCAL member keys are reported as unsolved rather than approximated.",
         "UNIQUE WHERE uses the finite-domain expression solver. If the predicate cannot be solved both true and false, or the false branch cannot preserve the same key, coverageComplete=false exposes the missing proof goal.",

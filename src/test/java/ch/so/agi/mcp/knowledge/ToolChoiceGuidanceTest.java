@@ -10,6 +10,7 @@ import ch.so.agi.mcp.tools.ConstraintCaseGenerationTools;
 import ch.so.agi.mcp.tools.ConstraintDecisionTableTools;
 import ch.so.agi.mcp.tools.ConstraintReviewTools;
 import ch.so.agi.mcp.tools.ConstraintTestTools;
+import ch.so.agi.mcp.tools.ExistenceConstraintAuthoringTools;
 import ch.so.agi.mcp.tools.ValidationTools;
 import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
@@ -50,13 +51,13 @@ class ToolChoiceGuidanceTest {
   }
 
   @Test
-  void automaticConstraintCasesAdvertiseMandatoryAndUniqueVerifiedScope() {
+  void automaticConstraintCasesAdvertiseMandatoryUniqueAndExistenceVerifiedScope() {
     assertThat(description(ConstraintCaseGenerationTools.class, "generateIliConstraintCases"))
-        .contains("Mandatory", "UNIQUE")
+        .contains("Mandatory", "UNIQUE", "EXISTENCE")
         .contains("Witness", "Counterexample", "Boundary-/Kategoriefaelle")
         .contains("semantische IR", "Solver", "Object-Graph-Synthese")
         .contains("einmal kompilierten Constraint-Kontext", "Validator-Fixtures")
-        .contains("WHERE", "(BASKET)", "LOCAL", "ilivalidator");
+        .contains("WHERE", "(BASKET)", "LOCAL", "REQUIRED-IN", "ilivalidator");
   }
 
   @Test
@@ -66,6 +67,15 @@ class ToolChoiceGuidanceTest {
         .contains("source-preserving", "Before und After kompiliert")
         .contains("AST->IR", "Coverage", "Solver", "Object-Graph", "ilivalidator")
         .contains("ATTRIBUTE", "PATH", "FUNCTION", "COMPARE");
+  }
+
+  @Test
+  void existenceAuthoringRequiresExplicitTargetsAndVerifiedRoundTrip() {
+    assertThat(description(ExistenceConstraintAuthoringTools.class, "authorIliExistenceConstraint"))
+        .contains("EXISTENCE CONSTRAINT", "restrictedPath", "viewableFqn", "attributePath")
+        .contains("source-preserving", "Before/After je genau einmal")
+        .contains("AST->constraint-level-IR", "NUMERIC", "TEXT", "ilivalidator")
+        .contains("B8");
   }
 
   @Test

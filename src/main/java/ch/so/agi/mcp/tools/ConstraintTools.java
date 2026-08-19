@@ -67,7 +67,7 @@ public class ConstraintTools {
   }
 
   @McpTool(name = "createExistenceConstraint",
-        description = "EXISTENCE CONSTRAINT ... REQUIRED IN ... : Params: refAttr (required), classFQNs (required list), iliDoc, metaAttributes.")
+        description = "Legacy-Low-Level-Helper fuer EXISTENCE. Das alte Schema refAttr + classFQNs kann die echte REQUIRED-IN-Semantik ViewableRef : AttributePath nicht vollstaendig ausdruecken und soll fuer neue Agent-Workflows nicht verwendet werden. Bevorzuge authorIliExistenceConstraint mit explizitem restrictedPath sowie viewableFqn + attributePath je Target.")
   public Map<String,Object> existence(
       @McpToolParam(description = "Referenzattribut", required = true) String refAttr,
       @McpToolParam(description = "Erlaubte Klassen (FQNs)", required = true) List<String> classFqns,
