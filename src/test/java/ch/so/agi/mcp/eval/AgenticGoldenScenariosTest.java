@@ -194,7 +194,7 @@ class AgenticGoldenScenariosTest {
     assertThat(agentPrompt)
         .contains("applyIliModelChange")
         .contains("afterReview")
-        .contains("nicht routinemaessig noch `reviewIliChange` oder `reviewIliModel`");
+        .contains("nicht routinemässig noch `reviewIliChange` oder `reviewIliModel`");
   }
 
   @Test

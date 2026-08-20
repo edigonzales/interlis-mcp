@@ -1,13 +1,13 @@
 - profile: CORE
   id: MDE-020
-  title: Vollstaendiges Modell mit ili2c validieren
+  title: Vollständiges Modell mit ili2c validieren
   severity: ERROR
   appliesTo: ANY
   checkKind: AUTOMATED
   sourceUrl: https://github.com/edigonzales/interlis-mcp
-  sourceSection: Technical compiler gate
+  sourceSection: Technisches Compiler-Gate
   rationale: Ein INTERLIS-Modell ist technisch erst nutzbar, wenn es mit ili2c kompiliert.
-  recommendation: Behebe alle ili2c-ERROR-Meldungen; verwende dafuer den passenden High-Level-Review oder gezielt validateIliModel.
+  recommendation: Behebe alle ili2c-ERROR-Meldungen; verwende dafür den passenden High-Level-Review oder gezielt validateIliModel.
 - profile: CORE
   id: MDE-040
   title: Fachliche Regeln nicht erfinden
@@ -15,6 +15,6 @@
   appliesTo: ANY
   checkKind: MANUAL
   sourceUrl: https://github.com/edigonzales/interlis-mcp
-  sourceSection: Agent workflow boundary
-  rationale: Kardinalitaeten, Rollen und Constraints sind fachliche Aussagen und duerfen nicht aus technischen Platzhaltern abgeleitet werden.
-  recommendation: Frage nach oder dokumentiere Annahmen, bevor fachliche Kardinalitaeten, Rollen oder Constraints modelliert werden.
+  sourceSection: Grenze des agentischen Arbeitsablaufs
+  rationale: Kardinalitäten, Rollen und Constraints sind fachliche Aussagen und dürfen nicht aus technischen Platzhaltern abgeleitet werden.
+  recommendation: Frage nach oder dokumentiere Annahmen, bevor fachliche Kardinalitäten, Rollen oder Constraints modelliert werden.

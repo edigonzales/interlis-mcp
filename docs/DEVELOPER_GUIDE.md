@@ -1,40 +1,73 @@
-# Developer Guide
+# Entwicklerhandbuch
 
-This guide describes how `interlis-mcp` is built, wired, tested, and extended.
+Dieses Handbuch beschreibt, wie `interlis-mcp` gebaut, getestet und erweitert wird. Für die fachliche Benutzung der MCP-Werkzeuge sind das [Benutzerhandbuch](USER_GUIDE.md) und die [Tool-Referenz](TOOL_REFERENCE.md) die besseren Einstiege.
 
-## Compatibility Baseline
-- Spring Boot `4.1.0`
-- Spring AI `2.0.0`
-- Gradle Wrapper `8.14.3`
-- Java toolchain and runtime `21`
-- MCP protocol observed in automated STDIO tests: `2025-06-18`
+## Technische Basis
 
-## Project Structure
-- `src/main/java/ch/so/agi/mcp/Application.java`
-  Starts the non-web Spring Boot application.
-- `src/main/java/ch/so/agi/mcp/tools/*`
-  MCP tool beans. Public methods are annotated with `@McpTool` and `@McpToolParam`.
-- `src/main/java/ch/so/agi/mcp/analysis/*`
-  Structural model analysis and semantic before/after review tools built on ili2c.
-- `src/main/java/ch/so/agi/mcp/knowledge/*`
-  Curated modeling rules, MCP resources, MCP prompts, high-level model review, rule checks, and local `.ili` corpus search.
-- `src/main/java/ch/so/agi/mcp/service/IliCompilerService.java`
-  Shared ili2c compilation service and compiler-diagnostic normalization, including source excerpts for diagnostics from the submitted model text.
-- `src/main/java/ch/so/agi/mcp/service/XtfService.java`
-  Shared XTF generation and XTF validation service (`generateExampleXtf`, `validateXtf`).
-- `src/main/java/ch/so/agi/mcp/model/*`
-  DTOs used by structured tools such as `createAttributeLine`.
-- `src/main/java/ch/so/agi/mcp/util/NameValidator.java`
-  Shared INTERLIS identifier and FQN validation, including reserved-word checks.
-- `src/test/java`
-  Unit, contract, compile-based semantic tests, and deterministic agentic golden scenarios.
-- `src/e2e/java`
-  End-to-end STDIO test against the packaged JAR.
+Der aktuelle Build verwendet:
 
-## Tool Discovery
-The project no longer has a manual `ToolsConfig`. Tool registration is provided by Spring AI's MCP annotation scanner auto-configuration from `spring-ai-starter-mcp-server`.
+- Java Toolchain 21
+- Gradle Wrapper 8.14.3
+- Spring Boot 4.1.0
+- Spring AI 2.0.0
+- ili2c 5.6.8
+- iox-ili 1.24.4
+- ilivalidator 1.14.3
 
-With Spring AI `2.0.0`, MCP annotations come from the official Spring AI package:
+Verbindliche Laufzeitquelle für diese Versionen ist `build.gradle`. `gradle/libs.versions.toml` existiert ebenfalls, wird für die direkt in `build.gradle` deklarierten INTERLIS-Abhängigkeiten derzeit aber nicht als Quelle verwendet und kann ältere Werte enthalten. Die Dokumentation soll keine dritte, abweichende Versionsverwaltung bilden.
+
+## Projektstruktur
+
+Die wichtigsten Bereiche sind:
+
+```text
+src/main/java/ch/so/agi/mcp/
+  Application.java
+  analysis/      Modellanalyse und Vorher-/Nachher-Review
+  change/        typisierte semantische Modelländerungen
+  constraint/    Constraint-IR, Binder, Solver, Source-Edit-Infrastruktur
+  knowledge/     Regeln, Resources, Prompts, Modellkorpus
+  model/         strukturierte DTOs
+  service/       ili2c- und XTF-Dienste
+  tools/         öffentliche MCP-Tool-Komponenten
+  util/          gemeinsame Hilfsfunktionen
+
+src/main/resources/
+  application.properties
+  knowledge/     kuratierte Regeldateien
+
+src/test/java/   Unit-, Semantik-, Contract- und Golden-Scenario-Tests
+src/e2e/java/    STDIO-End-to-End-Tests gegen das gebaute JAR
+
+docs/            aktuelle thematische Dokumentation
+```
+
+## Bauen und starten
+
+```bash
+./gradlew bootJar
+java -jar build/libs/interlis-mcp.jar
+```
+
+Der Boot-JAR heisst absichtlich immer:
+
+```text
+build/libs/interlis-mcp.jar
+```
+
+Für lokale Entwicklung:
+
+```bash
+./gradlew bootRun
+```
+
+Die Anwendung ist kein Webserver. `spring.main.web-application-type=none` deaktiviert den Web-Stack.
+
+## MCP-Registrierung
+
+Tools, Resources und Prompts werden über Spring-AI-Annotationen registriert.
+
+Typische Imports:
 
 ```java
 import org.springframework.ai.mcp.annotation.McpTool;
@@ -44,172 +77,289 @@ import org.springframework.ai.mcp.annotation.McpPrompt;
 import org.springframework.ai.mcp.annotation.McpArg;
 ```
 
-Nullability annotations use `org.jspecify.annotations.Nullable`.
+Es gibt keine manuell gepflegte zentrale Produktivliste aller Tools. Das reduziert doppeltes Wiring, erhöht aber die Bedeutung der Contract-Tests: Ein versehentlich neu registriertes oder verschwundenes Tool muss dort sichtbar werden.
 
-## Build And Run
-```bash
-./gradlew bootJar
-java -jar build/libs/interlis-mcp.jar
+Optionale Java-Parameter werden mit `required = false` und, wo passend, `org.jspecify.annotations.Nullable` modelliert.
+
+## Laufzeitkonfiguration
+
+Die Standardwerte liegen in `src/main/resources/application.properties`.
+
+Wichtige Properties:
+
+```properties
+spring.main.web-application-type=none
+spring.ai.mcp.server.stdio=true
+spring.ai.mcp.server.type=SYNC
+spring.ai.mcp.server.capabilities.tool=true
+spring.ai.mcp.server.capabilities.resource=true
+spring.ai.mcp.server.capabilities.prompt=true
+spring.ai.mcp.server.capabilities.completion=false
+
+interlis.knowledge.model-paths=
+interlis.knowledge.max-model-bytes=1048576
+interlis.knowledge.max-search-results=10
 ```
 
-The application is STDIO-only. `spring.main.web-application-type=none` disables any web stack at runtime.
+Die Serverversion wird beim `processResources` aus `project.version` in `application.properties` eingesetzt. Lokale Builds verwenden typischerweise `0.0.LOCALBUILD`; CI-Builds verwenden die vom vorhandenen Versionierungsskript berechnete Version.
 
-During development:
+## Tests
+
+### Unit-, Semantik-, Contract- und Golden-Scenario-Tests
 
 ```bash
-./gradlew bootRun
+./gradlew test
 ```
 
-## Testing
-- Unit, contract, semantic, and golden-scenario tests:
-  ```bash
-  ./gradlew test
-  ```
-- End-to-end STDIO test:
-  ```bash
-  ./gradlew e2eTest
-  ```
+Diese Tests enthalten mehrere unterschiedliche Verträge.
 
-`e2eTest` depends on `bootJar` and starts the server with the same Java binary as the test JVM. This avoids mismatches between the Gradle daemon JDK and the packaged application JDK.
+#### Fokussierte Unit-/Semantiktests
 
-`src/test/java/ch/so/agi/mcp/eval/AgenticGoldenScenariosTest.java` freezes the intended agentic behavior without introducing an LLM test framework. The scenarios call real deterministic tools where possible and cover:
-- one high-level `reviewIliModel` for a complete new model
-- before/after `reviewIliChange` followed by the current prompt's final `reviewIliModel`, including compiler-call counts
-- compiler repair diagnostics with `sourceExcerpt`
-- missing cardinalities and generated names remaining open domain questions
-- `findSimilarModels` followed by `readModelExample`
-- breaking-change detection
-- rejection of routine low-level `validate + analyze + checkRules` triple checks
+Sie prüfen beispielsweise Renderer, Parseradapter, Binder, Solver, Modelländerungen und Constraint-Planner.
 
-These tests protect workflow contracts; they are not a simulation of an LLM planner.
+#### `ToolRegistrationContractTest`
 
-## Runtime Configuration
-Application settings live in `src/main/resources/application.properties`.
+Dieser Test schützt die öffentliche MCP-Tooloberfläche:
 
-Key settings:
-- `spring.main.web-application-type=none`
-- `spring.ai.mcp.server.stdio=true`
-- `spring.ai.mcp.server.type=SYNC`
-- `spring.ai.mcp.server.capabilities.tool=true`
-- `spring.ai.mcp.server.capabilities.resource=true`
-- `spring.ai.mcp.server.capabilities.prompt=true`
-- `spring.ai.mcp.server.capabilities.completion=false`
-- `interlis.knowledge.model-paths=`
-- `interlis.knowledge.max-model-bytes=1048576`
-- `interlis.knowledge.max-search-results=10`
-- `spring.ai.mcp.server.name=interlis-mcp`
-- `spring.ai.mcp.server.version=${mcpServerVersion}` in `application.properties`, expanded at build time
-- `spring.ai.mcp.server.instructions=...`
+- registrierte Toolnamen,
+- Required-/Optional-Parameter,
+- ausgewählte Beschreibungen,
+- JSON-Deserialisierung komplexer DTOs,
+- reale Handleraufrufe für wichtige strukturierte Werkzeuge.
 
-The server version placeholder is expanded during `processResources` from Gradle's `project.version`. Local builds therefore still expose `0.0.LOCALBUILD`, while CI builds expose the computed build version automatically.
+Wenn ein öffentliches Tool oder sein Payload geändert wird, muss dieser Test bewusst geprüft und gegebenenfalls angepasst werden.
 
-The current runtime advertises `tools`, `resources`, `prompts`, and the MCP runtime's built-in `logging` capability. Completions are intentionally disabled.
+#### Golden Scenarios
 
-`interlis.knowledge.model-paths` is a comma-separated list of local files or directories. Directories are scanned recursively for `.ili` files. The MVP uses an in-memory scan and lexical scoring only; it does not use embeddings, a database, or network access at runtime.
+Golden-Scenario-Tests modellieren deterministisch den vorgesehenen Agentenablauf, ohne ein LLM-Testframework einzuführen.
 
-## Review And Diagnostic Contracts
-`reviewIliModel` is the standard high-level review for one complete current model. It compiles exactly once and combines:
-- compiler validity and `compilerDiagnostics`
-- structural/semantic `structure`
-- automated `ruleFindings`
-- `manualChecks`
-- `openQuestions`
+Beispiele für geschützte Verträge:
 
-`reviewIliChange` is the standard before/after review. It compiles each version exactly once, computes semantic `added`/`removed`/`changed` items, derives `impact` and `potentiallyBreakingChanges`, and reuses the already analyzed after-model for `afterReview` instead of compiling it a third time.
+- ein vollständiges Modell wird mit einem High-Level-Review abgeschlossen,
+- `reviewIliChange` kompiliert Vorher und Nachher genau einmal,
+- fehlende fachliche Kardinalitäten bleiben offene Fragen,
+- Modellbeispiele werden zuerst gesucht und danach vollständig gelesen,
+- Constraint-Authoring beweist den Constraint ohne redundante Recompiles,
+- ein separat geändertes Modell wird danach einmal mit `reviewIliChange` abgeschlossen.
 
-`validateIliModel`, `analyzeIliModel`, and `checkModelingRules` remain low-level tools for targeted diagnostics. Tool descriptions, prompts, and `interlis://knowledge/tool-guide` explicitly discourage calling all three routinely after a high-level review.
+Golden Scenarios prüfen die **Orchestrierung und Verträge**, nicht die Intelligenz eines LLM-Planners.
 
-`IliCompilerService` enriches diagnostics that belong to the submitted model text with a `sourceExcerpt` containing `startLine`, `endLine`, and a small nearby text window. Diagnostics attributable to other files are not given an excerpt from the submitted model.
+#### Validator-Differentialtests
 
-## Structural Analysis
-`ModelAnalysisTools` deliberately exposes selected ili2c metamodel semantics rather than serializing the complete metamodel generically. Current parser-backed structure includes, where applicable:
-- `extends`
-- `abstract` / `final`
-- topic `dependsOn`
-- association roles with name, target, cardinality, aggregation kind, ordering, role inheritance, and `external`
-- deterministic `typeText` fingerprints used by semantic change review for important type semantics
+`ConstraintValidatorDifferentialTest` vergleicht repräsentative explizite Assignments zwischen interner Constraint-Semantik und realem ilivalidator. Diese Tests sind absichtlich unabhängig von Solver und Coverage Planner.
 
-The same analyzed data is reused by `reviewIliChange`, so structural changes can participate in semantic diffing without a separate parsing layer.
+### STDIO-E2E
 
-## XTF Services
-`XtfService` provides two capabilities:
+```bash
+./gradlew e2eTest
+```
 
-1. `generateExampleXtf`
-   - Compiles the model via `IliCompilerService`.
-   - Creates deterministic minimal transfer content via `iox-ili` (`XtfWriter` + IOX events).
-   - Generates only identifiable, non-abstract, non-implicit classes from the last compiled model file.
-   - Fills only mandatory attributes for a safe subset (`TEXT`, `NUMERIC`, `BOOLEAN`, enum, enum-tree value, coordinate, references to generated classes).
-   - If a class contains unsupported mandatory types, the class is not emitted and appears in `skippedClasses`.
+`e2eTest` hängt von `bootJar` ab und startet das gebaute JAR mit demselben Java-21-Toolchain-Kontext wie die Tests.
 
-2. `validateXtf`
-   - Compiles the model first (same compiler pathway as model tools).
-   - Persists model and XTF text to temporary files.
-   - Validates with `org.interlis2.validator.Validator` (core `ilivalidator` API, no custom functions in MVP).
-   - Collects structured ERROR/WARNING messages through an `EhiLogger` listener.
+Damit werden unter anderem geprüft:
 
-Both paths are text-based in MVP (`xtfText` payloads, no file upload contract).
+- MCP-Initialisierung,
+- Tool-/Resource-/Prompt-Discovery,
+- JSON-RPC über STDIO,
+- Annotation-Scanning,
+- DTO-Deserialisierung,
+- echte Tool-Aufrufe gegen das gebaute Artefakt,
+- ausgewählte vollständige Constraint-Authoring-/Proof-Pfade.
+
+### CI
+
+Der GitHub-Workflow führt für den JVM-Build aus:
+
+```text
+./gradlew clean test
+./gradlew build -x test
+./gradlew e2eTest
+```
+
+Reine Markdown-Pushes sind im aktuellen Workflow über `paths-ignore: '**.md'` ausgenommen. Änderungen an Java-basierten MCP-Prompts/Resources, Properties oder anderen Laufzeitdateien lösen den normalen Build aus.
+
+## Neues Tool hinzufügen
+
+Ein neues Tool sollte nur eingeführt werden, wenn kein bestehendes Tool die Aufgabe sinnvoll erweitern kann.
+
+Empfohlener Ablauf:
+
+1. Verantwortlichkeit bestimmen: `tools`, `analysis`, `change`, `knowledge`, `constraint` oder `service`.
+2. Vorhandene Services und Compilerkontexte wiederverwenden, statt einen parallelen Parser-/Compilerpfad anzulegen.
+3. Öffentlichen Entry Point mit `@McpTool` und Parameter mit `@McpToolParam` annotieren.
+4. Optionalität im Java-Typ und im MCP-Schema konsistent ausdrücken.
+5. Fachliche Unsicherheit als Ergebniszustand modellieren; keine fehlende Semantik erfinden.
+6. Fokussierte Tests ergänzen.
+7. Bei öffentlichem Schema `ToolRegistrationContractTest` aktualisieren.
+8. Wenn der vorgesehene Agentenablauf betroffen ist, Prompt/Resource und Golden Scenario prüfen.
+9. Benutzer- oder Referenzdokumentation aktualisieren.
+
+## High-Level-Tools statt Toolketten
+
+Neue Features sollten die bestehende Hierarchie stärken, nicht Agenten zu immer längeren Toolketten zwingen.
+
+Wenn beispielsweise ein neuer vollständiger Review-Befund benötigt wird, ist es meist besser, `reviewIliModel` sinnvoll zu erweitern, als den Agenten zu zwingen:
+
+```text
+reviewIliModel
+-> neuesLowLevelTool
+-> validateIliModel
+-> checkModelingRules
+```
+
+High-Level-Tools sollen Compilation Results und analysierte Daten möglichst wiederverwenden.
+
+## Compile Ownership
+
+Mehrfaches Kompilieren desselben unveränderten Modelltexts ist sowohl teuer als auch ein Zeichen für unklare Zuständigkeit.
+
+Bestehende Verträge:
+
+- `reviewIliModel`: ein Compile.
+- `reviewIliChange`: ein Compile für Before und ein Compile für After.
+- `generateIliConstraintCases`: ein Compile für den bestehenden Modellstand.
+- typisiertes Constraint-Authoring: ein Before- und ein After-Compile; der Proof verwendet danach den kompilierten After-Kontext.
+- `applyIliModelChange`: Before und Kandidat/After werden innerhalb des Change-Workflows kontrolliert kompiliert; der enthaltene Review wird aus diesen Resultaten abgeleitet.
+
+Neue Orchestratoren sollten deshalb bevorzugt Methoden verwenden, die bereits kompilierte Kontexte akzeptieren, statt öffentliche Tools intern erneut mit demselben Text aufzurufen.
+
+## Source-preserving Änderungen erweitern
+
+Source-preserving bedeutet: Nur der beabsichtigte Quelltextbereich soll verändert werden.
+
+Bei einer neuen semantischen Change-Operation sind mindestens folgende Guards wichtig:
+
+- Ziel über ili2c auflösen,
+- Änderungen an importierten Modellen verhindern,
+- Originaltext und Zeilenendungen ausserhalb des Patches bewahren,
+- Kandidatenmodell kompilieren,
+- semantischen Vorher-/Nachher-Diff prüfen,
+- `updatedModelText` nur bei erwarteter Semantik freigeben.
+
+Ein Tool darf nicht „source-preserving“ genannt werden, wenn es das Modell vollständig regeneriert.
+
+## Constraint-Funktionen erweitern
+
+Vor einer Erweiterung muss geklärt werden, auf welcher Ebene sie gehört:
+
+- neue Constraint-Art,
+- neue Expression-Semantik,
+- neue Pfad-/Objektgraph-Semantik,
+- neue Fixture-Fähigkeit,
+- neue Coverage-Strategie,
+- reine Authoring-Syntax.
+
+Wichtige Regeln:
+
+### Validator bleibt Oracle
+
+Der interne Evaluator darf Kandidaten bewerten und den Solver unterstützen. Öffentlich verifizierte Proof-Fälle müssen weiterhin durch ilivalidator laufen.
+
+### Keine Approximation unbekannter Semantik
+
+Wenn beispielsweise eine Geometriefunktion nicht korrekt materialisiert werden kann, ist ein expliziter Safety-Reason-Code besser als ein „ähnlicher“ skalarer Ersatztest.
+
+### Solver bleibt endlich
+
+Ein neuer Solverpfad soll seine endlichen Kandidaten und Suchgrenzen transparent halten. `NO_SOLUTION_FOUND` darf nicht als mathematische Unlösbarkeit ausgegeben werden.
+
+### Compile-Kontext wiederverwenden
+
+Planner und Validator-Fixtures erhalten nach Möglichkeit den bestehenden `CompiledConstraintContext`.
+
+### Differentialtests ergänzen
+
+Wenn eine neue interne Evaluatorsemantik eingeführt wird, sollte mindestens ein explizites Assignment gegen den realen Validator abgesichert werden.
+
+## XTF-Erzeugung erweitern
+
+Die allgemeine Beispieldatengenerierung ist konservativ. Für einen Pflichtwert gilt:
+
+> Wenn kein sicher modellgültiger Wert erzeugt werden kann, wird die Klasse übersprungen und der Grund gemeldet.
+
+Unsichere Platzhalterdaten sind schlechter als ein sichtbares `skippedClasses`.
+
+Constraint-Fixtures dürfen spezifischer sein, müssen aber Nebenfehler sauber von der erwarteten Ziel-Constraint-Verletzung trennen.
+
+## Modellierungsregeln pflegen
+
+Regeln liegen unter:
+
+```text
+src/main/resources/knowledge/modeling-rules.core.yml
+src/main/resources/knowledge/modeling-rules.so.yml
+```
+
+- `CORE`: portable Regeln.
+- `SO`: Solothurn-spezifische Ergänzungen; beim Laden wird `CORE` automatisch mitgeführt.
+
+Eine Regel muss klar angeben:
+
+- `id`
+- `title`
+- `severity`
+- `appliesTo`
+- `checkKind`
+- Quelle und Abschnitt
+- Begründung
+- Empfehlung
+
+Nur deterministisch aus Modelltext oder ili2c-Metamodell prüfbare Regeln sollten `AUTOMATED` sein. Fachliche Entscheide bleiben `MANUAL` und erscheinen in `manualChecks`.
+
+## Lokalen Modellkorpus erweitern
+
+Der Modellkorpus ist absichtlich read-only und lokal. Änderungen an der Suche sollen folgende Eigenschaften bewahren, sofern nicht bewusst neu entschieden:
+
+- keine Schreiboperationen in den Modellpfaden,
+- kein implizites Netzwerk-Crawling,
+- vollständiges Lesen nur innerhalb erlaubter Korpuspfade,
+- Search-Hit und vollständiges Modell als getrennte Operationen.
 
 ## Logging
-`src/main/resources/logback-spring.xml` writes to STDERR only. The root logger is `WARN`, and noisy startup loggers are suppressed to keep the STDIO transport readable.
 
-## Data Contracts
-The most structured tool is `createAttributeLine`. In MCP, it currently accepts a nested payload under `req`:
+STDOUT ist Teil des MCP-Transports. Normale Logs gehören deshalb auf STDERR.
 
-```json
-{
-  "req": {
-    "name": "hoehe",
-    "typeSpec": {
-      "baseType": {
-        "kind": "NUM_RANGE",
-        "min": 0.0,
-        "max": 100.0,
-        "unitFqn": "INTERLIS.m"
-      }
-    }
-  }
-}
-```
+`logback-spring.xml` hält Framework-Noise klein. Neue Bibliotheken sollten nicht unkontrolliert auf STDOUT schreiben.
 
-Relevant DTOs:
-- `AttributeLineRequest`
-- `TypeSpec`
-- `BaseType`
-- `ReferenceTypeSpec`
-- `BlackboxTypeSpec`
-- `EnumTreeValueTypeSpec`
-- `BasketTypeSpec`
-- `ObjectTypeSpec`
-- `MetaobjectTypeSpec`
-- `AttributeLineResponse`
+## Docker-Publishing
 
-`TypeSpec.requireSingleType()` enforces a strict one-of selection across these families. `enumTreeValueType` is modeled via a named enum-tree domain FQN because raw `ENUMTREEVAL` is not accepted by ili2c in attribute declarations.
-
-`createUnitSnippet` intentionally supports only linearly derived units. Its contract is `name`, positive `factor`, and `base`, plus optional annotations. Base/abstract unit declarations are not synthesized by this helper.
-
-`createAssociationSnippet` may generate deterministic association and role names when they are omitted, but those names are technical placeholders. Generated names and missing cardinalities are surfaced through `openQuestions` rather than treated as confirmed domain semantics.
-
-## Extension Rules
-When adding a new tool:
-1. Prefer extending an existing focused component when that keeps the code simpler; do not introduce a new hierarchy or factory without a concrete need.
-2. If a new Spring component is needed, place it under the appropriate package and use constructor injection for its dependencies.
-3. Annotate MCP entrypoints with `@McpTool` and parameters with `@McpToolParam`.
-4. Mark optional parameters explicitly with `required = false` and `@Nullable` where appropriate.
-5. Prefer `NameValidator.ascii()` for identifiers and FQNs.
-6. Add at least one focused unit test and, if the MCP contract matters, a schema assertion in `ToolRegistrationContractTest`.
-7. For complete-model workflows, prefer extending the high-level review result instead of making agents compose several redundant low-level calls.
-
-For `generateExampleXtf`, keep generation deterministic and conservative. If a mandatory value cannot be generated safely, skip the class and surface the reason instead of emitting potentially invalid placeholder data.
-
-When adding curated modeling rules:
-1. Extend `src/main/resources/knowledge/modeling-rules.core.yml` for generic checks or `src/main/resources/knowledge/modeling-rules.so.yml` for Solothurn-specific checks.
-2. Keep each rule explicit about `appliesTo` and `checkKind`.
-3. Implement automated checks in `ModelingRuleTools` only when they are deterministic from the model text or ili2c metamodel.
-4. Keep manual checks visible in `manualChecks` instead of pretending that the server can infer missing fachliche Entscheide.
-
-## Docker Packaging
-`gradle/docker.gradle` builds the container image from the packaged JAR:
+Der Gradle-Task
 
 ```bash
 ./gradlew buildAndPushMultiArchImage
 ```
+
+ist ein **Publish-Task**. Er ruft `docker buildx build --push` für `linux/amd64` und `linux/arm64` auf und veröffentlicht Tags unter `sogis/interlis-mcp`, darunter `latest` und versionsabhängige Tags.
+
+Er ist nicht als lokaler „build only“-Task zu verstehen und benötigt eine passende Registry-Anmeldung.
+
+Im GitHub-Workflow läuft das Publishing nur auf `main` ausserhalb von Pull Requests.
+
+## Dokumentation pflegen
+
+Die Dokumentation unter `docs/` beschreibt den aktuellen Produktzustand. Sie soll nicht zu einem zweiten Issue-Tracker oder Implementierungsjournal werden.
+
+### Wohin mit Spezifikationen?
+
+- Offene geplante Arbeit: GitHub Issue oder PR-Beschreibung.
+- Längerer Arbeitsentwurf: Datei auf dem Feature-Branch, wenn sie für Agent/Review hilfreich ist.
+- Nach Umsetzung: dauerhafte Aussagen in die thematische Referenz übernehmen und den Arbeitsentwurf löschen.
+- Historie: Git-Commits und PRs.
+- Langfristig begründungsbedürftige Architekturentscheidung: bei Bedarf ein ADR unter `docs/adr/`.
+
+### Keine chronologischen „Step/Epic“-Dokumente
+
+Dateien wie `01-...`, `Epic-X`, „MVP-Status“ oder „nächster Umsetzungsschritt“ werden nach Abschluss nicht auf `main` als aktuelle Doku weitergeführt. Sie werden entweder in fachliche Referenzdokumente überführt oder entfernt.
+
+### Dokumentations-Checkliste für öffentliche Änderungen
+
+Bei jeder Änderung an einer öffentlichen Fähigkeit prüfen:
+
+- Muss `README.md` angepasst werden?
+- Muss das Benutzerhandbuch oder die Tool-Referenz angepasst werden?
+- Ändert sich ein agentischer Ablauf?
+- Ändert sich Constraint-Semantik oder ein Safety-Gate?
+- Muss eine Architekturannahme dokumentiert werden?
+- Müssen MCP-Prompt/Resource und deren Tests angepasst werden?
+
+Codebeschreibung, maschinenwirksamer Agentenvertrag und menschliche Dokumentation sollen dieselbe Wahrheit ausdrücken.

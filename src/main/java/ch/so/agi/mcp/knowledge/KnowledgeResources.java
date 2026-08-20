@@ -20,7 +20,7 @@ public class KnowledgeResources {
   @McpResource(
       uri = "interlis://knowledge/handbook-rules",
       name = "handbook-rules",
-      title = "Solothurn INTERLIS Modeling Rules",
+      title = "INTERLIS-Modellierungsregeln Solothurn",
       description = "Kuratierte, versionierte Regeln aus dem Solothurner Modellierungshandbuch inklusive der portablen CORE-Basisregeln.",
       mimeType = "text/markdown"
   )
@@ -33,13 +33,13 @@ public class KnowledgeResources {
   @McpResource(
       uri = "interlis://knowledge/agent-workflow",
       name = "agent-workflow",
-      title = "INTERLIS Agent Workflow",
-      description = "Kompakter Arbeitsablauf fuer agentisches INTERLIS-Modellieren.",
+      title = "Agentischer INTERLIS-Arbeitsablauf",
+      description = "Kompakter Arbeitsablauf für agentisches INTERLIS-Modellieren.",
       mimeType = "text/markdown"
   )
   public ReadResourceResult agentWorkflow() {
     return markdown("interlis://knowledge/agent-workflow", """
-        # INTERLIS Agent Workflow
+        # Agentischer INTERLIS-Arbeitsablauf
 
         1. Klaere Modellzweck, fachliche Begriffe, Quellsysteme, Publikationsbedarf und offene Fragen.
         2. Suche bei Bedarf passende Beispiele mit `findSimilarModels` und lies ein ausgewaehltes Modell mit `readModelExample`.
@@ -47,108 +47,86 @@ public class KnowledgeResources {
            Change-Tool statt den Quelltext selbst umzuschreiben. Aktuell ist `ADD_ATTRIBUTE` fuer CLASS und STRUCTURE unterstuetzt.
         4. Ein erfolgreiches `APPLIED`-Resultat von `applyIliModelChange` enthaelt den semantischen Diff und `afterReview` als
            Abschlussgate. Fuer denselben unveraenderten Nachher-Stand nicht zusaetzlich `reviewIliChange` oder `reviewIliModel` ausfuehren.
-        5. Fuer noch nicht unterstuetzte Aenderungen bearbeite den Modelltext gezielt und vergleiche Vorher und Nachher mit `reviewIliChange`.
-        6. Fuer einen einzelnen vollstaendigen Modellstand ohne Vorher-Stand verwende `reviewIliModel`.
-        7. Behandle Compilerfehler und automatisierte ERROR-Findings vor WARNING/INFO-Findings.
-        8. Liste `manualChecks` und `openQuestions` als fachliche Rueckfragen, ohne Kardinalitaeten, Rollen oder Constraints zu erfinden.
-        9. Nutze `analyzeIliModel`, `checkModelingRules` und `validateIliModel` nur fuer gezielte Einzeldiagnosen, nicht als Standard-Dreierfolge.
-        10. Wenn ein bereits gepruefter Nachher-Stand erneut geaendert wird, pruefe den neuen Stand wieder mit dem passenden High-Level-Tool.
-        11. Liefere am Schluss Modelltext, semantische Aenderungen, Review-Resultat und offene fachliche Entscheide.
+        5. Fuer einen neuen Constraint verwende das hoechste passende Authoring-Tool. Ein erfolgreiches `proofVerified=true`
+           ist das technische Constraint-Gate; fuer denselben unveraenderten Constraint folgt kein redundanter Validator-Durchlauf.
+        6. Wenn Constraint-Authoring ein bestehendes Modell geaendert hat, schliesse die Modell-Aenderung genau einmal mit
+           `reviewIliChange` fuer Vorher und `updatedModelText` ab.
+        7. Fuer noch nicht unterstuetzte sonstige Aenderungen bearbeite den Modelltext gezielt und vergleiche Vorher und Nachher mit `reviewIliChange`.
+        8. Fuer einen einzelnen vollstaendigen Modellstand ohne Vorher-Stand verwende `reviewIliModel`.
+        9. Behandle Compilerfehler und automatisierte ERROR-Findings vor WARNING/INFO-Findings.
+        10. Liste `manualChecks` und `openQuestions` als fachliche Rueckfragen, ohne Kardinalitaeten, Rollen oder Constraints zu erfinden.
+        11. Nutze `analyzeIliModel`, `checkModelingRules` und `validateIliModel` nur fuer gezielte Einzeldiagnosen, nicht als Standard-Dreierfolge.
+        12. Wenn ein bereits gepruefter Nachher-Stand erneut geaendert wird, pruefe den neuen Stand wieder mit dem passenden High-Level-Tool.
         """);
   }
 
   @McpResource(
       uri = "interlis://knowledge/tool-guide",
       name = "tool-guide",
-      title = "INTERLIS MCP Tool Choice Guide",
-      description = "Entscheidungshilfe fuer die Auswahl zwischen High-Level-Review, Low-Level-Diagnostik und Modellbeispielen.",
+      title = "Werkzeugauswahl für interlis-mcp",
+      description = "Entscheidungshilfe für High-Level-Reviews, semantische Änderungen, Constraints, Diagnostik und Modellbeispiele.",
       mimeType = "text/markdown"
   )
   public ReadResourceResult toolGuide() {
     return markdown("interlis://knowledge/tool-guide", """
-        # INTERLIS MCP Tool Choice Guide
+        # Werkzeugauswahl für interlis-mcp
 
-        Bevorzuge das hoechste Tool, das die konkrete Frage vollstaendig beantwortet. Rufe Low-Level-Tools nicht routinemaessig zusaetzlich auf.
+        Bevorzuge das hoechste Tool, das die konkrete Aufgabe vollstaendig abdeckt. Rufe Low-Level-Tools nicht routinemaessig zusaetzlich auf.
 
-        ## Regelprofile
-
-        - `CORE` enthaelt nur portable technische/agentische Basisregeln des MCP-Servers.
-        - `SO` enthaelt `CORE` plus die Regeln aus dem Solothurner Modellierungshandbuch.
-        - Fuer Modelle, die nach den Vorgaben des Kantons Solothurn beurteilt werden, verwende `ruleProfile=SO`.
-
-        ## Standardfaelle
+        ## Modell-Reviews und Aenderungen
 
         - Vollstaendigen aktuellen Modellstand ohne Vorher-Stand pruefen: `reviewIliModel`.
-          Es kombiniert ili2c, Strukturanalyse, automatisierte Regeln, manuelle Checks und offene fachliche Fragen.
-        - Unterstuetzte semantische Aenderung an einem bestehenden Modell ausfuehren: `applyIliModelChange`.
-          Aktuell wird `ADD_ATTRIBUTE` fuer CLASS und STRUCTURE unterstuetzt. Das Tool arbeitet source-preserving, kompiliert
-          Vorher und Nachher hoechstens einmal und prueft den semantischen Diff auf unerwartete Kollateralaenderungen.
-          Bei `APPLIED` bilden `afterCompilerValid`, `afterDiagnostics`, semantischer Diff und `afterReview` das Abschlussgate;
-          fuer denselben unveraenderten Nachher-Stand kein zusaetzliches `reviewIliChange` oder `reviewIliModel` ausfuehren.
-        - Vorher-/Nachher-Aenderung pruefen, wenn die Aenderung nicht von `applyIliModelChange` unterstuetzt wird: `reviewIliChange`.
-          Es liefert den semantischen Diff und prueft gleichzeitig das After-Modell. `afterReview` bildet zusammen mit
-          `afterCompilerValid` und `afterDiagnostics` den Abschlussreview; fuer denselben unveraenderten Nachher-Stand ist kein
-          zusaetzliches `reviewIliModel` erforderlich.
-        - Passendes Modellierungsmuster suchen: `findSimilarModels` -> `readModelExample`.
-          Treffer dienen nur der Discovery; lies einen relevanten Treffer vollstaendig, bevor du das Muster uebernimmst.
+        - Unterstuetzte semantische Aenderung ausfuehren: `applyIliModelChange`. Aktuell ist `ADD_ATTRIBUTE` fuer CLASS und
+          STRUCTURE unterstuetzt. Das Tool arbeitet source-preserving und liefert bei `APPLIED` bereits semantischen Diff,
+          Compilerzustand und `afterReview` fuer den unveraenderten Nachher-Stand; fuer diesen Stand kein zusaetzliches `reviewIliChange` oder `reviewIliModel` ausfuehren.
+        - Wenn der Kandidat unerwartete semantische Nebenaenderungen enthaelt, wird `UNEXPECTED_SEMANTIC_CHANGE` geliefert.
+        - Nicht unterstuetzte Aenderung: Quelltext gezielt bearbeiten und mit `reviewIliChange` abschliessen.
+        - Lokales Vorbild: `findSimilarModels` -> ausgewaehlten Treffer mit `readModelExample` vollstaendig lesen.
 
-        ## Semantic Model Changes
+        ## Constraints
 
-        - `ADD_ATTRIBUTE`: `request.operation=ADD_ATTRIBUTE`, `addAttribute.containerFqn` bezeichnet eine lokale CLASS oder
-          STRUCTURE und `addAttribute.attribute` verwendet dieselbe strikt typisierte `AttributeLineRequest`-Struktur wie
-          `createAttributeLine`. Bestehende oder geerbte Attributnamen werden abgelehnt.
-        - Das Tool gibt `updatedModelText` nur bei `status=APPLIED` frei. Wenn der erzeugte Quelltext zwar kompiliert, der
-          semantische Diff aber mehr als die verlangte Operation enthaelt, wird `UNEXPECTED_SEMANTIC_CHANGE` geliefert und nur
-          `candidateModelText` zur Diagnose ausgegeben.
-        - Ziele aus importierten Modellen werden nicht veraendert. Noch nicht unterstuetzte Operationen nicht durch freie
-          Change-Payloads emulieren; Quelltext gezielt bearbeiten und anschliessend `reviewIliChange` verwenden.
+        - Bestehenden Constraint erklaeren: `reviewIliConstraint`.
+        - Bestehenden Constraint automatisch beweisen: `generateIliConstraintCases` fuer MANDATORY, UNIQUE, EXISTENCE,
+          PLAUSIBILITY und den unterstuetzten SET-Umfang.
+        - MANDATORY authoren: `authorIliMandatoryConstraint`.
+        - EXISTENCE authoren: `authorIliExistenceConstraint` fuer skalare NUMERIC/BOOLEAN/ENUM/TEXT/MTEXT-Pfade.
+        - PLAUSIBILITY authoren: `authorIliPlausibilityConstraint`; der Proof verwendet echte Populationen und kann
+          `UNDEFINED_COUNTS_AS_SUCCESS` verifizieren.
+        - SET authoren: `authorIliSetConstraint` fuer `INTERLIS.objectCount(ALL)`, optionales direktes WHERE und `(BASKET)`.
+        - UNIQUE besitzt noch kein gleichwertiges typed High-Level-Authoring. `createUniqueConstraint` ist nur ein enger
+          Snippet-Helper fuer einfache globale Attributschluessel; der semantische Proof folgt mit `generateIliConstraintCases`.
+        - `proofVerified=true` bzw. `generationVerified=true` bedeutet, dass alle erzeugten Proof-Faelle vom echten
+          ilivalidator mit dem erwarteten Resultat bestaetigt wurden. `coverageComplete=false` kann trotzdem verbleibende
+          sichere Coverage-Grenzen anzeigen.
+        - Safety-Grenzen nicht approximieren. Beispiel: `EXISTENCE_REFERENCE_VALUE_PROOF_UNSAFE` bedeutet, dass kein
+          automatischer Ersatzbeweis behauptet wird.
+        - `testIliConstraint` ist fuer explizit vorgegebene Testfaelle. Nach einem bereits verifizierten automatischen Proof
+          nicht routinemaessig nochmals denselben Constraint damit pruefen.
+        - Constraint-Proof und Modell-Level-Review sind getrennt: Wenn ein bestehendes Modell durch Constraint-Authoring
+          geaendert wurde, danach genau einmal `reviewIliChange` fuer Vorher/Nachher ausfuehren.
 
-        ## Constraints und String-Pfade
+        ## Pfade und Funktionen
 
-        - Einen bestehenden Constraint erklaeren oder technisch pruefen: `reviewIliConstraint`. Das Tool liefert den compilerbasierten AST, Kontext, referenzierte Elemente, Funktionen, Pfade, Typen und strukturelle Edge Cases.
-        - Einen neuen allgemeinen `MANDATORY CONSTRAINT` aus einer fachlich bereits geklaerten Regel erzeugen: `authorIliMandatoryConstraint`. Formuliere die Regel als semantische Node-Liste mit `ATTRIBUTE`, `PATH`, Literalen, `FUNCTION`, `DEFINED`, `NOT`, `AND`, `OR`, `IMPLIES` und `COMPARE`. Verwende fuer Standardfunktionen die stabile `semanticId` aus `listConstraintFunctions`, nicht eine geratene versionsabhaengige Schreibweise.
-        - `authorIliMandatoryConstraint` rendert die Node-Liste fuer die Sprachversion des Modells, kompiliert den Vorschlag mit ili2c, uebersetzt den kompilierten AST zurueck in die typisierte semantische IR und beweist ihn anschliessend ueber dieselbe Coverage-/Solver-/Object-Graph-Pipeline wie bestehende Mandatory Constraints mit echtem XTF und ilivalidator. `proofVerified=true` bedeutet, dass alle erzeugten Proof-Faelle vom Validator bestaetigt wurden; ungeloeste Coverage-Ziele bleiben sichtbar.
-        - Einen neuen `PLAUSIBILITY CONSTRAINT` erzeugen: `authorIliPlausibilityConstraint`. Gib `direction=AT_LEAST`/`>=` oder `AT_MOST`/`<=`, `percentage` und dieselbe strukturierte semantische Node-Liste wie beim Mandatory-Authoring an. Das Tool fuegt source-preserving ein, kompiliert Before/After je einmal, prueft Direction, Prozentwert, Kontext und Condition ueber die Constraint-Level-IR und verifiziert anschliessend echte Populationen mit ilivalidator.
-        - PLAUSIBILITY wird nicht als Mandatory emuliert: `generateIliConstraintCases` synthetisiert TRUE- und FALSE-Mitglieder fuer die Bedingung und baut daraus Populationen knapp unter, exakt auf (falls mit hoechstens 20 Objekten darstellbar) und knapp ueber der Prozentgrenze. Die erwartete Gueltigkeit folgt aus dem exakten Quotienten `successful/total*100` und der deklarierten `>=`- bzw. `<=`-Richtung.
-        - Eine vom Validator nicht berechenbare PLAUSIBILITY-Bedingung (`skipEvaluation`, z.B. wegen UNDEFINED) zaehlt als erfolgreiches Populationsmitglied. Wenn der endliche Solver einen solchen Fall sicher synthetisieren kann, wird diese Semantik als eigener `UNDEFINED_COUNTS_AS_SUCCESS`-Proof verifiziert.
-        - Einen neuen skalaren `EXISTENCE CONSTRAINT` erzeugen: `authorIliExistenceConstraint`. Gib `restrictedPath` sowie jedes `REQUIRED IN`-Ziel explizit als `viewableFqn` plus `attributePath` an. Das Tool raet keine Zielattribute, loest Source/Targets im Before-AST auf, fuegt source-preserving ein, kompiliert Before/After je einmal, prueft den Constraint-Level-IR-Roundtrip und verifiziert die Proof-Faelle mit ilivalidator.
-        - `authorIliExistenceConstraint` authort weiterhin den sicheren skalaren NUMERIC/BOOLEAN/ENUM/TEXT/MTEXT-Umfang. Fuer neue Agent-Workflows ist dieses Tool dem alten Low-Level-Helper `createExistenceConstraint` vorzuziehen, dessen Klassenlisten-Schema die echte `ViewableRef : AttributePath`-Semantik nicht vollstaendig ausdrueckt.
-        - Einen neuen proof-faehigen `SET CONSTRAINT` fuer Objektanzahlen erzeugen: `authorIliSetConstraint`. Gib `operator` und `threshold` fuer `INTERLIS.objectCount(ALL)` an; `perBasket=true` erzeugt `(BASKET)`. Ein optionales `where` ist ein typisierter direkter Attributvergleich (`attribute`, `operator`, `valueKind`, `value`). Das Tool fuegt source-preserving ein, kompiliert Before/After je einmal, prueft SET-Scope, WHERE-Praesenz und `objectCount(ALL)` ueber die Constraint-Level-IR und verifiziert die erzeugten Mehrfachobjekt-/Multi-Basket-Faelle mit ilivalidator.
-        - `OBJECTS OF` ist bei SET die Funktion-Parametersemantik; der konkrete ili2c-AST-Knoten fuer die Objektmenge wird in INTERLIS als `ALL` geschrieben. Der MCP bewahrt `ALL`-Base/`RESTRICTION`-Metadaten typisiert auf, beweist im aktuellen sicheren Umfang aber nur plain `ALL`. Geometry-aware SET-Funktionen wie `areAreas`/`areAreas2` werden explizit als nicht automatisch beweisbar gemeldet statt approximiert.
-        - Wenn die fachliche Regel bereits als Entscheidungstabelle mit erlaubten Zeilen vorliegt, verwende weiterhin `generateIliConstraintFromDecisionTable`. Dieses spezialisierte Frontend ist kompakter: Bedingungen einer Zeile werden mit AND und mehrere erlaubte Zeilen mit OR verbunden; die Proof-Pipeline dahinter ist dieselbe semantische Infrastruktur.
-        - Fuer einen bereits bestehenden unterstuetzten Mandatory-, UNIQUE-, EXISTENCE-, PLAUSIBILITY- oder SET-Constraint verwende `generateIliConstraintCases`, wenn automatisch Witnesses, Counterexamples, Population-Boundaries oder Scope-Faelle erzeugt werden sollen. Das Tool uebersetzt den echten ili2c-AST in die Constraint-Level-/Expression-/Object-Set-IR und verifiziert die erzeugten Objektgraphen mit `testIliConstraint` und ilivalidator.
-        - Der automatische Mandatory-Umfang umfasst insbesondere direkte skalare Attribute, numerische/Boolean-/Enum-Vergleiche, `DEFINED`, `NOT`, `AND`, `OR`, `IMPLIES`, bekannte Math-/Text-Funktionen, SUM/Aggregate sowie mehrstufige skalare Navigation ueber Associations, Structures/Compositions und `REFERENCE TO`. Die Objektgraph-Synthese bleibt bewusst begrenzt, insbesondere auf hoechstens einen mehrwertigen Navigationsschritt pro Pfad; ungeloeste Faelle werden explizit gemeldet statt geraten.
-        - Der automatische UNIQUE-Umfang umfasst globale UNIQUE-Schluessel, `(BASKET)`, `WHERE`, optionale/undefinierte Schluesselkomponenten sowie `LOCAL` fuer direkte STRUCTURE-/Composition-Prefixe mit direkten skalaren Member-Schluesseln. Globale UNIQUE-Pfade verwenden denselben modellbewussten Binder wie Mandatory. Nicht automatisch synthetisierbare LOCAL-Navigation oder nicht isolierbare WHERE-Ziele erscheinen als `coverageUnsolved` statt durch angenaeherte Semantik ersetzt zu werden.
-        - Der automatische EXISTENCE-Umfang umfasst skalare NUMERIC/BOOLEAN/ENUM/TEXT/MTEXT-Werte und direkte STRUCTURE-/COMPOSITION-Werte. Fuer STRUCTURE erzeugt der Planner fehlendes Target, member-wise Equality, eine gezielte Member-Differenz und bei optionalen Werten einen UNDEFINED-Witness. Die automatische STRUCTURE-Gleichheit wird nur fuer denselben Component-Type, kleine kompatible Kardinalitaeten und identische Source-/Target-Attributnamen behauptet; andere Formen erscheinen als `coverageUnsolved`.
-        - `REFERENCE TO` wird bei EXISTENCE bewusst nicht automatisch als Gleichheitsbeweis freigegeben (`EXISTENCE_REFERENCE_VALUE_PROOF_UNSAFE`). COORD hat echte Validator-Semantik, aber noch keine wertbewusste automatische Fixture-Injektion (`EXISTENCE_COORD_FIXTURE_NOT_VALUE_AWARE`). POLYLINE/SURFACE/AREA bleiben `EXISTENCE_COMPLEX_GEOMETRY_FIXTURE_UNAVAILABLE`. Diese Grenzen werden explizit gemeldet und nicht als skalare Ersatzsemantik emuliert.
-        - PLAUSIBILITY-Populationen sind auf 20 Kontextobjekte pro Proof-Fall begrenzt. Jeder synthetisierte Condition-Witness muss genau ein Objekt des Constraint-Kontexts beitragen; sonst wird die Population als `coverageUnsolved` gemeldet, damit sich der Prozentnenner nicht unbemerkt veraendert.
-        - Der automatische SET-Umfang umfasst Vergleiche von `INTERLIS.objectCount(ALL)` mit numerischen Schwellen. Ohne `WHERE` werden reale Objektanzahlen erzeugt; mit `WHERE` erzeugt der finite Solver je ein eingeschlossenes und ausgeschlossenes direktes Kontextobjekt. Ein Zweibasket-Fall beweist zusaetzlich den Unterschied zwischen globaler und `(BASKET)`-Auswertung. Nullobjekt-Faelle ohne WHERE, komplexe WHERE-Objektgraphen, `ALL(base/RESTRICTION)` und geometry-aware SET-Funktionen bleiben explizite `coverageUnsolved`-Grenzen.
-        - `generationVerified=true` bedeutet fuer Mandatory, UNIQUE, EXISTENCE, PLAUSIBILITY und den unterstuetzten SET-Umfang, dass jeder erzeugte Proof-Fall vom echten ilivalidator mit dem erwarteten Ergebnis bestaetigt wurde. `coverageComplete=false` kann trotzdem anzeigen, dass nicht alle geplanten semantischen Ziele konstruiert oder sicher bewiesen werden konnten.
-        - Wenn konkrete fachliche Beispiele fuer gueltige und ungueltige Faelle vorliegen, pruefe sie weiterhin mit `testIliConstraint`. Jeder Testfall gibt `expectedConstraintValid`, Objekte und optional Referenzen bzw. Association-Links explizit vor; `basketId` kann fuer Multi-Basket-Faelle gesetzt werden. Das Tool erzeugt daraus XTF und prueft den ausgewaehlten Constraint mit dem Validator.
-        - `testIliConstraint` isoliert den ausgewaehlten Constraint, laesst aber Typ-, Multiplizitaets- und Transferpruefungen aktiv. Nicht zum Ziel-Constraint gehoerende Fehler werden deshalb als Fixture-Fehler ausgewiesen statt als Constraint-Ergebnis interpretiert.
-        - Bevor du eine Constraint-Funktion aus Trainingswissen annimmst, pruefe sie mit `listConstraintFunctions`. Beachte insbesondere `origin`, `semanticId` und die Parameter-`semanticType`.
-        - Hat ein Parameter `semanticType=ATTRIBUTE_PATH`, verwende im Authoring einen `PATH`-Knoten und erfinde den Pfad nicht. Pruefe unklare Pfade mit `resolveConstraintPath` im konkreten Klassen-/Association-Kontext. `reviewIliConstraint` erledigt dies fuer vorhandene Constraints automatisch.
-        - `resolveConstraintPath` verwendet dieselbe ili2c-Objekt-/Attributpfad-Syntax, die iox-ili fuer die bekannten Math-Aggregatfunktionen auswertet.
-        - `authorIliMandatoryConstraint` und `generateIliConstraintFromDecisionTable` authoren `MANDATORY CONSTRAINT`; `authorIliExistenceConstraint` authort skalare EXISTENCE Constraints; `authorIliPlausibilityConstraint` authort PLAUSIBILITY Constraints; `authorIliSetConstraint` authort den proof-faehigen `objectCount(ALL)`-SET-Umfang. `generateIliConstraintCases` beweist bestehende Mandatory-, UNIQUE-, unterstuetzte EXISTENCE-, PLAUSIBILITY- und SET-Formen.
+        - Standardfunktionen fuer typed Authoring zuerst mit `listConstraintFunctions` bestimmen und deren stabile `semanticId` verwenden.
+        - Parameter mit `semanticType=ATTRIBUTE_PATH` als `PATH` modellieren; unklare Pfade mit `resolveConstraintPath` pruefen.
+        - `reviewIliConstraint` loest Pfade fuer einen bereits vorhandenen Constraint automatisch im kompilierten Kontext auf.
 
-        ## Low-Level nur bei gezieltem Bedarf
+        ## Gezielte Low-Level-Diagnostik
 
-        - `validateIliModel`: nur Compiler-/Syntaxdiagnostik, besonders fuer einen gezielten Repair-Loop.
-        - `analyzeIliModel`: nur strukturelle oder semantische Detailfragen zum Modell.
-        - `checkModelingRules`: nur gezielte Regelpruefung, insbesondere fuer einzelne `ruleIds`.
-        - `listModelingRules`: Regelkatalog verstehen; prueft selbst kein Modell.
-        - `indexConfiguredModels`: Korpus inventarisieren/aktualisieren; fuer Mustersuche `findSimilarModels` verwenden.
+        - `validateIliModel`: Compiler-/Syntaxdiagnostik, insbesondere fuer einen konkreten Repair-Loop.
+        - `analyzeIliModel`: Struktur- oder Semantikdetail eines Modells.
+        - `checkModelingRules`: gezielte Regelpruefung, bei Bedarf mit einzelnen `ruleIds`.
+        - `listModelingRules`: Regelkatalog; prueft selbst kein Modell.
+        - `indexConfiguredModels`: Korpus inventarisieren; fuer die eigentliche Mustersuche `findSimilarModels` verwenden.
 
-        Nach einem passenden High-Level-Review nicht standardmaessig noch `validateIliModel`, `analyzeIliModel` und `checkModelingRules` aufrufen. Nutze eines davon nur, wenn das High-Level-Resultat eine konkrete Detailfrage offenlaesst.
-
-        Snippet-, Rename- und Formatting-Tools sind lokale Konstruktionshilfen. Fuer einen einzelnen Modellstand ohne Baseline entscheidet `reviewIliModel`; fuer unterstuetzte semantische Aenderungen `applyIliModelChange`; bei einer sonstigen Vorher-/Nachher-Aenderung entscheidet `reviewIliChange`. Technisch generierte Namen oder andere fachliche Platzhalter sind keine fachlichen Entscheide.
+        Nach einem passenden High-Level-Review nicht standardmaessig noch `validateIliModel`, `analyzeIliModel` und `checkModelingRules` aufrufen. Technisch generierte Namen und andere Platzhalter sind keine fachlichen Entscheide.
         """);
   }
 
   @McpResource(
       uri = "interlis://knowledge/model-corpus-index",
       name = "model-corpus-index",
-      title = "Configured INTERLIS Model Corpus Index",
+      title = "Index des konfigurierten INTERLIS-Modellkorpus",
       description = "Aktueller Index der konfigurierten lokalen .ili-Beispielpfade.",
       mimeType = "text/markdown"
   )

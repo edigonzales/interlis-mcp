@@ -47,15 +47,15 @@ class KnowledgeRuleLoaderTest {
     KnowledgeRuleLoader loader = new KnowledgeRuleLoader();
 
     assertThat(loader.rulesAsMarkdown())
-        .contains("Active profile: `CORE`")
+        .contains("Aktives Profil: `CORE`")
         .contains("MDE-020")
         .contains("MDE-040")
         .doesNotContain("MDE-603");
 
     assertThat(loader.rulesAsMarkdown(ModelingRuleProfile.SO))
-        .contains("Active profile: `SO`")
+        .contains("Aktives Profil: `SO`")
         .contains("MDE-020")
         .contains("MDE-603")
-        .contains("Profile: SO");
+        .contains("Profil: SO");
   }
 }
