@@ -18,7 +18,7 @@ class ConstraintToolsTest {
 
         assertEquals(String.join("\n",
                 "CONSTRAINTS",
-                "  UNIQUE (name, lage);"
+                "  UNIQUE name, lage;"
         ), response.get("iliSnippet"));
     }
 

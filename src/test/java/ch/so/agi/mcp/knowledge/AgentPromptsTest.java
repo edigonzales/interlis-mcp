@@ -24,6 +24,25 @@ class AgentPromptsTest {
   }
 
   @Test
+  void modelingAgentSeparatesConstraintProofFromModelChangeReview() {
+    String prompt = prompts.interlisModelingAgent().toString();
+
+    assertThat(prompt)
+        .contains("author-interlis-constraint")
+        .contains("authorIliMandatoryConstraint")
+        .contains("authorIliExistenceConstraint")
+        .contains("authorIliPlausibilityConstraint")
+        .contains("authorIliSetConstraint")
+        .contains("createUniqueConstraint")
+        .contains("proofVerified=true")
+        .contains("generationVerified=true")
+        .contains("genau einmal `reviewIliChange`")
+        .contains("nicht nochmals")
+        .contains("testIliConstraint")
+        .contains("validateXtf");
+  }
+
+  @Test
   void reviewPromptUsesReviewIliModelAsMandatoryStep() {
     String prompt = prompts.reviewInterlisModel("PUBLICATION").toString();
 
@@ -49,7 +68,34 @@ class AgentPromptsTest {
         .contains("impact")
         .contains("afterReview")
         .contains("kein weiteres")
-        .contains("readModelExample");
+        .contains("readModelExample")
+        .contains("proofVerified=true")
+        .contains("generateIliConstraintCases");
+  }
+
+  @Test
+  void constraintAuthoringPromptRoutesAllFiveKindsAndDefinesFinalGates() {
+    String prompt = prompts.authorInterlisConstraint("SET").toString();
+
+    assertThat(prompt)
+        .contains("SET")
+        .contains("MANDATORY")
+        .contains("UNIQUE")
+        .contains("EXISTENCE")
+        .contains("PLAUSIBILITY")
+        .contains("authorIliMandatoryConstraint")
+        .contains("authorIliExistenceConstraint")
+        .contains("authorIliPlausibilityConstraint")
+        .contains("authorIliSetConstraint")
+        .contains("createUniqueConstraint")
+        .contains("kein typed High-Level-Authoring")
+        .contains("generateIliConstraintCases")
+        .contains("proofVerified=true")
+        .contains("generationVerified=true")
+        .contains("coverageUnsolved")
+        .contains("reviewIliChange")
+        .contains("afterReview")
+        .contains("Legacy-/Snippet-Tools");
   }
 
   @Test
@@ -65,5 +111,27 @@ class AgentPromptsTest {
         .contains("afterReview")
         .contains("nicht zusaetzlich `reviewIliChange` oder `reviewIliModel`")
         .contains("nicht als Standard-Dreierfolge");
+  }
+
+  @Test
+  void constraintWorkflowResourceDocumentsAuthoringProofAndReviewHierarchy() {
+    String resource = new ConstraintWorkflowResource().constraintWorkflow().toString();
+
+    assertThat(resource)
+        .contains("interlis://knowledge/constraint-workflow")
+        .contains("MANDATORY")
+        .contains("UNIQUE")
+        .contains("EXISTENCE")
+        .contains("PLAUSIBILITY")
+        .contains("SET")
+        .contains("authorIliMandatoryConstraint")
+        .contains("authorIliExistenceConstraint")
+        .contains("authorIliPlausibilityConstraint")
+        .contains("authorIliSetConstraint")
+        .contains("generateIliConstraintCases")
+        .contains("proofVerified")
+        .contains("generationVerified")
+        .contains("reviewIliChange")
+        .contains("Safety-Reason-Code");
   }
 }
