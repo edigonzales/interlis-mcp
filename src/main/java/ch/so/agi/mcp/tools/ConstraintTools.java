@@ -14,18 +14,18 @@ import org.springframework.stereotype.Component;
 public class ConstraintTools {
 
   @McpTool(name = "createUniqueConstraint",
-        description = "UNIQUE-Constraint: Params: attrs (required list), iliDoc, metaAttributes. Returns a CONSTRAINTS block (append inside class).")
+        description = "Low-Level-Snippet-Helper fuer einen einfachen UNIQUE-Attributschluessel. Er erzeugt nur einen CONSTRAINTS-Block und bietet weder source-preserving Einfuegung noch semantischen Validator-Proof. Fuer UNIQUE gibt es noch kein typed High-Level-Authoring; nach der gezielten Integration in ein bestehendes Modell den resultierenden Constraint mit generateIliConstraintCases beweisen und die Modellaenderung mit reviewIliChange abschliessen. WHERE/(BASKET)/LOCAL nicht aus diesem einfachen attrs-Schema ableiten.")
   public Map<String,Object> unique(
       @McpToolParam(description = "Attribute (z. B. ['bezeich','lage'])", required = true) List<String> attrs,
       @McpToolParam(description = "IliDoc-Blockkommentar direkt vor der Constraint", required = false) @Nullable String iliDoc,
       @McpToolParam(description = "INTERLIS-Metaattribute direkt vor der Constraint", required = false) @Nullable List<MetaAttributeSpec> metaAttributes
   ) {
     String inner = attrs.stream().map(String::trim).collect(Collectors.joining(", "));
-    return constraintSnippet("  UNIQUE (" + inner + ");", iliDoc, metaAttributes);
+    return constraintSnippet("  UNIQUE " + inner + ";", iliDoc, metaAttributes);
   }
 
   @McpTool(name = "createMandatoryConstraint",
-        description = "MANDATORY CONSTRAINT: Params: expr (required), iliDoc, metaAttributes.")
+        description = "Legacy-Low-Level-Helper fuer einen freien MANDATORY-CONSTRAINT-Ausdruck. Er erzeugt nur ein Snippet und bietet weder typed Expression-IR, source-preserving Einfuegung noch automatischen Validator-Proof. Fuer neue agentische Regeln bevorzuge authorIliMandatoryConstraint; dieses Tool nur fuer bewusst freie Legacy-/Snippet-Faelle verwenden.")
   public Map<String,Object> mandatory(
       @McpToolParam(description = "boolescher Ausdruck", required = true) String expr,
       @McpToolParam(description = "IliDoc-Blockkommentar direkt vor der Constraint", required = false) @Nullable String iliDoc,

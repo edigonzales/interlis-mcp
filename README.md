@@ -6,8 +6,9 @@
 - STDIO-only MCP server for IDE agents and desktop MCP clients.
 - Tooling for models, topics, classes, structures, associations, domains, geometry helpers, constraints, identifier hygiene, formatting, validation, structural analysis, modeling-rule checks, and local model-corpus search.
 - High-level review tools combine compiler, structural and modeling-rule feedback for agentic workflows.
-- MCP resources expose curated modeling rules, an agent workflow, a tool-choice guide, and the configured `.ili` corpus index.
-- MCP prompts provide reusable INTERLIS modeling, review, and extension workflows.
+- Constraint tooling provides typed source-preserving authoring where supported and real ilivalidator-backed semantic proofs for MANDATORY, UNIQUE, EXISTENCE, PLAUSIBILITY, and SET.
+- MCP resources expose curated modeling rules, an agent workflow, a constraint workflow, a tool-choice guide, and the configured `.ili` corpus index.
+- MCP prompts provide reusable INTERLIS modeling, review, extension, and constraint-authoring workflows.
 - Compiler diagnostics can include a small `sourceExcerpt` around the reported line to support repair loops.
 - Runtime verified against MCP protocol `2025-06-18`.
 - Current initialize response advertises `tools`, `resources`, `prompts`, and runtime `logging`; completions are disabled.
@@ -20,6 +21,19 @@ When changing an existing model, use `reviewIliChange` to compare the before/aft
 For local examples, use `findSimilarModels` followed by `readModelExample` for the selected result. Search hits are discovery metadata; read the complete example before adopting a pattern.
 
 The lower-level analysis, rule-checking, and validation tools remain available for targeted diagnostics when an agent needs one specific result. Generated association and role names are technical placeholders and remain open domain questions until confirmed.
+
+### Constraint workflow
+For new constraints, prefer the highest semantic authoring tool that can express the rule:
+
+- MANDATORY: `authorIliMandatoryConstraint`
+- EXISTENCE: `authorIliExistenceConstraint`
+- PLAUSIBILITY: `authorIliPlausibilityConstraint`
+- SET: `authorIliSetConstraint` for the supported `INTERLIS.objectCount(ALL)` scope
+- UNIQUE: there is currently no equivalent typed high-level authoring tool; `createUniqueConstraint` is only a simple snippet helper, followed by `generateIliConstraintCases`
+
+For an existing supported constraint, `generateIliConstraintCases` creates model-aware witnesses, counterexamples, population boundaries, or scope cases and verifies them with the real ilivalidator. `proofVerified=true` from a typed authoring tool or `generationVerified=true` from case generation is the technical proof gate for that unchanged constraint. Do not routinely add another `testIliConstraint` or `validateXtf` pass for the same constraint.
+
+Constraint proof and model review are intentionally separate. When authoring or otherwise adding a constraint changes an existing model, finish with exactly one `reviewIliChange(before, after)` for the resulting model text. Its `afterCompilerValid`, `afterDiagnostics`, and `afterReview` are the model-level final gate. The MCP resource `interlis://knowledge/constraint-workflow` and prompt `author-interlis-constraint` expose this decision hierarchy to agents.
 
 ### Modeling-rule profiles
 `CORE` contains only portable technical and agent-safety rules of the MCP server. `SO` includes `CORE` and adds the rules curated from the Kanton Solothurn modeling handbook. Use `ruleProfile=SO` when a model is reviewed against Solothurn requirements. The MCP resource `interlis://knowledge/handbook-rules` exposes the effective `SO` rule set.
@@ -58,7 +72,9 @@ If multiple JDKs are installed, use the explicit Java 21 binary, for example `/p
 ./gradlew e2eTest
 ```
 
-The unit-test suite also contains deterministic agentic golden scenarios covering the intended high-level review workflow, including the two-compile `reviewIliChange` final gate, repair diagnostics, example lookup, breaking-change detection, and the rule that missing domain semantics must not be invented.
+The unit-test suite contains deterministic agentic golden scenarios for the intended high-level workflow. They cover review final gates, repair diagnostics, example lookup, breaking-change detection, non-invention of missing domain semantics, and the final constraint contract: typed authoring performs its validator-backed proof without redundant recompilation, UNIQUE uses the automatic proof fallback, and a changed model is then closed by exactly one `reviewIliChange`.
+
+The STDIO e2e suite also exercises the published constraint workflow resource/prompt and a complete typed SET authoring path through MCP JSON deserialization, source-preserving insertion, ili2c roundtrip, and real ilivalidator proof.
 
 ## Docker
 ```bash

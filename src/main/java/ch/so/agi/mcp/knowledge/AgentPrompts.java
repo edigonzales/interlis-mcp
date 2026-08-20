@@ -36,13 +36,25 @@ public class AgentPrompts {
           den INTERLIS-Quelltext selbst umzuschreiben. Aktuell wird `ADD_ATTRIBUTE` fuer CLASS und STRUCTURE unterstuetzt.
           Ein erfolgreiches `APPLIED`-Resultat enthaelt den semantischen Diff und `afterReview` als Abschlussgate; rufe fuer
           denselben unveraenderten Nachher-Stand nicht routinemaessig noch `reviewIliChange` oder `reviewIliModel` auf.
-        - Fuer noch nicht unterstuetzte Aenderungen: bearbeite den Modelltext gezielt und verwende danach `reviewIliChange`
+        - Fuer neue Constraints verwende den Prompt `author-interlis-constraint` bzw. das hoechste passende Constraint-Tool:
+          `authorIliMandatoryConstraint`, `authorIliExistenceConstraint`, `authorIliPlausibilityConstraint` oder
+          `authorIliSetConstraint`. Fuer UNIQUE gibt es noch kein gleichwertiges typed Authoring-Tool; nutze bei einfachen
+          Schluesseln `createUniqueConstraint` nur als Snippet-Hilfe oder bearbeite den Quelltext gezielt und pruefe den
+          resultierenden Constraint mit `generateIliConstraintCases`.
+        - `proofVerified=true` eines Authoring-Tools bzw. `generationVerified=true` von `generateIliConstraintCases` ist das
+          technische Proof-Gate fuer genau diesen Constraint. Fuehre fuer denselben unveraenderten Constraint nicht nochmals
+          routinemaessig `testIliConstraint` oder `validateXtf` aus.
+        - Constraint-Authoring ersetzt nicht das Modell-Level-Change-Review: wenn dabei ein bestehendes Modell geaendert wurde,
+          fuehre danach genau einmal `reviewIliChange` mit Vorher- und dem gelieferten `updatedModelText` aus.
+        - Fuer noch nicht unterstuetzte sonstige Aenderungen: bearbeite den Modelltext gezielt und verwende danach `reviewIliChange`
           mit Vorher-/Nachher-Modell. Das enthaltene `afterReview` ist zusammen mit `afterCompilerValid` und
           `afterDiagnostics` der Abschlussreview fuer den Nachher-Stand.
         - Fuer lokale Vorbilder: zuerst `findSimilarModels`, danach das ausgewaehlte Modell mit `readModelExample` lesen.
 
         `analyzeIliModel`, `checkModelingRules` und `validateIliModel` sind Low-Level-Tools fuer gezielte Einzeldiagnosen.
-        Fuehre sie nicht standardmaessig zusaetzlich zu einem passenden High-Level-Review aus.
+        `reviewIliConstraint` erklaert einen bestehenden Constraint; `testIliConstraint` prueft explizit vorgegebene Testfaelle.
+        Fuehre diese Tools nicht standardmaessig zusaetzlich zu einem passenden High-Level-Review oder bereits verifizierten
+        automatischen Constraint-Proof aus.
 
         Automatisch erzeugte Namen sind technische Platzhalter. Bestaetige fachliche Namen, Kardinalitaeten, Rollen,
         Constraints und Datenumbauten explizit oder markiere sie als Rueckfrage.
@@ -96,14 +108,61 @@ public class AgentPrompts {
            fuer CLASS und STRUCTURE unterstuetzt. Bei `APPLIED` sind der enthaltene semantische Diff, `afterCompilerValid`,
            `afterDiagnostics` und `afterReview` das Abschlussgate; fuehre fuer denselben unveraenderten Stand kein weiteres
            `reviewIliChange` oder `reviewIliModel` aus.
-        4. Wenn die Aenderung noch nicht unterstuetzt wird, mache nur die geforderte Erweiterung im Modelltext und vergleiche
+        4. Wenn die Aenderung ein neuer Constraint ist, verwende das hoechste passende Constraint-Authoring-Tool. Bei
+           `proofVerified=true` ist kein zusaetzlicher `testIliConstraint`-/`validateXtf`-Durchlauf fuer denselben Constraint
+           erforderlich. Fuehre danach aber genau einmal `reviewIliChange` fuer Vorher und `updatedModelText` aus, weil der
+           Constraint-Proof das Modell-Level-Review nicht ersetzt. Fuer UNIQUE ohne typed Authoring gilt derselbe Abschluss,
+           nachdem der Quelltext gezielt geaendert und der Constraint mit `generateIliConstraintCases` bewiesen wurde.
+        5. Wenn die Aenderung sonst noch nicht unterstuetzt wird, mache nur die geforderte Erweiterung im Modelltext und vergleiche
            Vorher und Nachher mit `reviewIliChange`. Beachte `potentiallyBreakingChanges` und `impact`.
-        5. Liefere den neuen Modelltext, die semantische Aenderung, Compiler-/Regelbefunde und offene fachliche Entscheide.
+        6. Liefere den neuen Modelltext, die semantische Aenderung, Compiler-/Regelbefunde und offene fachliche Entscheide.
 
         Wenn du einen von einem High-Level-Tool bereits geprueften Nachher-Stand nochmals aenderst, pruefe den neuen Stand erneut.
         Nutze `analyzeIliModel`, `checkModelingRules` oder `validateIliModel` nur, wenn fuer eine konkrete Diagnose ein einzelnes
         Low-Level-Ergebnis benoetigt wird. Erfinde keine fachlichen Constraints, Rollen oder Kardinalitaeten ohne klare Vorgabe.
         """.formatted(blankFallback(modelPurpose, "UNKNOWN")));
+  }
+
+  @McpPrompt(
+      name = "author-interlis-constraint",
+      title = "Author INTERLIS Constraint",
+      description = "Prompt fuer tool-gesteuertes Constraint-Authoring mit semantischem Proof und Modell-Level-Abschlussreview."
+  )
+  public GetPromptResult authorInterlisConstraint(
+      @McpArg(
+          name = "constraintKind",
+          description = "MANDATORY, UNIQUE, EXISTENCE, PLAUSIBILITY, SET oder UNKNOWN",
+          required = false)
+      @Nullable String constraintKind) {
+    return prompt("Author INTERLIS Constraint", """
+        Erzeuge oder ergaenze einen INTERLIS-Constraint vom Typ `%s`, ohne fachliche Semantik zu erfinden.
+
+        Tool-Hierarchie fuer neue Constraints:
+        - MANDATORY: `authorIliMandatoryConstraint` mit der strukturierten semantischen Node-Liste.
+        - UNIQUE: Es gibt noch kein typed High-Level-Authoring. Fuer einfache Attributschluessel darf
+          `createUniqueConstraint` als Snippet-Hilfe dienen; integriere das Snippet gezielt in den Modelltext. Komplexe
+          UNIQUE-Formen wie WHERE/(BASKET)/LOCAL werden nicht aus dem Low-Level-Schema geraten.
+        - EXISTENCE: `authorIliExistenceConstraint` mit explizitem `restrictedPath` und jedem REQUIRED-IN-Ziel als
+          `viewableFqn` + `attributePath`.
+        - PLAUSIBILITY: `authorIliPlausibilityConstraint` mit `direction`, `percentage` und strukturierter Condition.
+        - SET: `authorIliSetConstraint` fuer den unterstuetzten `INTERLIS.objectCount(ALL)`-Umfang mit `operator`,
+          `threshold`, optionalem `where` und `perBasket`.
+
+        Proof-Vertrag:
+        1. Bei einem typed Authoring-Tool muss `proofVerified=true` sein. Wenn `coverageUnsolved` oder ein Safety-Reason-Code
+           geliefert wird, berichte diese Grenze und erfinde keinen Ersatzbeweis.
+        2. Bei UNIQUE oder einem bereits vorhandenen Constraint verwende `generateIliConstraintCases`; fuer den unterstuetzten
+           Umfang muss `generationVerified=true` sein. Das Tool deckt MANDATORY, UNIQUE, EXISTENCE, PLAUSIBILITY und SET ab.
+        3. `reviewIliConstraint` dient zur Erklaerung/AST-Diagnose, `testIliConstraint` fuer explizit vom Nutzer vorgegebene
+           Testfaelle. Beide sind kein routinemaessiger Zusatz zu einem bereits verifizierten automatischen Proof.
+        4. Ein Constraint-Proof ist kein Modell-Level-Review. Wenn ein bestehendes Modell geaendert wurde, fuehre danach
+           genau einmal `reviewIliChange` mit Vorher und dem neuen Modelltext aus und behandle dessen `afterReview` als
+           Abschlussgate fuer das Gesamtmodell.
+
+        Verwende Legacy-/Snippet-Tools wie `createMandatoryConstraint`, `createExistenceConstraint` und `createSetConstraint`
+        nicht fuer neue Regeln, wenn das entsprechende typed Authoring-Tool den Fall ausdruecken kann. Bei UNIQUE ist
+        `createUniqueConstraint` nur die bewusst eng begrenzte Snippet-Ausnahme; der semantische Validator-Proof folgt separat.
+        """.formatted(blankFallback(constraintKind, "UNKNOWN")));
   }
 
   private GetPromptResult prompt(String description, String text) {
