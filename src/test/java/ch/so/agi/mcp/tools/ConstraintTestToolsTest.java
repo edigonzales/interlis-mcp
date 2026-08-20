@@ -117,8 +117,7 @@ class ConstraintTestToolsTest {
     Map<String, Object> result = tools.testIliConstraint(
         AFU_GOLDEN_MODEL,
         "GewichtungSumme100_Wald",
-        List.of(noSecondary, sumToHundred, wrongSum),
-        null);
+        List.of(noSecondary, sumToHundred, wrongSum));
 
     assertEquals(true, result.get("tested"));
     assertEquals(true, result.get("compilerValid"));
@@ -155,8 +154,7 @@ class ConstraintTestToolsTest {
     Map<String, Object> result = tools.testIliConstraint(
         MANDATORY_BOOLEAN_MODEL,
         "ValueAtLeast10",
-        List.of(testCase),
-        null);
+        List.of(testCase));
 
     assertEquals(true, result.get("allPassed"));
     List<Map<String, Object>> cases = castList(result.get("cases"));

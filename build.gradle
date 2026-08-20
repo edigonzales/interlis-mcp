@@ -8,6 +8,7 @@ apply from: "$rootDir/gradle/versioning.gradle"
 apply from: "$rootDir/gradle/docker.gradle"
 
 group = 'ch.so.agi'
+def resolvedProjectVersion = version.toString()
 
 sourceSets {
     e2e {
@@ -39,7 +40,6 @@ configurations {
 }
 
 dependencies {
-    developmentOnly 'org.springframework.boot:spring-boot-devtools'
     implementation "org.springframework.ai:spring-ai-starter-mcp-server"
     implementation "org.springframework.boot:spring-boot-starter"
     implementation "org.springframework.boot:spring-boot-starter-validation"
@@ -68,9 +68,9 @@ tasks.named('test') {
 }
 
 tasks.named('processResources') {
-    inputs.property('mcpServerVersion', project.version.toString())
+    inputs.property('mcpServerVersion', resolvedProjectVersion)
     filesMatching('application.properties') {
-        expand(mcpServerVersion: project.version.toString())
+        expand(mcpServerVersion: resolvedProjectVersion)
     }
 }
 
@@ -78,7 +78,7 @@ tasks.withType(Test).configureEach {
     javaLauncher = javaToolchains.launcherFor {
         languageVersion = JavaLanguageVersion.of(21)
     }
-    systemProperty 'expectedProjectVersion', project.version.toString()
+    systemProperty 'expectedProjectVersion', resolvedProjectVersion
 }
 
 bootJar { 
@@ -92,13 +92,7 @@ tasks.register('e2eTest', Test) {
     testClassesDirs = sourceSets.e2e.output.classesDirs
     classpath = sourceSets.e2e.runtimeClasspath
     shouldRunAfter tasks.test
-    // optional filters/tags:
-    //systemProperty 'junit.jupiter.tags', 'e2e'
-    //include '**/*E2E*'
     useJUnitPlatform() {
         includeTags 'e2e'
     }
-
 }
-
-//tasks.check { dependsOn tasks.named('e2eTest') }

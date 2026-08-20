@@ -153,7 +153,7 @@ class ConstraintAstTranslatorTest {
         testCase("AST solver witness", true, witnessGraph),
         testCase("AST solver counterexample", false, counterexampleGraph));
     Map<String, Object> result = new ConstraintTestTools(compilerService)
-        .testIliConstraint(MODEL_23, "WeightSum100", cases, null);
+        .testIliConstraint(MODEL_23, "WeightSum100", cases);
 
     assertEquals(true, result.get("allPassed"), String.valueOf(result));
     assertEquals(2, result.get("passedCount"));

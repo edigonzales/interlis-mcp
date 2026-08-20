@@ -5,11 +5,11 @@ import ch.so.agi.mcp.model.EnumValueItem;
 import ch.so.agi.mcp.model.MetaAttributeSpec;
 import ch.so.agi.mcp.util.AnnotationRenderer;
 import ch.so.agi.mcp.util.NameValidator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -24,11 +24,52 @@ public class DomainTools {
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
+  public static final class CoordinateAxis {
+    @JsonProperty(required = true)
+    private BigDecimal min;
+    @JsonProperty(required = true)
+    private BigDecimal max;
+    @JsonProperty(required = true)
+    private String unitFqn;
+
+    public CoordinateAxis() {}
+
+    public CoordinateAxis(BigDecimal min, BigDecimal max, String unitFqn) {
+      this.min = min;
+      this.max = max;
+      this.unitFqn = unitFqn;
+    }
+
+    public BigDecimal getMin() {
+      return min;
+    }
+
+    public void setMin(BigDecimal min) {
+      this.min = min;
+    }
+
+    public BigDecimal getMax() {
+      return max;
+    }
+
+    public void setMax(BigDecimal max) {
+      this.max = max;
+    }
+
+    public String getUnitFqn() {
+      return unitFqn;
+    }
+
+    public void setUnitFqn(String unitFqn) {
+      this.unitFqn = unitFqn;
+    }
+  }
+
   @McpTool(name = "createEnumDomainSnippet",
         description = "Erzeugt eine Aufzählungs-DOMAIN. Params: name (required), items (legacy list of enum item names) XOR itemSpecs (annotated enum items), iliDoc, metaAttributes.")
   public Map<String,Object> createEnumDomain(
       @McpToolParam(description = "Domain-Name", required = true) String name,
-      @McpToolParam(description = "Enum-Items in Reihenfolge (Legacy-Variante ohne Item-Metaattribute)", required = false) @Nullable List<String> items,
+      @McpToolParam(description = "Enum-Items in Reihenfolge (einfache Variante ohne Item-Metaattribute)", required = false) @Nullable List<String> items,
       @McpToolParam(description = "Annotierte Enum-Items in Reihenfolge mit optional iliDoc und metaAttributes", required = false) @Nullable List<EnumValueItem> itemSpecs,
       @McpToolParam(description = "IliDoc-Blockkommentar direkt vor der DOMAIN", required = false) @Nullable String iliDoc,
       @McpToolParam(description = "INTERLIS-Metaattribute direkt vor der DOMAIN", required = false) @Nullable List<MetaAttributeSpec> metaAttributes
@@ -54,10 +95,37 @@ public class DomainTools {
       @McpToolParam(description = "IliDoc-Blockkommentar direkt vor der DOMAIN", required = false) @Nullable String iliDoc,
       @McpToolParam(description = "INTERLIS-Metaattribute direkt vor der DOMAIN", required = false) @Nullable List<MetaAttributeSpec> metaAttributes
   ) {
-    String range = min.trim() + " .. " + max.trim();
-    String unit = (unitFqn != null && !unitFqn.isBlank()) ? " [" + unitFqn.trim() + "]" : "";
+    if (name == null || name.isBlank() || min == null || min.isBlank() || max == null || max.isBlank()) {
+      throw new IllegalArgumentException("Numeric domain requires name, min and max.");
+    }
+    String normalizedName = name.trim();
+    String normalizedMin = min.trim();
+    String normalizedMax = max.trim();
+    if (!normalizedMin.matches("-?\\d+(?:\\.\\d+)?")
+        || !normalizedMax.matches("-?\\d+(?:\\.\\d+)?")) {
+      throw new IllegalArgumentException("Numeric domain min and max must use INTERLIS decimal notation.");
+    }
+    NameValidator validator = NameValidator.ascii();
+    validator.validateIdent(normalizedName, "Domain name");
+    BigDecimal minimum;
+    BigDecimal maximum;
+    try {
+      minimum = new BigDecimal(normalizedMin);
+      maximum = new BigDecimal(normalizedMax);
+    } catch (NumberFormatException e) {
+      throw new IllegalArgumentException("Numeric domain min and max must be decimal numbers.");
+    }
+    if (minimum.compareTo(maximum) >= 0) {
+      throw new IllegalArgumentException("Numeric domain requires min < max.");
+    }
+    String unit = "";
+    if (unitFqn != null && !unitFqn.isBlank()) {
+      validator.validateFqn(unitFqn.trim(), "Unit FQN");
+      unit = " [" + unitFqn.trim() + "]";
+    }
+    String range = normalizedMin + " .. " + normalizedMax;
     String snippet = AnnotationRenderer.renderAnnotations(iliDoc, metaAttributes)
-        + "DOMAIN\n  " + name + " = " + range + unit + ";";
+        + "DOMAIN\n  " + normalizedName + " = " + range + unit + ";";
     return Map.of("iliSnippet", snippet);
   }
 
@@ -93,11 +161,12 @@ public class DomainTools {
   }
 
   @McpTool(name = "createCoordDomainSnippet",
-        description = "Erzeugt eine COORD-DOMAIN (2D/3D). Params: name (required), dimension (optional, default 2 oder anhand Name=Coord3), decimals (optional, Default 3 = Millimeter), iliDoc, metaAttributes.")
+        description = "Erzeugt eine COORD-DOMAIN aus expliziten Achsgrenzen und Einheiten. Es werden keine Koordinatensystem-Annahmen getroffen.")
   public Map<String, Object> createCoordDomainSnippet(
       @McpToolParam(description = "Domain-Name", required = true) String name,
-      @McpToolParam(description = "Koordinatendimension (2 oder 3)", required = false) @Nullable Integer dimension,
-      @McpToolParam(description = "Nachkommastellen (Default 3 = Millimeter)", required = false) @Nullable Integer decimals,
+      @McpToolParam(description = "Zwei oder drei Achsen mit min, max und unitFqn", required = true) List<CoordinateAxis> axes,
+      @McpToolParam(description = "Optionale erste ROTATION-Achse (1-basiert; nur zusammen mit rotationTo)", required = false) @Nullable Integer rotationFrom,
+      @McpToolParam(description = "Optionale zweite ROTATION-Achse (1-basiert; nur zusammen mit rotationFrom)", required = false) @Nullable Integer rotationTo,
       @McpToolParam(description = "IliDoc-Blockkommentar direkt vor der DOMAIN", required = false) @Nullable String iliDoc,
       @McpToolParam(description = "INTERLIS-Metaattribute direkt vor der DOMAIN", required = false) @Nullable List<MetaAttributeSpec> metaAttributes
   ) {
@@ -105,19 +174,62 @@ public class DomainTools {
       throw new IllegalArgumentException("Domain name is required.");
     }
 
-    int fractionDigits = decimals == null ? 3 : decimals;
-    if (fractionDigits < 0 || fractionDigits > 9) {
-      throw new IllegalArgumentException("decimals must be between 0 and 9.");
+    if (axes == null || (axes.size() != 2 && axes.size() != 3)) {
+      throw new IllegalArgumentException("axes must contain exactly two or three coordinate axes.");
     }
 
     String trimmedName = name.trim();
-    int coordDimension = dimension != null ? dimension : (trimmedName.endsWith("3") ? 3 : 2);
-    if (coordDimension != 2 && coordDimension != 3) {
-      throw new IllegalArgumentException("dimension must be 2 or 3.");
+    NameValidator validator = NameValidator.ascii();
+    validator.validateIdent(trimmedName, "Domain name");
+    for (int index = 0; index < axes.size(); index++) {
+      CoordinateAxis axis = axes.get(index);
+      if (axis == null || axis.getMin() == null || axis.getMax() == null) {
+        throw new IllegalArgumentException("axes[" + index + "] requires min and max.");
+      }
+      if (axis.getMin().compareTo(axis.getMax()) >= 0) {
+        throw new IllegalArgumentException("axes[" + index + "].min must be smaller than max.");
+      }
+      if (axis.getUnitFqn() == null || axis.getUnitFqn().isBlank()) {
+        throw new IllegalArgumentException("axes[" + index + "].unitFqn is required.");
+      }
+      validator.validateFqn(axis.getUnitFqn().trim(), "Coordinate axis unit");
     }
 
+    if ((rotationFrom == null) != (rotationTo == null)) {
+      throw new IllegalArgumentException("rotationFrom and rotationTo must be provided together.");
+    }
+    if (rotationFrom != null
+        && (rotationFrom < 1 || rotationFrom > axes.size()
+            || rotationTo < 1 || rotationTo > axes.size()
+            || rotationFrom.equals(rotationTo))) {
+      throw new IllegalArgumentException("ROTATION axes must be distinct and within the coordinate dimensions.");
+    }
+
+    StringBuilder definition = new StringBuilder("DOMAIN\n  ")
+        .append(trimmedName)
+        .append(" = COORD\n");
+    for (int index = 0; index < axes.size(); index++) {
+      CoordinateAxis axis = axes.get(index);
+      definition.append("    ")
+          .append(axis.getMin().toPlainString())
+          .append(" .. ")
+          .append(axis.getMax().toPlainString())
+          .append(" [")
+          .append(axis.getUnitFqn().trim())
+          .append("]");
+      if (index < axes.size() - 1 || rotationFrom != null) {
+        definition.append(",");
+      }
+      definition.append("\n");
+    }
+    if (rotationFrom != null) {
+      definition.append("    ROTATION ").append(rotationFrom).append(" -> ").append(rotationTo).append("\n");
+    }
+    definition.setLength(definition.length() - 1);
+    definition.append(";");
+
     String snippet = AnnotationRenderer.renderAnnotations(iliDoc, metaAttributes)
-        + buildCoordDomain(trimmedName, coordDimension, fractionDigits);
+        + definition;
     return Map.of("iliSnippet", snippet);
   }
 
@@ -140,48 +252,6 @@ public class DomainTools {
     String snippet = AnnotationRenderer.renderAnnotations(iliDoc, metaAttributes)
         + "DOMAIN\n  " + name.trim() + " = " + renderEnumTree(normalizedItems, 1) + ";";
     return Map.of("iliSnippet", snippet);
-  }
-
-  @McpTool(name = "createMetaAttributeBlock",
-      description = "Erzeugt einen reinen INTERLIS-Metaattribut-Block aus !!@-Zeilen. Params: metaAttributes (required).")
-  public Map<String, Object> createMetaAttributeBlock(
-      @McpToolParam(description = "INTERLIS-Metaattribute in Reihenfolge", required = true) List<MetaAttributeSpec> metaAttributes
-  ) {
-    String snippet = AnnotationRenderer.renderMetaAttributeBlock(metaAttributes, true, true);
-    return Map.of("iliSnippet", snippet);
-  }
-
-  private String buildCoordDomain(String name, int dimension, int decimals) {
-    StringBuilder sb = new StringBuilder();
-    sb.append("DOMAIN\n  ").append(name).append(" = COORD\n");
-    sb.append("    ")
-        .append(formatValue(460000, decimals))
-        .append(" .. ")
-        .append(formatValue(870000, decimals))
-        .append(" [INTERLIS.m],\n");
-    sb.append("    ")
-        .append(formatValue(45000, decimals))
-        .append(" .. ")
-        .append(formatValue(310000, decimals))
-        .append(" [INTERLIS.m]");
-
-    if (dimension == 3) {
-      sb.append(",\n    ")
-          .append(formatValue(-200, decimals))
-          .append(" .. ")
-          .append(formatValue(5000, decimals))
-          .append(" [INTERLIS.m]\n");
-    } else {
-      sb.append(",\n");
-    }
-
-    sb.append("    ROTATION 2 -> 1;");
-    return sb.toString();
-  }
-
-  private String formatValue(double value, int decimals) {
-    String format = "%." + decimals + "f";
-    return String.format(Locale.ROOT, format, value);
   }
 
   private List<EnumValueItem> normalizeFlatEnumItems(
@@ -240,7 +310,7 @@ public class DomainTools {
         throw new IllegalArgumentException("Duplicate enum item '" + trimmedName + "' in " + path + ".");
       }
       item.setName(trimmedName);
-      AnnotationRenderer.normalizeMetaAttributes(item.getMetaAttributes(), false, false);
+      AnnotationRenderer.normalizeMetaAttributes(item.getMetaAttributes(), false, true);
     }
     return items;
   }
@@ -266,7 +336,7 @@ public class DomainTools {
         throw new IllegalArgumentException("Duplicate enum item '" + trimmedName + "' in " + path + ".");
       }
       item.setName(trimmedName);
-      AnnotationRenderer.normalizeMetaAttributes(item.getMetaAttributes(), false, false);
+      AnnotationRenderer.normalizeMetaAttributes(item.getMetaAttributes(), false, true);
 
       if (item.getChildren() != null && !item.getChildren().isEmpty()) {
         validateEnumTreeItems(item.getChildren(), path + "[" + trimmedName + "].children");

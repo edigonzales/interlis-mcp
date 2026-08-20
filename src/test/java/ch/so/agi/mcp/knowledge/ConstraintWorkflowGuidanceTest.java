@@ -10,15 +10,6 @@ import org.springframework.ai.mcp.annotation.McpTool;
 class ConstraintWorkflowGuidanceTest {
 
   @Test
-  void mandatorySnippetHelperPointsToTypedAuthoring() {
-    assertThat(description("mandatory"))
-        .contains("Legacy-Low-Level-Helper")
-        .contains("authorIliMandatoryConstraint")
-        .contains("typed Expression-IR")
-        .contains("Validator-Proof");
-  }
-
-  @Test
   void uniqueSnippetHelperDocumentsTheProofAndReviewFallback() {
     assertThat(description("unique"))
         .contains("Low-Level-Snippet-Helper")
@@ -26,17 +17,6 @@ class ConstraintWorkflowGuidanceTest {
         .contains("generateIliConstraintCases")
         .contains("reviewIliChange")
         .contains("WHERE/(BASKET)/LOCAL");
-  }
-
-  @Test
-  void existenceAndSetSnippetHelpersRemainExplicitlyLegacy() {
-    assertThat(description("existence"))
-        .contains("Legacy-Low-Level-Helper")
-        .contains("authorIliExistenceConstraint");
-    assertThat(description("setConstraint"))
-        .contains("Legacy-Low-Level-Helper")
-        .contains("authorIliSetConstraint")
-        .contains("Validator-Proof");
   }
 
   private String description(String methodName) {

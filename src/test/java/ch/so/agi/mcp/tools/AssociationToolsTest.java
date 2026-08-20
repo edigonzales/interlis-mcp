@@ -287,7 +287,7 @@ class AssociationToolsTest {
 
   private void assertCompiles(String modelText) {
     ValidationTools validationTools = new ValidationTools(new IliCompilerService());
-    Map<String, Object> result = validationTools.validateIliModel(modelText, null);
+    Map<String, Object> result = validationTools.validateIliModel(modelText);
     assertEquals(true, result.get("valid"), () -> "Expected valid model but got " + result);
   }
 

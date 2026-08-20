@@ -51,6 +51,7 @@ class IliCompilerServiceTest {
 
     assertThat(diagnostic.get("line")).isInstanceOf(Number.class);
     assertThat(diagnostic.get("sourceExcerpt")).isInstanceOf(Map.class);
+    assertThat(diagnostic.get("file")).isEqualTo("<submitted-model>");
     @SuppressWarnings("unchecked")
     Map<String, Object> excerpt = (Map<String, Object>) diagnostic.get("sourceExcerpt");
     int line = ((Number) diagnostic.get("line")).intValue();
@@ -60,6 +61,15 @@ class IliCompilerServiceTest {
         .contains("CLASS Thing =")
         .contains("name TEXT*20;")
         .contains("END Thing;");
+  }
+
+  @Test
+  void rejectsOversizedModelBeforeCreatingCompilerState() {
+    String oversized = "x".repeat(2 * 1024 * 1024 + 1);
+
+    org.junit.jupiter.api.Assertions.assertThrows(
+        IllegalArgumentException.class,
+        () -> service.compile(oversized, null));
   }
 
   static String minimalValidModel() {

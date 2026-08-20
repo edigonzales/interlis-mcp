@@ -53,8 +53,7 @@ class ConstraintUniqueCaseGenerationTest {
   void globalUniqueGeneratesVerifiedSameBasketAndCrossBasketCounterexamples() {
     Map<String, Object> result = tools(new IliCompilerService()).generateIliConstraintCases(
         MODEL,
-        "GlobalKey",
-        null);
+        "GlobalKey");
 
     assertVerifiedUnique(result);
     assertThat(result.get("coverageComplete")).isEqualTo(true);
@@ -76,8 +75,7 @@ class ConstraintUniqueCaseGenerationTest {
   void compositeUniqueDuplicatesAllKeyComponentsTogether() {
     Map<String, Object> result = tools(new IliCompilerService()).generateIliConstraintCases(
         MODEL,
-        "CompositeKey",
-        null);
+        "CompositeKey");
 
     assertVerifiedUnique(result);
     assertThat(result.get("coverageComplete")).isEqualTo(true);
@@ -93,8 +91,7 @@ class ConstraintUniqueCaseGenerationTest {
   void basketUniqueAllowsSameKeyAcrossBasketsButRejectsSameBasketDuplicate() {
     Map<String, Object> result = tools(new IliCompilerService()).generateIliConstraintCases(
         MODEL,
-        "BasketKey",
-        null);
+        "BasketKey");
 
     assertVerifiedUnique(result);
     List<Map<String, Object>> generated = maps(result.get("generatedCases"));
@@ -113,8 +110,7 @@ class ConstraintUniqueCaseGenerationTest {
   void whereUniqueExercisesParticipatingAndExcludedBranches() {
     Map<String, Object> result = tools(new IliCompilerService()).generateIliConstraintCases(
         MODEL,
-        "FilteredKey",
-        null);
+        "FilteredKey");
 
     assertVerifiedUnique(result);
     List<Map<String, Object>> generated = maps(result.get("generatedCases"));
@@ -128,8 +124,7 @@ class ConstraintUniqueCaseGenerationTest {
   void localUniqueProvesParentScopeAndDuplicateCounterexample() {
     Map<String, Object> result = tools(new IliCompilerService()).generateIliConstraintCases(
         MODEL,
-        "LocalPartCode",
-        null);
+        "LocalPartCode");
 
     assertVerifiedUnique(result);
     assertThat(result.get("coverageComplete")).isEqualTo(true);
@@ -143,8 +138,7 @@ class ConstraintUniqueCaseGenerationTest {
   void optionalUniqueKeyProducesVerifiedUndefinedWitness() {
     Map<String, Object> result = tools(new IliCompilerService()).generateIliConstraintCases(
         MODEL,
-        "OptionalKey",
-        null);
+        "OptionalKey");
 
     assertVerifiedUnique(result);
     assertThat(maps(result.get("generatedCases")))
@@ -160,8 +154,7 @@ class ConstraintUniqueCaseGenerationTest {
 
     Map<String, Object> result = tools(compiler).generateIliConstraintCases(
         MODEL,
-        "BasketKey",
-        null);
+        "BasketKey");
 
     assertThat(result.get("generationVerified")).isEqualTo(true);
     assertThat(compiler.calls).isEqualTo(1);
@@ -169,8 +162,8 @@ class ConstraintUniqueCaseGenerationTest {
 
   private ConstraintCaseGenerationTools tools(IliCompilerService compiler) {
     return new ConstraintCaseGenerationTools(
-        compiler,
-        new ConstraintContextService(compiler));
+        new ConstraintContextService(compiler),
+        new ConstraintTestTools(compiler));
   }
 
   private void assertVerifiedUnique(Map<String, Object> result) {

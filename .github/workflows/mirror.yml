@@ -10,15 +10,14 @@ jobs:
 
     permissions:
       contents: read
-      packages: write
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
       - name: Mirror commits to Codeberg
-        uses: spyoungtech/mirror-action@v0.7.0
+        uses: spyoungtech/mirror-action@1708f16cdb28634fd3ba10c5c79abc91f5578a14 # v0.7.0
         with:
           REMOTE: "https://codeberg.org/sogis/mcp-interlis.git"
           GIT_USERNAME: ${{ secrets.CODEBERG_USER }}

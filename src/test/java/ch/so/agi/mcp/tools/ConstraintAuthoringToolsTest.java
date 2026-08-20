@@ -1,8 +1,11 @@
 package ch.so.agi.mcp.tools;
 
+import ch.so.agi.mcp.constraint.ConstraintAuthoringWorkflow;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.List;
 import java.util.Map;
@@ -71,14 +74,13 @@ class ConstraintAuthoringToolsTest {
       """;
 
   private final IliCompilerService compilerService = new IliCompilerService();
-  private final ConstraintKnowledgeTools knowledgeTools = new ConstraintKnowledgeTools(
-      new MathTools(), new TextTools(), compilerService);
+  private final ConstraintKnowledgeTools knowledgeTools = new ConstraintKnowledgeTools(compilerService);
   private final ConstraintReviewTools reviewTools = new ConstraintReviewTools(compilerService, knowledgeTools);
   private final ConstraintTestTools testTools = new ConstraintTestTools(compilerService);
   private final ConstraintCaseGenerationTools caseGenerationTools = new ConstraintCaseGenerationTools(
-      reviewTools, testTools, compilerService);
-  private final ConstraintAuthoringTools tools = new ConstraintAuthoringTools(
-      compilerService, caseGenerationTools);
+      new ConstraintContextService(compilerService), testTools);
+  private final ConstraintAuthoringTools tools = new ConstraintAuthoringTools(caseGenerationTools, new ConstraintAuthoringWorkflow(
+      compilerService));
 
   @Test
   void authorsTypedRangeAndProvesBoundariesWithValidator() {
@@ -95,8 +97,7 @@ class ConstraintAuthoringToolsTest {
         "ConstraintAuthoring23.Data.Item",
         "ValueRange",
         "root",
-        nodes,
-        null);
+        nodes);
 
     assertEquals(true, result.get("generated"), String.valueOf(result));
     assertEquals(true, result.get("proofVerified"), String.valueOf(result));
@@ -132,8 +133,7 @@ class ConstraintAuthoringToolsTest {
         "ConstraintAuthoring24.Data.Item",
         "Sum100",
         "root",
-        nodes,
-        null);
+        nodes);
 
     assertEquals(true, result.get("generated"), String.valueOf(result));
     assertEquals(true, result.get("proofVerified"), String.valueOf(result));
@@ -154,8 +154,7 @@ class ConstraintAuthoringToolsTest {
         "ConstraintAuthoringSum23.Data.Main",
         "SecondaryWeightPresent",
         "root",
-        nodes,
-        null);
+        nodes);
 
     assertEquals(true, result.get("generated"), String.valueOf(result));
     assertEquals(true, result.get("proofVerified"), String.valueOf(result));
@@ -191,8 +190,7 @@ class ConstraintAuthoringToolsTest {
         "ConstraintAuthoring23.Data.Item",
         "InvalidTextOrdering",
         "root",
-        nodes,
-        null);
+        nodes);
 
     assertEquals(false, result.get("generated"), String.valueOf(result));
     assertEquals(false, result.get("proofVerified"));

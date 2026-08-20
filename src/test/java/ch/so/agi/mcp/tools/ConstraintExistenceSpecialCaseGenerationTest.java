@@ -85,8 +85,7 @@ class ConstraintExistenceSpecialCaseGenerationTest {
   void structureExistenceGeneratesMemberWiseVerifiedProof() {
     Map<String, Object> result = tools(new IliCompilerService()).generateIliConstraintCases(
         STRUCTURE_MODEL,
-        "StructureExists",
-        null);
+        "StructureExists");
 
     assertThat(result.get("automaticCasesGenerated")).isEqualTo(true);
     assertThat(result.get("automaticCasesAvailable")).isEqualTo(true);
@@ -117,8 +116,7 @@ class ConstraintExistenceSpecialCaseGenerationTest {
 
     Map<String, Object> result = tools(compiler).generateIliConstraintCases(
         STRUCTURE_MODEL,
-        "StructureExists",
-        null);
+        "StructureExists");
 
     assertThat(result.get("generationVerified")).isEqualTo(true);
     assertThat(compiler.calls).isEqualTo(1);
@@ -128,8 +126,7 @@ class ConstraintExistenceSpecialCaseGenerationTest {
   void referenceExistenceIsRejectedByExplicitSafetyGate() {
     Map<String, Object> result = tools(new IliCompilerService()).generateIliConstraintCases(
         REFERENCE_MODEL,
-        "ReferenceExists",
-        null);
+        "ReferenceExists");
 
     assertThat(result.get("automaticCasesGenerated")).isEqualTo(false);
     assertThat(result.get("automaticCasesAvailable")).isEqualTo(false);
@@ -142,8 +139,7 @@ class ConstraintExistenceSpecialCaseGenerationTest {
   void coordExistenceReportsFixtureBoundaryInsteadOfPretendingScalarSemantics() {
     Map<String, Object> result = tools(new IliCompilerService()).generateIliConstraintCases(
         COORD_MODEL,
-        "CoordExists",
-        null);
+        "CoordExists");
 
     assertThat(result.get("automaticCasesGenerated")).isEqualTo(false);
     assertThat(result.get("reasonCode")).isEqualTo("EXISTENCE_COORD_FIXTURE_NOT_VALUE_AWARE");
@@ -152,8 +148,8 @@ class ConstraintExistenceSpecialCaseGenerationTest {
 
   private ConstraintCaseGenerationTools tools(IliCompilerService compiler) {
     return new ConstraintCaseGenerationTools(
-        compiler,
-        new ConstraintContextService(compiler));
+        new ConstraintContextService(compiler),
+        new ConstraintTestTools(compiler));
   }
 
   private void assertCase(Map<String, Object> item, String name, boolean expected) {

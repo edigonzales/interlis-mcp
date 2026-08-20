@@ -49,8 +49,7 @@ class ConstraintExistenceCaseGenerationTest {
   void scalarExistenceGeneratesVerifiedWitnessAndCounterexamples() {
     Map<String, Object> result = tools(new IliCompilerService()).generateIliConstraintCases(
         MODEL,
-        "CodeExists",
-        null);
+        "CodeExists");
 
     assertVerifiedExistence(result);
     assertThat(result.get("coverageComplete")).isEqualTo(true);
@@ -73,8 +72,7 @@ class ConstraintExistenceCaseGenerationTest {
   void existenceOrGeneratesWitnessForEveryRequiredInAlternative() {
     Map<String, Object> result = tools(new IliCompilerService()).generateIliConstraintCases(
         MODEL,
-        "CodeExistsOr",
-        null);
+        "CodeExistsOr");
 
     assertVerifiedExistence(result);
     assertThat(maps(result.get("generatedCases")))
@@ -86,8 +84,7 @@ class ConstraintExistenceCaseGenerationTest {
   void optionalUndefinedRestrictedValueIsVerifiedAsValid() {
     Map<String, Object> result = tools(new IliCompilerService()).generateIliConstraintCases(
         MODEL,
-        "OptionalExists",
-        null);
+        "OptionalExists");
 
     assertVerifiedExistence(result);
     assertThat(maps(result.get("generatedCases")))
@@ -98,8 +95,7 @@ class ConstraintExistenceCaseGenerationTest {
   void textExistenceUsesScalarTextDomain() {
     Map<String, Object> result = tools(new IliCompilerService()).generateIliConstraintCases(
         MODEL,
-        "TextExists",
-        null);
+        "TextExists");
 
     assertVerifiedExistence(result);
     assertThat(maps(result.get("generatedCases")))
@@ -112,8 +108,7 @@ class ConstraintExistenceCaseGenerationTest {
 
     Map<String, Object> result = tools(compiler).generateIliConstraintCases(
         MODEL,
-        "CodeExistsOr",
-        null);
+        "CodeExistsOr");
 
     assertThat(result.get("generationVerified")).isEqualTo(true);
     assertThat(compiler.calls).isEqualTo(1);
@@ -121,8 +116,8 @@ class ConstraintExistenceCaseGenerationTest {
 
   private ConstraintCaseGenerationTools tools(IliCompilerService compiler) {
     return new ConstraintCaseGenerationTools(
-        compiler,
-        new ConstraintContextService(compiler));
+        new ConstraintContextService(compiler),
+        new ConstraintTestTools(compiler));
   }
 
   private void assertVerifiedExistence(Map<String, Object> result) {

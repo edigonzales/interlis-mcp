@@ -44,7 +44,7 @@ public class ConstraintKnowledgeTools {
 
   private final IliCompilerService compilerService;
 
-  public ConstraintKnowledgeTools(MathTools mathTools, TextTools textTools, IliCompilerService compilerService) {
+  public ConstraintKnowledgeTools(IliCompilerService compilerService) {
     this.compilerService = compilerService;
   }
 
@@ -82,9 +82,8 @@ public class ConstraintKnowledgeTools {
   public Map<String, Object> resolveConstraintPath(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,
       @McpToolParam(description = "Vollqualifizierter Kontext, z. B. Modell.Topic.Klasse", required = true) String context,
-      @McpToolParam(description = "Objekt-/Attributpfad, z. B. Nebenauspraegung->Gewichtung; aeussere Anfuehrungszeichen sind optional", required = true) String path,
-      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition", required = false) @Nullable String modelRepositories) {
-    TransferDescription td = compilerService.compileOrThrow(modelText, modelRepositories, "constraint_path");
+      @McpToolParam(description = "Objekt-/Attributpfad, z. B. Nebenauspraegung->Gewichtung; aeussere Anfuehrungszeichen sind optional", required = true) String path) {
+    TransferDescription td = compilerService.compileOrThrow(modelText, null, "constraint_path");
     Element contextElement = td.getElement(context.trim());
     if (!(contextElement instanceof Viewable<?> root)) {
       throw new IllegalArgumentException("Context is not a class, structure, association or other viewable: " + context);

@@ -1,5 +1,7 @@
 package ch.so.agi.mcp.service;
 
+import ch.so.agi.mcp.util.McpInputLimits;
+
 import ch.ehi.basics.logging.EhiLogger;
 import ch.ehi.basics.logging.LogEvent;
 import ch.ehi.basics.logging.LogListener;
@@ -17,6 +19,7 @@ import ch.interlis.ili2c.metamodel.EnumTreeValueType;
 import ch.interlis.ili2c.metamodel.Extendable;
 import ch.interlis.ili2c.metamodel.Model;
 import ch.interlis.ili2c.metamodel.NumericType;
+import ch.interlis.ili2c.metamodel.NumericalType;
 import ch.interlis.ili2c.metamodel.ReferenceType;
 import ch.interlis.ili2c.metamodel.Table;
 import ch.interlis.ili2c.metamodel.TextType;
@@ -57,6 +60,7 @@ import org.springframework.stereotype.Service;
 public class XtfService {
 
   private static final int MAX_SUPPORTED_REQUIRED_MULTIPLICITY = 5;
+  private static final int MAX_OBJECTS_PER_CLASS = 20;
 
   private final IliCompilerService compilerService;
 
@@ -130,7 +134,8 @@ public class XtfService {
       if (xtfFile != null) {
         try {
           Files.deleteIfExists(xtfFile);
-        } catch (Exception ignore) {
+        } catch (IOException e) {
+          System.err.println("Unable to delete a temporary generated XTF file.");
         }
       }
     }
@@ -140,9 +145,7 @@ public class XtfService {
       String modelText,
       String xtfText,
       @Nullable String modelRepositories) {
-    if (xtfText == null || xtfText.isBlank()) {
-      throw new IllegalArgumentException("XTF text is required.");
-    }
+    McpInputLimits.requireXtfText(xtfText);
 
     IliCompilerService.CompilationResult compilation = compilerService.compile(modelText, modelRepositories, "xtf_validate_model_");
     List<Map<String, Object>> messages = copyMessages(compilation.messages());
@@ -170,6 +173,7 @@ public class XtfService {
       }
 
       boolean validatorResult = runValidator(xtfFile, settings, messages);
+      normalizeValidationDiagnostics(messages, tempDir, modelFile, xtfFile);
       Counts counts = countSeverities(messages);
       boolean valid = validatorResult && counts.errors() == 0;
       return new ValidationResult(valid, messages, counts.errors(), counts.warnings());
@@ -222,7 +226,7 @@ public class XtfService {
       XtfWriter writer = new XtfWriter(outputStream, td);
       try {
         StartTransferEvent startTransferEvent = new StartTransferEvent();
-        startTransferEvent.setVersion("2.4");
+        startTransferEvent.setVersion(transferVersion(td));
         startTransferEvent.setSender("interlis-mcp");
         startTransferEvent.setComment("generateExampleXtf");
         writer.write(startTransferEvent);
@@ -269,7 +273,7 @@ public class XtfService {
         continue;
       }
       Type type = Type.findReal(attributeDef.getDomainResolvingAll());
-      int min = requiredMultiplicity(type);
+      int min = requiredMultiplicity(attributeDef, type);
       for (int occurrence = 0; occurrence < min; occurrence++) {
         applyMandatoryValue(object, table, attributeDef, type, objectIndex, occurrence, objectIdsByClass, basketIds);
       }
@@ -328,12 +332,17 @@ public class XtfService {
 
     if (type instanceof AbstractCoordType coordType) {
       IomObject coord = object.addattrobj(attrName, Iom_jObject.COORD);
-      coord.setattrvalue(Iom_jObject.COORD_C1, "2600000.0");
-      if (coordType.getDimensions().length >= 2) {
-        coord.setattrvalue(Iom_jObject.COORD_C2, "1200000.0");
-      }
-      if (coordType.getDimensions().length >= 3) {
-        coord.setattrvalue(Iom_jObject.COORD_C3, "500.0");
+      NumericalType[] dimensions = coordType.getDimensions();
+      for (int index = 0; index < dimensions.length; index++) {
+        NumericType dimension = (NumericType) dimensions[index];
+        String coordinate = dimension.getMinimum().toString();
+        switch (index) {
+          case 0 -> coord.setattrvalue(Iom_jObject.COORD_C1, coordinate);
+          case 1 -> coord.setattrvalue(Iom_jObject.COORD_C2, coordinate);
+          case 2 -> coord.setattrvalue(Iom_jObject.COORD_C3, coordinate);
+          default -> throw new IllegalStateException(
+              "Coordinates with more than three dimensions are not supported for attribute '" + attrName + "'.");
+        }
       }
       return;
     }
@@ -393,7 +402,7 @@ public class XtfService {
         continue;
       }
       Type type = Type.findReal(attributeDef.getDomainResolvingAll());
-      int minimum = requiredMultiplicity(type);
+      int minimum = requiredMultiplicity(attributeDef, type);
       if (minimum <= 0) {
         continue;
       }
@@ -414,9 +423,11 @@ public class XtfService {
         || type instanceof NumericType
         || type instanceof EnumerationType
         || type instanceof EnumTreeValueType
-        || type instanceof AbstractCoordType
         || type.isBoolean()) {
       return true;
+    }
+    if (type instanceof AbstractCoordType coordType) {
+      return hasSupportedCoordinateDimensions(coordType);
     }
     if (type instanceof ReferenceType referenceType) {
       AbstractClassDef<?> referred = referenceType.getReferred();
@@ -425,9 +436,14 @@ public class XtfService {
     return false;
   }
 
-  private int requiredMultiplicity(Type type) {
-    int minimum = type.isMandatoryConsideringAliases() ? 1 : 0;
-    Cardinality cardinality = type.getCardinality();
+  private int requiredMultiplicity(AttributeDef attribute, Type resolvedType) {
+    Type declaredType = attribute.getDomain();
+    int minimum = declaredType != null
+        && (declaredType.isMandatory() || declaredType.isMandatoryConsideringAliases()) ? 1 : 0;
+    Cardinality cardinality = attribute.getCardinality();
+    if (cardinality == null) {
+      cardinality = resolvedType.getCardinality();
+    }
     if (cardinality != null && cardinality.getMinimum() > minimum) {
       if (cardinality.getMinimum() > Integer.MAX_VALUE) {
         return Integer.MAX_VALUE;
@@ -505,19 +521,36 @@ public class XtfService {
     if (maxObjectsPerClass < 1) {
       throw new IllegalArgumentException("maxObjectsPerClass must be greater than 0.");
     }
+    if (maxObjectsPerClass > MAX_OBJECTS_PER_CLASS) {
+      throw new IllegalArgumentException(
+          "maxObjectsPerClass must not exceed " + MAX_OBJECTS_PER_CLASS + ".");
+    }
     return maxObjectsPerClass;
   }
 
-  private String buildValidationIliDirs(Path modelDir, @Nullable String modelRepositories) {
-    String base = normalizeModelRepositories(modelRepositories);
-    return modelDir.toAbsolutePath() + ";" + base;
+  private boolean hasSupportedCoordinateDimensions(AbstractCoordType coordType) {
+    NumericalType[] dimensions = coordType.getDimensions();
+    if (dimensions.length < 1 || dimensions.length > 3) {
+      return false;
+    }
+    for (NumericalType dimension : dimensions) {
+      if (!(dimension instanceof NumericType numeric)
+          || numeric.getMinimum() == null
+          || numeric.getMaximum() == null) {
+        return false;
+      }
+    }
+    return true;
   }
 
-  private String normalizeModelRepositories(@Nullable String modelRepositories) {
-    if (modelRepositories == null || modelRepositories.isBlank()) {
-      return Ili2cSettings.DEFAULT_ILIDIRS;
-    }
-    return modelRepositories.trim();
+  private String transferVersion(TransferDescription td) {
+    Model[] models = td.getModelsFromLastFile();
+    return models.length > 0 && models[0].isIli23() ? "2.3" : "2.4";
+  }
+
+  private String buildValidationIliDirs(Path modelDir, @Nullable String modelRepositories) {
+    String base = compilerService.effectiveRepositories(modelRepositories);
+    return modelDir.toAbsolutePath() + ";" + base;
   }
 
   private String modelNamesFromLastFile(TransferDescription td) {
@@ -525,6 +558,39 @@ public class XtfService {
         .map(Model::getName)
         .filter(name -> name != null && !name.isBlank())
         .collect(Collectors.joining(";"));
+  }
+
+  private void normalizeValidationDiagnostics(
+      List<Map<String, Object>> messages,
+      Path tempDir,
+      Path modelFile,
+      Path xtfFile) {
+    for (Map<String, Object> message : messages) {
+      Object file = message.get("file");
+      if (file != null) {
+        String fileName = file.toString();
+        if (samePath(fileName, modelFile)) {
+          message.put("file", "<submitted-model>");
+        } else if (samePath(fileName, xtfFile) || fileName.startsWith(tempDir.toString())) {
+          message.put("file", "<submitted-xtf>");
+        }
+      }
+      Object text = message.get("message");
+      if (text != null) {
+        message.put("message", text.toString()
+            .replace(modelFile.toString(), "<submitted-model>")
+            .replace(xtfFile.toString(), "<submitted-xtf>")
+            .replace(tempDir.toString(), "<temporary-validation-directory>"));
+      }
+    }
+  }
+
+  private boolean samePath(String value, Path path) {
+    try {
+      return Path.of(value).toAbsolutePath().normalize().equals(path.toAbsolutePath().normalize());
+    } catch (RuntimeException e) {
+      return value.equals(path.toString());
+    }
   }
 
   private static Counts countSeverities(List<Map<String, Object>> messages) {
@@ -560,15 +626,21 @@ public class XtfService {
   }
 
   private static void deleteRecursively(Path root) {
+    boolean cleanupFailed = false;
     try (var stream = Files.walk(root)) {
       List<Path> paths = stream.sorted(Comparator.reverseOrder()).toList();
       for (Path path : paths) {
         try {
           Files.deleteIfExists(path);
-        } catch (Exception ignore) {
+        } catch (IOException e) {
+          cleanupFailed = true;
         }
       }
-    } catch (Exception ignore) {
+    } catch (IOException e) {
+      cleanupFailed = true;
+    }
+    if (cleanupFailed) {
+      System.err.println("Unable to completely delete a temporary XTF validation directory.");
     }
   }
 

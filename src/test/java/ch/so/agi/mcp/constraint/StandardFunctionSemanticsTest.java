@@ -139,8 +139,7 @@ class StandardFunctionSemanticsTest {
         "SqrtThree",
         List.of(
             testCase("sqrt witness", true, witnessGraph),
-            testCase("sqrt counterexample", false, counterexampleGraph)),
-        null);
+            testCase("sqrt counterexample", false, counterexampleGraph)));
 
     assertEquals(true, result.get("allPassed"), String.valueOf(result));
     assertEquals(2, result.get("passedCount"));

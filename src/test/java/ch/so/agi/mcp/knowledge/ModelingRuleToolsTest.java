@@ -35,7 +35,6 @@ class ModelingRuleToolsTest {
     Map<String, Object> response = tools.checkModelingRules(
         publicationModelWithAssociation(),
         ModelPurpose.PUBLICATION,
-        null,
         List.of("MDE-010"),
         ModelingRuleProfile.SO);
 
@@ -49,7 +48,6 @@ class ModelingRuleToolsTest {
     Map<String, Object> response = tools.checkModelingRules(
         minimalModel(),
         ModelPurpose.CAPTURE,
-        null,
         List.of("MDE-001", "MDE-050", "MDE-602"),
         ModelingRuleProfile.SO);
 
@@ -63,7 +61,6 @@ class ModelingRuleToolsTest {
     Map<String, Object> response = tools.checkModelingRules(
         modelWithThreeHeaderMetaAttributes(),
         ModelPurpose.CAPTURE,
-        null,
         List.of("MDE-060"),
         ModelingRuleProfile.SO);
 
@@ -91,7 +88,6 @@ class ModelingRuleToolsTest {
     Map<String, Object> response = tools.checkModelingRules(
         modelWithTab,
         ModelPurpose.CAPTURE,
-        null,
         List.of("MDE-206"),
         ModelingRuleProfile.SO);
 
@@ -105,7 +101,6 @@ class ModelingRuleToolsTest {
     Map<String, Object> response = tools.checkModelingRules(
         modelWithoutVersion(),
         ModelPurpose.CAPTURE,
-        null,
         List.of("MDE-208"),
         ModelingRuleProfile.SO);
 
@@ -120,7 +115,6 @@ class ModelingRuleToolsTest {
     Map<String, Object> response = tools.checkModelingRules(
         modelWithUndocumentedClassAndAttribute(),
         ModelPurpose.CAPTURE,
-        null,
         List.of("MDE-209", "MDE-210"),
         ModelingRuleProfile.SO);
 
@@ -135,7 +129,6 @@ class ModelingRuleToolsTest {
     Map<String, Object> response = tools.checkModelingRules(
         documentedModel(),
         ModelPurpose.CAPTURE,
-        null,
         List.of("MDE-209", "MDE-210"),
         ModelingRuleProfile.SO);
 
@@ -147,7 +140,6 @@ class ModelingRuleToolsTest {
     Map<String, Object> response = tools.checkModelingRules(
         modelWithLongAttributeName(),
         ModelPurpose.CAPTURE,
-        null,
         List.of("MDE-302"),
         ModelingRuleProfile.SO);
 
@@ -184,7 +176,6 @@ class ModelingRuleToolsTest {
     Map<String, Object> response = tools.checkModelingRules(
         modelWithUnboundedText(),
         ModelPurpose.CAPTURE,
-        null,
         List.of("MDE-502"),
         ModelingRuleProfile.SO);
 
@@ -199,7 +190,6 @@ class ModelingRuleToolsTest {
     Map<String, Object> response = tools.checkModelingRules(
         publicationModelWithAssociation(),
         ModelPurpose.CAPTURE,
-        null,
         List.of("MDE-601"),
         ModelingRuleProfile.SO);
 
@@ -213,7 +203,6 @@ class ModelingRuleToolsTest {
     Map<String, Object> response = tools.checkModelingRules(
         modelWithExplicitRoleCardinalities(),
         ModelPurpose.CAPTURE,
-        null,
         List.of("MDE-601"),
         ModelingRuleProfile.SO);
 
@@ -225,7 +214,6 @@ class ModelingRuleToolsTest {
     Map<String, Object> response = tools.checkModelingRules(
         modelWithConcreteClassWithoutOid(),
         ModelPurpose.CAPTURE,
-        null,
         List.of("MDE-603"),
         ModelingRuleProfile.SO);
 
@@ -240,13 +228,11 @@ class ModelingRuleToolsTest {
     Map<String, Object> withTopicOid = tools.checkModelingRules(
         modelWithTopicOid(),
         ModelPurpose.CAPTURE,
-        null,
         List.of("MDE-603"),
         ModelingRuleProfile.SO);
     Map<String, Object> abstractClass = tools.checkModelingRules(
         modelWithAbstractClassWithoutOid(),
         ModelPurpose.CAPTURE,
-        null,
         List.of("MDE-603"),
         ModelingRuleProfile.SO);
 
@@ -259,8 +245,7 @@ class ModelingRuleToolsTest {
     Map<String, Object> response = tools.reviewIliModel(
         minimalModel(),
         ModelPurpose.CAPTURE,
-        ModelingRuleProfile.CORE,
-        null);
+        ModelingRuleProfile.CORE);
 
     assertThat(compilerService.calls).isEqualTo(1);
     assertThat(response).containsKeys(
@@ -283,8 +268,7 @@ class ModelingRuleToolsTest {
     Map<String, Object> response = tools.reviewIliModel(
         minimalModel(),
         null,
-        ModelingRuleProfile.CORE,
-        null);
+        ModelingRuleProfile.CORE);
 
     assertThat(response.get("modelPurpose")).isEqualTo("UNKNOWN");
     assertThat(response.get("openQuestions")).asList()

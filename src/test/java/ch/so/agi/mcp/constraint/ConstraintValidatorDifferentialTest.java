@@ -275,8 +275,7 @@ class ConstraintValidatorDifferentialTest {
     Map<String, Object> validation = constraintTestTools.testIliConstraint(
         modelText,
         constraintName,
-        validatorCases,
-        null);
+        validatorCases);
 
     assertEquals(true, validation.get("allPassed"), () -> differentialFailure(
         constraintName, semanticOutcomes, validation));

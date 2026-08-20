@@ -3,6 +3,7 @@ package ch.so.agi.mcp.tools;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.List;
 import java.util.Map;
@@ -59,19 +60,17 @@ class ConstraintMultiStepObjectGraphTest {
       """;
 
   private final IliCompilerService compilerService = new IliCompilerService();
-  private final ConstraintKnowledgeTools knowledgeTools = new ConstraintKnowledgeTools(
-      new MathTools(), new TextTools(), compilerService);
+  private final ConstraintKnowledgeTools knowledgeTools = new ConstraintKnowledgeTools(compilerService);
   private final ConstraintReviewTools reviewTools = new ConstraintReviewTools(compilerService, knowledgeTools);
   private final ConstraintTestTools testTools = new ConstraintTestTools(compilerService);
   private final ConstraintCaseGenerationTools tools = new ConstraintCaseGenerationTools(
-      reviewTools, testTools, compilerService);
+      new ConstraintContextService(compilerService), testTools);
 
   @Test
   void reusesSharedAssociationStructureAndReferencePrefixesAndValidatesTheGraph() {
     Map<String, Object> result = tools.generateIliConstraintCases(
         MODEL,
-        "SharedReferencePath",
-        null);
+        "SharedReferencePath");
 
     assertEquals(true, result.get("automaticCasesAvailable"), String.valueOf(result));
     assertEquals(true, result.get("generationVerified"), String.valueOf(result));
@@ -101,8 +100,7 @@ class ConstraintMultiStepObjectGraphTest {
   void writesNestedStructureNavigationAsNestedXtfAndValidatesIt() {
     Map<String, Object> result = tools.generateIliConstraintCases(
         MODEL,
-        "StructurePath",
-        null);
+        "StructurePath");
 
     assertEquals(true, result.get("automaticCasesAvailable"), String.valueOf(result));
     assertEquals(true, result.get("generationVerified"), String.valueOf(result));

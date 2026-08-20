@@ -20,7 +20,7 @@ public final class AnnotationRenderer {
       lines.add(renderedDoc);
     }
 
-    for (MetaAttributeSpec metaAttribute : normalizeMetaAttributes(metaAttributes, false, false)) {
+    for (MetaAttributeSpec metaAttribute : normalizeMetaAttributes(metaAttributes, false, true)) {
       String rendered = renderMetaAttribute(metaAttribute);
       if (!rendered.isEmpty()) {
         lines.add(rendered);
@@ -49,10 +49,10 @@ public final class AnnotationRenderer {
       @Nullable List<MetaAttributeSpec> defaults,
       @Nullable List<MetaAttributeSpec> overrides) {
     Map<String, MetaAttributeSpec> merged = new LinkedHashMap<>();
-    for (MetaAttributeSpec item : normalizeMetaAttributes(defaults, false, false)) {
+    for (MetaAttributeSpec item : normalizeMetaAttributes(defaults, false, true)) {
       merged.put(item.getName(), item);
     }
-    for (MetaAttributeSpec item : normalizeMetaAttributes(overrides, false, false)) {
+    for (MetaAttributeSpec item : normalizeMetaAttributes(overrides, false, true)) {
       merged.put(item.getName(), item);
     }
     return new ArrayList<>(merged.values());

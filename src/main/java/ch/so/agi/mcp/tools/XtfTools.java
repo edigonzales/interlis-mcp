@@ -23,11 +23,9 @@ public class XtfTools {
   )
   public Map<String, Object> generateExampleXtf(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
-      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition, z. B. 'https://models.interlis.ch;https://geo.so.ch/models'", required = false)
-      @Nullable String modelRepositories,
       @McpToolParam(description = "Maximale Anzahl Objekte pro Klasse (Default 1)", required = false)
       @Nullable Integer maxObjectsPerClass) {
-    XtfService.GenerateExampleResult result = xtfService.generateExampleXtf(modelText, modelRepositories, maxObjectsPerClass);
+    XtfService.GenerateExampleResult result = xtfService.generateExampleXtf(modelText, null, maxObjectsPerClass);
 
     Map<String, Object> response = new LinkedHashMap<>();
     response.put("generated", result.generated());
@@ -48,10 +46,8 @@ public class XtfTools {
   )
   public Map<String, Object> validateXtf(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
-      @McpToolParam(description = "XTF-Inhalt als Text", required = true) String xtfText,
-      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition, z. B. 'https://models.interlis.ch;https://geo.so.ch/models'", required = false)
-      @Nullable String modelRepositories) {
-    XtfService.ValidationResult result = xtfService.validateXtf(modelText, xtfText, modelRepositories);
+      @McpToolParam(description = "XTF-Inhalt als Text", required = true) String xtfText) {
+    XtfService.ValidationResult result = xtfService.validateXtf(modelText, xtfText, null);
 
     return Map.of(
         "valid", result.valid(),

@@ -14,7 +14,7 @@ class SemanticChangeSafetyTest {
   void analyzesConstraintWithCanonicalIli2cDefinition() {
     ModelAnalysisTools tools = new ModelAnalysisTools(new IliCompilerService());
 
-    Map<String, Object> response = tools.analyzeIliModel(constraintModel(">"), null, null);
+    Map<String, Object> response = tools.analyzeIliModel(constraintModel(">"), null);
 
     assertThat(response.get("valid")).isEqualTo(true);
     assertThat(response.get("constraints")).asList()
@@ -30,7 +30,7 @@ class SemanticChangeSafetyTest {
     ModelChangeTools tools = changeTools();
 
     Map<String, Object> response = tools.reviewIliChange(
-        constraintModel(">"), constraintModel(">="), null, null, null);
+        constraintModel(">"), constraintModel(">="), null, null);
 
     assertThat(response.get("valid")).isEqualTo(true);
     assertThat(response.get("impact")).isEqualTo("POTENTIALLY_BREAKING");
@@ -51,7 +51,7 @@ class SemanticChangeSafetyTest {
     ModelChangeTools tools = changeTools();
 
     Map<String, Object> response = tools.reviewIliChange(
-        associationModel("{0..*}"), associationModel("{1..*}"), null, null, null);
+        associationModel("{0..*}"), associationModel("{1..*}"), null, null);
 
     assertThat(response.get("valid")).isEqualTo(true);
     assertThat(response.get("impact")).isEqualTo("POTENTIALLY_BREAKING");
@@ -68,7 +68,7 @@ class SemanticChangeSafetyTest {
     ModelChangeTools tools = changeTools();
 
     Map<String, Object> response = tools.reviewIliChange(
-        inheritanceModel("BaseA"), inheritanceModel("BaseB"), null, null, null);
+        inheritanceModel("BaseA"), inheritanceModel("BaseB"), null, null);
 
     assertThat(response.get("valid")).isEqualTo(true);
     assertThat(response.get("impact")).isEqualTo("POTENTIALLY_BREAKING");
@@ -85,7 +85,7 @@ class SemanticChangeSafetyTest {
     ModelChangeTools tools = changeTools();
 
     Map<String, Object> response = tools.reviewIliChange(
-        topicDependencyModel(false), topicDependencyModel(true), null, null, null);
+        topicDependencyModel(false), topicDependencyModel(true), null, null);
 
     assertThat(response.get("valid")).isEqualTo(true);
     assertThat(response.get("impact")).isEqualTo("POTENTIALLY_BREAKING");
@@ -94,6 +94,38 @@ class SemanticChangeSafetyTest {
             .contains("Demo.MainTopic")
             .contains("dependsOn")
             .contains("Demo.ReferenceTopic"));
+  }
+
+  @Test
+  void viewDefinitionChangeIsVisibleAndPotentiallyBreaking() {
+    ModelChangeTools tools = changeTools();
+
+    Map<String, Object> response = tools.reviewIliChange(
+        viewModel("value"), viewModel("name"), null, null);
+
+    assertThat(response.get("valid")).isEqualTo(true);
+    assertThat(response.get("impact")).isEqualTo("POTENTIALLY_BREAKING");
+    assertThat(response.get("changed")).asList()
+        .anySatisfy(change -> assertThat(change.toString())
+            .contains("Demo.Topic.Things")
+            .contains("definitionText"));
+  }
+
+  @Test
+  void changingAttributeDomainAliasIsVisible() {
+    ModelChangeTools tools = changeTools();
+
+    Map<String, Object> response = tools.reviewIliChange(
+        aliasedAttributeModel("CodeA"), aliasedAttributeModel("CodeB"), null, null);
+
+    assertThat(response.get("valid")).isEqualTo(true);
+    assertThat(response.get("impact")).isEqualTo("POTENTIALLY_BREAKING");
+    assertThat(response.get("changed")).asList()
+        .anySatisfy(change -> assertThat(change.toString())
+            .contains("Demo.Topic.Thing.code")
+            .contains("declaredTypeFqn")
+            .contains("Demo.CodeA")
+            .contains("Demo.CodeB"));
   }
 
   private ModelChangeTools changeTools() {
@@ -166,5 +198,42 @@ class SemanticChangeSafetyTest {
         %s  END MainTopic;
         END Demo.
         """.formatted(dependency);
+  }
+
+  private String viewModel(String attribute) {
+    return """
+        INTERLIS 2.4;
+
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2026-08-17" =
+          TOPIC Topic =
+            CLASS Thing =
+              value : TEXT*20;
+              name : TEXT*20;
+            END Thing;
+            VIEW Things
+              PROJECTION OF Thing;
+              =
+              %s := Thing->%s;
+            END Things;
+          END Topic;
+        END Demo.
+        """.formatted(attribute, attribute);
+  }
+
+  private String aliasedAttributeModel(String domain) {
+    return """
+        INTERLIS 2.4;
+
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2026-08-17" =
+          DOMAIN
+            CodeA = TEXT*20;
+            CodeB = TEXT*20;
+          TOPIC Topic =
+            CLASS Thing =
+              code : %s;
+            END Thing;
+          END Topic;
+        END Demo.
+        """.formatted(domain);
   }
 }

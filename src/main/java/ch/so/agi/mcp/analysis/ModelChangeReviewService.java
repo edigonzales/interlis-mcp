@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 public class ModelChangeReviewService {
 
   private static final List<String> CATEGORIES = List.of(
-      "models", "imports", "topics", "classes", "structures", "domains", "units", "associations", "attributes", "constraints", "metaAttributes");
+      "models", "imports", "topics", "classes", "structures", "views", "domains", "units", "associations", "attributes", "constraints", "metaAttributes");
   private static final Set<String> IDENTITY_FIELDS = Set.of("kind", "name", "scopedName");
   private static final Set<String> IGNORED_FIELDS = Set.of("line", "metaAttributes");
 
@@ -242,14 +242,16 @@ public class ModelChangeReviewService {
       } else if (("CLASS".equals(kind) || "STRUCTURE".equals(kind))
           && hasAny(fields, "extends", "abstract", "final")) {
         result.add(impactFinding(change, "Changing inheritance or class/structure modifiers may affect existing data or consumers."));
+      } else if ("VIEW".equals(kind)) {
+        result.add(impactFinding(change, "Changing a view definition may affect derived data and consumers."));
       } else if ("DOMAIN".equals(kind)
-          && hasAny(fields, "type", "typeText", "extends", "abstract", "final")) {
+          && hasAny(fields, "type", "typeText", "declaredType", "extends", "abstract", "final")) {
         result.add(impactFinding(change, "Changing a domain type, inheritance or modifiers may invalidate existing values or consumers."));
       } else if ("ASSOCIATION".equals(kind)
           && hasAny(fields, "roles", "extends", "abstract", "final")) {
         result.add(impactFinding(change, "Changing association roles, inheritance or modifiers may change relationship semantics."));
       } else if ("ATTRIBUTE".equals(kind)
-          && hasAny(fields, "type", "typeText", "mandatory", "geometry", "container")) {
+          && hasAny(fields, "type", "typeText", "declaredType", "declaredTypeFqn", "mandatory", "geometry", "container")) {
         result.add(impactFinding(change, "Changing an attribute type, mandatory state, geometry semantics or container may be incompatible."));
       }
     }
@@ -284,6 +286,7 @@ public class ModelChangeReviewService {
       case "topics" -> data.topics;
       case "classes" -> data.classes;
       case "structures" -> data.structures;
+      case "views" -> data.views;
       case "domains" -> data.domains;
       case "units" -> data.units;
       case "associations" -> data.associations;
@@ -324,6 +327,7 @@ public class ModelChangeReviewService {
       case "topics" -> "TOPIC";
       case "classes" -> "CLASS";
       case "structures" -> "STRUCTURE";
+      case "views" -> "VIEW";
       case "domains" -> "DOMAIN";
       case "units" -> "UNIT";
       case "associations" -> "ASSOCIATION";
@@ -346,6 +350,7 @@ public class ModelChangeReviewService {
     return List.of(
         "Renames are not inferred; they appear as one removed and one added element.",
         "Unnamed constraints are matched by ili2c-generated names; reordering them can appear as multiple changes.",
-        "Source line changes are ignored.");
+        "Source line changes are ignored.",
+        "Type comparison uses ili2c's canonical type rendering plus selected normalized type properties; lexical-only changes are ignored.");
   }
 }

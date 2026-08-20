@@ -195,7 +195,7 @@ class ConstraintGoalSolverTest {
         ConstraintModelSynthesizer.synthesize(binding, counterexample.assignment(), "solver_counterexample")));
 
     ConstraintTestTools tools = new ConstraintTestTools(compilerService);
-    Map<String, Object> result = tools.testIliConstraint(MODEL, "WeightSum100", cases, null);
+    Map<String, Object> result = tools.testIliConstraint(MODEL, "WeightSum100", cases);
 
     assertEquals(true, result.get("allPassed"), String.valueOf(result));
     assertEquals(2, result.get("passedCount"));

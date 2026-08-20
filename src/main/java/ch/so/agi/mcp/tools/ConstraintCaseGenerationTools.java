@@ -8,7 +8,6 @@ import ch.so.agi.mcp.constraint.ConstraintExpression;
 import ch.so.agi.mcp.constraint.ConstraintExpressionEngine;
 import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer;
 import ch.so.agi.mcp.constraint.SemanticConstraint;
-import ch.so.agi.mcp.service.IliCompilerService;
 import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -20,27 +19,19 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
 public class ConstraintCaseGenerationTools {
 
   private final ConstraintContextService contextService;
+  private final ConstraintTestTools testTools;
 
-  @Autowired
   public ConstraintCaseGenerationTools(
-      IliCompilerService compilerService,
-      ConstraintContextService contextService) {
+      ConstraintContextService contextService,
+      ConstraintTestTools testTools) {
     this.contextService = contextService;
-  }
-
-  /** Compatibility constructor used by existing focused tests. */
-  public ConstraintCaseGenerationTools(
-      ConstraintReviewTools reviewTools,
-      ConstraintTestTools testTools,
-      IliCompilerService compilerService) {
-    this(compilerService, new ConstraintContextService(compilerService));
+    this.testTools = testTools;
   }
 
   @McpTool(
@@ -49,12 +40,11 @@ public class ConstraintCaseGenerationTools {
   )
   public Map<String, Object> generateIliConstraintCases(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,
-      @McpToolParam(description = "Constraint-Name oder vollqualifizierter Constraint-Name", required = true) String constraint,
-      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition", required = false) @Nullable String modelRepositories) {
+      @McpToolParam(description = "Constraint-Name oder vollqualifizierter Constraint-Name", required = true) String constraint) {
     ConstraintContextService.Resolution resolution = contextService.compileAndResolve(
         modelText,
         constraint,
-        modelRepositories,
+        null,
         "ili2c_constraint_cases_");
     if (!resolution.available()) {
       return unavailable(
@@ -67,7 +57,7 @@ public class ConstraintCaseGenerationTools {
   }
 
   /**
-   * Internal B2 entry point for callers that already own the compiled model and resolved constraint.
+   * Internal entry point for callers that already own the compiled model and resolved constraint.
    * No ili2c compilation is performed by this method.
    */
   Map<String, Object> generateCompiledConstraintCases(CompiledConstraintContext context) {
@@ -405,13 +395,7 @@ public class ConstraintCaseGenerationTools {
   private Map<String, Object> verifyUsingCompiledContext(
       CompiledConstraintContext context,
       List<ConstraintTestTools.TestCase> cases) {
-    IliCompilerService precompiledCompiler = new PrecompiledCompiler(context);
-    ConstraintTestTools validator = new ConstraintTestTools(precompiledCompiler);
-    return validator.testIliConstraint(
-        context.modelText(),
-        context.constraintFqn(),
-        cases,
-        context.modelRepositories());
+    return testTools.testCompiledConstraint(context, cases);
   }
 
   private GeneratedCases generateCases(
@@ -601,36 +585,4 @@ public class ConstraintCaseGenerationTools {
       List<Map<String, Object>> summaries) {
   }
 
-  /**
-   * Adapter for the legacy explicit-case tool while B2 moves compilation ownership to the shared
-   * context. It rejects any attempt to compile a different model, so hidden recompilation cannot
-   * silently re-enter the pipeline.
-   */
-  private static final class PrecompiledCompiler extends IliCompilerService {
-    private final CompiledConstraintContext context;
-
-    private PrecompiledCompiler(CompiledConstraintContext context) {
-      this.context = Objects.requireNonNull(context, "context");
-    }
-
-    @Override
-    public CompilationResult compile(
-        String modelText,
-        String modelRepositories,
-        String tempPrefix) {
-      if (!context.modelText().equals(modelText)) {
-        throw new IllegalStateException("Compiled constraint pipeline attempted to compile a different model text.");
-      }
-      String expectedRepos = normalize(context.modelRepositories());
-      String actualRepos = normalize(modelRepositories);
-      if (!Objects.equals(expectedRepos, actualRepos)) {
-        throw new IllegalStateException("Compiled constraint pipeline changed modelRepositories.");
-      }
-      return context.compilation();
-    }
-
-    private String normalize(@Nullable String value) {
-      return value == null || value.isBlank() ? null : value.trim();
-    }
-  }
 }

@@ -3,6 +3,7 @@ package ch.so.agi.mcp.tools;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.List;
 import java.util.Map;
@@ -88,19 +89,17 @@ class ConstraintCaseGenerationToolsTest {
       """;
 
   private final IliCompilerService compilerService = new IliCompilerService();
-  private final ConstraintKnowledgeTools knowledgeTools = new ConstraintKnowledgeTools(
-      new MathTools(), new TextTools(), compilerService);
+  private final ConstraintKnowledgeTools knowledgeTools = new ConstraintKnowledgeTools(compilerService);
   private final ConstraintReviewTools reviewTools = new ConstraintReviewTools(compilerService, knowledgeTools);
   private final ConstraintTestTools testTools = new ConstraintTestTools(compilerService);
   private final ConstraintCaseGenerationTools tools = new ConstraintCaseGenerationTools(
-      reviewTools, testTools, compilerService);
+      new ConstraintContextService(compilerService), testTools);
 
   @Test
   void generatesAndVerifiesNumericBoundaryCasesThroughSemanticPipeline() {
     Map<String, Object> result = tools.generateIliConstraintCases(
         MODEL,
-        "ValueAtLeast10",
-        null);
+        "ValueAtLeast10");
 
     assertEquals(true, result.get("automaticCasesAvailable"));
     assertEquals(true, result.get("automaticCasesGenerated"));
@@ -122,8 +121,7 @@ class ConstraintCaseGenerationToolsTest {
   void generatesDefinedAndUndefinedCasesThroughSemanticPipeline() {
     Map<String, Object> result = tools.generateIliConstraintCases(
         MODEL,
-        "LabelDefined",
-        null);
+        "LabelDefined");
 
     assertEquals(true, result.get("automaticCasesAvailable"), String.valueOf(result));
     assertEquals("SEMANTIC_IR_COVERAGE", result.get("pattern"));
@@ -141,8 +139,7 @@ class ConstraintCaseGenerationToolsTest {
   void nowSupportsComplexBooleanRangeInsteadOfRejectingIt() {
     Map<String, Object> result = tools.generateIliConstraintCases(
         MODEL,
-        "ComplexValueRange",
-        null);
+        "ComplexValueRange");
 
     assertEquals(true, result.get("automaticCasesAvailable"), String.valueOf(result));
     assertEquals(true, result.get("generationVerified"));
@@ -159,8 +156,7 @@ class ConstraintCaseGenerationToolsTest {
   void verifiesIndependentOrBranchesWithRealValidator() {
     Map<String, Object> result = tools.generateIliConstraintCases(
         MODEL,
-        "EitherSide",
-        null);
+        "EitherSide");
 
     assertEquals(true, result.get("automaticCasesAvailable"), String.valueOf(result));
     List<Map<String, Object>> generated = list(result.get("generatedCases"));
@@ -180,8 +176,7 @@ class ConstraintCaseGenerationToolsTest {
   void exposesAfuSumAssociationPipelineThroughMcpTool() {
     Map<String, Object> result = tools.generateIliConstraintCases(
         AFU_MODEL,
-        "WeightSum100",
-        null);
+        "WeightSum100");
 
     assertEquals(true, result.get("automaticCasesAvailable"), String.valueOf(result));
     assertEquals(true, result.get("generationVerified"), String.valueOf(result));

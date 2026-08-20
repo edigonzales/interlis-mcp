@@ -25,7 +25,7 @@ class FormattingToolsTest {
         END Foo.
         """;
 
-    String output = formattingTools.formatIliModel(input, null);
+    String output = formattingTools.formatIliModel(input);
 
     String expected = """
         INTERLIS 2.4;
@@ -53,7 +53,7 @@ class FormattingToolsTest {
   @DisplayName("formatIliModel rejects blank input")
   void formatIliModelRejectsBlankInput() {
     IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-        formattingTools.formatIliModel("   ", null)
+        formattingTools.formatIliModel("   ")
     );
 
     assertTrue(ex.getMessage().contains("Model text is required."));
@@ -69,7 +69,7 @@ class FormattingToolsTest {
         """;
 
     IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
-        formattingTools.formatIliModel(invalid, null)
+        formattingTools.formatIliModel(invalid)
     );
 
     assertTrue(ex.getMessage().contains("ili2c failed"));

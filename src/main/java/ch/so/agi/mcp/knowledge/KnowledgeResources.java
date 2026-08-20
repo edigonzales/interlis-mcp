@@ -124,6 +124,46 @@ public class KnowledgeResources {
   }
 
   @McpResource(
+      uri = "interlis://knowledge/constraint-workflow",
+      name = "constraint-workflow",
+      title = "Arbeitsablauf für INTERLIS-Constraints",
+      description = "Entscheidungsmatrix für Constraint-Authoring, automatischen Validator-Proof und Modell-Level-Abschlussreview.",
+      mimeType = "text/markdown"
+  )
+  public ReadResourceResult constraintWorkflow() {
+    return markdown("interlis://knowledge/constraint-workflow", """
+        # Arbeitsablauf für INTERLIS-Constraints
+
+        Trenne drei Ebenen:
+
+        1. Constraint verstehen: `reviewIliConstraint` fuer AST, Pfade, Typen und technische Erklaerung.
+        2. Constraint beweisen: `generateIliConstraintCases` fuer automatisch erzeugte Faelle; `testIliConstraint` nur fuer explizit vorgegebene Testfaelle.
+        3. Modellaenderung abschliessen: nach einer separaten Constraint-Aenderung genau einmal `reviewIliChange` fuer Vorher und Nachher.
+
+        ## Neue Constraints
+
+        | Art | Bevorzugtes Authoring | Proof |
+        | --- | --- | --- |
+        | MANDATORY | `authorIliMandatoryConstraint` | im Authoring enthalten (`proofVerified`) |
+        | UNIQUE | `createUniqueConstraint` nur fuer einfache globale Schluessel | `generateIliConstraintCases` (`generationVerified`) |
+        | EXISTENCE | `authorIliExistenceConstraint` | im Authoring enthalten (`proofVerified`) |
+        | PLAUSIBILITY | `authorIliPlausibilityConstraint` | im Authoring enthalten (`proofVerified`) |
+        | SET | `authorIliSetConstraint` fuer den unterstuetzten `objectCount(ALL)`-Umfang | im Authoring enthalten (`proofVerified`) |
+
+        Freie Mandatory-/Existence-/Set-Snippet-Helper sind nicht Teil der MCP-Oberflaeche. Wenn ein typed Authoring einen Fall
+        nicht ausdruecken kann, bearbeitet der Agent den Modelltext gezielt und schliesst mit dem passenden Review und Proof ab.
+
+        ## Safety-Grenzen
+
+        - Proof-Reason-Codes und `coverageUnsolved` werden berichtet und nicht approximiert.
+        - EXISTENCE REFERENCE/COORD/komplexe Geometrie besitzt keine skalare Ersatzsemantik.
+        - PLAUSIBILITY wird mit echten Populationen bewiesen.
+        - SET unterstuetzt plain `ALL` mit `INTERLIS.objectCount`, optionalem direktem WHERE und `(BASKET)`-Scope.
+        - Ein erfolgreicher Constraint-Proof ersetzt bei einer separaten Modellaenderung nicht das Modell-Level-Review.
+        """);
+  }
+
+  @McpResource(
       uri = "interlis://knowledge/model-corpus-index",
       name = "model-corpus-index",
       title = "Index des konfigurierten INTERLIS-Modellkorpus",

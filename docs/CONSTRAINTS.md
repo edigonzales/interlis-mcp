@@ -354,7 +354,7 @@ Payload:
 
 Das Tool verlangt `viewableFqn` **und** `attributePath`, weil echte `REQUIRED IN`-Semantik nicht mit einer blossen Klassenliste beschrieben werden kann.
 
-Der ältere `createExistenceConstraint`-Helper besitzt diese Ausdruckskraft nicht und ist für neue Regeln nicht der bevorzugte Weg.
+Freie EXISTENCE-Snippet-Helper sind nicht Teil der MCP-Oberfläche; für neue skalare Regeln dient das typisierte Authoring.
 
 ## Direkte STRUCTURE/COMPOSITION-Werte
 

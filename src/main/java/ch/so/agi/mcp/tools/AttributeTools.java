@@ -28,6 +28,7 @@ public class AttributeTools {
         - NUM_RANGE: {"baseType":{"kind":"NUM_RANGE","min":0.0,"max":100.0,"unitFqn":"INTERLIS.percent"}}
         - NUMERIC with refSys: {"baseType":{"kind":"NUMERIC","unitFqn":"INTERLIS.deg","refSysFqn":"MyModel.AngleRef","circular":true}}
         - Domain: {"domainFqn":"Demo.Farbe"}
+        - Structure: {"structureFqn":"Demo.Topic.Address"}
         - Reference: {"referenceType":{"targetClassFqn":"Demo.Topic.Target","external":true}}
         - Blackbox: {"blackboxType":{"kind":"XML"}}
         - Enum tree value domain: {"enumTreeValueType":{"enumTreeDomainFqn":"Demo.Topic.StatusTree"}}
@@ -53,9 +54,9 @@ public class AttributeTools {
 
     // ---- build RHS (type)
     String rhs = switch (selectedType) {
-      case String domainFqn -> {
-        nv.validateFqn(domainFqn, "Domain FQN");
-        yield domainFqn.trim();
+      case TypeSpec.NamedType namedType -> {
+        nv.validateFqn(namedType.fqn(), namedType.structure() ? "Structure FQN" : "Domain FQN");
+        yield namedType.fqn().trim();
       }
       case BaseType bt -> {
         bt.validate();

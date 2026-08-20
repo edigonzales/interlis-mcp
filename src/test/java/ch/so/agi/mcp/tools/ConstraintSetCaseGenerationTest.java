@@ -31,8 +31,7 @@ class ConstraintSetCaseGenerationTest {
   void provesGlobalObjectCountBoundaryAndCrossBasketScope() {
     Map<String, Object> result = tools(new IliCompilerService()).generateIliConstraintCases(
         MODEL,
-        "GlobalAtLeastTwo",
-        null);
+        "GlobalAtLeastTwo");
 
     assertThat(result.get("generationVerified")).isEqualTo(true);
     assertThat(result.get("pattern")).isEqualTo("SET_OBJECT_COUNT_PROOF");
@@ -64,8 +63,7 @@ class ConstraintSetCaseGenerationTest {
   void basketScopedConstraintFailsWhenEachBasketIsBelowThreshold() {
     Map<String, Object> result = tools(new IliCompilerService()).generateIliConstraintCases(
         MODEL,
-        "BasketAtLeastTwo",
-        null);
+        "BasketAtLeastTwo");
 
     assertThat(result.get("generationVerified")).isEqualTo(true);
     Map<String, Object> scope = generatedCases(result).stream()
@@ -82,8 +80,7 @@ class ConstraintSetCaseGenerationTest {
   void whereExcludesObjectsFromAllBeforeObjectCount() {
     Map<String, Object> result = tools(new IliCompilerService()).generateIliConstraintCases(
         MODEL,
-        "FilteredAtLeastTwo",
-        null);
+        "FilteredAtLeastTwo");
 
     assertThat(result.get("generationVerified")).isEqualTo(true);
     assertThat(result.get("coverageComplete")).isEqualTo(true);
@@ -101,8 +98,7 @@ class ConstraintSetCaseGenerationTest {
     CountingCompiler compiler = new CountingCompiler();
     Map<String, Object> result = tools(compiler).generateIliConstraintCases(
         MODEL,
-        "GlobalAtLeastTwo",
-        null);
+        "GlobalAtLeastTwo");
 
     assertThat(result.get("generationVerified")).isEqualTo(true);
     assertThat(compiler.calls).isEqualTo(1);
@@ -110,8 +106,8 @@ class ConstraintSetCaseGenerationTest {
 
   private ConstraintCaseGenerationTools tools(IliCompilerService compiler) {
     return new ConstraintCaseGenerationTools(
-        compiler,
-        new ch.so.agi.mcp.constraint.ConstraintContextService(compiler));
+        new ch.so.agi.mcp.constraint.ConstraintContextService(compiler),
+        new ConstraintTestTools(compiler));
   }
 
   @SuppressWarnings("unchecked")

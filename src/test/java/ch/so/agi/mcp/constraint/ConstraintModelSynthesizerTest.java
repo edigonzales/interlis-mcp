@@ -166,7 +166,7 @@ class ConstraintModelSynthesizerTest {
             "proof3")));
 
     ConstraintTestTools tools = new ConstraintTestTools(compilerService);
-    Map<String, Object> result = tools.testIliConstraint(MODEL, "WeightSum100", cases, null);
+    Map<String, Object> result = tools.testIliConstraint(MODEL, "WeightSum100", cases);
 
     assertEquals(true, result.get("allPassed"), String.valueOf(result));
     assertEquals(3, result.get("passedCount"));

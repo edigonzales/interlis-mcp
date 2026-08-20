@@ -13,7 +13,7 @@ class ModelAnalysisToolsTest {
 
   @Test
   void analyzesCompiledModelStructure() {
-    Map<String, Object> response = tools.analyzeIliModel(model(), null, ModelPurpose.CAPTURE);
+    Map<String, Object> response = tools.analyzeIliModel(model(), ModelPurpose.CAPTURE);
 
     assertThat(response.get("valid")).isEqualTo(true);
     assertThat(response.get("iliVersion")).isEqualTo("2.4");
@@ -28,7 +28,7 @@ class ModelAnalysisToolsTest {
 
   @Test
   void exposesModelVersionAndElementDocumentation() {
-    Map<String, Object> response = tools.analyzeIliModel(documentedModel(), null, ModelPurpose.CAPTURE);
+    Map<String, Object> response = tools.analyzeIliModel(documentedModel(), ModelPurpose.CAPTURE);
 
     assertThat(element(response, "models", "Demo")).containsEntry("version", "2026-08-17");
     assertThat(element(response, "classes", "Demo.Topic.Thing"))
@@ -39,7 +39,7 @@ class ModelAnalysisToolsTest {
 
   @Test
   void exposesSemanticRelationshipsForAgenticUnderstanding() {
-    Map<String, Object> response = tools.analyzeIliModel(semanticModel(), null, ModelPurpose.CAPTURE);
+    Map<String, Object> response = tools.analyzeIliModel(semanticModel(), ModelPurpose.CAPTURE);
 
     assertThat(response.get("valid")).isEqualTo(true);
 
@@ -96,7 +96,7 @@ class ModelAnalysisToolsTest {
 
   @Test
   void returnsPartialAnalysisForCompilerErrors() {
-    Map<String, Object> response = tools.analyzeIliModel("INTERLIS 2.4;\nMODEL Broken =\n", null, ModelPurpose.UNKNOWN);
+    Map<String, Object> response = tools.analyzeIliModel("INTERLIS 2.4;\nMODEL Broken =\n", ModelPurpose.UNKNOWN);
 
     assertThat(response.get("valid")).isEqualTo(false);
     assertThat(response.get("messages")).asList().isNotEmpty();

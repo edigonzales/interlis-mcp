@@ -127,6 +127,17 @@ Weitere Grenzwerte:
 - `interlis.knowledge.max-model-bytes=1048576`
 - `interlis.knowledge.max-search-results=10`
 
+Externe INTERLIS-Modell-Repositories werden einmal beim Serverstart konfiguriert:
+
+```bash
+export INTERLIS_MCP_MODEL_REPOSITORIES='https://models.interlis.ch;https://geo.so.ch/models'
+java -jar build/libs/interlis-mcp.jar
+```
+
+Sie sind kein Parameter jedes Tool-Aufrufs. Ohne Konfiguration verwendet ili2c seine Standard-Repositories.
+
+Für eingereichte Payloads gelten feste Schutzgrenzen: 2 MiB Modelltext, 20 MiB XTF-Text, maximal 100 explizite Constraint-Testfälle und maximal 20 erzeugte XTF-Objekte je Klasse.
+
 Die Suche ist lokal und lexikalisch. Sie verwendet keine Embeddings, keine Datenbank und keinen externen Suchdienst.
 
 ## Regelprofile
@@ -279,13 +290,15 @@ Anschliessend:
 
 ## Aufgabe: ein Geometrieattribut vorbereiten
 
-Für Geometrieattribute ist `ensureGeometryDependencies` der bevorzugte Einstieg, weil neben der Attributzeile auch benötigte Imports und Domains berücksichtigt werden.
+Für Geometrieattribute ist `ensureGeometryDependencies` der bevorzugte Einstieg. Ohne CHBase muss die bereits fachlich gewählte Koordinatendomain explizit angegeben werden; der Server erfindet kein CRS und keine Achsgrenzen.
 
 Beispiel:
 
 ```json
 {
   "attributeName": "Perimeter",
+  "geometryType": "SURFACE",
+  "coordDomainFqn": "Demo.Coord2",
   "arcs": true
 }
 ```
@@ -297,7 +310,7 @@ Das Resultat enthält:
 - `attributeLine`
 - `notes`
 
-Der Agent integriert diese Bausteine anschliessend in den Modelltext und prüft den resultierenden vollständigen Stand mit dem passenden High-Level-Review.
+`domainsToAdd` bleibt in diesem Fall leer. Eine neue Domain kann separat mit expliziten Achsgrenzen über den Koordinatendomain-Helper erzeugt werden. Der Agent integriert die Bausteine anschliessend in den Modelltext und prüft den vollständigen Stand.
 
 ## Aufgabe: einen neuen Constraint erstellen
 

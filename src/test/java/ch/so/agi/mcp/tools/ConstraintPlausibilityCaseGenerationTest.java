@@ -2,6 +2,7 @@ package ch.so.agi.mcp.tools;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.List;
 import java.util.Map;
@@ -32,8 +33,7 @@ class ConstraintPlausibilityCaseGenerationTest {
   void provesAtLeastBoundaryWithRealPopulationFixtures() {
     Map<String, Object> result = tools().generateIliConstraintCases(
         MODEL,
-        "AtLeast80",
-        null);
+        "AtLeast80");
 
     assertThat(result.get("generationVerified")).isEqualTo(true);
     assertThat(result.get("pattern")).isEqualTo("PLAUSIBILITY_POPULATION_PROOF");
@@ -56,8 +56,7 @@ class ConstraintPlausibilityCaseGenerationTest {
   void provesAtMostBoundaryWithOppositeValidity() {
     Map<String, Object> result = tools().generateIliConstraintCases(
         MODEL,
-        "AtMost20",
-        null);
+        "AtMost20");
 
     assertThat(result.get("generationVerified")).isEqualTo(true);
     List<Map<String, Object>> cases = generatedCases(result);
@@ -73,8 +72,7 @@ class ConstraintPlausibilityCaseGenerationTest {
   void provesValidatorSkipEvaluationCountsAsSuccess() {
     Map<String, Object> result = tools().generateIliConstraintCases(
         MODEL,
-        "AllDefinedOrSkipped",
-        null);
+        "AllDefinedOrSkipped");
 
     assertThat(result.get("generationVerified")).isEqualTo(true);
     Map<String, Object> undefined = generatedCases(result).stream()
@@ -90,11 +88,10 @@ class ConstraintPlausibilityCaseGenerationTest {
 
   private ConstraintCaseGenerationTools tools() {
     IliCompilerService compiler = new IliCompilerService();
-    ConstraintKnowledgeTools knowledge = new ConstraintKnowledgeTools(
-        new MathTools(), new TextTools(), compiler);
+    ConstraintKnowledgeTools knowledge = new ConstraintKnowledgeTools(compiler);
     ConstraintReviewTools review = new ConstraintReviewTools(compiler, knowledge);
     ConstraintTestTools tests = new ConstraintTestTools(compiler);
-    return new ConstraintCaseGenerationTools(review, tests, compiler);
+    return new ConstraintCaseGenerationTools(new ConstraintContextService(compiler), tests);
   }
 
   @SuppressWarnings("unchecked")

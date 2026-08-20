@@ -21,11 +21,9 @@ public class ValidationTools {
       description = "Low-Level-Tool fuer reine ili2c-Compilerpruefung und gezielte Syntax-/Compiler-Reparatur. Rueckgabe: {valid:bool, messages:[{severity,file?,line?,message,sourceExcerpt?:{startLine,endLine,text}}]}. Prueft keine Modellierungsregeln und ersetzt keinen vollstaendigen Review; dafuer reviewIliModel."
   )
   public Map<String, Object> validateIliModel(
-      @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
-      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition, z. B. 'https://models.interlis.ch;https://geo.so.ch/models'", required = false)
-      @Nullable String modelRepositories
+      @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText
   ) {
-    IliCompilerService.CompilationResult result = compilerService.compile(modelText, modelRepositories);
+    IliCompilerService.CompilationResult result = compilerService.compile(modelText, null);
 
     return Map.of(
         "valid", result.valid(),

@@ -164,9 +164,9 @@ public class AgentPrompts {
            genau einmal `reviewIliChange` mit Vorher und dem neuen Modelltext aus und behandle dessen `afterReview` als
            Abschlussgate für das Gesamtmodell.
 
-        Verwende Legacy-/Snippet-Tools wie `createMandatoryConstraint`, `createExistenceConstraint` und `createSetConstraint`
-        nicht für neue Regeln, wenn das entsprechende typisierte Authoring-Tool den Fall ausdrücken kann. Bei UNIQUE ist
-        `createUniqueConstraint` nur die bewusst eng begrenzte Snippet-Ausnahme; der semantische Validator-Proof folgt separat.
+        Freie Mandatory-/Existence-/Set-Snippet-Tools sind nicht Teil der MCP-Oberfläche. Wenn das typisierte Authoring den
+        Fall nicht ausdrücken kann, bearbeite den Modelltext gezielt, behaupte keinen Ersatzbeweis und schliesse mit den
+        passenden Review- und Proof-Tools ab. Bei UNIQUE ist `createUniqueConstraint` die bewusst enge Snippet-Ausnahme.
         """.formatted(blankFallback(constraintKind, "UNKNOWN")));
   }
 

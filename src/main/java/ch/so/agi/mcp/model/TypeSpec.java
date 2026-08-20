@@ -8,11 +8,14 @@ import jakarta.validation.constraints.Pattern;
 public class TypeSpec {
 
   private static final String TYPE_SELECTION_ERROR =
-      "typeSpec must define exactly one of 'domainFqn', 'baseType', 'referenceType', 'blackboxType', 'enumTreeValueType', 'basketType', 'objectType' or 'metaobjectType'.";
+      "typeSpec must define exactly one of 'domainFqn', 'structureFqn', 'baseType', 'referenceType', 'blackboxType', 'enumTreeValueType', 'basketType', 'objectType' or 'metaobjectType'.";
 
   @Pattern(regexp = "^([A-Za-z][A-Za-z0-9_]*)(\\.[A-Za-z][A-Za-z0-9_]*)*$", message = "FQN must be dot-separated identifiers")
   @JsonProperty(required = false)
   private String domainFqn;
+  @Pattern(regexp = "^([A-Za-z][A-Za-z0-9_]*)(\\.[A-Za-z][A-Za-z0-9_]*)*$", message = "FQN must be dot-separated identifiers")
+  @JsonProperty(required = false)
+  private String structureFqn;
   @JsonProperty(required = false)
   private BaseType baseType;
   @JsonProperty(required = false)
@@ -30,6 +33,9 @@ public class TypeSpec {
 
   public String getDomainFqn() { return domainFqn; }
   public void setDomainFqn(String domainFqn) { this.domainFqn = domainFqn; }
+
+  public String getStructureFqn() { return structureFqn; }
+  public void setStructureFqn(String structureFqn) { this.structureFqn = structureFqn; }
 
   public BaseType getBaseType() { return baseType; }
   public void setBaseType(BaseType baseType) { this.baseType = baseType; }
@@ -55,7 +61,8 @@ public class TypeSpec {
   public Object requireSingleType() {
     Object selected = null;
     Object[] candidates = {
-        domainFqn != null && !domainFqn.isBlank() ? domainFqn : null,
+        domainFqn != null && !domainFqn.isBlank() ? new NamedType(domainFqn, false) : null,
+        structureFqn != null && !structureFqn.isBlank() ? new NamedType(structureFqn, true) : null,
         baseType,
         referenceType,
         blackboxType,
@@ -83,5 +90,8 @@ public class TypeSpec {
 
   public void validateOneOf() {
     requireSingleType();
+  }
+
+  public record NamedType(String fqn, boolean structure) {
   }
 }

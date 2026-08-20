@@ -15,7 +15,7 @@ class UnitAndMetaAttributeDiffTest {
     ModelChangeTools tools = changeTools();
 
     Map<String, Object> response = tools.reviewIliChange(
-        unitModel("2"), unitModel("3"), null, null, null);
+        unitModel("2"), unitModel("3"), null, null);
 
     assertThat(response.get("valid")).isEqualTo(true);
     assertThat(response.get("impact")).isEqualTo("POTENTIALLY_BREAKING");
@@ -38,7 +38,7 @@ class UnitAndMetaAttributeDiffTest {
     ModelChangeTools tools = changeTools();
 
     Map<String, Object> response = tools.reviewIliChange(
-        modelWithMetaAttribute("Before"), modelWithMetaAttribute("After"), null, null, null);
+        modelWithMetaAttribute("Before"), modelWithMetaAttribute("After"), null, null);
 
     assertThat(response.get("valid")).isEqualTo(true);
     assertThat(response.get("impact")).isEqualTo("ADDITIVE_OR_METADATA_ONLY");
@@ -58,7 +58,7 @@ class UnitAndMetaAttributeDiffTest {
     ModelChangeTools tools = changeTools();
 
     Map<String, Object> response = tools.reviewIliChange(
-        modelWithMetaAttribute("Before"), modelWithoutMetaAttribute(), null, null, null);
+        modelWithMetaAttribute("Before"), modelWithoutMetaAttribute(), null, null);
 
     assertThat(response.get("valid")).isEqualTo(true);
     assertThat(response.get("impact")).isEqualTo("ADDITIVE_OR_METADATA_ONLY");
@@ -75,7 +75,7 @@ class UnitAndMetaAttributeDiffTest {
   void analysisExposesMetaAttributeOwnerAndValue() {
     ModelAnalysisTools tools = new ModelAnalysisTools(new IliCompilerService());
 
-    Map<String, Object> response = tools.analyzeIliModel(modelWithMetaAttribute("Before"), null, null);
+    Map<String, Object> response = tools.analyzeIliModel(modelWithMetaAttribute("Before"), null);
 
     assertThat(response.get("valid")).isEqualTo(true);
     assertThat(response.get("metaAttributes")).asList()

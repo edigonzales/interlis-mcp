@@ -18,39 +18,29 @@ import java.util.Set;
 @Component
 public class GeometryAttributeTools {
 
-  private final DomainTools domainTools;
-
-  public GeometryAttributeTools(DomainTools domainTools) {
-    this.domainTools = domainTools;
-  }
-
   @McpTool(
       name = "ensureGeometryDependencies",
       description = """
           Stellt sicher, dass für ein Geometrieattribut alle benötigten Imports/Domains vorhanden sind.
-          Params: attributeName (required), dimension (default 2), arcs (default false), overlapMm (default 1),
-          chbase (default false), iliVersion ('2.3' oder '2.4', default '2.4'), geometryType (default SURFACE), directed (default false).
+          Params: attributeName (required), arcs (default false), overlapMm (default 1),
+          chbase (default false), iliVersion ('2.3' oder '2.4', default '2.4'), geometryType (default SURFACE),
+          coordDomainFqn (required without CHBase), directed (default false).
           """
   )
   public Map<String, Object> ensureGeometryDependencies(
       @McpToolParam(description = "Attributname", required = true) String attributeName,
-      @McpToolParam(description = "Koordinatendimension (2 oder 3)", required = false) @Nullable Integer dimension,
       @McpToolParam(description = "Kreisbogen erlaubt (true = WITH ARCS)", required = false) @Nullable Boolean arcs,
       @McpToolParam(description = "Erlaubte Überlappung in Millimeter (Default 1)", required = false) @Nullable BigDecimal overlapMm,
       @McpToolParam(description = "CHBase-Geometrien verwenden", required = false) @Nullable Boolean chbase,
       @McpToolParam(description = "INTERLIS Sprachversion (2.3 oder 2.4)", required = false) @Nullable String iliVersion,
       @McpToolParam(description = "Geometrietyp, z. B. SURFACE (Default)", required = false) @Nullable String geometryType,
+      @McpToolParam(description = "Explizite Koordinatendomain für INTERLIS-Geometrien; bei chbase=false erforderlich", required = false) @Nullable String coordDomainFqn,
       @McpToolParam(description = "Linienzug ist DIRECTED (nur Polyline/MultiPolyline)", required = false) @Nullable Boolean directed,
       @McpToolParam(description = "Attribut ist MANDATORY", required = false) @Nullable Boolean mandatory,
       @McpToolParam(description = "Collection: LIST OF oder BAG OF", required = false) @Nullable String collection
   ) {
     var nv = NameValidator.ascii();
     nv.validateIdent(attributeName, "Attribute name");
-
-    int dim = dimension == null ? 2 : dimension;
-    if (dim != 2 && dim != 3) {
-      throw new IllegalArgumentException("dimension must be 2 or 3.");
-    }
 
     boolean useArcs = Boolean.TRUE.equals(arcs);
     BigDecimal overlapMeters = (overlapMm == null ? BigDecimal.ONE : overlapMm).movePointLeft(3);
@@ -69,15 +59,14 @@ public class GeometryAttributeTools {
         : geometryType.trim();
     if (!useChBase) {
       geom = geom.toUpperCase(Locale.ROOT);
+      if (!interlisGeometryTypes(ili).contains(geom)) {
+        throw new IllegalArgumentException("Unsupported INTERLIS geometry type '" + geom + "' for version " + ili + ".");
+      }
     }
 
     boolean isDirected = Boolean.TRUE.equals(directed);
     if (isDirected && !isLineGeometry(geom, useChBase)) {
       throw new IllegalArgumentException("DIRECTED ist nur für Linien-Typen erlaubt.");
-    }
-
-    if (useChBase && dim == 3 && "2.3".equals(ili)) {
-      throw new IllegalArgumentException("CHBase 2.3 bietet keine 3D-Surface-Domains.");
     }
 
     List<String> imports = new ArrayList<>();
@@ -89,18 +78,19 @@ public class GeometryAttributeTools {
     if (useChBase) {
       String modelName = "2.3".equals(ili) ? "GeometryCHLV95_V1" : "GeometryCHLV95_V2";
       imports.add(modelName);
-      String qualifiedType = qualifyChBaseGeometry(geom, modelName);
+      String qualifiedType = qualifyChBaseGeometry(geom, modelName, ili);
       attributeLine = attributePrefix + qualifiedType + ";";
     } else {
+      if (coordDomainFqn == null || coordDomainFqn.isBlank()) {
+        throw new IllegalArgumentException("coordDomainFqn is required when chbase=false.");
+      }
+      String coordDomain = coordDomainFqn.trim();
+      nv.validateFqn(coordDomain, "Coordinate domain");
       imports.add("INTERLIS");
-      String coordDomainName = "Coord" + dim;
-      nv.validateIdent(coordDomainName, "Coord domain name");
-      String coordSnippet = (String) domainTools.createCoordDomainSnippet(coordDomainName, dim, null, null, null).get("iliSnippet");
-      domains.add(coordSnippet);
-      notes.add("Domain nach IMPORTS einfügen");
+      notes.add("Verwendet die explizit angegebene Koordinatendomain " + coordDomain + ".");
       notes.add("Tolerance ist in Metern interpretiert");
 
-      attributeLine = buildGeometryAttribute(attributePrefix, geom, coordDomainName, useArcs, overlapMeters, isDirected);
+      attributeLine = buildGeometryAttribute(attributePrefix, geom, coordDomain, useArcs, overlapMeters, isDirected);
     }
 
     List<String> importLines = new ArrayList<>();
@@ -166,16 +156,21 @@ public class GeometryAttributeTools {
     return attributePrefix + directedPrefix + geom + " " + lineForm + "\n        VERTEX " + coordDomainName + "\n        WITHOUT OVERLAPS > " + overlap + ";";
   }
 
-  private String qualifyChBaseGeometry(String geom, String modelName) {
+  private String qualifyChBaseGeometry(String geom, String modelName, String ili) {
     String trimmed = geom.trim();
     String baseName = trimmed.contains(".") ? trimmed.substring(trimmed.lastIndexOf('.') + 1) : trimmed;
     if ("COORD".equalsIgnoreCase(baseName)) {
       throw new IllegalArgumentException("CHBase bietet nur Coord2 oder Coord3.");
     }
-    if (trimmed.contains(".")) {
-      return trimmed;
+    if (trimmed.contains(".") && !trimmed.startsWith(modelName + ".")) {
+      throw new IllegalArgumentException("CHBase geometry must belong to " + modelName + ".");
     }
-    return modelName + "." + trimmed;
+    String canonical = ("2.3".equals(ili) ? chBase23() : chBase24())
+        .get(baseName.toUpperCase(Locale.ROOT));
+    if (canonical == null) {
+      throw new IllegalArgumentException("Unsupported CHBase geometry type '" + baseName + "' for version " + ili + ".");
+    }
+    return modelName + "." + canonical;
   }
 
   private String buildAttributePrefix(String attributeName, @Nullable Boolean mandatory, @Nullable String collectionRaw) {

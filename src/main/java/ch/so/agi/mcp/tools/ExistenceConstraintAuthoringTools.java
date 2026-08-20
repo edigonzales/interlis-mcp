@@ -5,9 +5,8 @@ import ch.interlis.ili2c.metamodel.TransferDescription;
 import ch.interlis.ili2c.metamodel.Viewable;
 import ch.interlis.ili2c.parser.Ili23Parser;
 import ch.so.agi.mcp.constraint.CompiledConstraintContext;
-import ch.so.agi.mcp.constraint.ConstraintContextService;
+import ch.so.agi.mcp.constraint.ConstraintAuthoringWorkflow;
 import ch.so.agi.mcp.constraint.ConstraintExpression;
-import ch.so.agi.mcp.constraint.ConstraintSourceEditService;
 import ch.so.agi.mcp.constraint.SemanticConstraint;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.ArrayList;
@@ -32,20 +31,14 @@ public class ExistenceConstraintAuthoringTools {
     public String attributePath;
   }
 
-  private final IliCompilerService compilerService;
   private final ConstraintCaseGenerationTools caseGenerationTools;
-  private final ConstraintContextService contextService;
-  private final ConstraintSourceEditService sourceEditService;
+  private final ConstraintAuthoringWorkflow authoringWorkflow;
 
   public ExistenceConstraintAuthoringTools(
-      IliCompilerService compilerService,
       ConstraintCaseGenerationTools caseGenerationTools,
-      ConstraintContextService contextService,
-      ConstraintSourceEditService sourceEditService) {
-    this.compilerService = compilerService;
+      ConstraintAuthoringWorkflow authoringWorkflow) {
     this.caseGenerationTools = caseGenerationTools;
-    this.contextService = contextService;
-    this.sourceEditService = sourceEditService;
+    this.authoringWorkflow = authoringWorkflow;
   }
 
   @McpTool(
@@ -57,8 +50,7 @@ public class ExistenceConstraintAuthoringTools {
       @McpToolParam(description = "Vollqualifizierter Constraint-Kontext Model.Topic.Class/Association/View", required = true) String context,
       @McpToolParam(description = "Technischer Constraint-Name", required = true) String constraintName,
       @McpToolParam(description = "Attributpfad des eingeschraenkten Werts im Constraint-Kontext", required = true) String restrictedPath,
-      @McpToolParam(description = "Mindestens ein REQUIRED-IN-Ziel. Jedes Element gibt viewableFqn und attributePath explizit an; Zielattribute werden nie geraten.", required = true) List<RequiredInTarget> requiredIn,
-      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition", required = false) @Nullable String modelRepositories) {
+      @McpToolParam(description = "Mindestens ein REQUIRED-IN-Ziel. Jedes Element gibt viewableFqn und attributePath explizit an; Zielattribute werden nie geraten.", required = true) List<RequiredInTarget> requiredIn) {
     String normalizedContext;
     String normalizedName;
     String normalizedRestricted;
@@ -72,9 +64,8 @@ public class ExistenceConstraintAuthoringTools {
       return unavailable("INVALID_AUTHORING_SPEC", ex.getMessage(), null, null, null);
     }
 
-    IliCompilerService.CompilationResult beforeCompilation = compilerService.compile(
+    IliCompilerService.CompilationResult beforeCompilation = authoringWorkflow.compileBefore(
         modelText,
-        modelRepositories,
         "ili2c_existence_authoring_before_");
     if (!beforeCompilation.valid() || beforeCompilation.transferDescription() == null) {
       Map<String, Object> result = unavailable(
@@ -102,13 +93,15 @@ public class ExistenceConstraintAuthoringTools {
         normalizedName,
         normalizedRestricted,
         targets);
-    ConstraintSourceEditService.PreparedInsertion insertion;
+    ConstraintAuthoringWorkflow.PreparedConstraint prepared;
     try {
-      insertion = sourceEditService.insertConstraintBlock(
+      prepared = authoringWorkflow.insertAndResolve(
           modelText,
           beforeCompilation,
           normalizedContext,
-          constraintBlock);
+          constraintBlock,
+          normalizedContext + "." + normalizedName,
+          "ili2c_existence_authoring_after_");
     } catch (IllegalArgumentException ex) {
       return unavailable(
           "CONSTRAINT_INSERTION_FAILED",
@@ -118,12 +111,8 @@ public class ExistenceConstraintAuthoringTools {
           null);
     }
 
-    String expectedConstraintFqn = normalizedContext + "." + normalizedName;
-    ConstraintContextService.Resolution afterResolution = contextService.compileAndResolve(
-        insertion.updatedModelText(),
-        expectedConstraintFqn,
-        modelRepositories,
-        "ili2c_existence_authoring_after_");
+    var insertion = prepared.insertion();
+    var afterResolution = prepared.resolution();
     if (!afterResolution.available()) {
       Map<String, Object> result = unavailable(
           afterResolution.compilation().valid()

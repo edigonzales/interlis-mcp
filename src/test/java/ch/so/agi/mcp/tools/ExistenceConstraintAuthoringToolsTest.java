@@ -2,8 +2,8 @@ package ch.so.agi.mcp.tools;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.so.agi.mcp.constraint.ConstraintAuthoringWorkflow;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
-import ch.so.agi.mcp.constraint.ConstraintSourceEditService;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.List;
 import java.util.Map;
@@ -35,12 +35,11 @@ class ExistenceConstraintAuthoringToolsTest {
   void authorsSourcePreservingExistenceConstraintAndVerifiesProofWithTwoCompiles() {
     CountingCompiler compiler = new CountingCompiler();
     ConstraintContextService contextService = new ConstraintContextService(compiler);
-    ConstraintCaseGenerationTools caseTools = new ConstraintCaseGenerationTools(compiler, contextService);
+    ConstraintCaseGenerationTools caseTools = new ConstraintCaseGenerationTools(
+        contextService, new ConstraintTestTools(compiler));
     ExistenceConstraintAuthoringTools tools = new ExistenceConstraintAuthoringTools(
-        compiler,
         caseTools,
-        contextService,
-        new ConstraintSourceEditService());
+        new ConstraintAuthoringWorkflow(compiler));
 
     ExistenceConstraintAuthoringTools.RequiredInTarget targetA = target(
         "ExistenceAuthor.Data.TargetA", "code");
@@ -52,8 +51,7 @@ class ExistenceConstraintAuthoringToolsTest {
         "ExistenceAuthor.Data.Source",
         "CodeExists",
         "code",
-        List.of(targetA, targetB),
-        null);
+        List.of(targetA, targetB));
 
     assertThat(result.get("generated")).isEqualTo(true);
     assertThat(result.get("proofVerified")).isEqualTo(true);
@@ -76,18 +74,15 @@ class ExistenceConstraintAuthoringToolsTest {
     CountingCompiler compiler = new CountingCompiler();
     ConstraintContextService contextService = new ConstraintContextService(compiler);
     ExistenceConstraintAuthoringTools tools = new ExistenceConstraintAuthoringTools(
-        compiler,
-        new ConstraintCaseGenerationTools(compiler, contextService),
-        contextService,
-        new ConstraintSourceEditService());
+        new ConstraintCaseGenerationTools(contextService, new ConstraintTestTools(compiler)),
+        new ConstraintAuthoringWorkflow(compiler));
 
     Map<String, Object> result = tools.authorIliExistenceConstraint(
         MODEL,
         "ExistenceAuthor.Data.Source",
         "CodeExists",
         "code",
-        List.of(target("ExistenceAuthor.Data.TargetA", "missing")),
-        null);
+        List.of(target("ExistenceAuthor.Data.TargetA", "missing")));
 
     assertThat(result.get("generated")).isEqualTo(false);
     assertThat(result.get("reasonCode")).isEqualTo("EXISTENCE_PATH_RESOLUTION_FAILED");

@@ -1,8 +1,11 @@
 package ch.so.agi.mcp.tools;
 
+import ch.so.agi.mcp.constraint.ConstraintAuthoringWorkflow;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.List;
 import java.util.Map;
@@ -41,14 +44,12 @@ class ConstraintDecisionTableSumTest {
       """;
 
   private final IliCompilerService compilerService = new IliCompilerService();
-  private final ConstraintKnowledgeTools knowledgeTools = new ConstraintKnowledgeTools(
-      new MathTools(), new TextTools(), compilerService);
+  private final ConstraintKnowledgeTools knowledgeTools = new ConstraintKnowledgeTools(compilerService);
   private final ConstraintReviewTools reviewTools = new ConstraintReviewTools(compilerService, knowledgeTools);
   private final ConstraintTestTools testTools = new ConstraintTestTools(compilerService);
-  private final ConstraintDecisionTableTools tools = new ConstraintDecisionTableTools(
-      reviewTools,
-      testTools,
-      compilerService);
+  private final ConstraintContextService contextService = new ConstraintContextService(compilerService);
+  private final ConstraintCaseGenerationTools caseTools = new ConstraintCaseGenerationTools(contextService, testTools);
+  private final ConstraintDecisionTableTools tools = new ConstraintDecisionTableTools(new ConstraintAuthoringWorkflow(compilerService), caseTools);
 
   @Test
   void provesSumBoundariesAcrossMultiValuedAssociationPath() {
@@ -61,8 +62,7 @@ class ConstraintDecisionTableSumTest {
         MODEL,
         "DecisionSumModel.Data.Hauptauspraegung",
         "SecondarySumBetween10And20",
-        List.of(allowed),
-        null);
+        List.of(allowed));
 
     assertEquals(true, result.get("generated"), String.valueOf(result));
     assertEquals(true, result.get("proofVerified"), String.valueOf(result));
@@ -93,7 +93,7 @@ class ConstraintDecisionTableSumTest {
 
     List<Map<String, Object>> verifiedCases = list(verification.get("cases"));
     String xtf = String.valueOf(verifiedCases.getFirst().get("xtfText"));
-    assertTrue(count(xtf, "<Bodeneinheit REF=\"decision_case_1_root\"") >= 1, xtf);
+    assertTrue(count(xtf, "<Bodeneinheit REF=\"auto_case_1_root\"") >= 1, xtf);
   }
 
   @Test
@@ -104,8 +104,7 @@ class ConstraintDecisionTableSumTest {
         "SecondarySum150",
         List.of(row(
             "sum 150",
-            sumCondition("Nebenauspraegung->Gewichtung", "==", 150))),
-        null);
+            sumCondition("Nebenauspraegung->Gewichtung", "==", 150))));
 
     assertEquals(true, result.get("generated"), String.valueOf(result));
     assertEquals(true, result.get("proofVerified"), String.valueOf(result));

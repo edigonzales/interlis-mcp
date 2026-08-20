@@ -95,7 +95,7 @@ class AgentPromptsTest {
         .contains("coverageUnsolved")
         .contains("reviewIliChange")
         .contains("afterReview")
-        .contains("Legacy-/Snippet-Tools");
+        .contains("nicht Teil der MCP-Oberfläche");
   }
 
   @Test
@@ -115,7 +115,7 @@ class AgentPromptsTest {
 
   @Test
   void constraintWorkflowResourceDocumentsAuthoringProofAndReviewHierarchy() {
-    String resource = new ConstraintWorkflowResource().constraintWorkflow().toString();
+    String resource = new KnowledgeResources(null, null).constraintWorkflow().toString();
 
     assertThat(resource)
         .contains("interlis://knowledge/constraint-workflow")
@@ -132,6 +132,6 @@ class AgentPromptsTest {
         .contains("proofVerified")
         .contains("generationVerified")
         .contains("reviewIliChange")
-        .contains("Safety-Reason-Code");
+        .contains("Reason-Codes");
   }
 }

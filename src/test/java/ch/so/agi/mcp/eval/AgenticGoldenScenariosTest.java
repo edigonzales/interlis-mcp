@@ -46,15 +46,13 @@ class AgenticGoldenScenariosTest {
         "2026-08-17",
         "2.4",
         List.of(),
-        true,
         null,
         null).get("iliSnippet").toString();
 
     Map<String, Object> review = reviews.reviewIliModel(
         modelText,
         ModelPurpose.CAPTURE,
-        ModelingRuleProfile.CORE,
-        null);
+        ModelingRuleProfile.CORE);
 
     assertThat(compiler.calls).isEqualTo(1);
     assertThat(review.get("compilerValid")).isEqualTo(true);
@@ -71,7 +69,6 @@ class AgenticGoldenScenariosTest {
     Map<String, Object> changeReview = changes.reviewIliChange(
         baseModel(),
         extendedModel(),
-        null,
         ModelPurpose.CAPTURE,
         ModelingRuleProfile.CORE);
 
@@ -101,7 +98,7 @@ class AgenticGoldenScenariosTest {
         END Demo.
         """;
 
-    Map<String, Object> response = validation.validateIliModel(modelText, null);
+    Map<String, Object> response = validation.validateIliModel(modelText);
 
     assertThat(response.get("valid")).isEqualTo(false);
     assertThat(response.get("messages")).asList()
@@ -155,7 +152,6 @@ class AgenticGoldenScenariosTest {
     Map<String, Object> response = changes.reviewIliChange(
         breakingBeforeModel(),
         breakingAfterModel(),
-        null,
         ModelPurpose.CAPTURE,
         ModelingRuleProfile.CORE);
 

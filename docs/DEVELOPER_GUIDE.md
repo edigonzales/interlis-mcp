@@ -14,7 +14,7 @@ Der aktuelle Build verwendet:
 - iox-ili 1.24.4
 - ilivalidator 1.14.3
 
-Verbindliche Laufzeitquelle für diese Versionen ist `build.gradle`. `gradle/libs.versions.toml` existiert ebenfalls, wird für die direkt in `build.gradle` deklarierten INTERLIS-Abhängigkeiten derzeit aber nicht als Quelle verwendet und kann ältere Werte enthalten. Die Dokumentation soll keine dritte, abweichende Versionsverwaltung bilden.
+Verbindliche Laufzeitquelle für diese Versionen ist `build.gradle`. Es gibt bewusst keinen zweiten, unbenutzten Versionskatalog.
 
 ## Projektstruktur
 
@@ -99,7 +99,10 @@ spring.ai.mcp.server.capabilities.completion=false
 interlis.knowledge.model-paths=
 interlis.knowledge.max-model-bytes=1048576
 interlis.knowledge.max-search-results=10
+interlis.mcp.model-repositories=
 ```
+
+`interlis.mcp.model-repositories` konfiguriert die ili2c-/ilivalidator-Repositories einmal pro Server. Öffentliche Tools nehmen keinen Repository-Override pro Aufruf entgegen. Per Environment kann die Property als `INTERLIS_MCP_MODEL_REPOSITORIES` gesetzt werden.
 
 Die Serverversion wird beim `processResources` aus `project.version` in `application.properties` eingesetzt. Lokale Builds verwenden typischerweise `0.0.LOCALBUILD`; CI-Builds verwenden die vom vorhandenen Versionierungsskript berechnete Version.
 
@@ -122,7 +125,8 @@ Sie prüfen beispielsweise Renderer, Parseradapter, Binder, Solver, Modelländer
 Dieser Test schützt die öffentliche MCP-Tooloberfläche:
 
 - registrierte Toolnamen,
-- Required-/Optional-Parameter,
+- die exakte Menge der Required-/Optional-Parameter,
+- eine Obergrenze für die serialisierte Tool-Deklaration,
 - ausgewählte Beschreibungen,
 - JSON-Deserialisierung komplexer DTOs,
 - reale Handleraufrufe für wichtige strukturierte Werkzeuge.
@@ -168,15 +172,13 @@ Damit werden unter anderem geprüft:
 
 ### CI
 
-Der GitHub-Workflow führt für den JVM-Build aus:
+Der geheimnisfreie Test-Job läuft für Pushes, Pull Requests, manuelle Starts und reine Dokumentationsänderungen:
 
 ```text
-./gradlew clean test
-./gradlew build -x test
-./gradlew e2eTest
+./gradlew clean test e2eTest --no-daemon
 ```
 
-Reine Markdown-Pushes sind im aktuellen Workflow über `paths-ignore: '**.md'` ausgenommen. Änderungen an Java-basierten MCP-Prompts/Resources, Properties oder anderen Laufzeitdateien lösen den normalen Build aus.
+Erst nach erfolgreichem Test veröffentlicht ein separater Job auf `main` das Multi-Arch-Image. Registry-Secrets stehen nur diesem Publish-Job zur Verfügung. Externe Actions und das Container-Basisimage sind auf Commits beziehungsweise Digest gepinnt.
 
 ## Neues Tool hinzufügen
 

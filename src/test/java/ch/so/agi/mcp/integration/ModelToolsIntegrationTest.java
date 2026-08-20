@@ -36,7 +36,7 @@ class ModelToolsIntegrationTest {
 
     @Test
     void createModelSnippet_usesDefaultsFromSpringContext() {
-        Map<String, Object> result = modelTools.createModelSnippet("TestModel", null, null, null, null, null, null, null, null);
+        Map<String, Object> result = modelTools.createModelSnippet("TestModel", null, null, null, null, null, null, null);
 
         String expectedSnippet = "INTERLIS 2.4;\n\n" +
                 "MODEL TestModel (de) AT \"https://example.org/testmodel\" VERSION \"2024-04-01\" =\n" +
@@ -54,7 +54,6 @@ class ModelToolsIntegrationTest {
                 "2023-12-31",
                 "2.3",
                 List.of("GeometryCHLV95_V1", "Units"),
-                null,
                 null,
                 null
         );

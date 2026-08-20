@@ -1,7 +1,10 @@
 package ch.so.agi.mcp.tools;
 
+import ch.so.agi.mcp.constraint.ConstraintAuthoringWorkflow;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.math.BigDecimal;
 import java.util.List;
@@ -56,8 +59,7 @@ class ConstraintCompiledPipelineTest {
 
     Map<String, Object> result = tools.generateIliConstraintCases(
         MODEL_WITH_CONSTRAINT,
-        "ValueAtLeast10",
-        null);
+        "ValueAtLeast10");
 
     assertThat(result.get("generationVerified")).isEqualTo(true);
     assertThat(compiler.calls).isEqualTo(1);
@@ -70,8 +72,7 @@ class ConstraintCompiledPipelineTest {
 
     Map<String, Object> result = tools.generateIliConstraintCases(
         MODEL_WITH_PLAUSIBILITY,
-        "ValueUsuallyHigh",
-        null);
+        "ValueUsuallyHigh");
 
     assertThat(result.get("generationVerified")).isEqualTo(true);
     assertThat(result.get("pattern")).isEqualTo("PLAUSIBILITY_POPULATION_PROOF");
@@ -82,7 +83,7 @@ class ConstraintCompiledPipelineTest {
   void mandatoryAuthoringCompilesBeforeAndAfterExactlyOnce() {
     CountingCompiler compiler = new CountingCompiler();
     ConstraintCaseGenerationTools cases = caseTools(compiler);
-    ConstraintAuthoringTools tools = new ConstraintAuthoringTools(compiler, cases);
+    ConstraintAuthoringTools tools = new ConstraintAuthoringTools(cases, new ConstraintAuthoringWorkflow(compiler));
 
     ConstraintAuthoringTools.ExpressionNode attribute = node("value", "ATTRIBUTE");
     attribute.name = "value";
@@ -97,8 +98,7 @@ class ConstraintCompiledPipelineTest {
         "ReuseTest.Data.Item",
         "ValueAtLeast10",
         "root",
-        List.of(attribute, threshold, comparison),
-        null);
+        List.of(attribute, threshold, comparison));
 
     assertThat(result.get("generated")).isEqualTo(true);
     assertThat(result.get("proofVerified")).isEqualTo(true);
@@ -115,7 +115,7 @@ class ConstraintCompiledPipelineTest {
   void plausibilityAuthoringCompilesBeforeAndAfterExactlyOnce() {
     CountingCompiler compiler = new CountingCompiler();
     ConstraintCaseGenerationTools cases = caseTools(compiler);
-    ConstraintAuthoringTools tools = new ConstraintAuthoringTools(compiler, cases);
+    ConstraintAuthoringTools tools = new ConstraintAuthoringTools(cases, new ConstraintAuthoringWorkflow(compiler));
 
     ConstraintAuthoringTools.ExpressionNode attribute = node("value", "ATTRIBUTE");
     attribute.name = "value";
@@ -132,8 +132,7 @@ class ConstraintCompiledPipelineTest {
         "AT_LEAST",
         new BigDecimal("80"),
         "root",
-        List.of(attribute, threshold, comparison),
-        null);
+        List.of(attribute, threshold, comparison));
 
     assertThat(result.get("generated")).isEqualTo(true);
     assertThat(result.get("proofVerified")).isEqualTo(true);
@@ -153,7 +152,7 @@ class ConstraintCompiledPipelineTest {
   void authoringPreservesCrLfAndExistingSourceOutsideInsertion() {
     CountingCompiler compiler = new CountingCompiler();
     ConstraintCaseGenerationTools cases = caseTools(compiler);
-    ConstraintAuthoringTools tools = new ConstraintAuthoringTools(compiler, cases);
+    ConstraintAuthoringTools tools = new ConstraintAuthoringTools(cases, new ConstraintAuthoringWorkflow(compiler));
     String before = MODEL_WITHOUT_CONSTRAINT.replace("\n", "\r\n");
 
     ConstraintAuthoringTools.ExpressionNode attribute = node("value", "ATTRIBUTE");
@@ -169,8 +168,7 @@ class ConstraintCompiledPipelineTest {
         "ReuseTest.Data.Item",
         "ValueAtLeast10",
         "root",
-        List.of(attribute, threshold, comparison),
-        null);
+        List.of(attribute, threshold, comparison));
 
     String updated = result.get("updatedModelText").toString();
     assertThat(updated).contains("\r\n    CONSTRAINTS OF ReuseTest.Data.Item =\r\n");
@@ -180,11 +178,10 @@ class ConstraintCompiledPipelineTest {
   }
 
   private ConstraintCaseGenerationTools caseTools(IliCompilerService compiler) {
-    ConstraintKnowledgeTools knowledge = new ConstraintKnowledgeTools(
-        new MathTools(), new TextTools(), compiler);
+    ConstraintKnowledgeTools knowledge = new ConstraintKnowledgeTools(compiler);
     ConstraintReviewTools review = new ConstraintReviewTools(compiler, knowledge);
     ConstraintTestTools tests = new ConstraintTestTools(compiler);
-    return new ConstraintCaseGenerationTools(review, tests, compiler);
+    return new ConstraintCaseGenerationTools(new ConstraintContextService(compiler), tests);
   }
 
   private ConstraintAuthoringTools.ExpressionNode node(String id, String kind) {

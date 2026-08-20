@@ -38,6 +38,20 @@ class AttributeToolsTest {
     }
 
     @Test
+    void createAttributeLineV2_usesStructureWhenPresent() {
+        AttributeLineRequest request = new AttributeLineRequest();
+        request.setName("addresses");
+        request.setCollection(Collection.LIST_OF);
+        TypeSpec spec = new TypeSpec();
+        spec.setStructureFqn("Demo.Core.Address");
+        request.setTypeSpec(spec);
+
+        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+
+        assertEquals("addresses : LIST OF Demo.Core.Address;", response.getIliSnippet());
+    }
+
+    @Test
     void createAttributeLineV2_formatsBaseTypeRange() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("hoehe");
@@ -428,7 +442,7 @@ class AttributeToolsTest {
 
     private void assertCompiles(String modelText) {
         ValidationTools validationTools = new ValidationTools(new IliCompilerService());
-        Map<String, Object> result = validationTools.validateIliModel(modelText, null);
+        Map<String, Object> result = validationTools.validateIliModel(modelText);
         assertEquals(true, result.get("valid"), () -> "Expected valid model but got " + result);
     }
 

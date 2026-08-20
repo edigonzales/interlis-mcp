@@ -1,9 +1,12 @@
 package ch.so.agi.mcp.tools;
 
+import ch.so.agi.mcp.constraint.ConstraintAuthoringWorkflow;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.List;
 import java.util.Map;
@@ -28,11 +31,12 @@ class ConstraintDecisionTableToolsTest {
       """;
 
   private final IliCompilerService compilerService = new IliCompilerService();
-  private final ConstraintKnowledgeTools knowledgeTools = new ConstraintKnowledgeTools(
-      new MathTools(), new TextTools(), compilerService);
+  private final ConstraintKnowledgeTools knowledgeTools = new ConstraintKnowledgeTools(compilerService);
   private final ConstraintReviewTools reviewTools = new ConstraintReviewTools(compilerService, knowledgeTools);
   private final ConstraintTestTools testTools = new ConstraintTestTools(compilerService);
-  private final ConstraintDecisionTableTools tools = new ConstraintDecisionTableTools(reviewTools, testTools);
+  private final ConstraintContextService contextService = new ConstraintContextService(compilerService);
+  private final ConstraintCaseGenerationTools caseTools = new ConstraintCaseGenerationTools(contextService, testTools);
+  private final ConstraintDecisionTableTools tools = new ConstraintDecisionTableTools(new ConstraintAuthoringWorkflow(compilerService), caseTools);
 
   @Test
   void generatesRangeConstraintAndProvesFourBoundaryValues() {
@@ -45,8 +49,7 @@ class ConstraintDecisionTableToolsTest {
         MODEL,
         "DecisionTableModel.Data.Item",
         "ValueBetween10And20",
-        List.of(allowed),
-        null);
+        List.of(allowed));
 
     assertEquals(true, result.get("generated"));
     assertEquals(true, result.get("proofVerified"));
@@ -81,8 +84,7 @@ class ConstraintDecisionTableToolsTest {
         MODEL,
         "DecisionTableModel.Data.Item",
         "LowOrHigh",
-        List.of(low, high),
-        null);
+        List.of(low, high));
 
     assertEquals(true, result.get("generated"));
     assertEquals(true, result.get("proofVerified"));
@@ -108,8 +110,7 @@ class ConstraintDecisionTableToolsTest {
         MODEL,
         "DecisionTableModel.Data.Item",
         "DraftOrActive",
-        List.of(draft, active),
-        null);
+        List.of(draft, active));
 
     assertEquals(true, result.get("generated"));
     assertEquals(true, result.get("proofVerified"));
@@ -132,8 +133,7 @@ class ConstraintDecisionTableToolsTest {
         MODEL,
         "DecisionTableModel.Data.Item",
         "EnabledOnly",
-        List.of(row("enabled", condition("enabled", "==", true))),
-        null);
+        List.of(row("enabled", condition("enabled", "==", true))));
 
     assertEquals(true, result.get("generated"));
     assertEquals(true, result.get("proofVerified"));
@@ -157,8 +157,7 @@ class ConstraintDecisionTableToolsTest {
         textModel,
         "DecisionTableModel.Data.Item",
         "NumericOnly",
-        List.of(row("row", condition("value", ">=", 10))),
-        null);
+        List.of(row("row", condition("value", ">=", 10))));
 
     assertEquals(false, result.get("generated"));
     assertEquals(false, result.get("proofVerified"));

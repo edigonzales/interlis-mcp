@@ -38,7 +38,6 @@ public class ModelChangeTools {
   public Map<String, Object> reviewIliChange(
       @McpToolParam(description = "INTERLIS-2 Modelltext vor der Aenderung", required = true) String beforeModelText,
       @McpToolParam(description = "INTERLIS-2 Modelltext nach der Aenderung", required = true) String afterModelText,
-      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition fuer beide Versionen", required = false) @Nullable String modelRepositories,
       @McpToolParam(description = "Modellzweck fuer das Review des After-Modells: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false) @Nullable ModelPurpose modelPurpose,
       @McpToolParam(description = "Regelprofil fuer das Review des After-Modells: CORE oder SO (Default CORE)", required = false) @Nullable ModelingRuleProfile ruleProfile
   ) {
@@ -46,9 +45,9 @@ public class ModelChangeTools {
     ModelingRuleProfile profile = ModelingRuleProfile.normalize(ruleProfile);
 
     IliCompilerService.CompilationResult beforeCompilation =
-        compilerService.compile(beforeModelText, modelRepositories, "ili2c_change_before_");
+        compilerService.compile(beforeModelText, null, "ili2c_change_before_");
     IliCompilerService.CompilationResult afterCompilation =
-        compilerService.compile(afterModelText, modelRepositories, "ili2c_change_after_");
+        compilerService.compile(afterModelText, null, "ili2c_change_after_");
 
     return reviewService.reviewCompiledChange(
         beforeCompilation,

@@ -15,6 +15,7 @@ import ch.interlis.ili2c.metamodel.EnumerationType;
 import ch.interlis.ili2c.metamodel.Extendable;
 import ch.interlis.ili2c.metamodel.Model;
 import ch.interlis.ili2c.metamodel.NumericType;
+import ch.interlis.ili2c.metamodel.NumericalType;
 import ch.interlis.ili2c.metamodel.ReferenceType;
 import ch.interlis.ili2c.metamodel.RoleDef;
 import ch.interlis.ili2c.metamodel.Table;
@@ -41,6 +42,8 @@ import ch.interlis.iox_j.StartTransferEvent;
 import ch.interlis.iox_j.logging.LogEventFactory;
 import ch.interlis.iox_j.validator.ValidationConfig;
 import ch.so.agi.mcp.service.IliCompilerService;
+import ch.so.agi.mcp.constraint.CompiledConstraintContext;
+import ch.so.agi.mcp.util.McpInputLimits;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
@@ -101,14 +104,11 @@ public class ConstraintTestTools {
   public Map<String, Object> testIliConstraint(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,
       @McpToolParam(description = "Constraint-Name oder vollqualifizierter Constraint-Name", required = true) String constraint,
-      @McpToolParam(description = "Explizite Testfaelle. Jeder Fall enthaelt name, expectedConstraintValid, objects und optional links. Object basketId ist optional; ohne Angabe wird wie bisher ein impliziter Basket pro Topic verwendet. Object values sind skalare Werte, Listen skalarer Werte oder verschachtelte Maps/Listen fuer STRUCTURE-Attribute; references und link roles enthalten Ziel-OIDs. Heavyweight Association links koennen optional basketId setzen.", required = true) List<TestCase> cases,
-      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition", required = false) @Nullable String modelRepositories) {
-    if (cases == null || cases.isEmpty()) {
-      throw new IllegalArgumentException("At least one explicit constraint test case is required.");
-    }
+      @McpToolParam(description = "Explizite Testfaelle. Jeder Fall enthaelt name, expectedConstraintValid, objects und optional links. Object basketId ist optional; ohne Angabe wird wie bisher ein impliziter Basket pro Topic verwendet. Object values sind skalare Werte, Listen skalarer Werte oder verschachtelte Maps/Listen fuer STRUCTURE-Attribute; references und link roles enthalten Ziel-OIDs. Heavyweight Association links koennen optional basketId setzen.", required = true) List<TestCase> cases) {
+    McpInputLimits.requireConstraintCases(cases);
 
     IliCompilerService.CompilationResult compilation =
-        compilerService.compile(modelText, modelRepositories, "ili2c_constraint_test_");
+        compilerService.compile(modelText, null, "ili2c_constraint_test_");
     if (!compilation.valid() || compilation.transferDescription() == null) {
       return Map.of(
           "tested", false,
@@ -126,6 +126,21 @@ public class ConstraintTestTools {
       throw new IllegalArgumentException("Constraint not found: " + constraint);
     }
 
+    return testResolvedConstraint(td, target, cases);
+  }
+
+  Map<String, Object> testCompiledConstraint(
+      CompiledConstraintContext context,
+      List<TestCase> cases) {
+    Objects.requireNonNull(context, "context");
+    McpInputLimits.requireConstraintCases(cases);
+    return testResolvedConstraint(context.transferDescription(), context.constraint(), cases);
+  }
+
+  private Map<String, Object> testResolvedConstraint(
+      TransferDescription td,
+      Constraint target,
+      List<TestCase> cases) {
     String targetQName = constraintQName(target);
     String context = target.getContainer() != null ? target.getContainer().getScopedName(null) : "";
     List<Constraint> allConstraints = collectConstraints(td);
@@ -156,7 +171,7 @@ public class ConstraintTestTools {
     response.put("automaticCasesGenerated", false);
     response.put("limitations", List.of(
         "Test cases are supplied explicitly by the agent; no witness or counterexample generation is performed.",
-        "Scalar values, references, association links, nested STRUCTURE value maps and explicit multi-basket fixtures are supported; geometry remains outside this explicit-case MVP.",
+        "Scalar values, references, association links, nested STRUCTURE value maps and explicit multi-basket fixtures are supported; geometry remains outside the explicit-case support boundary.",
         "Cross-basket references are emitted with BID; the referenced model element must still permit the corresponding external reference semantics.",
         "Other INTERLIS constraints are disabled while the selected constraint is tested, but type, multiplicity and transfer checks remain active."));
     return response;
@@ -222,7 +237,8 @@ public class ConstraintTestTools {
       if (xtfFile != null) {
         try {
           Files.deleteIfExists(xtfFile);
-        } catch (Exception ignore) {
+        } catch (IOException e) {
+          System.err.println("Unable to delete a temporary constraint-test XTF file.");
         }
       }
     }
@@ -643,16 +659,45 @@ public class ConstraintTestTools {
       }
     }
 
+    List<Map<String, Object>> normalizedMessages = normalizeFixtureDiagnostics(logging.messages(), xtfFile);
     int errors = 0;
     int warnings = 0;
-    for (Map<String, Object> message : logging.messages()) {
+    for (Map<String, Object> message : normalizedMessages) {
       if ("ERROR".equals(message.get("severity"))) {
         errors++;
       } else if ("WARNING".equals(message.get("severity"))) {
         warnings++;
       }
     }
-    return new ValidationOutcome(logging.messages(), errors, warnings);
+    return new ValidationOutcome(normalizedMessages, errors, warnings);
+  }
+
+  private List<Map<String, Object>> normalizeFixtureDiagnostics(
+      List<Map<String, Object>> messages,
+      Path xtfFile) {
+    List<Map<String, Object>> normalized = new ArrayList<>(messages.size());
+    for (Map<String, Object> original : messages) {
+      Map<String, Object> message = new LinkedHashMap<>(original);
+      Object file = message.get("file");
+      if (file != null && samePath(file.toString(), xtfFile)) {
+        message.put("file", "<generated-constraint-fixture>");
+      }
+      Object text = message.get("message");
+      if (text != null) {
+        message.put("message", text.toString().replace(
+            xtfFile.toString(), "<generated-constraint-fixture>"));
+      }
+      normalized.add(message);
+    }
+    return normalized;
+  }
+
+  private boolean samePath(String value, Path expected) {
+    try {
+      return Path.of(value).toAbsolutePath().normalize().equals(expected.toAbsolutePath().normalize());
+    } catch (RuntimeException e) {
+      return value.equals(expected.toString());
+    }
   }
 
   private void fillMandatoryAttributes(
@@ -727,12 +772,21 @@ public class ConstraintTestTools {
     }
     if (type instanceof AbstractCoordType coordType) {
       IomObject coord = object.addattrobj(name, Iom_jObject.COORD);
-      coord.setattrvalue(Iom_jObject.COORD_C1, "2600000.0");
-      if (coordType.getDimensions().length >= 2) {
-        coord.setattrvalue(Iom_jObject.COORD_C2, "1200000.0");
+      NumericalType[] dimensions = coordType.getDimensions();
+      if (dimensions.length < 1 || dimensions.length > 3) {
+        throw unsupportedMandatory(table, attribute, type);
       }
-      if (coordType.getDimensions().length >= 3) {
-        coord.setattrvalue(Iom_jObject.COORD_C3, "500.0");
+      for (int index = 0; index < dimensions.length; index++) {
+        if (!(dimensions[index] instanceof NumericType numeric) || numeric.getMinimum() == null) {
+          throw unsupportedMandatory(table, attribute, type);
+        }
+        String value = numeric.getMinimum().toString();
+        switch (index) {
+          case 0 -> coord.setattrvalue(Iom_jObject.COORD_C1, value);
+          case 1 -> coord.setattrvalue(Iom_jObject.COORD_C2, value);
+          case 2 -> coord.setattrvalue(Iom_jObject.COORD_C3, value);
+          default -> throw unsupportedMandatory(table, attribute, type);
+        }
       }
       return;
     }

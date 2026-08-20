@@ -163,8 +163,7 @@ class ConstraintExpressionDirectedSolverTest {
       Map<String, Object> result = testTools.testIliConstraint(
           MODEL,
           scenario.constraintName(),
-          List.of(testCase),
-          null);
+          List.of(testCase));
 
       assertEquals(true, result.get("allPassed"), scenario + ": " + result);
     }

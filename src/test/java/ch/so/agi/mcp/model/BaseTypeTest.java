@@ -109,4 +109,33 @@ class BaseTypeTest {
 
         assertFalse(VALIDATOR.validate(baseType).isEmpty());
     }
+
+    @Test
+    void validate_rejectsIrrelevantFieldsForBoolean() {
+        BaseType baseType = new BaseType();
+        baseType.setKind(BaseType.Kind.BOOLEAN);
+        baseType.setLength(4);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, baseType::validate);
+        assertTrue(ex.getMessage().contains("does not support"));
+    }
+
+    @Test
+    void validate_rejectsUnitForText() {
+        BaseType baseType = new BaseType();
+        baseType.setKind(BaseType.Kind.TEXT);
+        baseType.setUnitFqn("INTERLIS.m");
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, baseType::validate);
+        assertTrue(ex.getMessage().contains("only supports"));
+    }
+
+    @Test
+    void validate_rejectsMalformedFqnWithoutBeanValidation() {
+        BaseType baseType = new BaseType();
+        baseType.setKind(BaseType.Kind.NUMERIC);
+        baseType.setUnitFqn("Model\\Part");
+
+        assertThrows(IllegalArgumentException.class, baseType::validate);
+    }
 }

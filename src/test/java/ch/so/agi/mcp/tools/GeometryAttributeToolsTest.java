@@ -9,24 +9,24 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class GeometryAttributeToolsTest {
 
-  private final GeometryAttributeTools geometryAttributeTools = new GeometryAttributeTools(new DomainTools());
+  private final GeometryAttributeTools geometryAttributeTools = new GeometryAttributeTools();
 
   @Test
   void ensureGeometryDependencies_buildsSurfaceAttributeAndDomain() {
     Map<String, Object> result = geometryAttributeTools.ensureGeometryDependencies(
-        "attr2", 2, true, new BigDecimal("2"), false, "2.4", "SURFACE", false, null, null);
+        "attr2", true, new BigDecimal("2"), false, "2.4", "SURFACE", "Demo.Coord2", false, null, null);
 
-    assertEquals("attr2 : SURFACE WITH (STRAIGHTS, ARCS)\n        VERTEX Coord2\n        WITHOUT OVERLAPS > 0.002;", result.get("attributeLine"));
+    assertEquals("attr2 : SURFACE WITH (STRAIGHTS, ARCS)\n        VERTEX Demo.Coord2\n        WITHOUT OVERLAPS > 0.002;", result.get("attributeLine"));
     assertEquals(1, ((java.util.List<?>) result.get("importLinesToAdd")).size());
     assertTrue(((java.util.List<?>) result.get("importLinesToAdd")).contains("IMPORTS INTERLIS;"));
-    assertEquals(1, ((java.util.List<?>) result.get("domainsToAdd")).size());
+    assertTrue(((java.util.List<?>) result.get("domainsToAdd")).isEmpty());
     assertEquals(2, ((java.util.List<?>) result.get("notes")).size());
   }
 
   @Test
   void ensureGeometryDependencies_usesChbaseModels() {
     Map<String, Object> result = geometryAttributeTools.ensureGeometryDependencies(
-        "geom", 2, false, null, true, "2.4", "GeometryCHLV95_V2.MultiSurfaceWithoutArcs", false, null, null);
+        "geom", false, null, true, "2.4", "GeometryCHLV95_V2.MultiSurfaceWithoutArcs", null, false, null, null);
 
     assertEquals("geom : GeometryCHLV95_V2.MultiSurfaceWithoutArcs;", result.get("attributeLine"));
     assertTrue(((java.util.List<?>) result.get("importLinesToAdd")).contains("IMPORTS GeometryCHLV95_V2;"));
@@ -36,7 +36,7 @@ class GeometryAttributeToolsTest {
   @Test
   void ensureGeometryDependencies_supportsDirectedPolyLine() {
     Map<String, Object> result = geometryAttributeTools.ensureGeometryDependencies(
-        "linie", 2, false, new BigDecimal("1.5"), false, "2.4", "POLYLINE", true, null, null);
+        "linie", false, new BigDecimal("1.5"), false, "2.4", "POLYLINE", "Coord2", true, null, null);
 
     assertEquals("linie : DIRECTED POLYLINE WITH (STRAIGHTS)\n        VERTEX Coord2\n        WITHOUT OVERLAPS > 0.0015;", result.get("attributeLine"));
   }
@@ -44,7 +44,7 @@ class GeometryAttributeToolsTest {
   @Test
   void ensureGeometryDependencies_supportsChbaseCoord() {
     Map<String, Object> result = geometryAttributeTools.ensureGeometryDependencies(
-        "pos", 3, false, null, true, "2.4", "GeometryCHLV95_V2.Coord3", false, null, null);
+        "pos", false, null, true, "2.4", "GeometryCHLV95_V2.Coord3", null, false, null, null);
 
     assertEquals("pos : GeometryCHLV95_V2.Coord3;", result.get("attributeLine"));
     assertTrue(((java.util.List<?>) result.get("domainsToAdd")).isEmpty());
@@ -53,7 +53,7 @@ class GeometryAttributeToolsTest {
   @Test
   void ensureGeometryDependencies_supportsMandatoryAndCollection() {
     Map<String, Object> result = geometryAttributeTools.ensureGeometryDependencies(
-        "lage", 2, false, new BigDecimal("1"), false, "2.4", "MULTISURFACE", false, true, "LIST OF");
+        "lage", false, new BigDecimal("1"), false, "2.4", "MULTISURFACE", "Coord2", false, true, "LIST OF");
 
     assertEquals("lage : MANDATORY LIST OF MULTISURFACE WITH (STRAIGHTS)\n        VERTEX Coord2\n        WITHOUT OVERLAPS > 0.001;", result.get("attributeLine"));
   }

@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -45,14 +46,24 @@ class ToolRegistrationContractTest {
       Map<String, Object> properties = schemaProperties(inputSchema);
       assertThat(properties.keySet())
           .as("schema properties for %s", toolName)
-          .containsAll(expectation.required())
-          .containsAll(expectation.optional());
+          .containsExactlyInAnyOrderElementsOf(Stream.concat(
+              expectation.required().stream(), expectation.optional().stream()).collect(Collectors.toSet()));
 
       expectation.optional().forEach(optionalProperty ->
           assertThat(required)
               .as("optional property %s for %s must not be required", optionalProperty, toolName)
               .doesNotContain(optionalProperty));
     });
+  }
+
+  @Test
+  void publicToolSurfaceStaysSmallEnoughForAgentContext() throws Exception {
+    assertThat(toolSpecifications).hasSize(38);
+    for (SyncToolSpecification specification : toolSpecifications) {
+      assertThat(mapper.writeValueAsBytes(specification.tool()).length)
+          .as("serialized MCP declaration for %s", specification.tool().name())
+          .isLessThan(50_000);
+    }
   }
 
   @Test
@@ -72,8 +83,6 @@ class ToolRegistrationContractTest {
         .isEqualTo("INTERLIS Sprachversion (z. B. '2.3' oder '2.4')");
     assertThat(propertyDescription(properties, "imports"))
         .isEqualTo("Zusätzliche Imports (z. B. 'GeometryCHLV95_V1')");
-    assertThat(propertyDescription(properties, "includeSolothurnHeader"))
-        .isEqualTo("Fügt einen Solothurn-Header oberhalb des Snippets ein");
 
     var response = createModelSnippet.callHandler().apply(null,
         new McpSchema.CallToolRequest("createModelSnippet", Map.of(
@@ -82,8 +91,7 @@ class ToolRegistrationContractTest {
             "uri", "https://example.org/test",
             "version", "2024-01-31",
             "iliVersion", "2.3",
-            "imports", List.of("INTERLIS", "GeometryCHLV95_V1"),
-            "includeSolothurnHeader", false)));
+            "imports", List.of("INTERLIS", "GeometryCHLV95_V1"))));
 
     Map<String, Object> structured = extractStructuredContent(response);
     assertThat(structured.get("iliSnippet"))
@@ -102,16 +110,17 @@ class ToolRegistrationContractTest {
     var response = ensureGeometryDependencies.callHandler().apply(null,
         new McpSchema.CallToolRequest("ensureGeometryDependencies", Map.of(
             "attributeName", "Perimeter",
-            "arcs", true)));
+            "arcs", true,
+            "coordDomainFqn", "Demo.Coord2")));
 
     Map<String, Object> structured = extractStructuredContent(response);
     assertThat(structured)
         .containsKeys("importLinesToAdd", "domainsToAdd", "attributeLine", "notes");
     assertThat(structured.get("importLinesToAdd")).asList().contains("IMPORTS INTERLIS;");
-    assertThat(structured.get("domainsToAdd")).asList().isNotEmpty();
+    assertThat(structured.get("domainsToAdd")).asList().isEmpty();
     assertThat(structured.get("attributeLine").toString())
         .contains("Perimeter : SURFACE WITH (STRAIGHTS, ARCS)")
-        .contains("VERTEX Coord2");
+        .contains("VERTEX Demo.Coord2");
   }
 
   @Test
@@ -175,18 +184,6 @@ class ToolRegistrationContractTest {
     assertThat(structured.get("valid")).isEqualTo(false);
     assertThat(((Number) structured.get("errorCount")).intValue()).isGreaterThan(0);
     assertThat(structured.get("messages")).asList().isNotEmpty();
-  }
-
-  @Test
-  void listMathFunctionsDefaultsToInterlis24AndReturnsFunctions() throws Exception {
-    SyncToolSpecification listMathFunctions = specsByName().get("listMathFunctions");
-
-    var response = listMathFunctions.callHandler().apply(null,
-        new McpSchema.CallToolRequest("listMathFunctions", Map.of()));
-
-    Map<String, Object> structured = extractStructuredContent(response);
-    assertThat(structured.get("iliVersion")).isEqualTo("2.4");
-    assertThat(structured.get("functions")).asList().isNotEmpty();
   }
 
   @Test
@@ -391,55 +388,42 @@ class ToolRegistrationContractTest {
     expectations.put("createAssociationSnippet", schema(Set.of("roles"), Set.of("name", "attrLines", "iliDoc", "metaAttributes")));
     expectations.put("createAttributeLine", schema(Set.of("req"), Set.of()));
     expectations.put("createClassSnippet", schema(Set.of("name"), Set.of("isAbstract", "extendsFqn", "oidDecl", "attrLines", "iliDoc", "metaAttributes")));
-    expectations.put("createCoordDomainSnippet", schema(Set.of("name"), Set.of("dimension", "decimals", "iliDoc", "metaAttributes")));
+    expectations.put("createCoordDomainSnippet", schema(Set.of("name", "axes"), Set.of("rotationFrom", "rotationTo", "iliDoc", "metaAttributes")));
     expectations.put("createEnumDomainSnippet", schema(Set.of("name"), Set.of("items", "itemSpecs", "iliDoc", "metaAttributes")));
     expectations.put("createEnumTreeDomainSnippet", schema(Set.of("name", "items"), Set.of("iliDoc", "metaAttributes")));
-    expectations.put("createExistenceConstraint", schema(Set.of("refAttr", "classFqns"), Set.of("iliDoc", "metaAttributes")));
-    expectations.put("createImportLine", schema(Set.of("modelName"), Set.of("qualified")));
-    expectations.put("createMandatoryConstraint", schema(Set.of("expr"), Set.of("iliDoc", "metaAttributes")));
-    expectations.put("createMetaAttributeBlock", schema(Set.of("metaAttributes"), Set.of()));
-    expectations.put("createModelSnippet", schema(Set.of("name"), Set.of("lang", "uri", "version", "iliVersion", "imports", "includeSolothurnHeader", "iliDoc", "metaAttributes")));
+    expectations.put("createModelSnippet", schema(Set.of("name"), Set.of("lang", "uri", "version", "iliVersion", "imports", "iliDoc", "metaAttributes")));
     expectations.put("createNumericDomainSnippet", schema(Set.of("name", "min", "max"), Set.of("unitFqn", "iliDoc", "metaAttributes")));
-    expectations.put("createPresentIfConstraint", schema(Set.of("attr", "cond"), Set.of("iliDoc", "metaAttributes")));
-    expectations.put("createSetConstraint", schema(Set.of("expr"), Set.of("iliDoc", "metaAttributes")));
-    expectations.put("createStructureAttributeLine", schema(Set.of("name", "structureFqn"), Set.of("mandatory", "collection", "iliDoc", "metaAttributes")));
     expectations.put("createStructureSnippet", schema(Set.of("name"), Set.of("isAbstract", "extendsFqn", "attrLines", "iliDoc", "metaAttributes")));
     expectations.put("createTopicSnippet", schema(Set.of("name"), Set.of("oidType", "isAbstract", "iliDoc", "metaAttributes")));
     expectations.put("createUniqueConstraint", schema(Set.of("attrs"), Set.of("iliDoc", "metaAttributes")));
     expectations.put("createUnitSnippet", schema(Set.of("name", "factor", "base"), Set.of("iliDoc", "metaAttributes")));
-    expectations.put("createValueRangeConstraint", schema(Set.of("attr", "range"), Set.of("iliDoc", "metaAttributes")));
     expectations.put("ensureGeometryDependencies", schema(Set.of("attributeName"),
-        Set.of("dimension", "arcs", "overlapMm", "chbase", "iliVersion", "geometryType", "directed", "mandatory", "collection")));
-    expectations.put("formatIliModel", schema(Set.of("modelText"), Set.of("modelRepositories")));
-    expectations.put("analyzeIliModel", schema(Set.of("modelText"), Set.of("modelRepositories", "modelPurpose")));
-    expectations.put("checkModelingRules", schema(Set.of("modelText"), Set.of("modelPurpose", "modelRepositories", "ruleIds", "profile")));
-    expectations.put("reviewIliModel", schema(Set.of("modelText"), Set.of("modelPurpose", "ruleProfile", "modelRepositories")));
-    expectations.put("reviewIliChange", schema(Set.of("beforeModelText", "afterModelText"), Set.of("modelRepositories")));
-    expectations.put("applyIliModelChange", schema(Set.of("modelText", "request"), Set.of("modelRepositories", "modelPurpose", "ruleProfile")));
-    expectations.put("reviewIliConstraint", schema(Set.of("modelText", "constraint"), Set.of("modelRepositories")));
-    expectations.put("generateIliConstraintCases", schema(Set.of("modelText", "constraint"), Set.of("modelRepositories")));
-    expectations.put("generateIliConstraintFromDecisionTable", schema(Set.of("modelText", "context", "constraintName", "rows"), Set.of("modelRepositories")));
-    expectations.put("authorIliMandatoryConstraint", schema(Set.of("modelText", "context", "constraintName", "rootNodeId", "nodes"), Set.of("modelRepositories")));
-    expectations.put("authorIliPlausibilityConstraint", schema(Set.of("modelText", "context", "constraintName", "direction", "percentage", "rootNodeId", "nodes"), Set.of("modelRepositories")));
-    expectations.put("authorIliExistenceConstraint", schema(Set.of("modelText", "context", "constraintName", "restrictedPath", "requiredIn"), Set.of("modelRepositories")));
-    expectations.put("authorIliSetConstraint", schema(Set.of("modelText", "context", "constraintName", "operator", "threshold"), Set.of("perBasket", "where", "modelRepositories")));
-    expectations.put("testIliConstraint", schema(Set.of("modelText", "constraint", "cases"), Set.of("modelRepositories")));
+        Set.of("arcs", "overlapMm", "chbase", "iliVersion", "geometryType", "coordDomainFqn", "directed", "mandatory", "collection")));
+    expectations.put("formatIliModel", schema(Set.of("modelText"), Set.of()));
+    expectations.put("analyzeIliModel", schema(Set.of("modelText"), Set.of("modelPurpose")));
+    expectations.put("checkModelingRules", schema(Set.of("modelText"), Set.of("modelPurpose", "ruleIds", "profile")));
+    expectations.put("reviewIliModel", schema(Set.of("modelText"), Set.of("modelPurpose", "ruleProfile")));
+    expectations.put("reviewIliChange", schema(Set.of("beforeModelText", "afterModelText"), Set.of("modelPurpose", "ruleProfile")));
+    expectations.put("applyIliModelChange", schema(Set.of("modelText", "request"), Set.of("modelPurpose", "ruleProfile")));
+    expectations.put("reviewIliConstraint", schema(Set.of("modelText", "constraint"), Set.of()));
+    expectations.put("generateIliConstraintCases", schema(Set.of("modelText", "constraint"), Set.of()));
+    expectations.put("generateIliConstraintFromDecisionTable", schema(Set.of("modelText", "context", "constraintName", "rows"), Set.of()));
+    expectations.put("authorIliMandatoryConstraint", schema(Set.of("modelText", "context", "constraintName", "rootNodeId", "nodes"), Set.of()));
+    expectations.put("authorIliPlausibilityConstraint", schema(Set.of("modelText", "context", "constraintName", "direction", "percentage", "rootNodeId", "nodes"), Set.of()));
+    expectations.put("authorIliExistenceConstraint", schema(Set.of("modelText", "context", "constraintName", "restrictedPath", "requiredIn"), Set.of()));
+    expectations.put("authorIliSetConstraint", schema(Set.of("modelText", "context", "constraintName", "operator", "threshold"), Set.of("perBasket", "where")));
+    expectations.put("testIliConstraint", schema(Set.of("modelText", "constraint", "cases"), Set.of()));
     expectations.put("findSimilarModels", schema(Set.of(), Set.of("query", "modelText", "modelPurpose", "limit")));
     expectations.put("indexConfiguredModels", schema(Set.of(), Set.of()));
     expectations.put("readModelExample", schema(Set.of("path"), Set.of()));
     expectations.put("listConstraintFunctions", schema(Set.of(), Set.of("iliVersion")));
     expectations.put("listGeometryTypes", schema(Set.of(), Set.of("iliVersion")));
-    expectations.put("listMathFunctions", schema(Set.of(), Set.of("iliVersion")));
     expectations.put("listModelingRules", schema(Set.of(), Set.of("profile")));
-    expectations.put("listTextFunctions", schema(Set.of(), Set.of("iliVersion")));
-    expectations.put("resolveConstraintPath", schema(Set.of("modelText", "context", "path"), Set.of("modelRepositories")));
-    expectations.put("renameModelElement", schema(Set.of("modelText", "elementFqn", "newName"), Set.of("expectedKind", "modelRepositories")));
-    expectations.put("sanitizeIdentifier", schema(Set.of("value"), Set.of()));
-    expectations.put("validateFqn", schema(Set.of("fqn"), Set.of()));
-    expectations.put("validateIdentifier", schema(Set.of("value"), Set.of()));
-    expectations.put("validateIliModel", schema(Set.of("modelText"), Set.of("modelRepositories")));
-    expectations.put("generateExampleXtf", schema(Set.of("modelText"), Set.of("modelRepositories", "maxObjectsPerClass")));
-    expectations.put("validateXtf", schema(Set.of("modelText", "xtfText"), Set.of("modelRepositories")));
+    expectations.put("resolveConstraintPath", schema(Set.of("modelText", "context", "path"), Set.of()));
+    expectations.put("renameModelElement", schema(Set.of("modelText", "elementFqn", "newName"), Set.of("expectedKind")));
+    expectations.put("validateIliModel", schema(Set.of("modelText"), Set.of()));
+    expectations.put("generateExampleXtf", schema(Set.of("modelText"), Set.of("maxObjectsPerClass")));
+    expectations.put("validateXtf", schema(Set.of("modelText", "xtfText"), Set.of()));
 
     return expectations;
   }

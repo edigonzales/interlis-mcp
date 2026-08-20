@@ -1,5 +1,7 @@
 package ch.so.agi.mcp.eval;
 
+import ch.so.agi.mcp.constraint.ConstraintAuthoringWorkflow;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.so.agi.mcp.analysis.ModelAnalysisTools;
@@ -12,6 +14,7 @@ import ch.so.agi.mcp.knowledge.ModelingRuleTools;
 import ch.so.agi.mcp.service.IliCompilerService;
 import ch.so.agi.mcp.tools.ConstraintAuthoringTools;
 import ch.so.agi.mcp.tools.ConstraintCaseGenerationTools;
+import ch.so.agi.mcp.tools.ConstraintTestTools;
 import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
@@ -52,9 +55,9 @@ class ConstraintWorkflowGoldenScenariosTest {
   void typedConstraintAuthoringProofIsFollowedByExactlyOneModelChangeReview() {
     CountingCompiler compiler = new CountingCompiler();
     ConstraintCaseGenerationTools cases = new ConstraintCaseGenerationTools(
-        compiler,
-        new ConstraintContextService(compiler));
-    ConstraintAuthoringTools authoring = new ConstraintAuthoringTools(compiler, cases);
+        new ConstraintContextService(compiler),
+        new ConstraintTestTools(compiler));
+    ConstraintAuthoringTools authoring = new ConstraintAuthoringTools(cases, new ConstraintAuthoringWorkflow(compiler));
 
     List<ConstraintAuthoringTools.ExpressionNode> nodes = List.of(
         node("value", "ATTRIBUTE", "value", null, null, null),
@@ -66,8 +69,7 @@ class ConstraintWorkflowGoldenScenariosTest {
         "ConstraintWorkflow.Data.Item",
         "MinimumValue",
         "root",
-        nodes,
-        null);
+        nodes);
 
     assertThat(authored.get("generated")).isEqualTo(true);
     assertThat(authored.get("proofVerified")).isEqualTo(true);
@@ -82,7 +84,6 @@ class ConstraintWorkflowGoldenScenariosTest {
     Map<String, Object> review = changes.reviewIliChange(
         BASE_MODEL,
         updatedModelText,
-        null,
         ModelPurpose.CAPTURE,
         ModelingRuleProfile.CORE);
 
@@ -97,13 +98,12 @@ class ConstraintWorkflowGoldenScenariosTest {
   void uniqueFallbackUsesOneAutomaticProofThenExactlyOneModelChangeReview() {
     CountingCompiler compiler = new CountingCompiler();
     ConstraintCaseGenerationTools cases = new ConstraintCaseGenerationTools(
-        compiler,
-        new ConstraintContextService(compiler));
+        new ConstraintContextService(compiler),
+        new ConstraintTestTools(compiler));
 
     Map<String, Object> proof = cases.generateIliConstraintCases(
         UNIQUE_MODEL,
-        "CodeUnique",
-        null);
+        "CodeUnique");
 
     assertThat(proof.get("generationVerified")).isEqualTo(true);
     assertThat(proof.get("pattern")).isEqualTo("UNIQUE_SEMANTIC_PROOF");
@@ -116,7 +116,6 @@ class ConstraintWorkflowGoldenScenariosTest {
     Map<String, Object> review = changes.reviewIliChange(
         BASE_MODEL,
         UNIQUE_MODEL,
-        null,
         ModelPurpose.CAPTURE,
         ModelingRuleProfile.CORE);
 

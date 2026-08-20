@@ -2,6 +2,9 @@ package ch.so.agi.mcp.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.so.agi.mcp.analysis.ModelAnalysisTools;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class XtfServiceTest {
@@ -50,6 +53,42 @@ class XtfServiceTest {
     assertThat(validated.valid()).isFalse();
     assertThat(validated.errorCount()).isGreaterThan(0);
     assertThat(validated.messages()).isNotEmpty();
+    assertThat(validated.messages().toString())
+        .doesNotContain("interlis-mcp-validate-", "/var/folders/", "/tmp/");
+  }
+
+  @Test
+  void generateExampleXtfUsesModelTransferVersion() {
+    XtfService.GenerateExampleResult generated = service.generateExampleXtf(ili23Model(), null, 1);
+
+    assertThat(generated.generated()).isTrue();
+    assertThat(generated.xtfText()).contains("VERSION=\"2.3\"");
+  }
+
+  @Test
+  void generateExampleXtfUsesCoordinateDomainBounds() {
+    Map<String, Object> analysis = new ModelAnalysisTools(new IliCompilerService())
+        .analyzeIliModel(coordinateModel(), null);
+    @SuppressWarnings("unchecked")
+    Map<String, Object> position = ((List<Map<String, Object>>) analysis.get("attributes")).getFirst();
+    assertThat(position).containsEntry("mandatory", true);
+
+    XtfService.GenerateExampleResult generated = service.generateExampleXtf(coordinateModel(), null, 1);
+
+    assertThat(generated.generated()).isTrue();
+    assertThat(generated.xtfText())
+        .contains("<geom:c1>0.00</geom:c1>")
+        .contains("<geom:c2>10.00</geom:c2>")
+        .doesNotContain("2600000", "1200000");
+    assertThat(service.validateXtf(coordinateModel(), generated.xtfText(), null).valid()).isTrue();
+  }
+
+  @Test
+  void generateExampleXtfRejectsUnboundedObjectCounts() {
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> service.generateExampleXtf(minimalMandatoryTextModel(), null, 21))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("must not exceed 20");
   }
 
   private static String minimalMandatoryTextModel() {
@@ -78,6 +117,38 @@ class XtfServiceTest {
 
             CLASS Building =
               details : MANDATORY BuildingDetails;
+            END Building;
+          END Topic;
+        END Demo.
+        """;
+  }
+
+  private static String ili23Model() {
+    return """
+        INTERLIS 2.3;
+
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
+          TOPIC Topic =
+            CLASS Building =
+              name : MANDATORY TEXT*20;
+            END Building;
+          END Topic;
+        END Demo.
+        """;
+  }
+
+  private static String coordinateModel() {
+    return """
+        INTERLIS 2.4;
+
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
+          DOMAIN
+            LocalCoord = COORD
+              0.00 .. 100.00,
+              10.00 .. 200.00;
+          TOPIC Topic =
+            CLASS Building =
+              position : MANDATORY LocalCoord;
             END Building;
           END Topic;
         END Demo.

@@ -17,7 +17,7 @@ class ModelChangeToolsTest {
     IliCompilerService compiler = new IliCompilerService();
     ModelChangeTools tools = changeTools(compiler);
 
-    Map<String, Object> response = tools.reviewIliChange(beforeModel(), afterModel(), null, null, null);
+    Map<String, Object> response = tools.reviewIliChange(beforeModel(), afterModel(), null, null);
 
     assertThat(response.get("valid")).isEqualTo(true);
     assertThat(response.get("comparable")).isEqualTo(true);
@@ -41,7 +41,6 @@ class ModelChangeToolsTest {
     Map<String, Object> response = tools.reviewIliChange(
         minimalModel(),
         minimalModelWithExtraBlankLines(),
-        null,
         ModelPurpose.CAPTURE,
         ModelingRuleProfile.SO);
 
@@ -64,7 +63,6 @@ class ModelChangeToolsTest {
         minimalModel(),
         minimalModel().replace("TEXT*20", "TEXT*50"),
         null,
-        null,
         null);
 
     assertThat(response.get("impact")).isEqualTo("POTENTIALLY_BREAKING");
@@ -86,7 +84,6 @@ class ModelChangeToolsTest {
         numericDomainModel("10"),
         numericDomainModel("20"),
         null,
-        null,
         null);
 
     assertThat(response.get("impact")).isEqualTo("POTENTIALLY_BREAKING");
@@ -107,7 +104,6 @@ class ModelChangeToolsTest {
     Map<String, Object> response = tools.reviewIliChange(
         enumerationDomainModel("A, B"),
         enumerationDomainModel("A, B, C"),
-        null,
         null,
         null);
 
@@ -131,7 +127,6 @@ class ModelChangeToolsTest {
         coordinateDomainModel("100"),
         coordinateDomainModel("200"),
         null,
-        null,
         null);
 
     assertThat(response.get("valid")).isEqualTo(true);
@@ -154,7 +149,6 @@ class ModelChangeToolsTest {
         coordinateDomainRotationModel("2", "1"),
         coordinateDomainRotationModel("1", "2"),
         null,
-        null,
         null);
 
     assertThat(response.get("valid")).isEqualTo(true);
@@ -174,7 +168,7 @@ class ModelChangeToolsTest {
     ModelChangeTools tools = changeTools(compiler);
 
     Map<String, Object> response = tools.reviewIliChange(
-        minimalModel(), minimalModelWithExtraBlankLines(), null, null, null);
+        minimalModel(), minimalModelWithExtraBlankLines(), null, null);
 
     assertThat(response.get("hasChanges")).isEqualTo(false);
     assertThat(response.get("impact")).isEqualTo("NONE");
@@ -191,7 +185,6 @@ class ModelChangeToolsTest {
     Map<String, Object> response = tools.reviewIliChange(
         minimalModel(),
         "INTERLIS 2.4;\nMODEL Broken =\n",
-        null,
         null,
         null);
 
@@ -212,7 +205,6 @@ class ModelChangeToolsTest {
     Map<String, Object> response = tools.reviewIliChange(
         minimalModel(),
         minimalModelWithExtraBlankLines(),
-        null,
         ModelPurpose.UNKNOWN,
         ModelingRuleProfile.CORE);
 

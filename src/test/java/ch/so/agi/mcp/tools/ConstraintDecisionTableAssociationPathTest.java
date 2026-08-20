@@ -1,8 +1,11 @@
 package ch.so.agi.mcp.tools;
 
+import ch.so.agi.mcp.constraint.ConstraintAuthoringWorkflow;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.List;
 import java.util.Map;
@@ -34,14 +37,12 @@ class ConstraintDecisionTableAssociationPathTest {
       """;
 
   private final IliCompilerService compilerService = new IliCompilerService();
-  private final ConstraintKnowledgeTools knowledgeTools = new ConstraintKnowledgeTools(
-      new MathTools(), new TextTools(), compilerService);
+  private final ConstraintKnowledgeTools knowledgeTools = new ConstraintKnowledgeTools(compilerService);
   private final ConstraintReviewTools reviewTools = new ConstraintReviewTools(compilerService, knowledgeTools);
   private final ConstraintTestTools testTools = new ConstraintTestTools(compilerService);
-  private final ConstraintDecisionTableTools tools = new ConstraintDecisionTableTools(
-      reviewTools,
-      testTools,
-      compilerService);
+  private final ConstraintContextService contextService = new ConstraintContextService(compilerService);
+  private final ConstraintCaseGenerationTools caseTools = new ConstraintCaseGenerationTools(contextService, testTools);
+  private final ConstraintDecisionTableTools tools = new ConstraintDecisionTableTools(new ConstraintAuthoringWorkflow(compilerService), caseTools);
 
   @Test
   void provesNumericBoundariesAcrossSingleValuedAssociationPath() {
@@ -54,8 +55,7 @@ class ConstraintDecisionTableAssociationPathTest {
         MODEL,
         "DecisionPathModel.Data.Nebenauspraegung",
         "MainWeightBetween10And20",
-        List.of(allowed),
-        null);
+        List.of(allowed));
 
     assertEquals(true, result.get("generated"), String.valueOf(result));
     assertEquals(true, result.get("proofVerified"), String.valueOf(result));
@@ -90,8 +90,7 @@ class ConstraintDecisionTableAssociationPathTest {
         "SecondaryValueAtLeast10",
         List.of(row(
             "secondary value",
-            condition("Nebenauspraegung->LokalerWert", ">=", 10))),
-        null);
+            condition("Nebenauspraegung->LokalerWert", ">=", 10))));
 
     assertEquals(false, result.get("generated"));
     assertEquals(false, result.get("proofVerified"));

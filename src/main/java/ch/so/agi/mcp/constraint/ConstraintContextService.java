@@ -76,6 +76,12 @@ public class ConstraintContextService {
       semantics = ConstraintSemanticTranslator.translate(constraint);
     } catch (ConstraintSemanticTranslator.TranslationException ex) {
       return new Resolution(compilation, null, ex.reasonCode(), ex.getMessage());
+    } catch (IllegalArgumentException ex) {
+      return new Resolution(
+          compilation,
+          null,
+          "UNSUPPORTED_CONSTRAINT_SEMANTICS",
+          ex.getMessage());
     }
 
     return new Resolution(

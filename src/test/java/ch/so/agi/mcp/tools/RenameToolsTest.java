@@ -30,8 +30,7 @@ class RenameToolsTest {
             """,
         "Demo.Topic.Target",
         null,
-        "TargetRenamed",
-        null);
+        "TargetRenamed");
 
     String updatedModelText = result.get("updatedModelText").toString();
     assertTrue(updatedModelText.contains("CLASS TargetRenamed ="));
@@ -57,8 +56,7 @@ class RenameToolsTest {
             """,
         "Demo.Topic.Target.code",
         RenameElementKind.ATTRIBUTE,
-        "businessCode",
-        null);
+        "businessCode");
 
     String updatedModelText = result.get("updatedModelText").toString();
     assertTrue(updatedModelText.contains("businessCode : TEXT*20;"));
@@ -75,8 +73,7 @@ class RenameToolsTest {
             minimalModel(),
             "Demo.Topic.DoesNotExist",
             null,
-            "Renamed",
-            null));
+            "Renamed"));
 
     assertTrue(ex.getMessage().contains("Element not found"));
   }
@@ -89,8 +86,7 @@ class RenameToolsTest {
             minimalModel(),
             "Demo.Topic.Target",
             RenameElementKind.ATTRIBUTE,
-            "Renamed",
-            null));
+            "Renamed"));
 
     assertTrue(ex.getMessage().contains("not of expected kind ATTRIBUTE"));
   }
@@ -114,8 +110,7 @@ class RenameToolsTest {
                 """,
             "Demo.Topic.Target.code",
             RenameElementKind.ATTRIBUTE,
-            "other",
-            null));
+            "other"));
 
     assertFalse(ex.getMessage().isBlank());
   }

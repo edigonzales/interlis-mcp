@@ -67,8 +67,7 @@ class ConstraintKnowledgeToolsTest {
       END SO_AFU_Bodeneinheiten_20251210.
       """;
 
-  private final ConstraintKnowledgeTools tools = new ConstraintKnowledgeTools(
-      new MathTools(), new TextTools(), new IliCompilerService());
+  private final ConstraintKnowledgeTools tools = new ConstraintKnowledgeTools(new IliCompilerService());
 
   @Test
   void catalogExplainsAttributePathFunctionsAndOrigin() {
@@ -110,8 +109,7 @@ class ConstraintKnowledgeToolsTest {
     Map<String, Object> result = tools.resolveConstraintPath(
         AFU_GOLDEN_MODEL,
         "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.BodeneinheitHauptauspraegung_Wald",
-        "\"Nebenauspraegung->Gewichtung\"",
-        null);
+        "\"Nebenauspraegung->Gewichtung\"");
 
     assertEquals(true, result.get("valid"));
     assertEquals("Nebenauspraegung->Gewichtung", result.get("path"));
@@ -139,8 +137,7 @@ class ConstraintKnowledgeToolsTest {
     Map<String, Object> result = tools.resolveConstraintPath(
         MODEL,
         "ConstraintPathTest.Data.Haupt",
-        "\"Nebenauspraegung->Gewichtung\"",
-        null);
+        "\"Nebenauspraegung->Gewichtung\"");
 
     assertEquals(true, result.get("valid"));
     assertEquals("Nebenauspraegung->Gewichtung", result.get("path"));
@@ -166,8 +163,7 @@ class ConstraintKnowledgeToolsTest {
     Map<String, Object> result = tools.resolveConstraintPath(
         MODEL,
         "ConstraintPathTest.Data.Haupt",
-        "Nebenauspraegung->Gewicht",
-        null);
+        "Nebenauspraegung->Gewicht");
 
     assertEquals(false, result.get("valid"));
     assertEquals("Gewicht", result.get("failedSegment"));
@@ -182,8 +178,7 @@ class ConstraintKnowledgeToolsTest {
     Map<String, Object> result = tools.resolveConstraintPath(
         MODEL,
         "ConstraintPathTest.Data.Haupt",
-        "Gewichtung",
-        null);
+        "Gewichtung");
 
     assertEquals(true, result.get("valid"));
     assertEquals(false, result.get("collection"));

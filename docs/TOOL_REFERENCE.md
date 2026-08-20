@@ -1,433 +1,198 @@
 # Tool-Referenz
 
-Diese Referenz ordnet die öffentlichen MCP-Resources, Prompts und Tools nach ihrem Einsatzzweck. Die **exakte** Parameterstruktur wird zur Laufzeit über `tools/list` veröffentlicht und in `ToolRegistrationContractTest` geprüft. Die Beispiele hier sollen die Auswahl und den typischen Payload erklären.
+Diese Referenz beschreibt die öffentliche MCP-Oberfläche. Die Java-Annotationen und `ToolRegistrationContractTest` sind der exakte Schema-Vertrag. Modell-Repositories werden serverseitig mit `interlis.mcp.model-repositories` konfiguriert und sind bewusst kein Parameter jedes einzelnen Tools.
 
-## Grundregel zur Tool-Auswahl
+## Auswahlregel
 
-Verwende das höchste Tool, das eine Aufgabe vollständig abdeckt.
+Verwende das höchste Tool, das die Aufgabe vollständig abdeckt. Ein High-Level-Review soll nicht routinemässig durch dieselben Low-Level-Prüfungen wiederholt werden. Der Server trifft keine fachlichen Annahmen zu Kardinalitäten, Constraints, Koordinatensystemen oder Metadaten.
 
-```text
-Gesamtmodell prüfen?             -> reviewIliModel
-Vorher/Nachher vergleichen?      -> reviewIliChange
-Unterstützte Modelländerung?     -> applyIliModelChange
-Constraint erstellen?            -> typed Authoring-Tool, wenn vorhanden
-Constraint automatisch beweisen? -> generateIliConstraintCases
-Gezielte Diagnose?               -> passendes Low-Level-Tool
-```
+## Resources und Prompts
 
-Ein höheres Tool darf intern Compiler, Analyse, Regeln oder Validator verwenden. Dieselben Low-Level-Tools danach noch einmal routinemässig aufzurufen erzeugt meist nur doppelte Arbeit.
+Die Resources `interlis://knowledge/agent-workflow`, `interlis://knowledge/tool-guide`, `interlis://knowledge/constraint-workflow`, `interlis://knowledge/handbook-rules` und `interlis://knowledge/model-corpus-index` stellen Regeln und Abläufe bereit. Die Prompts `interlis-modeling-agent`, `review-interlis-model`, `extend-interlis-model` und `author-interlis-constraint` übersetzen sie in konkrete Agentenaufträge.
 
-# MCP-Resources
-
-## `interlis://knowledge/handbook-rules`
-
-Enthält die kuratierten Modellierungsregeln des Profils `SO`, einschliesslich der portablen `CORE`-Regeln.
-
-Verwenden, wenn ein Agent die Regeln und deren Begründung lesen soll.
-
-## `interlis://knowledge/agent-workflow`
-
-Kompakter agentischer Arbeitsablauf für Modellierung, Änderung und Review.
-
-## `interlis://knowledge/tool-guide`
-
-Entscheidungshilfe für High-Level- und Low-Level-Tools, Modellbeispiele und Constraint-Werkzeuge.
-
-## `interlis://knowledge/constraint-workflow`
-
-Entscheidungsmatrix für Constraint-Authoring, automatische Proofs und das abschliessende Modell-Level-Review.
-
-## `interlis://knowledge/model-corpus-index`
-
-Markdown-Index der über `interlis.knowledge.model-paths` konfigurierten `.ili`-Dateien.
-
-# MCP-Prompts
-
-## `interlis-modeling-agent`
-
-Allgemeine Systemanweisung für agentisches INTERLIS-Modellieren. Der Prompt bevorzugt High-Level-Reviews, semantische Änderungen und typisierte Constraint-Werkzeuge und verbietet das Erfinden fachlicher Semantik.
-
-## `review-interlis-model`
-
-Strukturierter Ablauf für die Prüfung eines vollständigen Modells mit `reviewIliModel`.
-
-Optionales Argument:
-
-```json
-{ "modelPurpose": "PUBLICATION" }
-```
-
-Mögliche Werte sind `CAPTURE`, `PUBLICATION`, `VALIDATION` und `UNKNOWN`.
-
-## `extend-interlis-model`
-
-Ablauf für eine kontrollierte Änderung eines bestehenden Modells. Der Prompt unterscheidet zwischen `applyIliModelChange`, Constraint-Authoring und gezielter manueller Bearbeitung mit `reviewIliChange`.
-
-## `author-interlis-constraint`
-
-Entscheidungshilfe für MANDATORY, UNIQUE, EXISTENCE, PLAUSIBILITY und SET.
-
-Beispiel:
-
-```json
-{ "constraintKind": "PLAUSIBILITY" }
-```
-
-# High-Level-Review und Modelländerung
+# Reviews und Änderungen
 
 ## `reviewIliModel`
 
-**Verwendung:** ein vollständiger aktueller Modellstand ohne Vorher-Stand.
-
-Wichtige Eingaben:
-
-- `modelText`
-- optional `modelPurpose`
-- optional `ruleProfile`
-- optional `modelRepositories`
-
-Wichtige Ausgaben:
-
-- `compilerValid`
-- `compilerDiagnostics`
-- `structure`
-- `validForAutomatedRules`
-- `ruleFindings`
-- `manualChecks`
-- `openQuestions`
+High-Level-Gate für einen vollständigen aktuellen Modellstand. Eingaben sind `modelText` sowie optional `modelPurpose` und `ruleProfile`. Die Antwort kombiniert Compilerdiagnostik, Struktur, automatisierte Regeln, manuelle Checks und offene Fragen.
 
 ## `reviewIliChange`
 
-**Verwendung:** semantischer Vergleich eines Vorher-/Nachher-Modells.
-
-Eingaben:
-
-```json
-{
-  "beforeModelText": "<vorher>",
-  "afterModelText": "<nachher>",
-  "modelPurpose": "CAPTURE",
-  "ruleProfile": "CORE"
-}
-```
-
-Wichtige Ausgaben:
-
-- `added`, `removed`, `changed`
-- `potentiallyBreakingChanges`
-- `impact`
-- `afterCompilerValid`
-- `afterDiagnostics`
-- `afterReview`
-
-Das enthaltene `afterReview` ist der Abschlussreview für diesen unveränderten Nachher-Stand.
+Vergleicht `beforeModelText` und `afterModelText` semantisch. Views sowie die deklarierten Typen von Domains und Attributen gehören zum Diff. Optional steuern `modelPurpose` und `ruleProfile` den Abschlussreview des Nachher-Stands.
 
 ## `applyIliModelChange`
 
-**Verwendung:** unterstützte source-preserving Änderung eines vollständigen Modells.
-
-Aktuell unterstützt:
-
-- `ADD_ATTRIBUTE` für lokale `CLASS`- und `STRUCTURE`-Elemente.
-
-Beispiel:
-
-```json
-{
-  "modelText": "<vollständiger Modelltext>",
-  "request": {
-    "operation": "ADD_ATTRIBUTE",
-    "addAttribute": {
-      "containerFqn": "Demo.Data.Building",
-      "attribute": {
-        "name": "egid",
-        "mandatory": true,
-        "typeSpec": {
-          "baseType": {
-            "kind": "TEXT",
-            "length": 14
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-Bei `status=APPLIED` enthält `updatedModelText` nur den freigegebenen neuen Stand. Unerwartete semantische Kollateraleffekte werden als Fehler behandelt und nicht still übernommen.
-
-# Modellanalyse und gezielte Diagnostik
-
-## `validateIliModel`
-
-Low-Level-Compilerdiagnostik mit ili2c. Für Repair-Loops können Meldungen einen `sourceExcerpt` enthalten.
-
-```json
-{
-  "modelText": "<vollständiger Modelltext>"
-}
-```
-
-## `analyzeIliModel`
-
-Parserbasierte Struktur- und Semantikanalyse. Liefert Modelle, Topics, Klassen, Strukturen, Domains, Units, Beziehungen, Attribute, Vererbungen, Topic-Abhängigkeiten und weitere ausgewählte Metamodellinformationen.
-
-## `listModelingRules`
-
-Listet die kuratierten Regeln eines Profils. `CORE` ist Standard; `SO` enthält zusätzlich Solothurn-spezifische Regeln.
-
-## `checkModelingRules`
-
-Gezielter Regelcheck. Geeignet, wenn einzelne Regel-IDs oder ein bestimmter Modellzweck untersucht werden sollen.
-
-Für den normalen Gesamtmodell-Review ist `reviewIliModel` vorzuziehen.
-
-# Lokaler Modellkorpus
-
-## `indexConfiguredModels`
-
-Inventar-/Administrationstool für die konfigurierten Modellpfade. Meldet gefundene, ignorierte und fehlerhafte Dateien.
-
-## `findSimilarModels`
-
-Lexikalische lokale Suche nach ähnlichen `.ili`-Modellen.
-
-```json
-{
-  "query": "Grundstück Gebäude Publikation"
-}
-```
-
-Treffer dienen der Auswahl eines Vorbilds, nicht als vollständige Modellierungsquelle.
-
-## `readModelExample`
-
-Liest einen ausgewählten Treffer vollständig. Der Pfad muss innerhalb des konfigurierten Modellkorpus liegen.
-
-# Modell- und Snippet-Werkzeuge
-
-Die folgenden Tools erzeugen kleine INTERLIS-Bausteine und liefern typischerweise `iliSnippet`:
-
-- `createModelSnippet`
-- `createTopicSnippet`
-- `createClassSnippet`
-- `createStructureSnippet`
-- `createAssociationSnippet`
-- `createEnumDomainSnippet`
-- `createEnumTreeDomainSnippet`
-- `createNumericDomainSnippet`
-- `createUnitSnippet`
-- `createCoordDomainSnippet`
-- `createStructureAttributeLine`
-- `createMetaAttributeBlock`
-
-Sie sind für lokale Konstruktion gedacht. Sobald daraus ein vollständiger Modellstand entsteht, sollte das passende High-Level-Review folgen.
-
-## `createAttributeLine`
-
-Strikt typisierter Attribut-Helper. Der strukturierte Payload liegt unter `req`.
-
-Beispiel für einen numerischen Wertebereich:
-
-```json
-{
-  "req": {
-    "name": "hoehe",
-    "mandatory": true,
-    "typeSpec": {
-      "baseType": {
-        "kind": "NUM_RANGE",
-        "min": 0,
-        "max": 100,
-        "unitFqn": "INTERLIS.m"
-      }
-    }
-  }
-}
-```
-
-Beispiel für eine externe Referenz:
-
-```json
-{
-  "req": {
-    "name": "ziel",
-    "typeSpec": {
-      "referenceType": {
-        "targetClassFqn": "Demo.Data.Target",
-        "external": true
-      }
-    }
-  }
-}
-```
-
-`typeSpec` wählt genau eine Typfamilie, beispielsweise `domainFqn`, `baseType`, `referenceType`, `blackboxType`, `enumTreeValueType`, `basketType`, `objectType` oder `metaobjectType`.
-
-## `createAssociationSnippet`
-
-Jede Rolle benötigt `classFQN`; `name`, `card` und `external` sind optional.
-
-```json
-{
-  "roles": [
-    { "classFQN": "Demo.Data.Source", "card": "{1}" },
-    { "classFQN": "Demo.Data.Target", "card": "{0..*}" }
-  ]
-}
-```
-
-Fehlende Namen werden deterministisch als technische Platzhalter erzeugt und in `openQuestions` ausgewiesen. Fehlende Kardinalitäten werden nicht geraten.
+Führt unterstützte typisierte Änderungen source-preserving aus. Aktuell ist `ADD_ATTRIBUTE` für lokale Klassen und Strukturen verfügbar. Ein erfolgreiches Resultat enthält den neuen Modelltext, den semantischen Diff und das Abschlussreview.
 
 ## `renameModelElement`
 
-Robustes Rename über das ili2c-Metamodell. Das Resultat ist semantisch neu generiert und deshalb nicht source-preserving bezüglich Formatierung.
+Benennt ein Modellelement über das ili2c-Metamodell um und regeneriert den Modelltext. Optional begrenzt `expectedKind` die zulässige Elementart. Die Operation ist semantisch robust, aber nicht layout-erhaltend.
 
-## `createImportLine`
+# Analyse und Regeln
 
-Erzeugt eine einzelne korrekte `IMPORTS`-Zeile.
+## `validateIliModel`
+
+Fokussierte ili2c-Compilerdiagnostik für `modelText`. Diagnosen des eingereichten Modells verwenden den stabilen Dateinamen `<submitted-model>` und können einen `sourceExcerpt` enthalten.
+
+## `analyzeIliModel`
+
+Liefert die kompilierte Modellstruktur, darunter Modelle, Topics, Klassen, Strukturen, Views, Beziehungen, Domains, Units, Attribute, Vererbung und Abhängigkeiten. `modelPurpose` ist optional.
+
+## `listModelingRules`
+
+Listet den Regelkatalog für `CORE` oder `SO`. Das Tool prüft selbst kein Modell.
+
+## `checkModelingRules`
+
+Prüft gezielt Regeln gegen ein Modell. Optional können Modellzweck, Regel-IDs und Profil eingeschränkt werden. Für das normale Gesamtgate ist der High-Level-Review kompakter.
+
+# Modellkorpus
+
+## `indexConfiguredModels`
+
+Inventarisiert die über `interlis.knowledge.model-paths` konfigurierten lokalen `.ili`-Dateien.
+
+## `findSimilarModels`
+
+Sucht lexikalisch nach lokalen Modellbeispielen. Die Treffer sind Discovery-Metadaten, kein Ersatz für das vollständige Vorbild.
+
+## `readModelExample`
+
+Liest eine ausgewählte Datei innerhalb des konfigurierten Modellkorpus vollständig. Pfade ausserhalb dieser Grenzen werden abgewiesen.
+
+# Modellbausteine
+
+## `createModelSnippet`
+
+Erzeugt ein Modellgerüst. `name` ist erforderlich; Sprache, URI, Version, INTERLIS-Version, Imports, IliDoc und Metaattribute sind optional. Das Tool erzeugt keine kantonsspezifischen Titel, Kontakte oder Tags.
+
+## `createTopicSnippet`
+
+Erzeugt einen Topic-Block mit optionaler OID-Definition, Abstraktheit, IliDoc und Metaattributen.
+
+## `createClassSnippet`
+
+Erzeugt eine Klasse mit optionaler Abstraktheit, Basisklasse, OID-Definition und Attributzeilen.
+
+## `createStructureSnippet`
+
+Erzeugt eine Struktur mit optionaler Abstraktheit, Basistyp und Attributzeilen.
+
+## `createAssociationSnippet`
+
+Erzeugt eine Beziehung aus mindestens zwei Rollen. Fehlende Rollennamen werden nur als technische Platzhalter markiert; fehlende Kardinalitäten werden nicht fachlich geraten.
+
+## `createAttributeLine`
+
+Erzeugt eine streng typisierte Attributzeile aus `req`. `typeSpec` wählt genau eine Familie, darunter `domainFqn`, `structureFqn`, `baseType`, Referenz-, Blackbox-, Basket-, Object- oder Metaobject-Typ. Typfremde Felder werden abgewiesen statt ignoriert.
+
+## `createEnumDomainSnippet`
+
+Erzeugt eine flache Aufzählungsdomain. Entweder `items` oder annotierte `itemSpecs` müssen angegeben werden.
+
+## `createEnumTreeDomainSnippet`
+
+Erzeugt eine rekursive Aufzählungsdomain aus typisierten Baumknoten.
+
+## `createNumericDomainSnippet`
+
+Erzeugt eine numerische Domain aus Name, Minimum und Maximum sowie optionaler Einheit und Annotationen.
+
+## `createUnitSnippet`
+
+Erzeugt eine linear abgeleitete Einheit aus positivem Faktor und expliziter Basiseinheit.
+
+## `createCoordDomainSnippet`
+
+Erzeugt eine zwei- oder dreidimensionale COORD-Domain ohne CRS-Annahmen. Jede Achse verlangt `min`, `max` und `unitFqn`; eine Rotation muss als gültiges Paar angegeben werden.
+
+```json
+{
+  "name": "LocalCoord",
+  "axes": [
+    { "min": 0.00, "max": 100.00, "unitFqn": "INTERLIS.m" },
+    { "min": 10.00, "max": 200.00, "unitFqn": "INTERLIS.m" }
+  ],
+  "rotationFrom": 2,
+  "rotationTo": 1
+}
+```
+
+## `createUniqueConstraint`
+
+Erzeugt nur einen einfachen globalen UNIQUE-Snippet aus `attrs`. WHERE-, BASKET- und LOCAL-Semantik werden nicht aus diesem engen Schema abgeleitet. Nach Integration folgen semantischer Proof und Modellreview.
 
 ## `formatIliModel`
 
-Formatiert vollständigen INTERLIS-Modelltext. Formatierung ist keine semantische Prüfung; ein fachliches Review wird dadurch nicht ersetzt.
+Regeneriert formatierten Modelltext mit ili2c. Formatierung ist kein fachliches Review.
 
 # Geometrie
 
 ## `listGeometryTypes`
 
-Listet unterstützte Geometrietypen und die benötigten Modelle.
+Listet die unterstützten INTERLIS- und CHBase-Geometrietypen für INTERLIS 2.3 oder 2.4.
 
 ## `ensureGeometryDependencies`
 
-Bevorzugter Einstieg für Geometrieattribute. Liefert zusammenhängend:
-
-- `importLinesToAdd`
-- `domainsToAdd`
-- `attributeLine`
-- `notes`
-
-Beispiel:
+Erzeugt Importhinweise und eine Geometrie-Attributzeile. Ohne CHBase ist `coordDomainFqn` erforderlich; das Tool erfindet keine Koordinatendomain. Mit CHBase werden nur bekannte Typen des zur INTERLIS-Version passenden Modells akzeptiert.
 
 ```json
 {
   "attributeName": "Perimeter",
+  "geometryType": "SURFACE",
+  "coordDomainFqn": "Demo.Coord2",
   "arcs": true
 }
 ```
 
-## `createCoordDomainSnippet`
-
-Erzeugt eine COORD-Domain, wenn explizit eine solche Domain benötigt wird. Für ein komplettes Geometrieattribut ist `ensureGeometryDependencies` meist hilfreicher.
-
-# Funktionen
-
-## `listMathFunctions`
-
-Listet mathematische Standardfunktionen für die gewünschte INTERLIS-Version.
-
-## `listTextFunctions`
-
-Listet Text-/String-Funktionen.
+# Constraint-Wissen und Proofs
 
 ## `listConstraintFunctions`
 
-Liefert Constraint-Funktionen mit stabilen semantischen IDs. Diese IDs sollten beim typisierten MANDATORY-/PLAUSIBILITY-Authoring verwendet werden, statt versionsabhängige Funktionssyntax zu raten.
+Liefert den kanonischen Funktionskatalog mit stabilen semantischen IDs und typisierten Parametern für INTERLIS 2.3 oder 2.4.
 
-# Constraints
+## `resolveConstraintPath`
 
-Die Semantik und Beispiele sind ausführlich in [CONSTRAINTS.md](CONSTRAINTS.md) beschrieben.
+Löst einen Objekt-/Attributpfad im kompilierten Kontext auf und liefert Schritte, Kardinalitäten und Zieltyp.
 
 ## `reviewIliConstraint`
 
-Erklärt einen bestehenden Constraint anhand des kompilierten ili2c-ASTs: Kontext, Pfade, Typen, Funktionen und strukturelle Randfälle.
-
-Dieses Tool erzeugt keine Testdaten.
+Erklärt einen vorhandenen Constraint aus dem ili2c-AST. Das Resultat enthält Kontext, Pfade, Funktionen, Typen und strukturelle Randfälle, aber keine automatisch erzeugten Testdaten.
 
 ## `generateIliConstraintCases`
 
-Automatischer semantischer Proof für unterstützte MANDATORY-, UNIQUE-, EXISTENCE-, PLAUSIBILITY- und SET-Constraints.
-
-```json
-{
-  "modelText": "<vollständiger Modelltext>",
-  "constraint": "Demo.Data.Item.MinimumValue"
-}
-```
-
-Wichtige Ergebnisfelder:
-
-- `generationVerified`
-- `generatedCases`
-- `coverageGoalCount`
-- `coverageSolvedCount`
-- `coverageComplete`
-- optional `coverageUnsolved`
-- `verification`
+Erzeugt und verifiziert modellbewusste Witnesses, Counterexamples, Grenz- und Scope-Fälle für die unterstützte MANDATORY-, UNIQUE-, EXISTENCE-, PLAUSIBILITY- und SET-Semantik. `coverageUnsolved` und Safety-Codes sind bewusste Grenzen.
 
 ## `testIliConstraint`
 
-Prüft explizit vorgegebene Testfälle mit modellbewusst erzeugtem XTF und ilivalidator. Nicht als redundanter zweiter Proof nach `generateIliConstraintCases` verwenden.
+Validiert höchstens 100 explizit vorgegebene Testfälle. Das Tool ist für fachliche oder gezielte Regressionstestdaten gedacht, nicht als redundante Wiederholung eines erfolgreichen automatischen Proofs.
 
 ## `authorIliMandatoryConstraint`
 
-Typisiertes source-preserving Authoring über eine flache Expression-Node-Liste.
-
-Unterstützte Knotenarten umfassen `ATTRIBUTE`, `PATH`, `NUMERIC`, `BOOLEAN`, `ENUM`, `TEXT`, `MTEXT`, `FUNCTION`, `DEFINED`, `NOT`, `AND`, `OR`, `IMPLIES` und `COMPARE`.
+Erstellt einen Mandatory Constraint aus einer typisierten flachen Ausdrucks-Node-Liste, fügt ihn source-preserving ein und beweist ihn über die gemeinsame semantische Pipeline.
 
 ## `authorIliExistenceConstraint`
 
-Typisiertes Authoring für skalare NUMERIC-/BOOLEAN-/ENUM-/TEXT-/MTEXT-EXISTENCE-Constraints mit expliziten `REQUIRED IN`-Zielen.
+Erstellt skalare EXISTENCE-Constraints aus einem expliziten eingeschränkten Pfad und vollständigen REQUIRED-IN-Zielen. Zielattribute werden nie geraten.
 
 ## `authorIliPlausibilityConstraint`
 
-Typisiertes Authoring mit `direction`, `percentage` und derselben semantischen Expression-Struktur wie MANDATORY.
+Erstellt einen Plausibility Constraint aus Richtung, Prozentgrenze und typisiertem Ausdruck. Der Proof verwendet echte Objektpopulationen.
 
 ## `authorIliSetConstraint`
 
-Typisiertes Authoring für den unterstützten `INTERLIS.objectCount(ALL)`-Umfang mit `operator`, `threshold`, optionalem `where` und `perBasket`.
+Erstellt den unterstützten `INTERLIS.objectCount(ALL)`-Umfang mit Operator, Schwellwert, optionalem direktem WHERE und optionalem Basket-Scope.
 
 ## `generateIliConstraintFromDecisionTable`
 
-Spezialisiertes Frontend, wenn eine fachliche Regel als Entscheidungstabelle mit erlaubten Zeilen vorliegt. Es erzeugt einen MANDATORY Constraint und verifiziert die abgeleiteten Fälle über dieselbe Validator-Infrastruktur.
-
-## Legacy-/Snippet-Constraint-Helper
-
-- `createMandatoryConstraint`
-- `createSetConstraint`
-- `createExistenceConstraint`
-
-Diese Tools erzeugen nur freie Snippets. Für neue Regeln sind die typisierten Authoring-Tools vorzuziehen, wenn sie die benötigte Semantik ausdrücken können.
-
-`createUniqueConstraint` ist derzeit die bewusst eng begrenzte Ausnahme, weil noch kein gleichwertiges typisiertes UNIQUE-Authoring existiert. Es erzeugt einen einfachen globalen Schlüssel wie:
-
-```ili
-UNIQUE code, version;
-```
-
-Komplexe Formen mit `WHERE`, `(BASKET)` oder `LOCAL` sollten nicht aus dem einfachen Snippet-Schema abgeleitet werden.
-
-Weitere ältere Spezial-Helper wie `createPresentIfConstraint` und `createValueRangeConstraint` erzeugen ebenfalls Snippets; sie ersetzen keinen semantischen Proof.
+Übersetzt explizit erlaubte Entscheidungszeilen in einen Mandatory Constraint. Source-Edit, semantische Übersetzung, Fallgenerierung und Validator-Proof verwenden dieselbe Pipeline wie das übrige typed Authoring.
 
 # XTF
 
 ## `generateExampleXtf`
 
-Erzeugt deterministische minimale XTF-Daten für sicher unterstützte Typen. Nicht sicher erzeugbare Klassen erscheinen in `skippedClasses`.
+Erzeugt deterministisches Minimal-XTF für sicher materialisierbare Klassen. `maxObjectsPerClass` liegt zwischen 1 und 20. Koordinaten werden aus den tatsächlichen Domain-Grenzen abgeleitet.
 
 ## `validateXtf`
 
-Validiert übergebenen XTF-Text gegen das Modell mit ilivalidator.
-
-# Namens- und FQN-Helfer
-
-## `sanitizeIdentifier`
-
-Bereinigt Freitext zu einem INTERLIS-kompatiblen, nicht reservierten Identifier.
-
-## `validateIdentifier`
-
-Prüft einen Identifier.
-
-## `validateFqn`
-
-Prüft einen vollqualifizierten Namen; `INTERLIS` ist als erstes Segment für eingebaute Referenzen wie `INTERLIS.m` zulässig.
+Validiert bis zu 20 MiB XTF-Text gegen den vollständigen Modelltext mit ilivalidator und liefert strukturierte Fehler- und Warnungszählungen.

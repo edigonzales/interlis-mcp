@@ -12,6 +12,7 @@ import ch.interlis.ili2c.config.FileEntryKind;
 import ch.interlis.ili2c.generator.Interlis2Generator;
 import ch.interlis.ili2c.metamodel.Model;
 import ch.interlis.ili2c.metamodel.TransferDescription;
+import ch.so.agi.mcp.util.McpInputLimits;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
@@ -25,38 +26,61 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
 public class IliCompilerService {
 
   private static final int SOURCE_CONTEXT_LINES = 2;
+  private static final String SUBMITTED_MODEL_NAME = "<submitted-model>";
+
+  private final @Nullable String configuredRepositories;
+
+  public IliCompilerService() {
+    this(null);
+  }
+
+  @Autowired
+  public IliCompilerService(
+      @Value("${interlis.mcp.model-repositories:}") @Nullable String configuredRepositories) {
+    this.configuredRepositories = configuredRepositories == null || configuredRepositories.isBlank()
+        ? null
+        : configuredRepositories.trim();
+  }
 
   public CompilationResult compile(String modelText, @Nullable String modelRepositories) {
     return compile(modelText, modelRepositories, "ili2c_model_");
   }
 
   public CompilationResult compile(String modelText, @Nullable String modelRepositories, String tempPrefix) {
-    if (modelText == null || modelText.isBlank()) {
-      throw new IllegalArgumentException("Model text is required.");
-    }
-
-    Path tempFile;
+    McpInputLimits.requireModelText(modelText);
+    Path tempFile = null;
     try {
       tempFile = Files.createTempFile(tempPrefix, ".ili");
       Files.writeString(tempFile, modelText, StandardCharsets.UTF_8);
+      return compilePersisted(modelText, effectiveRepositories(modelRepositories), tempFile);
     } catch (IOException e) {
       throw new UncheckedIOException("Unable to persist INTERLIS source for ili2c.", e);
+    } finally {
+      if (tempFile != null) {
+        try {
+          Files.deleteIfExists(tempFile);
+        } catch (IOException e) {
+          System.err.println("Unable to delete a temporary INTERLIS compiler source file.");
+        }
+      }
     }
+  }
 
+  private CompilationResult compilePersisted(String modelText, String modelRepositories, Path tempFile) {
     List<Map<String, Object>> messages = new ArrayList<>();
     LogListener collector = new Ili2cLogCollector(messages);
 
     Ili2cSettings settings = new Ili2cSettings();
     ch.interlis.ili2c.Main.setDefaultIli2cPathMap(settings);
-    settings.setIlidirs(modelRepositories != null && !modelRepositories.isBlank()
-        ? modelRepositories
-        : Ili2cSettings.DEFAULT_ILIDIRS);
+    settings.setIlidirs(modelRepositories);
 
     Configuration cfg = new Configuration();
     cfg.addFileEntry(new FileEntry(tempFile.toString(), FileEntryKind.ILIMODELFILE));
@@ -75,7 +99,7 @@ public class IliCompilerService {
       } catch (Exception e) {
         Map<String, Object> error = new LinkedHashMap<>();
         error.put("severity", "ERROR");
-        error.put("message", "ili2c failed: " + e.getMessage());
+        error.put("message", normalizeDiagnosticText("ili2c failed: " + e.getMessage(), tempFile));
         messages.add(error);
       } finally {
         logger.addListener(stdListener);
@@ -85,15 +109,37 @@ public class IliCompilerService {
     }
 
     addSourceExcerpts(messages, modelText, tempFile);
-
-    try {
-      Files.deleteIfExists(tempFile);
-    } catch (Exception ignore) {
-    }
+    normalizeDiagnosticPaths(messages, tempFile);
 
     boolean valid = transferDescription != null
         && messages.stream().noneMatch(message -> "ERROR".equals(message.get("severity")));
     return new CompilationResult(valid, messages, transferDescription);
+  }
+
+  String effectiveRepositories(@Nullable String modelRepositories) {
+    if (modelRepositories != null && !modelRepositories.isBlank()) {
+      return modelRepositories.trim();
+    }
+    return configuredRepositories != null ? configuredRepositories : Ili2cSettings.DEFAULT_ILIDIRS;
+  }
+
+  private void normalizeDiagnosticPaths(List<Map<String, Object>> messages, Path sourceFile) {
+    for (Map<String, Object> message : messages) {
+      Object file = message.get("file");
+      if (file != null && sameSourceFile(file.toString(), sourceFile)) {
+        message.put("file", SUBMITTED_MODEL_NAME);
+      }
+      Object text = message.get("message");
+      if (text != null) {
+        message.put("message", normalizeDiagnosticText(text.toString(), sourceFile));
+      }
+    }
+  }
+
+  private String normalizeDiagnosticText(String text, Path sourceFile) {
+    return text
+        .replace(sourceFile.toString(), SUBMITTED_MODEL_NAME)
+        .replace(sourceFile.toAbsolutePath().toString(), SUBMITTED_MODEL_NAME);
   }
 
   public TransferDescription compileOrThrow(String modelText, @Nullable String modelRepositories, String phase) {

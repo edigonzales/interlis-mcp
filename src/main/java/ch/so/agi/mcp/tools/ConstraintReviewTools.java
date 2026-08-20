@@ -63,10 +63,9 @@ public class ConstraintReviewTools {
   )
   public Map<String, Object> reviewIliConstraint(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,
-      @McpToolParam(description = "Constraint-Name oder vollqualifizierter Constraint-Name", required = true) String constraint,
-      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition", required = false) @Nullable String modelRepositories) {
+      @McpToolParam(description = "Constraint-Name oder vollqualifizierter Constraint-Name", required = true) String constraint) {
     IliCompilerService.CompilationResult compilation =
-        compilerService.compile(modelText, modelRepositories, "ili2c_constraint_review_");
+        compilerService.compile(modelText, null, "ili2c_constraint_review_");
     if (!compilation.valid() || compilation.transferDescription() == null) {
       return Map.of(
           "valid", false,
@@ -90,7 +89,7 @@ public class ConstraintReviewTools {
     ReviewAccumulator accumulator = new ReviewAccumulator(functionCatalog(iliVersion));
 
     Map<String, Object> ast = describeConstraint(selected, accumulator, viewableContext);
-    resolveStringPaths(modelText, modelRepositories, viewableContext, accumulator);
+    resolveStringPaths(modelText, viewableContext, accumulator);
 
     List<Map<String, Object>> findings = new ArrayList<>();
     for (String unsupported : accumulator.unsupportedAstNodes) {
@@ -446,7 +445,6 @@ public class ConstraintReviewTools {
 
   private void resolveStringPaths(
       String modelText,
-      @Nullable String modelRepositories,
       @Nullable Viewable<?> context,
       ReviewAccumulator accumulator) {
     for (PathRequest request : accumulator.pathRequests.values()) {
@@ -461,7 +459,7 @@ public class ConstraintReviewTools {
         path.put("reason", "Constraint container is not a viewable path context.");
       } else {
         Map<String, Object> resolved = knowledgeTools.resolveConstraintPath(
-            modelText, context.getScopedName(), request.path(), modelRepositories);
+            modelText, context.getScopedName(), request.path());
         path.putAll(resolved);
         addResolvedPathReferences(path, accumulator);
         addPathEdgeCases(path, accumulator);

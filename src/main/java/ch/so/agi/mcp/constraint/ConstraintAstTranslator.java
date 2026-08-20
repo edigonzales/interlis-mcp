@@ -27,6 +27,7 @@ import ch.interlis.ili2c.metamodel.Type;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -191,10 +192,28 @@ public final class ConstraintAstTranslator {
       ConstraintExpression.ComparisonOperator operator,
       Evaluable left,
       Evaluable right) {
+    ConstraintExpression translatedLeft = translateEvaluable(left);
+    ConstraintExpression translatedRight = translateEvaluable(right);
+    translatedLeft = coerceBooleanEnumerationLiteral(translatedLeft, translatedRight);
+    translatedRight = coerceBooleanEnumerationLiteral(translatedRight, translatedLeft);
     return new ConstraintExpression.Comparison(
         operator,
-        translateEvaluable(left),
-        translateEvaluable(right));
+        translatedLeft,
+        translatedRight);
+  }
+
+  private ConstraintExpression coerceBooleanEnumerationLiteral(
+      ConstraintExpression candidate,
+      ConstraintExpression counterpart) {
+    if (!(candidate instanceof ConstraintExpression.EnumLiteral literal)
+        || counterpart.type().scalarKind() != ConstraintExpression.ScalarKind.BOOLEAN) {
+      return candidate;
+    }
+    return switch (literal.value().toLowerCase(Locale.ROOT)) {
+      case "true" -> new ConstraintExpression.BooleanLiteral(true);
+      case "false" -> new ConstraintExpression.BooleanLiteral(false);
+      default -> candidate;
+    };
   }
 
   private ConstraintExpression standardCall(

@@ -27,6 +27,7 @@ import ch.interlis.ili2c.metamodel.TextType;
 import ch.interlis.ili2c.metamodel.Topic;
 import ch.interlis.ili2c.metamodel.TransferDescription;
 import ch.interlis.ili2c.metamodel.Type;
+import ch.interlis.ili2c.metamodel.TypeAlias;
 import ch.interlis.ili2c.metamodel.Unit;
 import ch.interlis.ili2c.metamodel.View;
 import ch.so.agi.mcp.service.IliCompilerService;
@@ -63,10 +64,9 @@ public class ModelAnalysisTools {
   )
   public Map<String, Object> analyzeIliModel(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
-      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition", required = false) @Nullable String modelRepositories,
       @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false) @Nullable ModelPurpose modelPurpose
   ) {
-    IliCompilerService.CompilationResult compilation = compilerService.compile(modelText, modelRepositories, "ili2c_analysis_");
+    IliCompilerService.CompilationResult compilation = compilerService.compile(modelText, null, "ili2c_analysis_");
     AnalysisData data = analyzeCompiled(compilation.transferDescription(), modelText);
     return toResponse(compilation.valid(), compilation.messages(), data, ModelPurpose.normalize(modelPurpose));
   }
@@ -132,7 +132,7 @@ public class ModelAnalysisTools {
         data.associations.add(associationMap(association));
         collect(association, data, td);
       } else if (element instanceof View view) {
-        data.views.add(viewMap(view));
+        data.views.add(viewMap(view, td));
         collect(view, data, td);
       } else if (element instanceof Table table) {
         if (!table.isImplicit()) {
@@ -144,14 +144,14 @@ public class ModelAnalysisTools {
         }
         collect(table, data, td);
       } else if (element instanceof Domain domain) {
-        data.domains.add(domainMap(domain));
+        data.domains.add(domainMap(domain, td));
         collect(domain, data, td);
       } else if (element instanceof Constraint constraint) {
         data.constraints.add(constraintMap(constraint, td));
       } else if (element instanceof Unit unit) {
         data.units.add(unitMap(unit, td));
       } else if (element instanceof AttributeDef attribute) {
-        data.attributes.add(attributeMap(attribute));
+        data.attributes.add(attributeMap(attribute, td));
       } else if (element instanceof Container<?> child) {
         collect(child, data, td);
       }
@@ -196,13 +196,17 @@ public class ModelAnalysisTools {
     return map;
   }
 
-  private Map<String, Object> viewMap(View view) {
+  private Map<String, Object> viewMap(View view, TransferDescription td) {
     Map<String, Object> map = elementMap(view, "VIEW");
     map.put("viewType", view.getClass().getSimpleName());
+    StringWriter writer = new StringWriter();
+    Interlis2Generator generator = Interlis2Generator.generateElements(writer, td);
+    generator.printView(view, true);
+    map.put("definitionText", writer.toString().strip());
     return map;
   }
 
-  private Map<String, Object> domainMap(Domain domain) {
+  private Map<String, Object> domainMap(Domain domain, TransferDescription td) {
     Type domainType = domain.getType();
     Map<String, Object> map = elementMap(domain, "DOMAIN");
     map.put("abstract", domain.isAbstract());
@@ -210,6 +214,7 @@ public class ModelAnalysisTools {
     putExtending(map, domain.getExtending());
     map.put("type", domainType != null ? domainType.getClass().getSimpleName() : "");
     map.put("typeText", typeText(domainType));
+    map.put("declaredType", declaredTypeText(domain.getContainer(), domainType, td));
     return map;
   }
 
@@ -294,18 +299,37 @@ public class ModelAnalysisTools {
     }
   }
 
-  private Map<String, Object> attributeMap(AttributeDef attribute) {
+  private Map<String, Object> attributeMap(AttributeDef attribute, TransferDescription td) {
     Map<String, Object> map = elementMap(attribute, "ATTRIBUTE");
+    Type declaredDomain = attribute.getDomain();
     Type domain = attribute.getDomainResolvingAliases();
     map.put("type", domain != null ? domain.getClass().getSimpleName() : "");
     map.put("typeText", typeText(domain));
-    map.put("mandatory", domain != null && domain.isMandatoryConsideringAliases());
+    map.put("declaredType", declaredTypeText(attribute.getContainer(), declaredDomain, td));
+    if (declaredDomain instanceof TypeAlias alias && alias.getAliasing() != null) {
+      map.put("declaredTypeFqn", alias.getAliasing().getScopedName());
+    }
+    map.put("mandatory", (declaredDomain != null && declaredDomain.isMandatory())
+        || (domain != null && domain.isMandatoryConsideringAliases()));
     map.put("geometry", isGeometryType(domain));
     Element container = attribute.getContainer();
     if (container != null) {
       map.put("container", container.getScopedName());
     }
     return map;
+  }
+
+  private String declaredTypeText(
+      @Nullable Container<?> container,
+      @Nullable Type type,
+      TransferDescription td) {
+    if (container == null || type == null) {
+      return "";
+    }
+    StringWriter writer = new StringWriter();
+    Interlis2Generator generator = Interlis2Generator.generateElements(writer, td);
+    generator.printType(container, type, true);
+    return writer.toString().strip();
   }
 
   private String typeText(@Nullable Type type) {

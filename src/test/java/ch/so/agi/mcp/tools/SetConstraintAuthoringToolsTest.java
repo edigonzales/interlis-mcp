@@ -1,5 +1,7 @@
 package ch.so.agi.mcp.tools;
 
+import ch.so.agi.mcp.constraint.ConstraintAuthoringWorkflow;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.so.agi.mcp.constraint.ConstraintContextService;
@@ -26,9 +28,9 @@ class SetConstraintAuthoringToolsTest {
   void authorsSourcePreservingSetWhereAndVerifiesProofWithTwoCompiles() {
     CountingCompiler compiler = new CountingCompiler();
     ConstraintCaseGenerationTools cases = new ConstraintCaseGenerationTools(
-        compiler,
-        new ConstraintContextService(compiler));
-    SetConstraintAuthoringTools tools = new SetConstraintAuthoringTools(compiler, cases);
+        new ConstraintContextService(compiler),
+        new ConstraintTestTools(compiler));
+    SetConstraintAuthoringTools tools = new SetConstraintAuthoringTools(cases, new ConstraintAuthoringWorkflow(compiler));
 
     SetConstraintAuthoringTools.WhereSpec where = new SetConstraintAuthoringTools.WhereSpec();
     where.attribute = "value";
@@ -43,8 +45,7 @@ class SetConstraintAuthoringToolsTest {
         ">=",
         new BigDecimal("2"),
         false,
-        where,
-        null);
+        where);
 
     assertThat(result.get("generated")).as("%s", result).isEqualTo(true);
     assertThat(result.get("proofVerified")).as("%s", result).isEqualTo(true);
@@ -68,9 +69,9 @@ class SetConstraintAuthoringToolsTest {
   void authorsBasketScopedSetAndRoundTripsScope() {
     IliCompilerService compiler = new IliCompilerService();
     ConstraintCaseGenerationTools cases = new ConstraintCaseGenerationTools(
-        compiler,
-        new ConstraintContextService(compiler));
-    SetConstraintAuthoringTools tools = new SetConstraintAuthoringTools(compiler, cases);
+        new ConstraintContextService(compiler),
+        new ConstraintTestTools(compiler));
+    SetConstraintAuthoringTools tools = new SetConstraintAuthoringTools(cases, new ConstraintAuthoringWorkflow(compiler));
 
     Map<String, Object> result = tools.authorIliSetConstraint(
         MODEL,
@@ -79,7 +80,6 @@ class SetConstraintAuthoringToolsTest {
         ">=",
         new BigDecimal("2"),
         true,
-        null,
         null);
 
     assertThat(result.get("generated")).as("%s", result).isEqualTo(true);
@@ -94,9 +94,9 @@ class SetConstraintAuthoringToolsTest {
   void rejectsInvalidOperatorBeforeCompilation() {
     CountingCompiler compiler = new CountingCompiler();
     ConstraintCaseGenerationTools cases = new ConstraintCaseGenerationTools(
-        compiler,
-        new ConstraintContextService(compiler));
-    SetConstraintAuthoringTools tools = new SetConstraintAuthoringTools(compiler, cases);
+        new ConstraintContextService(compiler),
+        new ConstraintTestTools(compiler));
+    SetConstraintAuthoringTools tools = new SetConstraintAuthoringTools(cases, new ConstraintAuthoringWorkflow(compiler));
 
     Map<String, Object> result = tools.authorIliSetConstraint(
         MODEL,
@@ -105,7 +105,6 @@ class SetConstraintAuthoringToolsTest {
         "~=",
         BigDecimal.ONE,
         false,
-        null,
         null);
 
     assertThat(result.get("generated")).isEqualTo(false);

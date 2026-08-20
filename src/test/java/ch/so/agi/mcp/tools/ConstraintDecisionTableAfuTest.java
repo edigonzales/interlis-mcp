@@ -1,8 +1,11 @@
 package ch.so.agi.mcp.tools;
 
+import ch.so.agi.mcp.constraint.ConstraintAuthoringWorkflow;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.math.BigDecimal;
 import java.util.List;
@@ -50,14 +53,12 @@ class ConstraintDecisionTableAfuTest {
       "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.BodeneinheitHauptauspraegung_Wald";
 
   private final IliCompilerService compilerService = new IliCompilerService();
-  private final ConstraintKnowledgeTools knowledgeTools = new ConstraintKnowledgeTools(
-      new MathTools(), new TextTools(), compilerService);
+  private final ConstraintKnowledgeTools knowledgeTools = new ConstraintKnowledgeTools(compilerService);
   private final ConstraintReviewTools reviewTools = new ConstraintReviewTools(compilerService, knowledgeTools);
   private final ConstraintTestTools testTools = new ConstraintTestTools(compilerService);
-  private final ConstraintDecisionTableTools tools = new ConstraintDecisionTableTools(
-      reviewTools,
-      testTools,
-      compilerService);
+  private final ConstraintContextService contextService = new ConstraintContextService(compilerService);
+  private final ConstraintCaseGenerationTools caseTools = new ConstraintCaseGenerationTools(contextService, testTools);
+  private final ConstraintDecisionTableTools tools = new ConstraintDecisionTableTools(new ConstraintAuthoringWorkflow(compilerService), caseTools);
 
   @Test
   void generatesAndProvesProductionShapedAfuWeightingConstraint() {
@@ -74,8 +75,7 @@ class ConstraintDecisionTableAfuTest {
         MODEL,
         CONTEXT,
         "GewichtungSumme100_Wald",
-        List.of(withSecondary, withoutSecondary),
-        null);
+        List.of(withSecondary, withoutSecondary));
 
     assertEquals(true, result.get("generated"), String.valueOf(result));
     assertEquals(true, result.get("proofVerified"), String.valueOf(result));

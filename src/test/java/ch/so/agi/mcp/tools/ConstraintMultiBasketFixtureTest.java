@@ -38,8 +38,7 @@ class ConstraintMultiBasketFixtureTest {
     Map<String, Object> result = tools.testIliConstraint(
         MODEL,
         "UniqueCodePerBasket",
-        List.of(testCase),
-        null);
+        List.of(testCase));
 
     assertThat(result.get("allPassed")).isEqualTo(true);
     Map<String, Object> caseResult = caseResult(result);
@@ -60,8 +59,7 @@ class ConstraintMultiBasketFixtureTest {
     Map<String, Object> result = tools.testIliConstraint(
         MODEL,
         "UniqueCodePerBasket",
-        List.of(testCase),
-        null);
+        List.of(testCase));
 
     assertThat(result.get("allPassed")).isEqualTo(true);
     Map<String, Object> caseResult = caseResult(result);
@@ -84,8 +82,7 @@ class ConstraintMultiBasketFixtureTest {
     Map<String, Object> result = tools.testIliConstraint(
         MODEL,
         "UniqueCodeGlobal",
-        List.of(testCase),
-        null);
+        List.of(testCase));
 
     assertThat(result.get("allPassed")).isEqualTo(true);
     Map<String, Object> caseResult = caseResult(result);
@@ -106,8 +103,7 @@ class ConstraintMultiBasketFixtureTest {
     Map<String, Object> result = tools.testIliConstraint(
         MODEL,
         "UniqueCodePerBasket",
-        List.of(testCase),
-        null);
+        List.of(testCase));
 
     assertThat(result.get("allPassed")).isEqualTo(true);
     Map<String, Object> caseResult = caseResult(result);

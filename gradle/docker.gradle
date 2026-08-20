@@ -12,8 +12,8 @@ tasks.register('buildAndPushMultiArchImage', Exec) {
 
     workingDir "$projectDir/docker/image"
     commandLine 'docker', 'buildx', 'build',
-                '--cache-from', 'sogis/interlis-mcp:cache',
-                '--cache-to', 'sogis/interlis-mcp:cache',
+                '--cache-from', 'type=registry,ref=sogis/interlis-mcp:cache',
+                '--cache-to', 'type=registry,ref=sogis/interlis-mcp:cache,mode=max',
                 '--platform', 'linux/amd64,linux/arm64',
                 '-t', "sogis/interlis-mcp:$version.major",
                 '-t', "sogis/interlis-mcp:$version.major.$version.minor",
@@ -23,7 +23,6 @@ tasks.register('buildAndPushMultiArchImage', Exec) {
                 '--label', "interlis-mcp.git_commit=$githash",
                 '--label', "interlis-mcp.version=$version",
                 '-f', 'Dockerfile',  '.', '--push'
-                //'-f', 'Dockerfile',  '.'
 }
 
 def getCheckedOutGitCommitHash() {

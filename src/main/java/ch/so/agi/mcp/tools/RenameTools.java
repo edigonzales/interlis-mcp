@@ -37,8 +37,7 @@ public class RenameTools {
       @McpToolParam(description = "Vollständiger INTERLIS-2 Modelltext", required = true) String modelText,
       @McpToolParam(description = "Vollqualifizierter Name des umzubenennenden Elements", required = true) String elementFqn,
       @McpToolParam(description = "Optionale Guard-Elementart: MODEL, TOPIC, CLASS_OR_STRUCTURE, ASSOCIATION, DOMAIN, UNIT oder ATTRIBUTE", required = false) @Nullable RenameElementKind expectedKind,
-      @McpToolParam(description = "Neuer einfacher Name des Elements", required = true) String newName,
-      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition", required = false) @Nullable String modelRepositories
+      @McpToolParam(description = "Neuer einfacher Name des Elements", required = true) String newName
   ) {
     if (modelText == null || modelText.isBlank()) {
       throw new IllegalArgumentException("Model text is required.");
@@ -53,7 +52,7 @@ public class RenameTools {
     NameValidator.ascii().validateFqn(elementFqn.trim(), "Element FQN");
     NameValidator.ascii().validateIdent(newName.trim(), "New element name");
 
-    TransferDescription td = compilerService.compileOrThrow(modelText, modelRepositories, "rename");
+    TransferDescription td = compilerService.compileOrThrow(modelText, null, "rename");
 
     Element element = td.getElement(elementFqn.trim());
     if (element == null) {
@@ -69,7 +68,7 @@ public class RenameTools {
     renameElement(element, newName.trim());
 
     String regenerated = compilerService.generateModelsFromLastFile(td);
-    TransferDescription validation = compilerService.compileOrThrow(regenerated, modelRepositories, "validation after rename");
+    TransferDescription validation = compilerService.compileOrThrow(regenerated, null, "validation after rename");
 
     return Map.of(
         "updatedModelText", regenerated,

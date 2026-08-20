@@ -17,39 +17,85 @@ class DomainToolsTest {
   private final DomainTools domainTools = new DomainTools();
 
   @Test
-  void createCoordDomainSnippet_defaultsTo2dAndMillimeter() {
-    Map<String, Object> result = domainTools.createCoordDomainSnippet("Coord2", null, null, null, null);
+  void createCoordDomainSnippet_usesExplicitAxesWithoutInventingRanges() {
+    Map<String, Object> result = domainTools.createCoordDomainSnippet(
+        "LocalCoord",
+        List.of(axis("0.00", "100.00", "INTERLIS.m"), axis("10.00", "200.00", "INTERLIS.m")),
+        null,
+        null,
+        null,
+        null);
 
     assertEquals(
         """
             DOMAIN
-              Coord2 = COORD
-                460000.000 .. 870000.000 [INTERLIS.m],
-                45000.000 .. 310000.000 [INTERLIS.m],
-                ROTATION 2 -> 1;""",
+              LocalCoord = COORD
+                0.00 .. 100.00 [INTERLIS.m],
+                10.00 .. 200.00 [INTERLIS.m];""",
         result.get("iliSnippet"));
   }
 
   @Test
-  void createCoordDomainSnippet_infers3dFromNameAndRespectsDecimals() {
-    Map<String, Object> result = domainTools.createCoordDomainSnippet("Coord3", null, 1, null, null);
+  void createCoordDomainSnippet_rendersThreeAxesAndExplicitRotation() {
+    Map<String, Object> result = domainTools.createCoordDomainSnippet(
+        "Coord3",
+        List.of(
+            axis("2600000.0", "2600100.0", "INTERLIS.m"),
+            axis("1200000.0", "1200100.0", "INTERLIS.m"),
+            axis("-200.0", "5000.0", "INTERLIS.m")),
+        2,
+        1,
+        null,
+        null);
 
     assertEquals(
         """
             DOMAIN
               Coord3 = COORD
-                460000.0 .. 870000.0 [INTERLIS.m],
-                45000.0 .. 310000.0 [INTERLIS.m],
-                -200.0 .. 5000.0 [INTERLIS.m]
+                2600000.0 .. 2600100.0 [INTERLIS.m],
+                1200000.0 .. 1200100.0 [INTERLIS.m],
+                -200.0 .. 5000.0 [INTERLIS.m],
                 ROTATION 2 -> 1;""",
         result.get("iliSnippet"));
   }
 
   @Test
-  void createCoordDomainSnippet_rejectsInvalidDimension() {
+  void createCoordDomainSnippet_rejectsInvalidAxes() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> domainTools.createCoordDomainSnippet("CoordX", 4, null, null, null));
+        () -> domainTools.createCoordDomainSnippet(
+            "CoordX", List.of(axis("10", "0", "INTERLIS.m"), axis("0", "1", "INTERLIS.m")),
+            null, null, null, null));
+  }
+
+  @Test
+  void createCoordDomainSnippet_generatedThreeDimensionalDomainCompiles() {
+    String snippet = String.valueOf(domainTools.createCoordDomainSnippet(
+        "Coord3",
+        List.of(
+            axis("2600000.0", "2600100.0", "INTERLIS.m"),
+            axis("1200000.0", "1200100.0", "INTERLIS.m"),
+            axis("-200.0", "5000.0", "INTERLIS.m")),
+        2, 1, null, null).get("iliSnippet"));
+
+    IliCompilerService.CompilationResult compilation = new IliCompilerService().compile("""
+        INTERLIS 2.4;
+
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2026-08-20" =
+        """ + snippet + "\n" + """
+          TOPIC Data =
+            CLASS Point =
+              position : MANDATORY Coord3;
+            END Point;
+          END Data;
+        END Demo.
+        """, null);
+
+    assertTrue(compilation.valid(), () -> "Expected generated COORD domain to compile: " + compilation.messages());
+  }
+
+  private DomainTools.CoordinateAxis axis(String min, String max, String unitFqn) {
+    return new DomainTools.CoordinateAxis(new BigDecimal(min), new BigDecimal(max), unitFqn);
   }
 
   @Test
@@ -61,6 +107,16 @@ class DomainToolsTest {
         "/** Einheit */",
         "UNIT",
         "  Kilometer = 1000 [INTERLIS.m];"), result.get("iliSnippet"));
+  }
+
+  @Test
+  void createNumericDomainRejectsInvertedRangeAndInvalidUnit() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> domainTools.createNumericDomain("Height", "10", "0", "INTERLIS.m", null, null));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> domainTools.createNumericDomain("Height", "0", "10", "invalid unit", null, null));
   }
 
   @Test
@@ -77,7 +133,7 @@ class DomainToolsTest {
         + result.get("iliSnippet") + "\n\n"
         + """
         END Demo.
-        """, null);
+        """);
 
     assertEquals(true, validation.get("valid"), () -> "Expected valid model but got " + validation);
   }
@@ -164,7 +220,7 @@ class DomainToolsTest {
         + result.get("iliSnippet") + "\n\n"
         + """
         END Demo.
-        """, null);
+        """);
 
     assertEquals(true, validation.get("valid"), () -> "Expected valid model but got " + validation);
   }
@@ -275,40 +331,9 @@ class DomainToolsTest {
         + result.get("iliSnippet") + "\n\n"
         + """
         END Demo.
-        """, null);
+        """);
 
     assertEquals(true, validation.get("valid"), () -> "Expected valid model but got " + validation);
-  }
-
-  @Test
-  void createMetaAttributeBlock_rendersStringAndRawValues() {
-    Map<String, Object> result = domainTools.createMetaAttributeBlock(List.of(
-        meta("title", "Demo", null),
-        meta("ch.so.flag", null, "TRUE")));
-
-    assertEquals("""
-        !!@ title="Demo"
-        !!@ ch.so.flag=TRUE""", result.get("iliSnippet"));
-  }
-
-  @Test
-  void createMetaAttributeBlock_rejectsEmptyList() {
-    IllegalArgumentException ex = assertThrows(
-        IllegalArgumentException.class,
-        () -> domainTools.createMetaAttributeBlock(List.of()));
-
-    assertTrue(ex.getMessage().contains("At least one"));
-  }
-
-  @Test
-  void createMetaAttributeBlock_rejectsDuplicateNames() {
-    IllegalArgumentException ex = assertThrows(
-        IllegalArgumentException.class,
-        () -> domainTools.createMetaAttributeBlock(List.of(
-            meta("title", "a", null),
-            meta("title", "b", null))));
-
-    assertTrue(ex.getMessage().contains("Duplicate meta attribute"));
   }
 
   private EnumTreeItem item(String name, List<EnumTreeItem> children) {

@@ -3,9 +3,8 @@ package ch.so.agi.mcp.tools;
 import ch.interlis.ili2c.metamodel.Element;
 import ch.interlis.ili2c.metamodel.Viewable;
 import ch.so.agi.mcp.constraint.CompiledConstraintContext;
-import ch.so.agi.mcp.constraint.ConstraintContextService;
+import ch.so.agi.mcp.constraint.ConstraintAuthoringWorkflow;
 import ch.so.agi.mcp.constraint.ConstraintExpression;
-import ch.so.agi.mcp.constraint.ConstraintSourceEditService;
 import ch.so.agi.mcp.constraint.SemanticConstraint;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.math.BigDecimal;
@@ -19,7 +18,6 @@ import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /** High-level typed authoring for proof-capable SET objectCount(ALL) constraints. */
@@ -43,32 +41,14 @@ public class SetConstraintAuthoringTools {
     public Object value;
   }
 
-  private final IliCompilerService compilerService;
   private final ConstraintCaseGenerationTools caseGenerationTools;
-  private final ConstraintContextService contextService;
-  private final ConstraintSourceEditService sourceEditService;
+  private final ConstraintAuthoringWorkflow authoringWorkflow;
 
-  @Autowired
   public SetConstraintAuthoringTools(
-      IliCompilerService compilerService,
       ConstraintCaseGenerationTools caseGenerationTools,
-      ConstraintContextService contextService,
-      ConstraintSourceEditService sourceEditService) {
-    this.compilerService = compilerService;
+      ConstraintAuthoringWorkflow authoringWorkflow) {
     this.caseGenerationTools = caseGenerationTools;
-    this.contextService = contextService;
-    this.sourceEditService = sourceEditService;
-  }
-
-  /** Compatibility constructor used by focused tests. */
-  SetConstraintAuthoringTools(
-      IliCompilerService compilerService,
-      ConstraintCaseGenerationTools caseGenerationTools) {
-    this(
-        compilerService,
-        caseGenerationTools,
-        new ConstraintContextService(compilerService),
-        new ConstraintSourceEditService());
+    this.authoringWorkflow = authoringWorkflow;
   }
 
   @McpTool(
@@ -82,8 +62,7 @@ public class SetConstraintAuthoringTools {
       @McpToolParam(description = "Vergleichsoperator fuer objectCount(ALL): ==, !=, <, <=, > oder >=", required = true) String operator,
       @McpToolParam(description = "Numerischer Vergleichswert fuer INTERLIS.objectCount(ALL)", required = true) BigDecimal threshold,
       @McpToolParam(description = "true fuer SET CONSTRAINT (BASKET), sonst globale SET-Semantik", required = false) @Nullable Boolean perBasket,
-      @McpToolParam(description = "Optionaler direkter WHERE-Attributvergleich: attribute, operator, valueKind (NUMERIC/BOOLEAN/ENUM/TEXT/MTEXT), value", required = false) @Nullable WhereSpec where,
-      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition", required = false) @Nullable String modelRepositories) {
+      @McpToolParam(description = "Optionaler direkter WHERE-Attributvergleich: attribute, operator, valueKind (NUMERIC/BOOLEAN/ENUM/TEXT/MTEXT), value", required = false) @Nullable WhereSpec where) {
     String normalizedContext;
     String normalizedName;
     String normalizedOperator;
@@ -102,9 +81,8 @@ public class SetConstraintAuthoringTools {
       return unavailable("INVALID_AUTHORING_SPEC", ex.getMessage(), null, null, null);
     }
 
-    IliCompilerService.CompilationResult beforeCompilation = compilerService.compile(
+    IliCompilerService.CompilationResult beforeCompilation = authoringWorkflow.compileBefore(
         modelText,
-        modelRepositories,
         "ili2c_set_authoring_before_");
     if (!beforeCompilation.valid() || beforeCompilation.transferDescription() == null) {
       Map<String, Object> result = unavailable(
@@ -136,13 +114,15 @@ public class SetConstraintAuthoringTools {
         whereExpression,
         conditionExpression);
 
-    ConstraintSourceEditService.PreparedInsertion insertion;
+    ConstraintAuthoringWorkflow.PreparedConstraint prepared;
     try {
-      insertion = sourceEditService.insertConstraintBlock(
+      prepared = authoringWorkflow.insertAndResolve(
           modelText,
           beforeCompilation,
           normalizedContext,
-          constraintBlock);
+          constraintBlock,
+          normalizedContext + "." + normalizedName,
+          "ili2c_set_authoring_after_");
     } catch (IllegalArgumentException ex) {
       return unavailable(
           "CONSTRAINT_INSERTION_FAILED",
@@ -152,12 +132,8 @@ public class SetConstraintAuthoringTools {
           null);
     }
 
-    String expectedConstraintFqn = normalizedContext + "." + normalizedName;
-    ConstraintContextService.Resolution afterResolution = contextService.compileAndResolve(
-        insertion.updatedModelText(),
-        expectedConstraintFqn,
-        modelRepositories,
-        "ili2c_set_authoring_after_");
+    var insertion = prepared.insertion();
+    var afterResolution = prepared.resolution();
     if (!afterResolution.available()) {
       Map<String, Object> result = unavailable(
           afterResolution.compilation().valid()

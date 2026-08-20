@@ -282,11 +282,13 @@ Der Agent übernimmt nur ein **technisches Muster**, wenn es passt. Fachliche Kl
 
 ## Geometrien modellieren
 
-Bei einer Geometrieanforderung sollte der Agent nicht einzelne Imports, Domains und Typzeilen unabhängig erraten. `ensureGeometryDependencies` liefert den zusammenhängenden technischen Vorschlag.
+Bei einer Geometrieanforderung darf der Agent weder CRS noch Achsgrenzen erraten. `ensureGeometryDependencies` verlangt ohne CHBase eine explizit gewählte Koordinatendomain und liefert daraus den zusammenhängenden technischen Vorschlag.
 
 ```json
 {
   "attributeName": "Perimeter",
+  "geometryType": "SURFACE",
+  "coordDomainFqn": "Demo.Coord2",
   "arcs": true
 }
 ```

@@ -71,6 +71,8 @@ Prompts geben einem Agenten aufgabenspezifische Arbeitsanweisungen, ohne dass je
 
 Die exakte öffentliche Tool-Schemaoberfläche wird durch `ToolRegistrationContractTest` geschützt.
 
+Modell-Repositories sind Serverkonfiguration (`interlis.mcp.model-repositories`) und kein wiederholter Parameter der Tool-Schemas. Das hält die öffentliche Oberfläche kleiner und verhindert, dass einzelne Agentenaufrufe beliebige Repository-Grenzen verschieben.
+
 # Kompilierung als gemeinsame Grundlage
 
 `IliCompilerService` kapselt ili2c und normalisiert Compilerresultate. Viele High-Level-Funktionen verwenden dieselbe Compilerabstraktion, statt eigene Parserpfade einzuführen.
@@ -315,6 +317,8 @@ Nur die gezielte Verletzung darf als erwarteter Counterexample gelten.
 ## Keine versteckten Seiteneffekte
 
 Der MCP-Server schreibt keine Benutzerdateien und führt keine produktiven Datenbankoperationen aus. Temporäre Dateien für Compiler- und Validatoraufrufe sind interne Implementierungsdetails.
+
+Modelltext ist auf 2 MiB, XTF auf 20 MiB und eine explizite Constraint-Suite auf 100 Fälle begrenzt. Temporäre Compilerpfade werden in öffentlichen Diagnosen als `<submitted-model>` normalisiert und Dateien in `finally`-Pfaden entfernt.
 
 # Logging und STDIO
 

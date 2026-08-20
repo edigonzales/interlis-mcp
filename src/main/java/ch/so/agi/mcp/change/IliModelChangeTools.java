@@ -26,12 +26,10 @@ public class IliModelChangeTools {
       String modelText,
       @McpToolParam(description = "Typisierte Aenderung. ADD_ATTRIBUTE benoetigt addAttribute.containerFqn und addAttribute.attribute.", required = true)
       IliModelChangeRequest request,
-      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition", required = false)
-      @Nullable String modelRepositories,
       @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false)
       @Nullable ModelPurpose modelPurpose,
       @McpToolParam(description = "Regelprofil: CORE oder SO (Default CORE)", required = false)
       @Nullable ModelingRuleProfile ruleProfile) {
-    return changeService.apply(modelText, request, modelRepositories, modelPurpose, ruleProfile);
+    return changeService.apply(modelText, request, null, modelPurpose, ruleProfile);
   }
 }

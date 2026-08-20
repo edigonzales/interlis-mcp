@@ -55,13 +55,12 @@ public class ModelingRuleTools {
   public Map<String, Object> checkModelingRules(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
       @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false) @Nullable ModelPurpose modelPurpose,
-      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition", required = false) @Nullable String modelRepositories,
       @McpToolParam(description = "Optionale Regel-IDs, die geprueft werden sollen", required = false) @Nullable List<String> ruleIds,
       @McpToolParam(description = "Regelprofil: CORE oder SO (Default CORE)", required = false) @Nullable ModelingRuleProfile profile
   ) {
     ModelPurpose purpose = ModelPurpose.normalize(modelPurpose);
     ModelingRuleProfile normalizedProfile = ModelingRuleProfile.normalize(profile);
-    Map<String, Object> analysis = analysisTools.analyzeIliModel(modelText, modelRepositories, purpose);
+    Map<String, Object> analysis = analysisTools.analyzeIliModel(modelText, purpose);
     return checkAnalyzedModel(modelText, purpose, analysis, ruleIds, normalizedProfile);
   }
 
@@ -72,14 +71,13 @@ public class ModelingRuleTools {
   public Map<String, Object> reviewIliModel(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
       @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false) @Nullable ModelPurpose modelPurpose,
-      @McpToolParam(description = "Regelprofil: CORE oder SO (Default CORE)", required = false) @Nullable ModelingRuleProfile ruleProfile,
-      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition", required = false) @Nullable String modelRepositories
+      @McpToolParam(description = "Regelprofil: CORE oder SO (Default CORE)", required = false) @Nullable ModelingRuleProfile ruleProfile
   ) {
     ModelPurpose purpose = ModelPurpose.normalize(modelPurpose);
     ModelingRuleProfile profile = ModelingRuleProfile.normalize(ruleProfile);
 
     IliCompilerService.CompilationResult compilation =
-        compilerService.compile(modelText, modelRepositories, "ili2c_review_");
+        compilerService.compile(modelText, null, "ili2c_review_");
     ModelAnalysisTools.AnalysisData data =
         analysisTools.analyzeCompiled(compilation.transferDescription(), modelText);
     Map<String, Object> analysis = analysisTools.toResponse(
@@ -587,20 +585,20 @@ public class ModelingRuleTools {
   }
 
   private @Nullable Object firstLocation(List<?> elements) {
-    return elements.stream()
-        .filter(Map.class::isInstance)
-        .map(Map.class::cast)
-        .findFirst()
-        .map(map -> map.getOrDefault("scopedName", map.get("name")))
-        .orElse(null);
+    for (Object element : elements) {
+      if (element instanceof Map<?, ?> map) {
+        return map.containsKey("scopedName") ? map.get("scopedName") : map.get("name");
+      }
+    }
+    return null;
   }
 
   private @Nullable Object firstGeometryLocation(List<?> attributes) {
-    return attributes.stream()
-        .filter(item -> item instanceof Map<?, ?> map && Boolean.TRUE.equals(map.get("geometry")))
-        .map(Map.class::cast)
-        .findFirst()
-        .map(map -> map.getOrDefault("scopedName", map.get("name")))
-        .orElse(null);
+    for (Object attribute : attributes) {
+      if (attribute instanceof Map<?, ?> map && Boolean.TRUE.equals(map.get("geometry"))) {
+        return map.containsKey("scopedName") ? map.get("scopedName") : map.get("name");
+      }
+    }
+    return null;
   }
 }

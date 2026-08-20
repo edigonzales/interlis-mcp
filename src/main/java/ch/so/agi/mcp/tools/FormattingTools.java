@@ -2,7 +2,6 @@ package ch.so.agi.mcp.tools;
 
 import ch.interlis.ili2c.metamodel.TransferDescription;
 import ch.so.agi.mcp.service.IliCompilerService;
-import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,11 +26,9 @@ public class FormattingTools {
       description = "Formatiert (pretty print) ein INTERLIS-2 Modell mit dem offiziellen ili2c-Formatter. Rückgabe: vollständig formatiertes Modell als Text."
   )
   public String formatIliModel(
-      @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
-      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition, z. B. 'https://models.interlis.ch;https://geo.so.ch/models'", required = false)
-      @Nullable String modelRepositories
+      @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText
   ) {
-    TransferDescription td = compilerService.compileOrThrow(modelText, modelRepositories, "formatting");
+    TransferDescription td = compilerService.compileOrThrow(modelText, null, "formatting");
     return compilerService.generateModelsFromLastFile(td);
   }
 }

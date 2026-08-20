@@ -60,16 +60,14 @@ class ConstraintReviewToolsTest {
       """;
 
   private final IliCompilerService compilerService = new IliCompilerService();
-  private final ConstraintKnowledgeTools knowledgeTools = new ConstraintKnowledgeTools(
-      new MathTools(), new TextTools(), compilerService);
+  private final ConstraintKnowledgeTools knowledgeTools = new ConstraintKnowledgeTools(compilerService);
   private final ConstraintReviewTools tools = new ConstraintReviewTools(compilerService, knowledgeTools);
 
   @Test
   void reviewsAfuWeightingConstraintStructurally() {
     Map<String, Object> result = tools.reviewIliConstraint(
         AFU_GOLDEN_MODEL,
-        "GewichtungSumme100_Wald",
-        null);
+        "GewichtungSumme100_Wald");
 
     assertEquals(true, result.get("valid"));
     assertEquals(true, result.get("compilerValid"));

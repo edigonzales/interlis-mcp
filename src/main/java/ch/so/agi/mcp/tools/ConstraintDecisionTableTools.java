@@ -1,11 +1,10 @@
 package ch.so.agi.mcp.tools;
 
-import ch.so.agi.mcp.constraint.ConstraintCoveragePlanner;
+import ch.so.agi.mcp.constraint.CompiledConstraintContext;
+import ch.so.agi.mcp.constraint.ConstraintAuthoringWorkflow;
 import ch.so.agi.mcp.constraint.ConstraintExpression;
-import ch.so.agi.mcp.constraint.ConstraintExpressionEngine;
-import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer;
+import ch.so.agi.mcp.constraint.SemanticConstraint;
 import ch.so.agi.mcp.constraint.StandardFunctionRegistry;
-import ch.so.agi.mcp.service.IliCompilerService;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -19,7 +18,6 @@ import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -30,22 +28,14 @@ public class ConstraintDecisionTableTools {
   private static final Pattern ENUM_VALUE = Pattern.compile("[A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z][A-Za-z0-9_]*)*");
   private static final Pattern INTERLIS_VERSION = Pattern.compile("(?m)^\\s*INTERLIS\\s+(2\\.3|2\\.4)\\s*;");
 
-  private final ConstraintReviewTools reviewTools;
-  private final ConstraintTestTools testTools;
-  private final IliCompilerService compilerService;
+  private final ConstraintAuthoringWorkflow authoringWorkflow;
+  private final ConstraintCaseGenerationTools caseGenerationTools;
 
-  @Autowired
   public ConstraintDecisionTableTools(
-      ConstraintReviewTools reviewTools,
-      ConstraintTestTools testTools,
-      IliCompilerService compilerService) {
-    this.reviewTools = reviewTools;
-    this.testTools = testTools;
-    this.compilerService = compilerService;
-  }
-
-  ConstraintDecisionTableTools(ConstraintReviewTools reviewTools, ConstraintTestTools testTools) {
-    this(reviewTools, testTools, new IliCompilerService());
+      ConstraintAuthoringWorkflow authoringWorkflow,
+      ConstraintCaseGenerationTools caseGenerationTools) {
+    this.authoringWorkflow = authoringWorkflow;
+    this.caseGenerationTools = caseGenerationTools;
   }
 
   public static class DecisionRow {
@@ -70,8 +60,7 @@ public class ConstraintDecisionTableTools {
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext ohne den zu erzeugenden Constraint", required = true) String modelText,
       @McpToolParam(description = "Vollqualifizierter Klassenkontext Model.Topic.Class", required = true) String context,
       @McpToolParam(description = "Technischer Name des zu erzeugenden Constraints", required = true) String constraintName,
-      @McpToolParam(description = "Erlaubte Entscheidungszeilen. Standardbedingung: attribute, operator, value. Optional aggregate=SUM. Fuer Summenpraesenz: defined=true/false ohne operator/value. Fuer Addition: addAttribute=<direktes NUMERIC-Attribut> zusammen mit aggregate=SUM, operator == und numerischem value.", required = true) List<DecisionRow> rows,
-      @McpToolParam(description = "Optionale MODELREPOS-/ilidirs-Definition", required = false) @Nullable String modelRepositories) {
+      @McpToolParam(description = "Erlaubte Entscheidungszeilen. Standardbedingung: attribute, operator, value. Optional aggregate=SUM. Fuer Summenpraesenz: defined=true/false ohne operator/value. Fuer Addition: addAttribute=<direktes NUMERIC-Attribut> zusammen mit aggregate=SUM, operator == und numerischem value.", required = true) List<DecisionRow> rows) {
     String normalizedContext = requireContext(context);
     String normalizedConstraintName = requireIdentifier(constraintName, "constraintName");
     List<NormalizedRow> normalizedRows = normalizeRows(rows);
@@ -81,9 +70,28 @@ public class ConstraintDecisionTableTools {
     String expression = semanticExpression.toInterlis(version);
     String constraintBlock = renderConstraintBlock(normalizedContext, normalizedConstraintName, expression);
 
-    String proofModelText;
+    var beforeCompilation = authoringWorkflow.compileBefore(
+        modelText,
+        "ili2c_constraint_decision_table_before_");
+    if (!beforeCompilation.valid() || beforeCompilation.transferDescription() == null) {
+      return unavailable(
+          "BEFORE_MODEL_NOT_COMPILABLE",
+          "The supplied model must compile before a source-preserving constraint can be inserted.",
+          expression,
+          constraintBlock,
+          normalizedRows,
+          Map.of("compilerMessages", beforeCompilation.messages()));
+    }
+
+    ConstraintAuthoringWorkflow.PreparedConstraint prepared;
     try {
-      proofModelText = insertConstraintBlock(modelText, normalizedContext, constraintBlock);
+      prepared = authoringWorkflow.insertAndResolve(
+          modelText,
+          beforeCompilation,
+          normalizedContext,
+          constraintBlock,
+          normalizedContext + "." + normalizedConstraintName,
+          "ili2c_constraint_decision_table_after_");
     } catch (IllegalArgumentException ex) {
       return unavailable(
           "CONSTRAINT_INSERTION_FAILED",
@@ -94,90 +102,48 @@ public class ConstraintDecisionTableTools {
           null);
     }
 
-    Map<String, Object> review = reviewTools.reviewIliConstraint(
-        proofModelText,
-        normalizedConstraintName,
-        modelRepositories);
-    if (!Boolean.TRUE.equals(review.get("valid"))) {
+    var insertion = prepared.insertion();
+    var afterResolution = prepared.resolution();
+    if (!afterResolution.available()) {
+      Map<String, Object> details = new LinkedHashMap<>();
+      details.put("compilerMessages", afterResolution.compilation().messages());
+      details.put("candidateModelText", insertion.updatedModelText());
+      details.put("sourceEdit", insertion.sourceEdit());
       return unavailable(
-          "GENERATED_CONSTRAINT_NOT_COMPILABLE",
-          "The generated decision-table constraint could not be compiled and reviewed in the supplied model.",
+          afterResolution.compilation().valid()
+              ? decisionTableReasonCode(afterResolution.reasonCode())
+              : "GENERATED_CONSTRAINT_NOT_COMPILABLE",
+          afterResolution.compilation().valid()
+              ? afterResolution.reason()
+              : "The decision-table constraint could not be compiled in the supplied model.",
           expression,
           constraintBlock,
           normalizedRows,
-          review);
+          details);
     }
 
-    IliCompilerService.CompilationResult compilation = compilerService.compile(
-        proofModelText,
-        modelRepositories,
-        "ili2c_constraint_decision_table_proof_");
-    if (!compilation.valid() || compilation.transferDescription() == null) {
+    CompiledConstraintContext compiled = afterResolution.context();
+    if (!(compiled.semantics() instanceof SemanticConstraint.Mandatory mandatory)) {
       return unavailable(
-          "GENERATED_CONSTRAINT_NOT_COMPILABLE",
-          "The generated decision-table constraint could not be compiled for semantic proof generation.",
+          "CONSTRAINT_KIND_ROUND_TRIP_MISMATCH",
+          "Compiled decision-table constraint is not a Mandatory Constraint: " + compiled.semantics().kind(),
           expression,
           constraintBlock,
           normalizedRows,
-          review);
+          null);
     }
-
-    ConstraintModelSynthesizer.ModelBinding binding;
-    try {
-      binding = ConstraintModelSynthesizer.bind(
-          compilation.transferDescription(),
-          normalizedContext,
-          semanticExpression);
-    } catch (IllegalArgumentException ex) {
+    if (!normalizedContext.equals(mandatory.contextFqn())) {
       return unavailable(
-          "UNSUPPORTED_ATTRIBUTE_PATH_OR_TYPE",
-          ex.getMessage(),
+          "CONTEXT_ROUND_TRIP_MISMATCH",
+          "Compiled decision-table context differs from the requested context: " + mandatory.contextFqn(),
           expression,
           constraintBlock,
           normalizedRows,
-          review);
+          null);
     }
 
-    ConstraintCoveragePlanner.CoveragePlan coverage = ConstraintCoveragePlanner.solve(
-        semanticExpression,
-        binding);
-    if (coverage.cases().isEmpty()) {
-      String reason = coverage.unsolved().isEmpty()
-          ? "No semantic boundary/category probes could be derived."
-          : coverage.unsolved().getFirst().reason();
-      return unavailable(
-          "NO_BOUNDARY_CASES",
-          reason,
-          expression,
-          constraintBlock,
-          normalizedRows,
-          review);
-    }
-
-    ProofCases proofCases;
-    try {
-      proofCases = proofCases(
-          semanticExpression,
-          binding,
-          coverage,
-          normalizedRows,
-          version);
-    } catch (IllegalArgumentException ex) {
-      return unavailable(
-          "OBJECT_GRAPH_SYNTHESIS_FAILED",
-          ex.getMessage(),
-          expression,
-          constraintBlock,
-          normalizedRows,
-          review);
-    }
-
-    Map<String, Object> verification = testTools.testIliConstraint(
-        proofModelText,
-        normalizedConstraintName,
-        proofCases.cases(),
-        modelRepositories);
-    boolean verified = Boolean.TRUE.equals(verification.get("allPassed"));
+    Map<String, Object> proof = caseGenerationTools.generateCompiledConstraintCases(compiled);
+    boolean verified = Boolean.TRUE.equals(proof.get("generationVerified"));
 
     Map<String, Object> result = new LinkedHashMap<>();
     result.put("generated", true);
@@ -186,134 +152,27 @@ public class ConstraintDecisionTableTools {
     result.put("context", normalizedContext);
     result.put("decisionTable", decisionTableSummary(normalizedRows));
     result.put("constraintExpression", expression);
+    result.put("typedCanonicalExpression", mandatory.condition().toInterlis(version));
     result.put("constraintBlock", constraintBlock);
-    result.put("boundaryCases", proofCases.summaries());
-    result.put("boundaryCaseCount", proofCases.cases().size());
-    result.put("coverageGoalCount", proofCases.cases().size() + coverage.unsolved().size());
-    result.put("coverageSolvedCount", proofCases.cases().size());
-    if (!coverage.unsolved().isEmpty()) {
-      result.put("coverageUnsolved", coverageUnsolved(coverage, version));
-    }
-    result.put("verification", verification);
+    result.put("updatedModelText", insertion.updatedModelText());
+    result.put("sourceEdit", insertion.sourceEdit());
+    result.put("proof", proof);
+    List<Map<String, Object>> boundaryCases = decisionBoundaryCases(proof, normalizedRows);
+    result.put("boundaryCases", boundaryCases);
+    result.put("boundaryCaseCount", boundaryCases.size());
+    copyIfPresent(proof, result, "coverageGoalCount");
+    copyIfPresent(proof, result, "coverageSolvedCount");
+    copyIfPresent(proof, result, "coverageComplete");
+    copyIfPresent(proof, result, "coverageUnsolved");
+    copyIfPresent(proof, result, "verification");
     if (!verified) {
-      result.put("reasonCode", "BOUNDARY_PROOF_FAILED");
-      result.put("reason", "The generated semantic proof cases were created, but the validator did not confirm all expected outcomes.");
+      result.put("reasonCode", proof.getOrDefault("reasonCode", "BOUNDARY_PROOF_FAILED"));
+      result.put("reason", proof.getOrDefault(
+          "reason",
+          "The generated semantic proof cases were created, but the validator did not confirm all expected outcomes."));
     }
     result.put("limitations", limitations());
     return result;
-  }
-
-  private ProofCases proofCases(
-      ConstraintExpression semanticExpression,
-      ConstraintModelSynthesizer.ModelBinding binding,
-      ConstraintCoveragePlanner.CoveragePlan coverage,
-      List<NormalizedRow> rows,
-      ConstraintExpression.IliVersion version) {
-    List<ConstraintTestTools.TestCase> cases = new ArrayList<>();
-    List<Map<String, Object>> summaries = new ArrayList<>();
-    int index = 1;
-    for (ConstraintCoveragePlanner.CoverageCase coverageCase : coverage.cases()) {
-      Map<String, Object> assignment = coverageCase.solution().assignment();
-      boolean expectedValid = ConstraintExpressionEngine.evaluateConstraint(
-          semanticExpression,
-          ConstraintExpressionEngine.EvaluationContext.of(assignment));
-      ConstraintModelSynthesizer.ObjectGraph graph = ConstraintModelSynthesizer.synthesize(
-          binding,
-          assignment,
-          "decision_case_" + index);
-
-      ConstraintTestTools.TestCase testCase = toTestCase(
-          "boundary " + index + " - " + coverageCase.goal().reason(),
-          expectedValid,
-          graph);
-      cases.add(testCase);
-
-      Map<String, Object> summary = new LinkedHashMap<>();
-      summary.put("name", testCase.name);
-      summary.put("purpose", coverageCase.goal().reason());
-      summary.put("source", coverageCase.goal().expression().toInterlis(version));
-      summary.put("values", summaryValues(assignment, rows));
-      summary.put("expectedConstraintValid", expectedValid);
-      summary.put("objectCount", graph.objects().size());
-      summary.put("associationLinkCount", graph.links().size());
-      summaries.add(summary);
-      index++;
-    }
-    return new ProofCases(cases, summaries);
-  }
-
-  private ConstraintTestTools.TestCase toTestCase(
-      String name,
-      boolean expected,
-      ConstraintModelSynthesizer.ObjectGraph graph) {
-    ConstraintTestTools.TestCase testCase = new ConstraintTestTools.TestCase();
-    testCase.name = name;
-    testCase.expectedConstraintValid = expected;
-    testCase.objects = graph.objects().stream().map(object -> {
-      ConstraintTestTools.TestObject result = new ConstraintTestTools.TestObject();
-      result.classFqn = object.classFqn();
-      result.oid = object.oid();
-      result.values = object.values();
-      return result;
-    }).toList();
-    testCase.links = graph.links().stream().map(link -> {
-      ConstraintTestTools.TestLink result = new ConstraintTestTools.TestLink();
-      result.associationFqn = link.associationFqn();
-      result.roles = link.roles();
-      return result;
-    }).toList();
-    return testCase;
-  }
-
-  private Map<String, Object> summaryValues(
-      Map<String, Object> assignment,
-      List<NormalizedRow> rows) {
-    Map<String, Object> result = new LinkedHashMap<>();
-    for (String reference : referencedAttributes(rows)) {
-      Object raw = assignment.get(reference);
-      result.put(reference, summaryAssignmentValue(raw, aggregateForAttribute(rows, reference)));
-    }
-    return result;
-  }
-
-  private Object summaryAssignmentValue(@Nullable Object raw, AggregateKind aggregate) {
-    if (raw == null || raw == ConstraintExpressionEngine.Undefined.INSTANCE) {
-      return "UNDEFINED";
-    }
-    if (aggregate == AggregateKind.SUM && raw instanceof Collection<?> collection) {
-      if (collection.isEmpty()) {
-        return "UNDEFINED";
-      }
-      BigDecimal total = BigDecimal.ZERO;
-      for (Object item : collection) {
-        try {
-          total = total.add(item instanceof BigDecimal decimal
-              ? decimal
-              : new BigDecimal(String.valueOf(item)));
-        } catch (NumberFormatException ex) {
-          return String.valueOf(raw);
-        }
-      }
-      return decimal(total);
-    }
-    if (raw instanceof BigDecimal decimal) {
-      return decimal(decimal);
-    }
-    return raw;
-  }
-
-  private List<Map<String, Object>> coverageUnsolved(
-      ConstraintCoveragePlanner.CoveragePlan coverage,
-      ConstraintExpression.IliVersion version) {
-    return coverage.unsolved().stream().map(solution -> {
-      Map<String, Object> item = new LinkedHashMap<>();
-      item.put("goalKind", solution.goal().kind().name());
-      item.put("purpose", solution.goal().reason());
-      item.put("expression", solution.goal().expression().toInterlis(version));
-      item.put("reasonCode", solution.reasonCode());
-      item.put("reason", solution.reason());
-      return item;
-    }).toList();
   }
 
   private List<NormalizedRow> normalizeRows(@Nullable List<DecisionRow> rows) {
@@ -572,88 +431,6 @@ public class ConstraintDecisionTableTools {
         + "END;";
   }
 
-  private String insertConstraintBlock(String modelText, String context, String constraintBlock) {
-    String[] parts = context.split("\\.");
-    String modelName = parts[0];
-    String topicName = parts[1];
-
-    Matcher modelMatcher = Pattern.compile(
-        "(?m)^\\s*(?:(?:CONTRACTED|REFSYSTEM|SYMBOLOGY|TYPE)\\s+)?MODEL\\s+" + Pattern.quote(modelName) + "\\b")
-        .matcher(modelText);
-    if (!modelMatcher.find()) {
-      throw new IllegalArgumentException("Model '" + modelName + "' was not found in modelText.");
-    }
-    int modelStart = modelMatcher.start();
-
-    Matcher modelEndMatcher = Pattern.compile(
-        "(?m)^\\s*END\\s+" + Pattern.quote(modelName) + "\\s*\\.")
-        .matcher(modelText);
-    if (!modelEndMatcher.find(modelStart)) {
-      throw new IllegalArgumentException("End of model '" + modelName + "' was not found.");
-    }
-    int modelEnd = modelEndMatcher.start();
-
-    Matcher topicMatcher = Pattern.compile(
-        "(?m)^\\s*TOPIC\\s+" + Pattern.quote(topicName) + "\\b")
-        .matcher(modelText);
-    if (!topicMatcher.find(modelStart) || topicMatcher.start() >= modelEnd) {
-      throw new IllegalArgumentException("Topic '" + topicName + "' was not found in model '" + modelName + "'.");
-    }
-
-    Matcher topicEndMatcher = Pattern.compile(
-        "(?m)^\\s*END\\s+" + Pattern.quote(topicName) + "\\s*;")
-        .matcher(modelText);
-    topicEndMatcher.region(topicMatcher.start(), modelEnd);
-    int insertAt = -1;
-    while (topicEndMatcher.find()) {
-      insertAt = topicEndMatcher.start();
-    }
-    if (insertAt < 0) {
-      throw new IllegalArgumentException("End of topic '" + topicName + "' was not found.");
-    }
-
-    String indentation = leadingWhitespace(modelText, insertAt);
-    String indentedBlock = constraintBlock.lines()
-        .map(line -> indentation + "  " + line)
-        .reduce((left, right) -> left + "\n" + right)
-        .orElse(constraintBlock);
-    return modelText.substring(0, insertAt) + indentedBlock + "\n\n" + modelText.substring(insertAt);
-  }
-
-  private String leadingWhitespace(String text, int offset) {
-    int lineStart = text.lastIndexOf('\n', Math.max(0, offset - 1));
-    lineStart = lineStart < 0 ? 0 : lineStart + 1;
-    int pos = lineStart;
-    while (pos < text.length() && (text.charAt(pos) == ' ' || text.charAt(pos) == '\t')) {
-      pos++;
-    }
-    return text.substring(lineStart, pos);
-  }
-
-  private Set<String> referencedAttributes(List<NormalizedRow> rows) {
-    Set<String> result = new LinkedHashSet<>();
-    for (NormalizedRow row : rows) {
-      for (NormalizedCondition condition : row.conditions()) {
-        result.add(condition.attribute());
-        if (condition.addAttribute() != null) {
-          result.add(condition.addAttribute());
-        }
-      }
-    }
-    return result;
-  }
-
-  private AggregateKind aggregateForAttribute(List<NormalizedRow> rows, String attribute) {
-    for (NormalizedRow row : rows) {
-      for (NormalizedCondition condition : row.conditions()) {
-        if (attribute.equals(condition.attribute())) {
-          return condition.aggregate();
-        }
-      }
-    }
-    return AggregateKind.NONE;
-  }
-
   private String requireContext(@Nullable String context) {
     if (context == null || context.isBlank()) {
       throw new IllegalArgumentException("context is required.");
@@ -661,7 +438,7 @@ public class ConstraintDecisionTableTools {
     String normalized = context.trim();
     String[] parts = normalized.split("\\.");
     if (parts.length != 3) {
-      throw new IllegalArgumentException("Decision-table MVP requires context in the form Model.Topic.Class.");
+      throw new IllegalArgumentException("Decision-table context must have the form Model.Topic.Class.");
     }
     for (String part : parts) {
       requireIdentifier(part, "context part");
@@ -738,7 +515,7 @@ public class ConstraintDecisionTableTools {
       String expression,
       String constraintBlock,
       List<NormalizedRow> rows,
-      @Nullable Map<String, Object> review) {
+      @Nullable Map<String, Object> details) {
     Map<String, Object> result = new LinkedHashMap<>();
     result.put("generated", false);
     result.put("proofVerified", false);
@@ -747,11 +524,103 @@ public class ConstraintDecisionTableTools {
     result.put("decisionTable", decisionTableSummary(rows));
     result.put("constraintExpression", expression);
     result.put("constraintBlock", constraintBlock);
-    if (review != null) {
-      result.put("review", review);
+    if (details != null) {
+      result.putAll(details);
     }
     result.put("limitations", limitations());
     return result;
+  }
+
+  private void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
+    if (source.containsKey(key)) {
+      target.put(key, source.get(key));
+    }
+  }
+
+  private String decisionTableReasonCode(@Nullable String reasonCode) {
+    return "UNSUPPORTED_CONSTRAINT_SEMANTICS".equals(reasonCode)
+        ? "UNSUPPORTED_ATTRIBUTE_PATH_OR_TYPE"
+        : String.valueOf(reasonCode);
+  }
+
+  private List<Map<String, Object>> decisionBoundaryCases(
+      Map<String, Object> proof,
+      List<NormalizedRow> rows) {
+    Object generated = proof.get("generatedCases");
+    if (!(generated instanceof List<?> list)) {
+      return List.of();
+    }
+    List<Map<String, Object>> result = new ArrayList<>();
+    for (Object item : list) {
+      if (!(item instanceof Map<?, ?> map)) {
+        continue;
+      }
+      Map<String, Object> summary = new LinkedHashMap<>();
+      map.forEach((key, value) -> summary.put(String.valueOf(key), value));
+      if (summary.containsKey("reason")) {
+        summary.put("outcome", summary.get("purpose"));
+        summary.put("purpose", summary.get("reason"));
+      }
+      Object rawValues = summary.get("values");
+      if (rawValues instanceof Map<?, ?> values) {
+        Map<String, Object> normalizedValues = new LinkedHashMap<>();
+        for (String reference : referencedAttributes(rows)) {
+          normalizedValues.put(
+              reference,
+              summaryAssignmentValue(values.get(reference), aggregateForAttribute(rows, reference)));
+        }
+        summary.put("values", normalizedValues);
+      }
+      result.add(summary);
+    }
+    return result;
+  }
+
+  private Object summaryAssignmentValue(@Nullable Object raw, AggregateKind aggregate) {
+    if (raw == null || "UNDEFINED".equals(raw)) {
+      return "UNDEFINED";
+    }
+    if (aggregate == AggregateKind.SUM && raw instanceof Collection<?> collection) {
+      if (collection.isEmpty()) {
+        return "UNDEFINED";
+      }
+      BigDecimal total = BigDecimal.ZERO;
+      for (Object item : collection) {
+        try {
+          total = total.add(item instanceof BigDecimal decimal
+              ? decimal
+              : new BigDecimal(String.valueOf(item)));
+        } catch (NumberFormatException ex) {
+          return String.valueOf(raw);
+        }
+      }
+      return decimal(total);
+    }
+    return raw instanceof BigDecimal decimal ? decimal(decimal) : raw;
+  }
+
+  private Set<String> referencedAttributes(List<NormalizedRow> rows) {
+    Set<String> result = new LinkedHashSet<>();
+    for (NormalizedRow row : rows) {
+      for (NormalizedCondition condition : row.conditions()) {
+        result.add(condition.attribute());
+        if (condition.addAttribute() != null) {
+          result.add(condition.addAttribute());
+        }
+      }
+    }
+    return result;
+  }
+
+  private AggregateKind aggregateForAttribute(List<NormalizedRow> rows, String attribute) {
+    for (NormalizedRow row : rows) {
+      for (NormalizedCondition condition : row.conditions()) {
+        if (attribute.equals(condition.attribute())) {
+          return condition.aggregate();
+        }
+      }
+    }
+    return AggregateKind.NONE;
   }
 
   private List<String> limitations() {
@@ -790,8 +659,4 @@ public class ConstraintDecisionTableTools {
       @Nullable Literal literal) {
   }
 
-  private record ProofCases(
-      List<ConstraintTestTools.TestCase> cases,
-      List<Map<String, Object>> summaries) {
-  }
 }

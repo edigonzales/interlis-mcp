@@ -70,7 +70,7 @@ public class StdioE2eTest {
     }
 
     @Test
-    void initialize_listTools_createModelSnippet_and_metaAttributeBlock() throws Exception {
+    void initialize_listTools_and_createAnnotatedModelSnippet() throws Exception {
         initializeSession();
 
         String toolsResp = listTools(2);
@@ -79,7 +79,7 @@ public class StdioE2eTest {
                 "createModelSnippet",
                 "createAttributeLine",
                 "createEnumTreeDomainSnippet",
-                "createMetaAttributeBlock",
+                "createCoordDomainSnippet",
                 "renameModelElement",
                 "analyzeIliModel",
                 "checkModelingRules",
@@ -95,21 +95,12 @@ public class StdioE2eTest {
                 + "\"version\":\"" + today + "\"," 
                 + "\"iliVersion\":\"2.4\"," 
                 + "\"imports\":[\"INTERLIS\"]," 
-                + "\"includeSolothurnHeader\":false"
+                + "\"metaAttributes\":[{\"name\":\"title\",\"value\":\"Demo\"}]"
                 + "}";
 
         String createResp = callTool(3, "createModelSnippet", argsJson);
-        assertSuccessfulToolResponse(createResp, "createModelSnippet", "INTERLIS 2.4", "MODEL DemoModel (de)");
-
-        String metaArgsJson = "{"
-                + "\"metaAttributes\":["
-                + "{\"name\":\"title\",\"value\":\"Demo\"},"
-                + "{\"name\":\"ch.so.flag\",\"rawValue\":\"TRUE\"}"
-                + "]"
-                + "}";
-
-        String metaResp = callTool(4, "createMetaAttributeBlock", metaArgsJson);
-        assertSuccessfulToolResponse(metaResp, "createMetaAttributeBlock", "!!@ title=", "Demo", "!!@ ch.so.flag=TRUE");
+        assertSuccessfulToolResponse(
+                createResp, "createModelSnippet", "INTERLIS 2.4", "MODEL DemoModel (de)", "!!@ title=", "Demo");
     }
 
     @Test
@@ -359,18 +350,19 @@ public class StdioE2eTest {
     }
 
     @Test
-    void createMetaAttributeBlock_duplicateMetaAttributes_returnsError() throws Exception {
+    void createModelSnippet_duplicateMetaAttributes_returnsError() throws Exception {
         initializeSession();
 
         String argsJson = "{"
+                + "\"name\":\"Demo\","
                 + "\"metaAttributes\":["
                 + "{\"name\":\"title\",\"value\":\"Demo\"},"
                 + "{\"name\":\"title\",\"value\":\"Demo 2\"}"
                 + "]"
                 + "}";
 
-        String response = callTool(3, "createMetaAttributeBlock", argsJson);
-        assertErrorToolResponse(response, "createMetaAttributeBlock", "Duplicate meta attribute");
+        String response = callTool(3, "createModelSnippet", argsJson);
+        assertErrorToolResponse(response, "createModelSnippet", "Duplicate meta attribute");
     }
 
     @Test
