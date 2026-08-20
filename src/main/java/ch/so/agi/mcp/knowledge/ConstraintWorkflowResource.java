@@ -6,58 +6,58 @@ import java.util.List;
 import org.springframework.ai.mcp.annotation.McpResource;
 import org.springframework.stereotype.Component;
 
-/** Stable decision hierarchy for agentic constraint authoring and proof. */
+/** Stabile Entscheidungshierarchie für Constraint-Authoring und Proofs. */
 @Component
 public class ConstraintWorkflowResource {
 
   @McpResource(
       uri = "interlis://knowledge/constraint-workflow",
       name = "constraint-workflow",
-      title = "INTERLIS Constraint Workflow",
-      description = "Entscheidungsmatrix fuer Constraint-Authoring, automatischen Validator-Proof und Modell-Level-Abschlussreview.",
+      title = "Arbeitsablauf für INTERLIS-Constraints",
+      description = "Entscheidungsmatrix für Constraint-Authoring, automatischen Validator-Proof und Modell-Level-Abschlussreview.",
       mimeType = "text/markdown"
   )
   public ReadResourceResult constraintWorkflow() {
     String text = """
-        # INTERLIS Constraint Workflow
+        # Arbeitsablauf für INTERLIS-Constraints
 
-        Bevorzuge immer das hoechste Tool, das die verlangte Constraint-Semantik ausdruecken kann. Trenne dabei drei Ebenen:
+        Bevorzuge immer das höchste Tool, das die verlangte Constraint-Semantik ausdrücken kann. Trenne dabei drei Ebenen:
 
-        1. **Constraint verstehen**: `reviewIliConstraint` fuer AST, Pfade, Typen und technische Erklaerung.
-        2. **Constraint beweisen**: `generateIliConstraintCases` fuer automatisch erzeugte Witnesses, Counterexamples,
-           Population-Boundaries und Scope-Faelle; `testIliConstraint` nur fuer explizit vorgegebene Testfaelle.
-        3. **Modellaenderung abschliessen**: nach einer Constraint-Aenderung genau einmal `reviewIliChange` fuer Vorher/Nachher.
+        1. **Constraint verstehen**: `reviewIliConstraint` für AST, Pfade, Typen und technische Erklärung.
+        2. **Constraint beweisen**: `generateIliConstraintCases` für automatisch erzeugte Witnesses, Counterexamples,
+           Populationsgrenzen und Scope-Fälle; `testIliConstraint` nur für explizit vorgegebene Testfälle.
+        3. **Modelländerung abschliessen**: nach einer Constraint-Änderung genau einmal `reviewIliChange` für Vorher/Nachher.
 
         ## Neue Constraints
 
         | Art | Bevorzugtes Authoring | Proof |
         | --- | --- | --- |
         | MANDATORY | `authorIliMandatoryConstraint` | im Authoring enthalten (`proofVerified`) |
-        | UNIQUE | kein typed Authoring; bei einfachen Schluesseln `createUniqueConstraint` nur als Snippet-Hilfe | `generateIliConstraintCases` (`generationVerified`) |
+        | UNIQUE | kein typisiertes Authoring; bei einfachen Schlüsseln `createUniqueConstraint` nur als Snippet-Hilfe | `generateIliConstraintCases` (`generationVerified`) |
         | EXISTENCE | `authorIliExistenceConstraint` | im Authoring enthalten (`proofVerified`) |
         | PLAUSIBILITY | `authorIliPlausibilityConstraint` | im Authoring enthalten (`proofVerified`) |
-        | SET | `authorIliSetConstraint` fuer den unterstuetzten `objectCount(ALL)`-Umfang | im Authoring enthalten (`proofVerified`) |
+        | SET | `authorIliSetConstraint` für den unterstützten `objectCount(ALL)`-Umfang | im Authoring enthalten (`proofVerified`) |
 
-        `createMandatoryConstraint`, `createExistenceConstraint` und `createSetConstraint` sind fuer neue Agent-Workflows
-        Legacy-/Snippet-Helper. Nutze sie nicht, wenn das typed Authoring-Tool den Fall ausdruecken kann.
+        `createMandatoryConstraint`, `createExistenceConstraint` und `createSetConstraint` sind für neue Agenten-Workflows
+        Legacy-/Snippet-Helper. Nutze sie nicht, wenn das typisierte Authoring-Tool den Fall ausdrücken kann.
 
         ## Bestehende Constraints
 
-        - Erklaerung/Diagnose: `reviewIliConstraint`.
-        - Automatischer semantischer Proof: `generateIliConstraintCases` fuer MANDATORY, UNIQUE, EXISTENCE,
-          PLAUSIBILITY und den unterstuetzten SET-Umfang.
-        - `generationVerified=true` bedeutet, dass alle erzeugten Proof-Faelle mit dem echten ilivalidator bestaetigt wurden.
-        - `coverageUnsolved` oder ein Safety-Reason-Code ist eine bewusste Grenze. Nicht durch angenaeherte Semantik ersetzen.
+        - Erklärung und Diagnose: `reviewIliConstraint`.
+        - Automatischer semantischer Proof: `generateIliConstraintCases` für MANDATORY, UNIQUE, EXISTENCE,
+          PLAUSIBILITY und den unterstützten SET-Umfang.
+        - `generationVerified=true` bedeutet, dass alle erzeugten Proof-Fälle mit dem echten ilivalidator bestätigt wurden.
+        - `coverageUnsolved` oder ein Safety-Reason-Code ist eine bewusste Grenze. Nicht durch angenäherte Semantik ersetzen.
 
         ## Abschlussregeln
 
-        - `proofVerified=true` bzw. `generationVerified=true` ist das technische Proof-Gate fuer genau diesen Constraint.
-          Fuer denselben unveraenderten Constraint nicht routinemaessig nochmals `testIliConstraint`, `validateXtf` oder
-          eine zweite automatische Proof-Runde ausfuehren.
-        - Ein Constraint-Proof ersetzt **nicht** das Modell-Level-Review. Wenn ein bestehendes Modell geaendert wurde,
-          fuehre genau einmal `reviewIliChange(before, after)` aus. Dessen `afterReview`, `afterCompilerValid` und
-          `afterDiagnostics` bilden das Abschlussgate fuer den gesamten Nachher-Stand.
-        - Wenn der Nachher-Stand danach erneut geaendert wird, muss der neue Stand erneut geprueft werden.
+        - `proofVerified=true` bzw. `generationVerified=true` ist das technische Proof-Gate für genau diesen Constraint.
+          Für denselben unveränderten Constraint nicht routinemässig nochmals `testIliConstraint`, `validateXtf` oder
+          eine zweite automatische Proof-Runde ausführen.
+        - Ein Constraint-Proof ersetzt **nicht** das Modell-Level-Review. Wenn ein bestehendes Modell geändert wurde,
+          führe genau einmal `reviewIliChange(before, after)` aus. Dessen `afterReview`, `afterCompilerValid` und
+          `afterDiagnostics` bilden das Abschlussgate für den gesamten Nachher-Stand.
+        - Wenn der Nachher-Stand danach erneut geändert wird, muss der neue Stand erneut geprüft werden.
 
         ## Wichtige Safety-Grenzen
 
@@ -65,7 +65,7 @@ public class ConstraintWorkflowResource {
         - PLAUSIBILITY wird mit echten Populationen bewiesen, nicht als Mandatory Constraint emuliert.
         - SET beweist aktuell plain `ALL` mit `INTERLIS.objectCount`, optionalem direktem WHERE und `(BASKET)`-Scope;
           `ALL(base/RESTRICTION)` und geometry-aware SET-Funktionen bleiben explizite Grenzen.
-        - UNIQUE `WHERE`, `(BASKET)` und `LOCAL` sind im Proof unterstuetzt, aber noch nicht durch ein typed High-Level-Authoring abgedeckt.
+        - UNIQUE `WHERE`, `(BASKET)` und `LOCAL` sind im Proof unterstützt, aber noch nicht durch ein typisiertes High-Level-Authoring abgedeckt.
         """;
     return new ReadResourceResult(List.of(new TextResourceContents(
         "interlis://knowledge/constraint-workflow",

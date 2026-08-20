@@ -51,17 +51,17 @@ public class KnowledgeRuleLoader {
   public String rulesAsMarkdown(ModelingRuleProfile profile) {
     ModelingRuleProfile normalizedProfile = ModelingRuleProfile.normalize(profile);
     List<ModelingRule> rules = rules(normalizedProfile);
-    StringBuilder sb = new StringBuilder("# Curated INTERLIS Modeling Rules\n\n");
-    sb.append("Active profile: `").append(normalizedProfile).append("`\n\n");
+    StringBuilder sb = new StringBuilder("# Kuratierte INTERLIS-Modellierungsregeln\n\n");
+    sb.append("Aktives Profil: `").append(normalizedProfile).append("`\n\n");
     for (ModelingRule rule : rules) {
       sb.append("## ").append(rule.id()).append(" - ").append(rule.title()).append("\n\n")
-          .append("- Profile: ").append(rule.profile()).append("\n")
-          .append("- Severity: ").append(rule.severity()).append("\n")
-          .append("- Applies to: ").append(rule.appliesTo()).append("\n")
-          .append("- Check kind: ").append(rule.checkKind()).append("\n")
-          .append("- Source: ").append(rule.sourceUrl()).append(" (").append(rule.sourceSection()).append(")\n")
-          .append("- Rationale: ").append(rule.rationale()).append("\n")
-          .append("- Recommendation: ").append(rule.recommendation()).append("\n\n");
+          .append("- Profil: ").append(rule.profile()).append("\n")
+          .append("- Schweregrad: ").append(rule.severity()).append("\n")
+          .append("- Gilt fuer: ").append(rule.appliesTo()).append("\n")
+          .append("- Pruefart: ").append(rule.checkKind()).append("\n")
+          .append("- Quelle: ").append(rule.sourceUrl()).append(" (").append(rule.sourceSection()).append(")\n")
+          .append("- Begruendung: ").append(rule.rationale()).append("\n")
+          .append("- Empfehlung: ").append(rule.recommendation()).append("\n\n");
     }
     return sb.toString();
   }

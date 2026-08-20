@@ -47,12 +47,12 @@ class AgentPromptsTest {
     String prompt = prompts.reviewInterlisModel("PUBLICATION").toString();
 
     assertThat(prompt)
-        .contains("1. Fuehre `reviewIliModel`")
+        .contains("1. Führe `reviewIliModel`")
         .contains("PUBLICATION")
         .contains("compilerDiagnostics")
         .contains("manualChecks")
         .contains("openQuestions")
-        .doesNotContain("1. Fuehre `analyzeIliModel`");
+        .doesNotContain("1. Führe `analyzeIliModel`");
   }
 
   @Test
@@ -88,7 +88,7 @@ class AgentPromptsTest {
         .contains("authorIliPlausibilityConstraint")
         .contains("authorIliSetConstraint")
         .contains("createUniqueConstraint")
-        .contains("kein typed High-Level-Authoring")
+        .contains("kein typisiertes High-Level-Authoring")
         .contains("generateIliConstraintCases")
         .contains("proofVerified=true")
         .contains("generationVerified=true")
