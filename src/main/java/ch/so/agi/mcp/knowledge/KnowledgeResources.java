@@ -41,12 +41,21 @@ public class KnowledgeResources {
     return markdown("interlis://knowledge/agent-workflow", """
         # Agentischer INTERLIS-Arbeitsablauf
 
+        MCP-Sicherheitsvertrag:
+        - Erforderliche und voneinander abhaengige MCP-Aufrufe einzeln und nacheinander ausfuehren.
+        - Jedes Resultat vor dem naechsten Aufruf pruefen.
+        - Bei Fehler, Timeout oder unbrauchbarem Resultat sofort stoppen und Tool, Argumente sowie exakte Fehlermeldung berichten.
+        - Hoechstens einmal bei plausibel transientem Fehler wiederholen.
+        - Vor einem erfolgreichen Retry keine `.ili`-Datei schreiben oder aendern.
+        - Keine INTERLIS-Syntax erfinden; nur erfolgreich gelieferte Snippets exakt zusammensetzen.
+
+        Modell-Gates:
         1. Klaere Modellzweck, fachliche Begriffe, Quellsysteme, Publikationsbedarf und offene Fragen.
         2. Suche bei Bedarf passende Beispiele mit `findSimilarModels` und lies ein ausgewaehltes Modell mit `readModelExample`.
         3. Fuer eine von `applyIliModelChange` unterstuetzte Aenderung eines bestehenden Modells verwende das semantische
-           Change-Tool statt den Quelltext selbst umzuschreiben. Aktuell ist `ADD_ATTRIBUTE` fuer CLASS und STRUCTURE unterstuetzt.
+          Change-Tool statt den Quelltext selbst umzuschreiben. Aktuell ist `ADD_ATTRIBUTE` fuer CLASS und STRUCTURE unterstuetzt.
         4. Ein erfolgreiches `APPLIED`-Resultat von `applyIliModelChange` enthaelt den semantischen Diff und `afterReview` als
-           Abschlussgate. Fuer denselben unveraenderten Nachher-Stand nicht zusaetzlich `reviewIliChange` oder `reviewIliModel` ausfuehren.
+          Abschlussgate. Fuer denselben unveraenderten Nachher-Stand nicht zusaetzlich `reviewIliChange` oder `reviewIliModel` ausfuehren.
         5. Fuer einen neuen Constraint verwende das hoechste passende Authoring-Tool. Ein erfolgreiches `proofVerified=true`
            ist das technische Constraint-Gate; fuer denselben unveraenderten Constraint folgt kein redundanter Validator-Durchlauf.
         6. Wenn Constraint-Authoring ein bestehendes Modell geaendert hat, schliesse die Modell-Aenderung genau einmal mit
@@ -57,6 +66,9 @@ public class KnowledgeResources {
         10. Liste `manualChecks` und `openQuestions` als fachliche Rueckfragen, ohne Kardinalitaeten, Rollen oder Constraints zu erfinden.
         11. Nutze `analyzeIliModel`, `checkModelingRules` und `validateIliModel` nur fuer gezielte Einzeldiagnosen, nicht als Standard-Dreierfolge.
         12. Wenn ein bereits gepruefter Nachher-Stand erneut geaendert wird, pruefe den neuen Stand wieder mit dem passenden High-Level-Tool.
+        13. Fuer ein neues Modell Kandidatentext nur aus erfolgreichen MCP-Rueckgaben zusammensetzen, mit `reviewIliModel` pruefen,
+            erst danach schreiben und den geschriebenen Dateistand abschliessend erneut pruefen.
+        14. `ensureGeometryDependencies` nie mit `geometryType=COORD` aufrufen; fuer INTERLIS 2.4 und LV95 `GeometryCHLV95_V2.Coord2` verwenden.
         """);
   }
 

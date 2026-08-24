@@ -30,6 +30,24 @@ public class AgentPrompts {
         - Der Coding-Agent bzw. MCP-Client liest und schreibt die Dateien im Workspace.
         - Fachliche Kardinalitäten, Rollen, Schlüssel, Constraints und Datenumbauten dürfen nicht erfunden werden.
 
+        MCP-Ausfallvertrag:
+        - Erforderliche, voneinander abhängige MCP-Aufrufe einzeln und nacheinander ausführen; jedes Resultat vor dem nächsten Aufruf prüfen.
+        - Bei Fehler, Timeout oder unbrauchbarem Resultat den Modellierungsworkflow sofort stoppen.
+        - Höchstens einmal wiederholen, wenn ein transienter Fehler plausibel ist; vor einem erfolgreichen Retry keine `.ili`-Datei schreiben oder ändern.
+        - Fehlgeschlagenes Tool, Argumente und exakte Fehlermeldung berichten.
+        - Keine INTERLIS-Syntax als Ersatz für eine nicht verfügbare MCP-Fähigkeit erfinden.
+        - Nur erfolgreich von `interlis-mcp` gelieferte INTERLIS-Snippets dürfen exakt zusammengesetzt werden.
+
+        Sicherheitsgates für neue Modelle:
+        - MCP-Snippets einzeln erzeugen und prüfen.
+        - Kandidatenmodell nur aus erfolgreichen Rückgaben zusammensetzen.
+        - `reviewIliModel` vor dem Schreiben ausführen.
+        - Erst nach erfolgreichem Compiler-/Review-Gate schreiben und danach den finalen Dateistand erneut prüfen.
+
+        Geometrie:
+        - `ensureGeometryDependencies` nie mit `geometryType=COORD` aufrufen.
+        - Für ein INTERLIS-2.4-LV95-Koordinatenattribut `GeometryCHLV95_V2.Coord2` verwenden.
+
         Regelprofile:
         - `CORE` enthält nur portable technische und agentische Basisregeln.
         - Wenn das Modell nach den Vorgaben des Kantons Solothurn beurteilt wird, verwende `ruleProfile=SO`;

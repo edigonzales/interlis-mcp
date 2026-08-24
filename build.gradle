@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '4.1.0'
+    id 'org.springframework.boot' version '4.1.1'
     id 'io.spring.dependency-management' version '1.1.7'
 }
 
@@ -31,7 +31,8 @@ repositories {
 }
 
 ext {
-    set('springAiVersion', "2.0.0")
+    set('springAiVersion', "2.0.1")
+    set('mcpSdkVersion', "2.0.1")
 }
 
 configurations {
@@ -41,6 +42,9 @@ configurations {
 
 dependencies {
     implementation "org.springframework.ai:spring-ai-starter-mcp-server"
+    // Spring AI 2.0.1 still declares MCP SDK 2.0.0 transitively. Keep the
+    // protocol implementation on the current compatible patch release.
+    implementation "io.modelcontextprotocol.sdk:mcp:${mcpSdkVersion}"
     implementation "org.springframework.boot:spring-boot-starter"
     implementation "org.springframework.boot:spring-boot-starter-validation"
     implementation "org.jspecify:jspecify:1.0.0"

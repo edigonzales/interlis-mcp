@@ -20,7 +20,11 @@ class AgentPromptsTest {
         .contains("afterReview")
         .contains("findSimilarModels")
         .contains("readModelExample")
-        .contains("Low-Level-Tools");
+        .contains("Low-Level-Tools")
+        .contains("MCP-Ausfallvertrag")
+        .contains("einzeln und nacheinander")
+        .contains("keine `.ili`-Datei schreiben")
+        .contains("GeometryCHLV95_V2.Coord2");
   }
 
   @Test
@@ -110,7 +114,11 @@ class AgentPromptsTest {
         .contains("reviewIliChange")
         .contains("afterReview")
         .contains("nicht zusaetzlich `reviewIliChange` oder `reviewIliModel`")
-        .contains("nicht als Standard-Dreierfolge");
+        .contains("nicht als Standard-Dreierfolge")
+        .contains("MCP-Sicherheitsvertrag")
+        .contains("Keine INTERLIS-Syntax erfinden")
+        .contains("Kandidatentext nur aus erfolgreichen MCP-Rueckgaben")
+        .contains("GeometryCHLV95_V2.Coord2");
   }
 
   @Test

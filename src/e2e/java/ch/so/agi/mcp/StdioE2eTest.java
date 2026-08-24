@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -21,6 +22,8 @@ public class StdioE2eTest {
     private Thread stdoutPump;
     private Thread stderrPump;
     private final LinkedBlockingQueue<String> stdoutLines = new LinkedBlockingQueue<>();
+    private final LinkedBlockingQueue<String> stderrLines = new LinkedBlockingQueue<>();
+    private final ConcurrentHashMap<Integer, String> pendingResponses = new ConcurrentHashMap<>();
     
     @BeforeEach
     void startServer() throws Exception {
@@ -48,7 +51,7 @@ public class StdioE2eTest {
         stderrPump = new Thread(() -> {
             try {
                 for (String line; (line = fromErr.readLine()) != null; ) {
-                    // Log noise from server; not used for assertions.
+                    stderrLines.offer(line);
                     System.err.println("[server stderr] " + line);
                 }
             } catch (IOException ignored) {}
@@ -126,6 +129,39 @@ public class StdioE2eTest {
                 "REFERENCE TO",
                 "EXTERNAL",
                 "Demo.Topic.Target");
+    }
+
+    @Test
+    void concurrentToolCalls_returnEveryResponseWithoutTransportErrors() throws Exception {
+        initializeSession();
+
+        send(createModelSnippetRequest(2, "ConcurrentModelA"));
+        send(createModelSnippetRequest(3, "ConcurrentModelB"));
+
+        String responseA = waitForResponseWithId(2, 15_000);
+        String responseB = waitForResponseWithId(3, 15_000);
+        assertNotNull(responseA, "Did not receive response for concurrent request 2");
+        assertNotNull(responseB, "Did not receive response for concurrent request 3");
+        assertSuccessfulToolResponse(responseA, "createModelSnippet", "ConcurrentModelA");
+        assertSuccessfulToolResponse(responseB, "createModelSnippet", "ConcurrentModelB");
+        assertNoTransportErrors();
+    }
+
+    @Test
+    void concurrentPromptCalls_returnEveryResponseWithoutTransportErrors() throws Exception {
+        initializeSession();
+
+        send(promptRequest(2, "review-interlis-model", "PUBLICATION"));
+        send(promptRequest(3, "review-interlis-model", "CAPTURE"));
+        send(promptRequest(4, "review-interlis-model", "VALIDATION"));
+        send(promptRequest(5, "review-interlis-model", "UNKNOWN"));
+
+        for (int id = 2; id <= 5; id++) {
+            String response = waitForResponseWithId(id, 15_000);
+            assertNotNull(response, "Did not receive prompt response for request " + id);
+            assertFalse(response.contains("\"error\""), response);
+        }
+        assertNoTransportErrors();
     }
 
     @Test
@@ -574,7 +610,49 @@ public class StdioE2eTest {
         // System.out.println("[client ->] " + oneLineJson);
     }
 
+    private String createModelSnippetRequest(int id, String name) {
+        return "{"
+                + "\"jsonrpc\":\"2.0\","
+                + "\"id\":" + id + ","
+                + "\"method\":\"tools/call\","
+                + "\"params\":{"
+                + "\"name\":\"createModelSnippet\","
+                + "\"arguments\":{"
+                + "\"name\":\"" + name + "\","
+                + "\"lang\":\"de\","
+                + "\"uri\":\"https://example.org/" + name + "\","
+                + "\"version\":\"2026-08-24\","
+                + "\"iliVersion\":\"2.4\""
+                + "}"
+                + "}"
+                + "}";
+    }
+
+    private String promptRequest(int id, String promptName, String modelPurpose) {
+        return "{"
+                + "\"jsonrpc\":\"2.0\","
+                + "\"id\":" + id + ","
+                + "\"method\":\"prompts/get\","
+                + "\"params\":{"
+                + "\"name\":\"" + promptName + "\","
+                + "\"arguments\":{\"modelPurpose\":\"" + modelPurpose + "\"}"
+                + "}"
+                + "}";
+    }
+
+    private void assertNoTransportErrors() throws InterruptedException {
+        Thread.sleep(200);
+        String stderr = String.join("\n", stderrLines);
+        assertFalse(stderr.contains("Failed to enqueue message"), stderr);
+        assertFalse(stderr.contains("Operator called default onErrorDropped"), stderr);
+        assertFalse(stderr.contains("MCP connection closed"), stderr);
+    }
+
     private String waitForResponseWithId(int id, long timeoutMillis) throws InterruptedException {
+        String pending = pendingResponses.remove(id);
+        if (pending != null) {
+            return pending;
+        }
         long deadline = System.currentTimeMillis() + timeoutMillis;
         String needle = "\"id\":" + id;
         while (System.currentTimeMillis() < deadline) {
@@ -586,9 +664,32 @@ public class StdioE2eTest {
                     && (line.contains("\"result\"") || line.contains("\"error\""))) {
                 return line;
             }
+            if (line.contains("\"jsonrpc\":\"2.0\"")
+                    && (line.contains("\"result\"") || line.contains("\"error\""))) {
+                Integer responseId = responseId(line);
+                if (responseId != null) {
+                    pendingResponses.put(responseId, line);
+                }
+            }
             // Otherwise keep waiting; other messages (e.g., pings/notifications) may arrive.
         }
         return null;
+    }
+
+    private Integer responseId(String line) {
+        int marker = line.indexOf("\"id\":");
+        if (marker < 0) {
+            return null;
+        }
+        int start = marker + "\"id\":".length();
+        int end = start;
+        while (end < line.length() && Character.isDigit(line.charAt(end))) {
+            end++;
+        }
+        if (start == end) {
+            return null;
+        }
+        return Integer.valueOf(line.substring(start, end));
     }
 
     private String jsonString(String raw) {
