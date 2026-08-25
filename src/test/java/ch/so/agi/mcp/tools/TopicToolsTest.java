@@ -19,7 +19,6 @@ class TopicToolsTest {
         assertEquals(String.join("\n",
                 "TOPIC Geo =",
                 "  OID AS OIDTYPE;",
-                "  /** Klassen/Assoziationen hier */",
                 "END Geo;"
         ), response.get("iliSnippet"));
     }
@@ -43,7 +42,6 @@ class TopicToolsTest {
                 "/** Topic Doc */",
                 "!!@ ch.so.topic=TRUE",
                 "TOPIC DokTopic =",
-                "  /** Klassen/Assoziationen hier */",
                 "END DokTopic;"
         ), response.get("iliSnippet"));
     }

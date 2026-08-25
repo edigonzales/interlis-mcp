@@ -33,7 +33,8 @@ public class ModelChangeTools {
 
   @McpTool(
       name = "reviewIliChange",
-      description = "Standard-Tool, wenn ein Vorher- und ein Nachher-Stand eines vollstaendigen INTERLIS-Modells vorliegen. Vergleicht beide semantisch, kompiliert jede Version genau einmal und prueft das After-Modell gegen die Modellierungsregeln. Rueckgabe: added, removed, changed, potentiallyBreakingChanges und afterReview. Nicht fuer einen einzelnen Modellstand verwenden; dafuer reviewIliModel."
+      description = "Standard-Tool, wenn ein Vorher- und ein Nachher-Stand eines vollstaendigen INTERLIS-Modells vorliegen. Vergleicht beide semantisch, kompiliert jede Version genau einmal und prueft das After-Modell gegen die Modellierungsregeln. Rueckgabe: added, removed, changed, potentiallyBreakingChanges und afterReview. Nicht fuer einen einzelnen Modellstand verwenden; dafuer reviewIliModel.",
+      annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> reviewIliChange(
       @McpToolParam(description = "INTERLIS-2 Modelltext vor der Aenderung", required = true) String beforeModelText,

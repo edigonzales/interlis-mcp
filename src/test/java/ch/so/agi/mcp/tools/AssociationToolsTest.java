@@ -33,89 +33,36 @@ class AssociationToolsTest {
   }
 
   @Test
-  void createAssociation_generatesAssociationAndRoleNamesWhenMissing() {
-    Map<String, Object> response = associationTools.createAssociation(
-        null,
-        List.of(role(null, "Mod.Topic.Source", "{1}", null), role(null, "Mod.Topic.Target", "{0..*}", null)),
-        null,
-        null,
-        null);
+  void createAssociation_rejectsMissingNamesInsteadOfInventingThem() {
+    IllegalArgumentException missingAssociation = assertThrows(
+        IllegalArgumentException.class,
+        () -> associationTools.createAssociation(
+            null,
+            List.of(role("from", "Mod.Topic.Source", "{1}", null),
+                role("to", "Mod.Topic.Target", "{0..*}", null)),
+            null, null, null));
+    assertTrue(missingAssociation.getMessage().contains("must not be invented"));
 
-    assertEquals(String.join("\n",
-            "ASSOCIATION Source__Target =",
-            "  r_Target -- {1} Mod.Topic.Source;",
-            "  r_Source -- {0..*} Mod.Topic.Target;",
-            "END Source__Target;"),
-        response.get("iliSnippet"));
-    assertTrue(response.toString().contains("generatedNames"));
-    assertTrue(response.toString().contains("Source__Target"));
-    assertTrue(response.get("openQuestions").toString().contains("Generated association name 'Source__Target'"));
-    assertTrue(response.get("openQuestions").toString().contains("Generated role name 'r_Target'"));
-    assertTrue(response.get("openQuestions").toString().contains("Generated role name 'r_Source'"));
-    assertTrue(response.get("openQuestions").toString().contains("technical placeholder"));
+    IllegalArgumentException missingRole = assertThrows(
+        IllegalArgumentException.class,
+        () -> associationTools.createAssociation(
+            "Link",
+            List.of(role(null, "Mod.Topic.Source", "{1}", null),
+                role("to", "Mod.Topic.Target", "{0..*}", null)),
+            null, null, null));
+    assertTrue(missingRole.getMessage().contains("must not be invented"));
   }
 
   @Test
-  void createAssociation_generatesSelfAssociationRoleNames() {
-    Map<String, Object> response = associationTools.createAssociation(
-        null,
-        List.of(
-            role(null, "Mod.Topic.Person", "{0..1}", null),
-            role(null, "Mod.Topic.Person", "{0..*}", null)),
-        null,
-        null,
-        null);
-
-    assertEquals(String.join("\n",
-            "ASSOCIATION Person__Person =",
-            "  r_Person_1 -- {0..1} Mod.Topic.Person;",
-            "  r_Person_2 -- {0..*} Mod.Topic.Person;",
-            "END Person__Person;"),
-        response.get("iliSnippet"));
-    assertTrue(response.get("openQuestions").toString().contains("r_Person_1"));
-    assertTrue(response.get("openQuestions").toString().contains("r_Person_2"));
-  }
-
-  @Test
-  void createAssociation_resolvesGeneratedRoleNameCollisions() {
-    Map<String, Object> response = associationTools.createAssociation(
-        null,
-        List.of(
-            role(null, "Mod.Topic.Address", "{1}", null),
-            role(null, "Mod.Topic.Person", "{0..1}", null),
-            role(null, "Mod.Topic.Person", "{0..*}", null)),
-        null,
-        null,
-        null);
-
-    assertEquals(String.join("\n",
-            "ASSOCIATION Address__Person__Person =",
-            "  r_Address -- {1} Mod.Topic.Address;",
-            "  r_Person -- {0..1} Mod.Topic.Person;",
-            "  r_Person_2 -- {0..*} Mod.Topic.Person;",
-            "END Address__Person__Person;"),
-        response.get("iliSnippet"));
-    assertTrue(response.toString().contains("nameCollisionsResolved"));
-    assertTrue(response.get("openQuestions").toString().contains("r_Person_2"));
-    assertTrue(response.get("openQuestions").toString().contains("technical placeholder"));
-  }
-
-  @Test
-  void createAssociation_allowsMissingCardinality() {
-    Map<String, Object> response = associationTools.createAssociation(
-        "Link",
-        List.of(role("from", "Mod.Topic.Source", null, null), role("to", "Mod.Topic.Target", "{0..1}", null)),
-        null,
-        null,
-        null);
-
-    assertEquals(String.join("\n",
-            "ASSOCIATION Link =",
-            "  from -- Mod.Topic.Source;",
-            "  to -- {0..1} Mod.Topic.Target;",
-            "END Link;"),
-        response.get("iliSnippet"));
-    assertTrue(response.get("openQuestions").toString().contains("Missing cardinality for role 'from'"));
+  void createAssociation_rejectsMissingCardinalityInsteadOfInventingIt() {
+    IllegalArgumentException error = assertThrows(
+        IllegalArgumentException.class,
+        () -> associationTools.createAssociation(
+            "Link",
+            List.of(role("from", "Mod.Topic.Source", null, null),
+                role("to", "Mod.Topic.Target", "{0..1}", null)),
+            null, null, null));
+    assertTrue(error.getMessage().contains("cardinality is required"));
   }
 
   @Test

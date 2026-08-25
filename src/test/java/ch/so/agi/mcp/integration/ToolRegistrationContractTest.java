@@ -58,7 +58,7 @@ class ToolRegistrationContractTest {
 
   @Test
   void publicToolSurfaceStaysSmallEnoughForAgentContext() throws Exception {
-    assertThat(toolSpecifications).hasSize(38);
+    assertThat(toolSpecifications).hasSize(27);
     for (SyncToolSpecification specification : toolSpecifications) {
       assertThat(mapper.writeValueAsBytes(specification.tool()).length)
           .as("serialized MCP declaration for %s", specification.tool().name())
@@ -67,60 +67,33 @@ class ToolRegistrationContractTest {
   }
 
   @Test
-  void createModelSnippetHasExpectedDescriptionsAndBehavior() throws Exception {
-    SyncToolSpecification createModelSnippet = specsByName().get("createModelSnippet");
-    var inputSchema = createModelSnippet.tool().inputSchema();
-
-    Map<String, Object> properties = schemaProperties(inputSchema);
-    assertThat(propertyDescription(properties, "name"))
-        .isEqualTo("Modellname (Bezeichner ohne Leerzeichen)");
-    assertThat(propertyDescription(properties, "lang"))
-        .isEqualTo("Sprachcode, z. B. 'de' oder 'en'");
-    assertThat(propertyDescription(properties, "uri")).isEqualTo("URI des Modells");
-    assertThat(propertyDescription(properties, "version"))
-        .isEqualTo("Version im Format YYYY-MM-DD");
-    assertThat(propertyDescription(properties, "iliVersion"))
-        .isEqualTo("INTERLIS Sprachversion (z. B. '2.3' oder '2.4')");
-    assertThat(propertyDescription(properties, "imports"))
-        .isEqualTo("Zusätzliche Imports (z. B. 'GeometryCHLV95_V1')");
-
-    var response = createModelSnippet.callHandler().apply(null,
-        new McpSchema.CallToolRequest("createModelSnippet", Map.of(
-            "name", "TestModel",
-            "lang", "de",
-            "uri", "https://example.org/test",
-            "version", "2024-01-31",
-            "iliVersion", "2.3",
-            "imports", List.of("INTERLIS", "GeometryCHLV95_V1"))));
+  void authorIliModelDeserializesTypedCompleteSpec() throws Exception {
+    SyncToolSpecification author = specsByName().get("authorIliModel");
+    var response = author.callHandler().apply(null,
+        new McpSchema.CallToolRequest("authorIliModel", Map.of(
+            "spec", Map.of(
+                "name", "TestModel",
+                "language", "de",
+                "uri", "https://example.org/test",
+                "version", "2024-01-31",
+                "iliVersion", "2.4",
+                "topics", List.of(Map.of(
+                    "name", "Data",
+                    "classes", List.of(Map.of(
+                        "name", "Thing",
+                        "attributes", List.of(Map.of(
+                            "name", "code",
+                            "typeSpec", Map.of("baseType", Map.of(
+                                "kind", "TEXT", "length", 20))))))))),
+            "modelPurpose", "CAPTURE")));
 
     Map<String, Object> structured = extractStructuredContent(response);
-    assertThat(structured.get("iliSnippet"))
-        .isEqualTo(
-            "INTERLIS 2.3;\n\n"
-                + "MODEL TestModel (de) AT \"https://example.org/test\" VERSION \"2024-01-31\" =\n"
-                + "  IMPORTS INTERLIS;\n"
-                + "  IMPORTS GeometryCHLV95_V1;\n\n"
-                + "END TestModel.\n");
-  }
-
-  @Test
-  void ensureGeometryDependenciesProducesExpectedGeometryPayload() throws Exception {
-    SyncToolSpecification ensureGeometryDependencies = specsByName().get("ensureGeometryDependencies");
-
-    var response = ensureGeometryDependencies.callHandler().apply(null,
-        new McpSchema.CallToolRequest("ensureGeometryDependencies", Map.of(
-            "attributeName", "Perimeter",
-            "arcs", true,
-            "coordDomainFqn", "Demo.Coord2")));
-
-    Map<String, Object> structured = extractStructuredContent(response);
-    assertThat(structured)
-        .containsKeys("importLinesToAdd", "domainsToAdd", "attributeLine", "notes");
-    assertThat(structured.get("importLinesToAdd")).asList().contains("IMPORTS INTERLIS;");
-    assertThat(structured.get("domainsToAdd")).asList().isEmpty();
-    assertThat(structured.get("attributeLine").toString())
-        .contains("Perimeter : SURFACE WITH (STRAIGHTS, ARCS)")
-        .contains("VERTEX Demo.Coord2");
+    assertThat(structured.get("status")).isEqualTo("GENERATED");
+    assertThat(structured.get("complete")).isEqualTo(true);
+    assertThat(structured.get("updatedModelText").toString())
+        .contains("MODEL TestModel (de)")
+        .contains("code : TEXT*20;");
+    assertThat(structured).containsKeys("derivedImports", "afterReview", "constraintProofs");
   }
 
   @Test
@@ -187,8 +160,8 @@ class ToolRegistrationContractTest {
   }
 
   @Test
-  void applyIliModelChangeDeserializesTypedAddAttributeRequest() throws Exception {
-    SyncToolSpecification applyIliModelChange = specsByName().get("applyIliModelChange");
+  void applyIliModelChangesDeserializesTypedAtomicBatch() throws Exception {
+    SyncToolSpecification applyIliModelChanges = specsByName().get("applyIliModelChanges");
 
     String modelText = "INTERLIS 2.4;\n\n"
         + "MODEL DemoModel (de) AT \"https://example.org/demo\" VERSION \"2026-08-19\" =\n"
@@ -199,26 +172,132 @@ class ToolRegistrationContractTest {
         + "  END Data;\n"
         + "END DemoModel.\n";
 
-    var response = applyIliModelChange.callHandler().apply(null,
-        new McpSchema.CallToolRequest("applyIliModelChange", Map.of(
+    var response = applyIliModelChanges.callHandler().apply(null,
+        new McpSchema.CallToolRequest("applyIliModelChanges", Map.of(
             "modelText", modelText,
             "request", Map.of(
-                "operation", "ADD_ATTRIBUTE",
-                "addAttribute", Map.of(
-                    "containerFqn", "DemoModel.Data.Building",
-                    "attribute", Map.of(
-                        "name", "egid",
-                        "mandatory", true,
-                        "typeSpec", Map.of(
-                            "baseType", Map.of(
-                                "kind", "TEXT",
-                                "length", 14))))))));
+                "allowPotentiallyBreaking", true,
+                "changes", List.of(Map.of(
+                    "operation", "ADD_ATTRIBUTE",
+                    "addAttribute", Map.of(
+                        "containerFqn", "DemoModel.Data.Building",
+                        "attribute", Map.of(
+                            "name", "egid",
+                            "mandatory", true,
+                            "typeSpec", Map.of(
+                                "baseType", Map.of(
+                                    "kind", "TEXT",
+                                    "length", 14))))))))));
 
     Map<String, Object> structured = extractStructuredContent(response);
     assertThat(structured.get("status")).isEqualTo("APPLIED");
-    assertThat(structured.get("targetFqn")).isEqualTo("DemoModel.Data.Building.egid");
     assertThat(structured.get("updatedModelText").toString())
         .contains("egid : MANDATORY TEXT*14;");
+    assertThat(structured).containsKeys("sourceEdits", "afterReview", "potentiallyBreakingChanges");
+  }
+
+  @Test
+  void allPublicToolsHaveSafeExplicitAnnotations() {
+    for (SyncToolSpecification specification : toolSpecifications) {
+      var annotations = specification.tool().annotations();
+      assertThat(annotations.destructiveHint())
+          .as(specification.tool().name())
+          .isFalse();
+      if (!"indexConfiguredModels".equals(specification.tool().name())) {
+        assertThat(annotations.readOnlyHint()).as(specification.tool().name()).isTrue();
+      }
+      assertThat(annotations.idempotentHint()).as(specification.tool().name()).isTrue();
+    }
+  }
+
+  @Test
+  void highLevelAuthoringToolsPublishOutputSchemas() {
+    Map<String, SyncToolSpecification> specifications = specsByName();
+    Set<String> authoringTools = Set.of(
+        "authorIliModel",
+        "applyIliModelChanges",
+        "authorIliMandatoryConstraint",
+        "authorIliUniqueConstraint",
+        "authorIliExistenceConstraint",
+        "authorIliPlausibilityConstraint",
+        "authorIliSetConstraint",
+        "generateIliConstraintFromDecisionTable");
+    for (String toolName : authoringTools) {
+      assertThat(specifications.get(toolName).tool().outputSchema())
+          .as("output schema for %s", toolName)
+          .isNotNull()
+          .isNotEmpty();
+    }
+    for (String toolName : Set.of(
+        "authorIliModel", "applyIliModelChanges", "authorIliMandatoryConstraint",
+        "authorIliUniqueConstraint", "authorIliExistenceConstraint",
+        "authorIliPlausibilityConstraint", "authorIliSetConstraint")) {
+      Map<String, Object> properties = schemaProperties(
+          specifications.get(toolName).tool().outputSchema());
+      assertThat(properties).as("typed output properties for %s", toolName)
+          .containsKeys("status", "complete", "updatedModelText", "candidateModelText",
+              "compilerDiagnostics", "sourceEdits", "derivedImports", "semanticDiff",
+              "afterReview", "constraintProofs", "openQuestions", "requiresUserDecision");
+    }
+  }
+
+  @Test
+  void modelAndBatchSchemasExposeClosedConstraintDiscriminators() throws Exception {
+    for (String toolName : Set.of("authorIliModel", "applyIliModelChanges")) {
+      String schema = mapper.writeValueAsString(specsByName().get(toolName).tool().inputSchema());
+      assertThat(schema).as(toolName)
+          .contains("oneOf", "MANDATORY", "UNIQUE", "EXISTENCE", "PLAUSIBILITY", "SET")
+          .contains("OBJECT_COUNT", "BOOLEAN_EXPRESSION", "ALL", "PATH");
+    }
+  }
+
+  @Test
+  void outputSchemasUseTypedNestedAuthoringObjects() throws Exception {
+    String schema = mapper.writeValueAsString(
+        specsByName().get("authorIliUniqueConstraint").tool().outputSchema());
+    assertThat(schema)
+        .contains("beforeDiagnostics", "afterDiagnostics", "sourceEdits", "semanticDiff")
+        .contains("afterReview", "constraintProofs", "coverageGaps", "generatedCases")
+        .contains("openQuestions", "CompilerDiagnostic", "startOffset", "constraintFqn")
+        .contains(
+            "GENERATED",
+            "APPLIED",
+            "BREAKING_CHANGE_REQUIRES_CONFIRMATION",
+            "NEEDS_INPUT",
+            "INVALID_SPEC",
+            "BEFORE_MODEL_INVALID",
+            "CANDIDATE_MODEL_INVALID",
+            "AST_ROUND_TRIP_FAILED",
+            "PROOF_INCOMPLETE",
+            "PROOF_FAILED",
+            "EXTERNAL_FUNCTION_SEMANTICS_REQUIRED",
+            "UNEXPECTED_SEMANTIC_CHANGE");
+  }
+
+  @Test
+  void oldFlatConstraintPayloadsAreRejected() {
+    Map<String, Map<String, Object>> oldArguments = Map.of(
+        "authorIliMandatoryConstraint", Map.of("constraintName", "C", "condition", "x > 0"),
+        "authorIliUniqueConstraint", Map.of("constraintName", "C", "uniqueScope", "GLOBAL"),
+        "authorIliExistenceConstraint", Map.of("constraintName", "C", "restrictedPath", "x"),
+        "authorIliPlausibilityConstraint", Map.of("constraintName", "C", "percentage", 50),
+        "authorIliSetConstraint", Map.of("constraintName", "C", "condition", "x"));
+    oldArguments.forEach((toolName, flat) -> {
+      Map<String, Object> arguments = new LinkedHashMap<>();
+      arguments.put("modelText", "INTERLIS 2.4;");
+      arguments.put("contextFqn", "Demo.Data.Item");
+      arguments.putAll(flat);
+      McpSchema.CallToolResult response = specsByName().get(toolName).callHandler().apply(
+          null, new McpSchema.CallToolRequest(toolName, arguments));
+      if (!response.isError()) {
+        try {
+          assertThat(extractStructuredContent(response).get("status"))
+              .as(toolName).isEqualTo("INVALID_SPEC");
+        } catch (Exception ex) {
+          throw new AssertionError("Unable to inspect rejected payload for " + toolName, ex);
+        }
+      }
+    });
   }
 
   @Test
@@ -243,12 +322,14 @@ class ToolRegistrationContractTest {
     var response = author.callHandler().apply(null,
         new McpSchema.CallToolRequest("authorIliExistenceConstraint", Map.of(
             "modelText", modelText,
-            "context", "ExistDemo.Data.Source",
-            "constraintName", "CodeExists",
-            "restrictedPath", "code",
-            "requiredIn", List.of(
-                Map.of("viewableFqn", "ExistDemo.Data.TargetA", "attributePath", "code"),
-                Map.of("viewableFqn", "ExistDemo.Data.TargetB", "attributePath", "code")))));
+            "contextFqn", "ExistDemo.Data.Source",
+            "spec", Map.of(
+                "kind", "EXISTENCE",
+                "name", "CodeExists",
+                "restrictedPath", "code",
+                "requiredIn", List.of(
+                    Map.of("viewableFqn", "ExistDemo.Data.TargetA", "attributePath", "code"),
+                    Map.of("viewableFqn", "ExistDemo.Data.TargetB", "attributePath", "code"))))));
 
     Map<String, Object> structured = extractStructuredContent(response);
     assertThat(structured.get("generated")).isEqualTo(true);
@@ -257,7 +338,7 @@ class ToolRegistrationContractTest {
         .contains("EXISTENCE CONSTRAINT")
         .contains("ExistDemo.Data.TargetA : code")
         .contains("OR ExistDemo.Data.TargetB : code");
-    assertThat(structured.get("requiredIn")).asList().hasSize(2);
+    assertThat(structured.get("constraintProofs")).asList().hasSize(1);
   }
 
   @Test
@@ -273,27 +354,29 @@ class ToolRegistrationContractTest {
         + "  END Data;\n"
         + "END PlausDemo.\n";
 
+    Map<String, Object> condition = Map.of(
+        "kind", "COMPARE",
+        "operator", ">=",
+        "children", List.of(
+            Map.of("kind", "ATTRIBUTE", "name", "value"),
+            Map.of("kind", "NUMERIC", "value", 10)));
+    Map<String, Object> spec = Map.of(
+        "kind", "PLAUSIBILITY",
+        "name", "UsuallyHigh",
+        "direction", "AT_LEAST",
+        "percentage", 80,
+        "condition", condition);
     var response = author.callHandler().apply(null,
         new McpSchema.CallToolRequest("authorIliPlausibilityConstraint", Map.of(
             "modelText", modelText,
-            "context", "PlausDemo.Data.Item",
-            "constraintName", "UsuallyHigh",
-            "direction", "AT_LEAST",
-            "percentage", 80,
-            "rootNodeId", "root",
-            "nodes", List.of(
-                Map.of("id", "value", "kind", "ATTRIBUTE", "name", "value"),
-                Map.of("id", "threshold", "kind", "NUMERIC", "value", 10),
-                Map.of("id", "root", "kind", "COMPARE", "operator", ">=",
-                    "children", List.of("value", "threshold"))))));
+            "contextFqn", "PlausDemo.Data.Item",
+            "spec", spec)));
 
     Map<String, Object> structured = extractStructuredContent(response);
     assertThat(structured.get("generated")).isEqualTo(true);
     assertThat(structured.get("proofVerified")).isEqualTo(true);
-    assertThat(structured.get("direction")).isEqualTo("AT_LEAST");
-    assertThat(structured.get("percentage")).isEqualTo("80");
     assertThat(structured.get("updatedModelText").toString())
-        .contains("!!@ name = \"UsuallyHigh\"")
+        .contains("!!@ name=\"UsuallyHigh\"")
         .contains(">= 80%")
         .contains("value >= 10");
   }
@@ -311,29 +394,34 @@ class ToolRegistrationContractTest {
         + "  END Data;\n"
         + "END SetDemo.\n";
 
+    Map<String, Object> setSpec = Map.of(
+        "kind", "SET",
+        "name", "AtLeastTwoHigh",
+        "scope", "GLOBAL",
+        "where", Map.of(
+            "kind", "COMPARE",
+            "operator", ">=",
+            "children", List.of(
+                Map.of("kind", "ATTRIBUTE", "name", "value"),
+                Map.of("kind", "NUMERIC", "value", 5))),
+        "condition", Map.of(
+            "kind", "OBJECT_COUNT",
+            "objects", Map.of("kind", "ALL"),
+            "operator", ">=",
+            "threshold", 2));
     var response = author.callHandler().apply(null,
         new McpSchema.CallToolRequest("authorIliSetConstraint", Map.of(
             "modelText", modelText,
-            "context", "SetDemo.Data.Item",
-            "constraintName", "AtLeastTwoHigh",
-            "operator", ">=",
-            "threshold", 2,
-            "perBasket", false,
-            "where", Map.of(
-                "attribute", "value",
-                "operator", ">=",
-                "valueKind", "NUMERIC",
-                "value", 5))));
+            "contextFqn", "SetDemo.Data.Item",
+            "spec", setSpec)));
 
     Map<String, Object> structured = extractStructuredContent(response);
     assertThat(structured.get("generated")).as("%s", structured).isEqualTo(true);
     assertThat(structured.get("proofVerified")).as("%s", structured).isEqualTo(true);
-    assertThat(structured.get("whereExpression")).isEqualTo("value >= 5");
     assertThat(structured.get("updatedModelText").toString())
-        .contains("SET CONSTRAINT WHERE value >= 5:")
+        .contains("SET CONSTRAINT WHERE (value >= 5):")
         .contains("INTERLIS.objectCount(ALL) >= 2;");
-    assertThat(((Map<?, ?>) structured.get("proof")).get("pattern"))
-        .isEqualTo("SET_OBJECT_COUNT_PROOF");
+    assertThat(structured.get("constraintProofs")).asList().hasSize(1);
   }
 
   private Map<String, SyncToolSpecification> specsByName() {
@@ -385,33 +473,21 @@ class ToolRegistrationContractTest {
   private static Map<String, SchemaExpectation> expectedSchemas() {
     Map<String, SchemaExpectation> expectations = new LinkedHashMap<>();
 
-    expectations.put("createAssociationSnippet", schema(Set.of("roles"), Set.of("name", "attrLines", "iliDoc", "metaAttributes")));
-    expectations.put("createAttributeLine", schema(Set.of("req"), Set.of()));
-    expectations.put("createClassSnippet", schema(Set.of("name"), Set.of("isAbstract", "extendsFqn", "oidDecl", "attrLines", "iliDoc", "metaAttributes")));
-    expectations.put("createCoordDomainSnippet", schema(Set.of("name", "axes"), Set.of("rotationFrom", "rotationTo", "iliDoc", "metaAttributes")));
-    expectations.put("createEnumDomainSnippet", schema(Set.of("name"), Set.of("items", "itemSpecs", "iliDoc", "metaAttributes")));
-    expectations.put("createEnumTreeDomainSnippet", schema(Set.of("name", "items"), Set.of("iliDoc", "metaAttributes")));
-    expectations.put("createModelSnippet", schema(Set.of("name"), Set.of("lang", "uri", "version", "iliVersion", "imports", "iliDoc", "metaAttributes")));
-    expectations.put("createNumericDomainSnippet", schema(Set.of("name", "min", "max"), Set.of("unitFqn", "iliDoc", "metaAttributes")));
-    expectations.put("createStructureSnippet", schema(Set.of("name"), Set.of("isAbstract", "extendsFqn", "attrLines", "iliDoc", "metaAttributes")));
-    expectations.put("createTopicSnippet", schema(Set.of("name"), Set.of("oidType", "isAbstract", "iliDoc", "metaAttributes")));
-    expectations.put("createUniqueConstraint", schema(Set.of("attrs"), Set.of("iliDoc", "metaAttributes")));
-    expectations.put("createUnitSnippet", schema(Set.of("name", "factor", "base"), Set.of("iliDoc", "metaAttributes")));
-    expectations.put("ensureGeometryDependencies", schema(Set.of("attributeName"),
-        Set.of("arcs", "overlapMm", "chbase", "iliVersion", "geometryType", "coordDomainFqn", "directed", "mandatory", "collection")));
     expectations.put("formatIliModel", schema(Set.of("modelText"), Set.of()));
     expectations.put("analyzeIliModel", schema(Set.of("modelText"), Set.of("modelPurpose")));
     expectations.put("checkModelingRules", schema(Set.of("modelText"), Set.of("modelPurpose", "ruleIds", "profile")));
     expectations.put("reviewIliModel", schema(Set.of("modelText"), Set.of("modelPurpose", "ruleProfile")));
     expectations.put("reviewIliChange", schema(Set.of("beforeModelText", "afterModelText"), Set.of("modelPurpose", "ruleProfile")));
-    expectations.put("applyIliModelChange", schema(Set.of("modelText", "request"), Set.of("modelPurpose", "ruleProfile")));
+    expectations.put("authorIliModel", schema(Set.of("spec"), Set.of("modelPurpose", "ruleProfile")));
+    expectations.put("applyIliModelChanges", schema(Set.of("modelText", "request"), Set.of("modelPurpose", "ruleProfile")));
     expectations.put("reviewIliConstraint", schema(Set.of("modelText", "constraint"), Set.of()));
     expectations.put("generateIliConstraintCases", schema(Set.of("modelText", "constraint"), Set.of()));
     expectations.put("generateIliConstraintFromDecisionTable", schema(Set.of("modelText", "context", "constraintName", "rows"), Set.of()));
-    expectations.put("authorIliMandatoryConstraint", schema(Set.of("modelText", "context", "constraintName", "rootNodeId", "nodes"), Set.of()));
-    expectations.put("authorIliPlausibilityConstraint", schema(Set.of("modelText", "context", "constraintName", "direction", "percentage", "rootNodeId", "nodes"), Set.of()));
-    expectations.put("authorIliExistenceConstraint", schema(Set.of("modelText", "context", "constraintName", "restrictedPath", "requiredIn"), Set.of()));
-    expectations.put("authorIliSetConstraint", schema(Set.of("modelText", "context", "constraintName", "operator", "threshold"), Set.of("perBasket", "where")));
+    expectations.put("authorIliMandatoryConstraint", constraintAuthoringSchema());
+    expectations.put("authorIliPlausibilityConstraint", constraintAuthoringSchema());
+    expectations.put("authorIliExistenceConstraint", constraintAuthoringSchema());
+    expectations.put("authorIliSetConstraint", constraintAuthoringSchema());
+    expectations.put("authorIliUniqueConstraint", constraintAuthoringSchema());
     expectations.put("testIliConstraint", schema(Set.of("modelText", "constraint", "cases"), Set.of()));
     expectations.put("findSimilarModels", schema(Set.of(), Set.of("query", "modelText", "modelPurpose", "limit")));
     expectations.put("indexConfiguredModels", schema(Set.of(), Set.of()));
@@ -430,6 +506,12 @@ class ToolRegistrationContractTest {
 
   private static SchemaExpectation schema(Set<String> required, Set<String> optional) {
     return new SchemaExpectation(required, optional);
+  }
+
+  private static SchemaExpectation constraintAuthoringSchema() {
+    return schema(
+        Set.of("modelText", "contextFqn", "spec"),
+        Set.of("modelPurpose", "ruleProfile"));
   }
 
   private record SchemaExpectation(Set<String> required, Set<String> optional) {

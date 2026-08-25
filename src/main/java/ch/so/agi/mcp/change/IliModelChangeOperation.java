@@ -1,5 +1,15 @@
 package ch.so.agi.mcp.change;
 
 public enum IliModelChangeOperation {
-  ADD_ATTRIBUTE
+  ADD_IMPORT,
+  ADD_TOPIC,
+  ADD_DOMAIN,
+  ADD_UNIT,
+  ADD_CLASS,
+  ADD_STRUCTURE,
+  ADD_ASSOCIATION,
+  ADD_ATTRIBUTE,
+  UPDATE_ATTRIBUTE,
+  REMOVE_ATTRIBUTE,
+  ADD_CONSTRAINT
 }

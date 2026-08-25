@@ -221,7 +221,8 @@ Bestehende Verträge:
 - `reviewIliChange`: ein Compile für Before und ein Compile für After.
 - `generateIliConstraintCases`: ein Compile für den bestehenden Modellstand.
 - typisiertes Constraint-Authoring: ein Before- und ein After-Compile; der Proof verwendet danach den kompilierten After-Kontext.
-- `applyIliModelChange`: Before und Kandidat/After werden innerhalb des Change-Workflows kontrolliert kompiliert; der enthaltene Review wird aus diesen Resultaten abgeleitet.
+- `authorIliModel`: genau ein Compile; AST-Roundtrip, Constraint-Proofs und Review verwenden dessen Kontext.
+- `applyIliModelChanges`: genau ein Before- und ein Kandidat/After-Compile für den gesamten Batch; Proofs und Review werden daraus abgeleitet.
 
 Neue Orchestratoren sollten deshalb bevorzugt Methoden verwenden, die bereits kompilierte Kontexte akzeptieren, statt öffentliche Tools intern erneut mit demselben Text aufzurufen.
 

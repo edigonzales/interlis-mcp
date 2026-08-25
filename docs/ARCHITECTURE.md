@@ -50,7 +50,8 @@ Tools führen deterministische Arbeit aus oder liefern strukturierte Analyseerge
 
 - `reviewIliModel`
 - `reviewIliChange`
-- `applyIliModelChange`
+- `authorIliModel`
+- `applyIliModelChanges`
 - `generateIliConstraintCases`
 - `authorIliMandatoryConstraint`
 - `generateExampleXtf`
@@ -88,7 +89,7 @@ Semantische Werkzeuge verlassen sich nicht auf String-Heuristiken, wenn der Comp
 Beispiele:
 
 - `reviewIliChange` vergleicht analysierte Modellelemente.
-- `applyIliModelChange` löst das Zielobjekt über das kompilierte Metamodell auf.
+- `applyIliModelChanges` löst alle Zielobjekte über dasselbe kompilierte Before-Metamodell auf.
 - Constraint-Tools lesen echte ili2c-Constraint-Knoten und Pfade.
 - `renameModelElement` arbeitet über das Metamodell und regeneriert anschliessend Modelltext.
 
@@ -133,10 +134,10 @@ After  -> compile -> analysis --/                  |
 
 Bei source-preserving Änderungen soll möglichst wenig Originaltext verändert werden. Kommentare, Reihenfolge, Whitespace und Zeilenendungen ausserhalb der Einfügestelle bleiben erhalten.
 
-`applyIliModelChange` folgt vereinfacht diesem Muster:
+`applyIliModelChanges` folgt vereinfacht diesem Muster:
 
 ```text
-typisierte Änderungsanforderung
+typisierter atomarer Änderungsbatch
         |
         v
 Before kompilieren
@@ -145,10 +146,10 @@ Before kompilieren
 Ziel im ili2c-Modell auflösen
         |
         v
-exakte Einfügestelle im Originaltext bestimmen
+exakte Einfüge- und Deklarationsstellen im Originaltext bestimmen
         |
         v
-kleinen Patch anwenden
+deterministisch gruppierte Patches anwenden
         |
         v
 After kompilieren
@@ -157,7 +158,7 @@ After kompilieren
 semantischen Diff prüfen
 ```
 
-`updatedModelText` wird nur freigegeben, wenn der semantische Diff zur verlangten Änderung passt. Unerwartete zusätzliche Änderungen führen beispielsweise zu `UNEXPECTED_SEMANTIC_CHANGE`.
+`updatedModelText` wird nur freigegeben, wenn der semantische Diff zum gesamten verlangten Batch passt. Unerwartete zusätzliche Änderungen führen beispielsweise zu `UNEXPECTED_SEMANTIC_CHANGE`. Potenziell brechende Batches benötigen zusätzlich `allowPotentiallyBreaking=true`.
 
 ## Source-preserving ist nicht dasselbe wie Regeneration
 
@@ -165,7 +166,7 @@ semantischen Diff prüfen
 
 Die beiden Werkzeugklassen erfüllen deshalb unterschiedliche Zwecke:
 
-- `applyIliModelChange`: möglichst kleiner Quelltext-Patch plus semantischer Guard.
+- `applyIliModelChanges`: möglichst kleine Quelltext-Patches plus atomarer semantischer Guard.
 - `renameModelElement`: robuste modellweite Umbenennung, Formatierung darf sich ändern.
 
 # Constraint-Architektur
@@ -190,7 +191,7 @@ Je nach Constraint kommen verschiedene typisierte Ebenen zum Einsatz:
 
 - constraint-level IR für MANDATORY, UNIQUE, EXISTENCE, PLAUSIBILITY und SET,
 - `ConstraintExpression` für boolesche/skalar auswertbare Ausdrücke,
-- Object-Set-IR für SET-Objektmengen wie `ALL`,
+- Object-Set-IR für SET-Objektmengen wie `ALL` und navigierte Objektpfade,
 - typisierte Pfadinformationen für Attribute und Navigation.
 
 Nicht unterstützte Semantik wird nicht durch String-Heuristiken approximiert. Sie bleibt als expliziter nicht übersetzter oder nicht beweisbarer Fall sichtbar.
@@ -229,7 +230,7 @@ Der interne Evaluator ist ein Hilfsmittel, nicht die finale Instanz. `generation
 
 ## Source-preserving Constraint-Authoring
 
-Die typisierten Authoring-Tools verwenden `ConstraintSourceEditService`.
+Die typisierten Authoring-Tools verwenden dieselbe `IliConstraintSpec`-Hierarchie und den gemeinsamen `ConstraintAuthoringEngine`. Die JSON-Schemas bilden MANDATORY, UNIQUE, EXISTENCE, PLAUSIBILITY und SET als echte, über `kind` diskriminierte `oneOf`-Unionen ab; das gemeinsame Resultat publiziert auch die zwölf zulässigen Statuswerte als geschlossenes Enum. `ConstraintSourceEditService` gruppiert Constraint und abgeleitete Imports in einem source-preserving Patchsatz.
 
 Der erfolgreiche Ablauf ist:
 
@@ -240,6 +241,7 @@ Before-Compile
 -> After-Compile und Constraint auflösen
 -> semantischen Roundtrip prüfen
 -> Proof mit demselben kompilierten After-Kontext
+-> semantischen Diff und afterReview aus Before/After ableiten
 ```
 
 Damit besitzt das Authoring einen klaren Zwei-Compile-Vertrag.
@@ -258,7 +260,7 @@ Der Modelltext wird kompiliert und das übergebene XTF mit dem Validator geprüf
 
 ## Constraint-Fixtures
 
-Constraint-Tests verwenden eine spezialisiertere Fixture-Schicht für konkrete Objektgraphen, Association-Links, eingebettete Strukturen und mehrere Baskets. Diese Infrastruktur erlaubt es, Proof-Fälle exakt auf eine erwartete Constraint-Verletzung auszurichten und andere Fixture-Fehler davon zu unterscheiden.
+Constraint-Tests verwenden `TypedValueFixtureFactory` und `NavigationGraphSynthesizer` für skalare Werte, Referenz-OIDs, COORD, Linien-/Flächen-/Multigeometrien, eingebettete Strukturen, Association-Links und mehrere Baskets. Diese Infrastruktur erlaubt es, Proof-Fälle exakt auf eine erwartete Constraint-Verletzung auszurichten und andere Fixture-Fehler davon zu unterscheiden. Kann der installierte Validator eine Wertgleichheit nicht ausführen oder würde die Fixture bereits eine andere Modellregel verletzen, bleibt der Kandidat mit präzisem Reason-Code zurückgehalten.
 
 # Multi-Basket-Semantik
 

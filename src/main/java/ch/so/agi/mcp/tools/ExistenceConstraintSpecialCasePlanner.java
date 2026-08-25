@@ -11,7 +11,6 @@ import ch.interlis.ili2c.metamodel.ExistenceConstraint;
 import ch.interlis.ili2c.metamodel.LineType;
 import ch.interlis.ili2c.metamodel.NumericType;
 import ch.interlis.ili2c.metamodel.ObjectPath;
-import ch.interlis.ili2c.metamodel.ReferenceType;
 import ch.interlis.ili2c.metamodel.Table;
 import ch.interlis.ili2c.metamodel.TextType;
 import ch.interlis.ili2c.metamodel.Type;
@@ -63,23 +62,11 @@ final class ExistenceConstraintSpecialCasePlanner {
     if (restrictedType instanceof CompositionType composition) {
       return planComposition(context, semantics, raw, restricted, composition);
     }
-    if (restrictedType instanceof ReferenceType) {
-      return unsolvedOnly(
-          "EXISTENCE_REFERENCE_VALUE_PROOF_UNSAFE",
-          "REFERENCE-valued EXISTENCE is not automatically claimed as proven because the active validator comparison path is not value-discriminating enough for a safe equality counterexample.",
-          semantics.restrictedAttribute().rootFqn() + ":" + semantics.restrictedAttribute().path());
-    }
-    if (restrictedType instanceof AbstractCoordType) {
-      return unsolvedOnly(
-          "EXISTENCE_COORD_FIXTURE_NOT_VALUE_AWARE",
-          "COORD-valued EXISTENCE has dedicated validator equality semantics, but the automatic fixture layer cannot yet inject arbitrary coordinate values without relying on model-specific defaults.",
-          semantics.restrictedAttribute().rootFqn() + ":" + semantics.restrictedAttribute().path());
-    }
-    if (restrictedType instanceof LineType) {
-      return unsolvedOnly(
-          "EXISTENCE_COMPLEX_GEOMETRY_FIXTURE_UNAVAILABLE",
-          "POLYLINE/SURFACE/AREA EXISTENCE equality is validator-specific and the automatic fixture layer does not yet synthesize geometry values for a proof.",
-          semantics.restrictedAttribute().rootFqn() + ":" + semantics.restrictedAttribute().path());
+    TypedValueFixtureFactory.ValuePair typedPair = TypedValueFixtureFactory.pair(
+        restricted.getDomainOrDerivedDomain());
+    if (typedPair != null && (restrictedType instanceof AbstractCoordType
+        || restrictedType instanceof LineType)) {
+      return planTypedValue(context, semantics, raw, restricted, typedPair);
     }
     if (isScalarKind(semantics.restrictedAttribute())) {
       return null;
@@ -89,6 +76,99 @@ final class ExistenceConstraintSpecialCasePlanner {
         "Automatic EXISTENCE proof does not support restricted attribute type "
             + restrictedType.getClass().getSimpleName() + ".",
         semantics.restrictedAttribute().rootFqn() + ":" + semantics.restrictedAttribute().path());
+  }
+
+  private static ExistenceConstraintCasePlanner.Plan planTypedValue(
+      CompiledConstraintContext context,
+      SemanticConstraint.Existence semantics,
+      ExistenceConstraint raw,
+      AttributeDef restricted,
+      TypedValueFixtureFactory.ValuePair pair) {
+    List<ConstraintTestTools.TestCase> cases = new ArrayList<>();
+    List<Map<String, Object>> summaries = new ArrayList<>();
+    List<Map<String, Object>> unsolved = new ArrayList<>();
+    Table sourceClass = identifiableRoot(raw.getRestrictedAttribute());
+    if (sourceClass == null) {
+      return unsolvedOnly(
+          "EXISTENCE_TYPED_VALUE_CONTEXT_NOT_IDENTIFIABLE",
+          "Typed EXISTENCE fixtures require an identifiable source class.",
+          semantics.restrictedAttribute().rootFqn());
+    }
+
+    ConstraintTestTools.TestObject sourceOnly = object(
+        sourceClass.getScopedName(null),
+        "existence_typed_source_only",
+        Map.of(restricted.getName(), pair.same()));
+    addCase(cases, summaries,
+        "defined " + pair.kind() + " missing from all REQUIRED IN targets",
+        false,
+        "COUNTEREXAMPLE",
+        "A defined typed value without an equal REQUIRED IN value violates EXISTENCE.",
+        Map.of("kind", pair.kind()),
+        List.of(sourceOnly));
+
+    List<ObjectPath> targets = requiredIn(raw);
+    Type restrictedReal = Type.findReal(restricted.getDomainOrDerivedDomain());
+    for (int index = 0; index < targets.size(); index++) {
+      ObjectPath targetPath = targets.get(index);
+      AttributeDef targetAttribute = directAttribute(targetPath);
+      Table targetClass = identifiableRoot(targetPath);
+      if (targetAttribute == null || targetClass == null
+          || Type.findReal(targetAttribute.getDomainOrDerivedDomain()) != restrictedReal) {
+        unsolved.add(unsolved(
+            "EXISTENCE_TYPED_TARGET_DOMAIN_MISMATCH",
+            "Automatic typed equality proof requires source and REQUIRED IN attributes to resolve to the same metamodel type instance.",
+            semantics.requiredIn().get(index).rootFqn() + ":"
+                + semantics.requiredIn().get(index).path()));
+        continue;
+      }
+      ConstraintTestTools.TestObject source = object(
+          sourceClass.getScopedName(null),
+          "existence_typed_source_" + (index + 1),
+          Map.of(restricted.getName(), pair.same()));
+      ConstraintTestTools.TestObject target = object(
+          targetClass.getScopedName(null),
+          "existence_typed_target_" + (index + 1),
+          Map.of(targetAttribute.getName(), pair.same()));
+      addCase(cases, summaries,
+          "equal " + pair.kind() + " in REQUIRED IN branch " + (index + 1),
+          true,
+          "WITNESS",
+          "Validator-confirmed equal typed values satisfy this REQUIRED IN branch.",
+          Map.of("kind", pair.kind(), "requiredIn", semantics.requiredIn().get(index).path()),
+          List.of(source, target));
+
+      if (pair.different() != null) {
+        ConstraintTestTools.TestObject differentTarget = object(
+            targetClass.getScopedName(null),
+            "existence_typed_target_different_" + (index + 1),
+            Map.of(targetAttribute.getName(), pair.different()));
+        addCase(cases, summaries,
+            "different " + pair.kind() + " in REQUIRED IN branch " + (index + 1),
+            false,
+            "COUNTEREXAMPLE",
+            "A valid but different typed value does not satisfy EXISTENCE.",
+            Map.of("kind", pair.kind()),
+            List.of(source, differentTarget));
+      } else {
+        unsolved.add(unsolved(
+            "EXISTENCE_TYPED_DIFFERENT_VALUE_UNAVAILABLE",
+            "No second valid " + pair.kind() + " value can be constructed from the metamodel bounds.",
+            semantics.requiredIn().get(index).path()));
+      }
+    }
+
+    if (minimum(restricted.getDomainOrDerivedDomain()) == 0) {
+      addCase(cases, summaries,
+          "undefined optional " + pair.kind(),
+          true,
+          "WITNESS",
+          "An omitted optional source value does not require a REQUIRED IN match.",
+          Map.of("sourceValue", "UNDEFINED", "kind", pair.kind()),
+          List.of(object(sourceClass.getScopedName(null),
+              "existence_typed_undefined", Map.of())));
+    }
+    return new ExistenceConstraintCasePlanner.Plan(cases, summaries, unsolved);
   }
 
   private static ExistenceConstraintCasePlanner.Plan planComposition(

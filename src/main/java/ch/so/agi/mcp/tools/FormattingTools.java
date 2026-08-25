@@ -23,7 +23,8 @@ public class FormattingTools {
 
   @McpTool(
       name = "formatIliModel",
-      description = "Formatiert (pretty print) ein INTERLIS-2 Modell mit dem offiziellen ili2c-Formatter. Rückgabe: vollständig formatiertes Modell als Text."
+      description = "Formatiert (pretty print) ein INTERLIS-2 Modell mit dem offiziellen ili2c-Formatter. Rückgabe: vollständig formatiertes Modell als Text. Das Tool schreibt keine Datei.",
+      annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public String formatIliModel(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText

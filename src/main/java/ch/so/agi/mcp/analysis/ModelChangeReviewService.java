@@ -98,6 +98,27 @@ public class ModelChangeReviewService {
         Map.entry("limitations", limitations()));
   }
 
+  /** Builds the final modeling review for a newly authored model without recompiling it. */
+  public Map<String, Object> reviewCompiledModel(
+      IliCompilerService.CompilationResult compilation,
+      String modelText,
+      ModelPurpose purpose,
+      ModelingRuleProfile profile) {
+    Objects.requireNonNull(compilation, "compilation");
+    if (!compilation.valid() || compilation.transferDescription() == null) {
+      return Map.of(
+          "available", false,
+          "modelPurpose", purpose.name(),
+          "ruleProfile", profile.name(),
+          "reason", "The authored model must compile before it can be reviewed.");
+    }
+    ModelAnalysisTools.AnalysisData analysis = analysisTools.analyzeCompiled(
+        compilation.transferDescription(), modelText);
+    Map<String, Object> response = analysisTools.toResponse(
+        true, compilation.messages(), analysis, purpose);
+    return ruleTools.reviewAnalyzedModel(modelText, purpose, profile, response);
+  }
+
   private Map<String, Object> notComparableResponse(
       IliCompilerService.CompilationResult beforeCompilation,
       IliCompilerService.CompilationResult afterCompilation,

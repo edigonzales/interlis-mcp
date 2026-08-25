@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ch.so.agi.mcp.constraint.ConstraintContextService;
+import ch.so.agi.mcp.model.IliAuthoringResult;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.List;
 import java.util.Map;
@@ -45,28 +46,30 @@ class ConstraintDecisionTableToolsTest {
         condition("value", ">=", 10),
         condition("value", "<=", 20));
 
-    Map<String, Object> result = tools.generateIliConstraintFromDecisionTable(
+    IliAuthoringResult result = tools.generateIliConstraintFromDecisionTable(
         MODEL,
         "DecisionTableModel.Data.Item",
         "ValueBetween10And20",
         List.of(allowed));
 
-    assertEquals(true, result.get("generated"));
-    assertEquals(true, result.get("proofVerified"));
-    assertEquals("(value >= 10 AND value <= 20)", result.get("constraintExpression"));
-    assertTrue(String.valueOf(result.get("constraintBlock")).contains("ValueBetween10And20"));
+    assertEquals(true, result.generated, String.valueOf(result));
+    assertEquals(true, result.proofVerified);
+    assertEquals("(value >= 10 AND value <= 20)", result.details.get("constraintExpression"));
+    assertTrue(result.updatedModelText.contains("ValueBetween10And20"));
 
-    List<Map<String, Object>> boundaryCases = list(result.get("boundaryCases"));
+    List<IliAuthoringResult.ProofCase> boundaryCases =
+        result.constraintProofs.getFirst().generatedCases;
     assertEquals(4, boundaryCases.size());
     assertCase(boundaryCases, "value", "9", false);
     assertCase(boundaryCases, "value", "10", true);
     assertCase(boundaryCases, "value", "20", true);
     assertCase(boundaryCases, "value", "21", false);
 
-    Map<String, Object> verification = map(result.get("verification"));
-    assertEquals(4, verification.get("caseCount"));
-    assertEquals(4, verification.get("passedCount"));
-    assertEquals(true, verification.get("allPassed"));
+    IliAuthoringResult.ProofVerification verification =
+        result.constraintProofs.getFirst().verification;
+    assertEquals(4, verification.caseCount);
+    assertEquals(4, verification.passedCount);
+    assertEquals(true, verification.allPassed);
   }
 
   @Test
@@ -80,17 +83,18 @@ class ConstraintDecisionTableToolsTest {
         condition("value", ">=", 90),
         condition("value", "<=", 100));
 
-    Map<String, Object> result = tools.generateIliConstraintFromDecisionTable(
+    IliAuthoringResult result = tools.generateIliConstraintFromDecisionTable(
         MODEL,
         "DecisionTableModel.Data.Item",
         "LowOrHigh",
         List.of(low, high));
 
-    assertEquals(true, result.get("generated"));
-    assertEquals(true, result.get("proofVerified"));
-    assertTrue(String.valueOf(result.get("constraintExpression")).contains(" OR "));
+    assertEquals(true, result.generated, String.valueOf(result));
+    assertEquals(true, result.proofVerified);
+    assertTrue(String.valueOf(result.details.get("constraintExpression")).contains(" OR "));
 
-    List<Map<String, Object>> boundaryCases = list(result.get("boundaryCases"));
+    List<IliAuthoringResult.ProofCase> boundaryCases =
+        result.constraintProofs.getFirst().generatedCases;
     assertCase(boundaryCases, "value", "10", true);
     assertCase(boundaryCases, "value", "11", false);
     assertCase(boundaryCases, "value", "89", false);
@@ -106,45 +110,43 @@ class ConstraintDecisionTableToolsTest {
         "active allowed",
         condition("status", "==", "#active"));
 
-    Map<String, Object> result = tools.generateIliConstraintFromDecisionTable(
+    IliAuthoringResult result = tools.generateIliConstraintFromDecisionTable(
         MODEL,
         "DecisionTableModel.Data.Item",
         "DraftOrActive",
         List.of(draft, active));
 
-    assertEquals(true, result.get("generated"));
-    assertEquals(true, result.get("proofVerified"));
-    String expression = String.valueOf(result.get("constraintExpression"));
+    assertEquals(true, result.generated);
+    assertEquals(true, result.proofVerified);
+    String expression = String.valueOf(result.details.get("constraintExpression"));
     assertTrue(expression.contains("status == #draft"));
     assertTrue(expression.contains("status == #active"));
 
-    List<Map<String, Object>> cases = list(result.get("boundaryCases"));
+    List<IliAuthoringResult.ProofCase> cases = result.constraintProofs.getFirst().generatedCases;
     assertCase(cases, "status", "draft", true);
     assertCase(cases, "status", "active", true);
     assertCase(cases, "status", "archived", false);
 
-    Map<String, Object> verification = map(result.get("verification"));
-    assertEquals(true, verification.get("allPassed"));
+    assertEquals(true, result.constraintProofs.getFirst().verification.allPassed);
   }
 
   @Test
   void provesBothBooleanValues() {
-    Map<String, Object> result = tools.generateIliConstraintFromDecisionTable(
+    IliAuthoringResult result = tools.generateIliConstraintFromDecisionTable(
         MODEL,
         "DecisionTableModel.Data.Item",
         "EnabledOnly",
         List.of(row("enabled", condition("enabled", "==", true))));
 
-    assertEquals(true, result.get("generated"));
-    assertEquals(true, result.get("proofVerified"));
-    assertEquals("enabled == #true", result.get("constraintExpression"));
+    assertEquals(true, result.generated, String.valueOf(result));
+    assertEquals(true, result.proofVerified);
+    assertEquals("enabled == #true", result.details.get("constraintExpression"));
 
-    List<Map<String, Object>> cases = list(result.get("boundaryCases"));
+    List<IliAuthoringResult.ProofCase> cases = result.constraintProofs.getFirst().generatedCases;
     assertCase(cases, "enabled", "true", true);
     assertCase(cases, "enabled", "false", false);
 
-    Map<String, Object> verification = map(result.get("verification"));
-    assertEquals(true, verification.get("allPassed"));
+    assertEquals(true, result.constraintProofs.getFirst().verification.allPassed);
   }
 
   @Test
@@ -153,17 +155,18 @@ class ConstraintDecisionTableToolsTest {
         "value : MANDATORY 0 .. 100;",
         "value : MANDATORY TEXT*20;");
 
-    Map<String, Object> result = tools.generateIliConstraintFromDecisionTable(
+    IliAuthoringResult result = tools.generateIliConstraintFromDecisionTable(
         textModel,
         "DecisionTableModel.Data.Item",
         "NumericOnly",
         List.of(row("row", condition("value", ">=", 10))));
 
-    assertEquals(false, result.get("generated"));
-    assertEquals(false, result.get("proofVerified"));
-    assertTrue(List.of("GENERATED_CONSTRAINT_NOT_COMPILABLE", "UNSUPPORTED_ATTRIBUTE_TYPE")
-        .contains(String.valueOf(result.get("reasonCode"))));
-    assertFalse(result.containsKey("verification"));
+    assertEquals(false, result.generated);
+    assertEquals(false, result.proofVerified, String.valueOf(result));
+    assertTrue(List.of("CANDIDATE_MODEL_INVALID", "UNSUPPORTED_ATTRIBUTE_TYPE", "PROOF_INCOMPLETE")
+        .contains(String.valueOf(result.reasonCode)));
+    assertTrue(result.constraintProofs.isEmpty()
+        || result.constraintProofs.getFirst().verification == null);
   }
 
   private ConstraintDecisionTableTools.DecisionRow row(
@@ -187,11 +190,11 @@ class ConstraintDecisionTableToolsTest {
   }
 
   private void assertCase(
-      List<Map<String, Object>> cases,
+      List<IliAuthoringResult.ProofCase> cases,
       String attribute,
       String expectedValue,
       boolean expectedValid) {
-    Map<String, Object> match = cases.stream()
+    IliAuthoringResult.ProofCase match = cases.stream()
         .filter(item -> expectedValue.equals(String.valueOf(map(item.get("values")).get(attribute))))
         .findFirst()
         .orElseThrow(() -> new AssertionError(

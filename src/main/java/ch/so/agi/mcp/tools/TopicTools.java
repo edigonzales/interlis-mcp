@@ -6,15 +6,12 @@ import ch.so.agi.mcp.util.NameValidator;
 import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
-import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
 @Component
 public class TopicTools {
 
-  @McpTool(name = "createTopicSnippet",
-        description = "Erzeugt einen TOPIC-Block. Params: name (required), oidType (e.g. 'OID AS INTERLIS.UUIDOID'), isAbstract (default false), iliDoc, metaAttributes.")
   public Map<String,Object> createTopic(
       @McpToolParam(description = "Topic-Name", required = true) String name,
       @McpToolParam(description = "OID-Definition, z. B. 'OID AS INTERLIS.UUIDOID'", required = false) @Nullable String oidType,
@@ -29,7 +26,7 @@ public class TopicTools {
     String header = abs ? String.format("TOPIC %s (ABSTRACT) =", name) : String.format("TOPIC %s =", name);
     String oid = (oidType != null && !oidType.isBlank()) ? "  " + oidType.trim() + ";\n" : "";
     String snippet = AnnotationRenderer.renderAnnotations(iliDoc, metaAttributes)
-        + header + "\n" + oid + "  /** Klassen/Assoziationen hier */\nEND " + name + ";";
+        + header + "\n" + oid + "END " + name + ";";
 
     return Map.of("iliSnippet", snippet);
   }

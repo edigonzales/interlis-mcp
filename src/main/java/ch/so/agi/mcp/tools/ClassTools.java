@@ -6,15 +6,12 @@ import ch.so.agi.mcp.util.NameValidator;
 import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
-import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
 @Component
 public class ClassTools {
 
-  @McpTool(name = "createClassSnippet",
-        description = "Erzeugt eine CLASS-Definition. Params: name (required), isAbstract, extendsFQN, oidDecl, attrLines (list of attribute lines), iliDoc, metaAttributes.")
   public Map<String,Object> createClass(
       @McpToolParam(description = "Klassenname", required = true) String name,
       @McpToolParam(description = "Abstrakt?", required = false) @Nullable Boolean isAbstract,
@@ -43,8 +40,6 @@ public class ClassTools {
       for (String l : attrLines) {
         sb.append(AnnotationRenderer.indentBlock(l, "  ")).append("\n");
       }
-    } else {
-      sb.append("  /** Attribute hier */\n");
     }
     sb.append("END ").append(name).append(";");
     return Map.of("iliSnippet", sb.toString());

@@ -1,10 +1,13 @@
 package ch.so.agi.mcp.eval;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.analysis.ModelChangeTools;
+import ch.so.agi.mcp.analysis.ModelChangeReviewService;
 import ch.so.agi.mcp.analysis.ModelPurpose;
+import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.knowledge.AgentPrompts;
 import ch.so.agi.mcp.knowledge.KnowledgeResources;
 import ch.so.agi.mcp.knowledge.KnowledgeRuleLoader;
@@ -14,13 +17,17 @@ import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
 import ch.so.agi.mcp.knowledge.ModelingRuleTools;
 import ch.so.agi.mcp.service.IliCompilerService;
 import ch.so.agi.mcp.tools.AssociationTools;
-import ch.so.agi.mcp.tools.ModelTools;
+import ch.so.agi.mcp.model.IliAuthoringResult;
+import ch.so.agi.mcp.model.IliModelSpec;
+import ch.so.agi.mcp.model.IliSpecRenderer;
+import ch.so.agi.mcp.tools.AttributeTools;
+import ch.so.agi.mcp.tools.ConstraintCaseGenerationTools;
+import ch.so.agi.mcp.tools.ConstraintTestTools;
+import ch.so.agi.mcp.tools.DomainTools;
+import ch.so.agi.mcp.tools.IliModelAuthoringTools;
 import ch.so.agi.mcp.tools.ValidationTools;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
@@ -33,30 +40,33 @@ class AgenticGoldenScenariosTest {
   Path tempDir;
 
   @Test
-  void newModelFinishesWithOneHighLevelReview() {
+  void newModelIsAuthoredCompiledAndReviewedByOneHighLevelTool() {
     CountingCompilerService compiler = new CountingCompilerService();
-    ModelingRuleTools reviews = reviewTools(compiler);
-    ModelTools modelTools = new ModelTools(
-        Clock.fixed(Instant.parse("2026-08-17T12:00:00Z"), ZoneOffset.UTC));
+    ModelAnalysisTools analysis = new ModelAnalysisTools(compiler);
+    ModelingRuleTools reviews = reviewTools(compiler, analysis);
+    ConstraintContextService contexts = new ConstraintContextService(compiler);
+    IliModelAuthoringTools authoring = new IliModelAuthoringTools(
+        new IliSpecRenderer(new AttributeTools(), new DomainTools()),
+        compiler,
+        contexts,
+        new ConstraintCaseGenerationTools(contexts, new ConstraintTestTools(compiler)),
+        new ModelChangeReviewService(analysis, reviews));
+    IliModelSpec spec = new IliModelSpec();
+    spec.name = "Demo";
+    spec.language = "de";
+    spec.uri = "https://example.org/demo";
+    spec.version = "2026-08-17";
+    spec.iliVersion = "2.4";
 
-    String modelText = modelTools.createModelSnippet(
-        "Demo",
-        "de",
-        "https://example.org/demo",
-        "2026-08-17",
-        "2.4",
-        List.of(),
-        null,
-        null).get("iliSnippet").toString();
-
-    Map<String, Object> review = reviews.reviewIliModel(
-        modelText,
+    IliAuthoringResult result = authoring.authorIliModel(
+        spec,
         ModelPurpose.CAPTURE,
         ModelingRuleProfile.CORE);
 
     assertThat(compiler.calls).isEqualTo(1);
-    assertThat(review.get("compilerValid")).isEqualTo(true);
-    assertThat(review.get("valid")).isEqualTo(true);
+    assertThat(result.status).isEqualTo(IliAuthoringResult.Status.GENERATED);
+    assertThat(result.updatedModelText).contains("MODEL Demo (de)");
+    assertThat(result.afterReview.validForAutomatedRules).isEqualTo(true);
   }
 
   @Test
@@ -108,20 +118,15 @@ class AgenticGoldenScenariosTest {
   }
 
   @Test
-  void missingCardinalityStaysAnOpenDomainQuestion() {
+  void missingCardinalityIsRejectedInsteadOfInvented() {
     AssociationTools tools = new AssociationTools();
     AssociationTools.Role left = role("left", "Demo.Topic.A", null);
     AssociationTools.Role right = role("right", "Demo.Topic.B", null);
 
-    Map<String, Object> response = tools.createAssociation(
-        "AB", List.of(left, right), null, null, null);
-
-    assertThat(response.get("openQuestions")).asList().hasSize(2)
-        .allSatisfy(question -> assertThat(question.toString()).contains("Missing cardinality"));
-    assertThat(response.get("iliSnippet").toString())
-        .contains("left -- Demo.Topic.A;")
-        .contains("right -- Demo.Topic.B;")
-        .doesNotContain("{1}");
+    assertThatThrownBy(() -> tools.createAssociation(
+        "AB", List.of(left, right), null, null, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("cardinality is required");
   }
 
   @Test
@@ -184,30 +189,25 @@ class AgenticGoldenScenariosTest {
     String agentPrompt = new AgentPrompts().interlisModelingAgent().toString();
 
     assertThat(toolGuide)
-        .contains("applyIliModelChange")
+        .contains("applyIliModelChanges")
         .contains("afterReview")
         .contains("kein zusaetzliches `reviewIliChange` oder `reviewIliModel`");
     assertThat(agentPrompt)
-        .contains("applyIliModelChange")
+        .contains("applyIliModelChanges")
         .contains("afterReview")
         .contains("nicht routinemässig noch `reviewIliChange` oder `reviewIliModel`");
   }
 
   @Test
-  void generatedAssociationNamesRemainTechnicalPlaceholders() {
+  void missingAssociationNamesAreNeverInvented() {
     AssociationTools tools = new AssociationTools();
     AssociationTools.Role left = role(null, "Demo.Topic.A", "{1}");
     AssociationTools.Role right = role(null, "Demo.Topic.B", "{0..*}");
 
-    Map<String, Object> response = tools.createAssociation(
-        null, List.of(left, right), null, null, null);
-
-    assertThat(response.get("generatedNames").toString())
-        .contains("A__B")
-        .contains("r_B")
-        .contains("r_A");
-    assertThat(response.get("openQuestions")).asList().hasSize(3)
-        .allSatisfy(question -> assertThat(question.toString()).contains("technical placeholder"));
+    assertThatThrownBy(() -> tools.createAssociation(
+        null, List.of(left, right), null, null, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("must not be invented");
   }
 
   private ModelingRuleTools reviewTools(CountingCompilerService compiler) {

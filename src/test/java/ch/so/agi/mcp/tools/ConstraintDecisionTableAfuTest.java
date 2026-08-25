@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ch.so.agi.mcp.constraint.ConstraintContextService;
+import ch.so.agi.mcp.model.IliAuthoringResult;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.math.BigDecimal;
 import java.util.List;
@@ -71,26 +72,26 @@ class ConstraintDecisionTableAfuTest {
         condition("Gewichtung", "==", 100),
         sumDefined("Nebenauspraegung->Gewichtung", false));
 
-    Map<String, Object> result = tools.generateIliConstraintFromDecisionTable(
+    IliAuthoringResult result = tools.generateIliConstraintFromDecisionTable(
         MODEL,
         CONTEXT,
         "GewichtungSumme100_Wald",
         List.of(withSecondary, withoutSecondary));
 
-    assertEquals(true, result.get("generated"), String.valueOf(result));
-    assertEquals(true, result.get("proofVerified"), String.valueOf(result));
+    assertEquals(true, result.generated, String.valueOf(result));
+    assertEquals(true, result.proofVerified, String.valueOf(result));
 
-    String expression = String.valueOf(result.get("constraintExpression"));
+    String expression = String.valueOf(result.details.get("constraintExpression"));
     assertTrue(expression.contains("DEFINED(Math.sum(\"Nebenauspraegung->Gewichtung\"))"), expression);
     assertTrue(expression.contains(
         "Math.add(Math.sum(\"Nebenauspraegung->Gewichtung\"), Gewichtung) == 100"), expression);
     assertTrue(expression.contains("Gewichtung == 100"), expression);
     assertTrue(expression.contains("NOT(DEFINED(Math.sum(\"Nebenauspraegung->Gewichtung\")))"), expression);
 
-    List<Map<String, Object>> cases = list(result.get("boundaryCases"));
+    List<IliAuthoringResult.ProofCase> cases = result.constraintProofs.getFirst().generatedCases;
     assertTrue(cases.size() >= 5, String.valueOf(cases));
 
-    Map<String, Object> noSecondary = cases.stream()
+    IliAuthoringResult.ProofCase noSecondary = cases.stream()
         .filter(item -> "UNDEFINED".equals(String.valueOf(
             map(item.get("values")).get("Nebenauspraegung->Gewichtung"))))
         .filter(item -> "100".equals(String.valueOf(map(item.get("values")).get("Gewichtung"))))
@@ -100,7 +101,7 @@ class ConstraintDecisionTableAfuTest {
     assertEquals(1, ((Number) noSecondary.get("objectCount")).intValue());
     assertEquals(0, ((Number) noSecondary.get("associationLinkCount")).intValue());
 
-    Map<String, Object> definedWitness = cases.stream()
+    IliAuthoringResult.ProofCase definedWitness = cases.stream()
         .filter(item -> !"UNDEFINED".equals(String.valueOf(
             map(item.get("values")).get("Nebenauspraegung->Gewichtung"))))
         .filter(item -> Boolean.TRUE.equals(item.get("expectedConstraintValid")))
@@ -116,9 +117,10 @@ class ConstraintDecisionTableAfuTest {
         Boolean.FALSE.equals(item.get("expectedConstraintValid"))
             && ((Number) item.get("associationLinkCount")).intValue() > 0));
 
-    Map<String, Object> verification = map(result.get("verification"));
-    assertEquals(true, verification.get("allPassed"));
-    assertEquals(verification.get("caseCount"), verification.get("passedCount"));
+    IliAuthoringResult.ProofVerification verification =
+        result.constraintProofs.getFirst().verification;
+    assertEquals(true, verification.allPassed);
+    assertEquals(verification.caseCount, verification.passedCount);
   }
 
   private ConstraintDecisionTableTools.DecisionRow row(

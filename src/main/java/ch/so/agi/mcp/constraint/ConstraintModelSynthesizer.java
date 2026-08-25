@@ -97,7 +97,8 @@ public final class ConstraintModelSynthesizer {
       String targetClassFqn,
       long minimum,
       long maximum,
-      boolean unbounded) {
+      boolean unbounded,
+      boolean lightweight) {
 
     public AssociationBinding {
       requireName(associationFqn, "associationFqn");
@@ -114,6 +115,25 @@ public final class ConstraintModelSynthesizer {
         throw new IllegalArgumentException("cap must be positive.");
       }
       return unbounded || maximum > cap ? cap : (int) maximum;
+    }
+
+    public AssociationBinding(
+        String associationFqn,
+        String roleName,
+        String oppositeRoleName,
+        String targetClassFqn,
+        long minimum,
+        long maximum,
+        boolean unbounded) {
+      this(
+          associationFqn,
+          roleName,
+          oppositeRoleName,
+          targetClassFqn,
+          minimum,
+          maximum,
+          unbounded,
+          false);
     }
   }
 
@@ -239,7 +259,8 @@ public final class ConstraintModelSynthesizer {
 
   public record GraphLink(
       String associationFqn,
-      Map<String, String> roles) {
+      Map<String, String> roles,
+      boolean lightweight) {
 
     public GraphLink {
       requireName(associationFqn, "associationFqn");
@@ -249,6 +270,10 @@ public final class ConstraintModelSynthesizer {
       if (roles.size() < 2) {
         throw new IllegalArgumentException("Association graph link requires at least two roles.");
       }
+    }
+
+    public GraphLink(String associationFqn, Map<String, String> roles) {
+      this(associationFqn, roles, false);
     }
   }
 
@@ -383,7 +408,8 @@ public final class ConstraintModelSynthesizer {
       Map<String, String> roles = new LinkedHashMap<>();
       roles.put(association.roleName(), targetOid);
       roles.put(association.oppositeRoleName(), source.oid);
-      links.add(new GraphLink(association.associationFqn(), roles));
+      links.add(new GraphLink(
+          association.associationFqn(), roles, association.lightweight()));
       return target;
     }
 
@@ -446,8 +472,22 @@ public final class ConstraintModelSynthesizer {
       TransferDescription td,
       String contextFqn,
       ConstraintExpression expression) {
+    return bind(td, contextFqn, expression, Map.of());
+  }
+
+  /**
+   * Resolves an expression with explicit concrete choices for abstract navigation targets.
+   * Overrides are keyed by the declared abstract class FQN and are validated against ili2c's
+   * extension graph.
+   */
+  public static ModelBinding bind(
+      TransferDescription td,
+      String contextFqn,
+      ConstraintExpression expression,
+      Map<String, String> concreteTargetOverrides) {
     Objects.requireNonNull(td, "td");
     Objects.requireNonNull(expression, "expression");
+    Objects.requireNonNull(concreteTargetOverrides, "concreteTargetOverrides");
     requireName(contextFqn, "contextFqn");
 
     Element contextElement = td.getElement(contextFqn);
@@ -459,7 +499,7 @@ public final class ConstraintModelSynthesizer {
     for (ConstraintExpression.Reference reference : expression.references()) {
       ReferenceBinding binding = switch (reference.kind()) {
         case ATTRIBUTE -> bindDirectAttribute(root, reference);
-        case PATH -> bindPath(td, root, reference);
+        case PATH -> bindPath(td, root, reference, concreteTargetOverrides);
       };
       ReferenceBinding previous = bindings.putIfAbsent(reference.name(), binding);
       if (previous != null && !previous.equals(binding)) {
@@ -612,7 +652,8 @@ public final class ConstraintModelSynthesizer {
   private static ReferenceBinding bindPath(
       TransferDescription td,
       Viewable<?> root,
-      ConstraintExpression.Reference reference) {
+      ConstraintExpression.Reference reference,
+      Map<String, String> concreteTargetOverrides) {
     try {
       ObjectPath objectPath = Ili23Parser.parseObjectOrAttributePath(td, root, reference.name());
       if (!matchesParsedPath(objectPath, reference.name())) {
@@ -627,7 +668,8 @@ public final class ConstraintModelSynthesizer {
 
       List<NavigationBinding> navigation = new ArrayList<>();
       for (int i = 0; i < elements.length - 1; i++) {
-        navigation.add(navigation(elements[i], reference.name()));
+        navigation.add(navigation(
+            td, elements[i], reference.name(), concreteTargetOverrides));
       }
       long multiValuedSteps = navigation.stream().filter(NavigationBinding::multiValued).count();
       if (multiValuedSteps > 1) {
@@ -665,7 +707,11 @@ public final class ConstraintModelSynthesizer {
     }
   }
 
-  private static NavigationBinding navigation(PathEl element, String fullPath) {
+  private static NavigationBinding navigation(
+      TransferDescription td,
+      PathEl element,
+      String fullPath,
+      Map<String, String> concreteTargetOverrides) {
     RoleDef role = role(element);
     if (role != null) {
       if (!(role.getContainer() instanceof AssociationDef association)
@@ -682,14 +728,17 @@ public final class ConstraintModelSynthesizer {
           association.getScopedName(null),
           role.getName(),
           role.getOppEnd().getName(),
-          role.getDestination().getScopedName(null),
+          concreteTargetFqn(
+              td, role.getDestination(), fullPath, concreteTargetOverrides),
           minimum,
           maximum,
-          unbounded);
+          unbounded,
+          association.isLightweight());
       return new NavigationBinding(
           NavigationKind.ASSOCIATION,
           role.getName(),
-          role.getDestination().getScopedName(null),
+          concreteTargetFqn(
+              td, role.getDestination(), fullPath, concreteTargetOverrides),
           minimum,
           maximum,
           unbounded,
@@ -711,7 +760,7 @@ public final class ConstraintModelSynthesizer {
       return new NavigationBinding(
           NavigationKind.REFERENCE,
           attribute.getName(),
-          table.getScopedName(null),
+          concreteTargetFqn(td, table, fullPath, concreteTargetOverrides),
           mandatory(declared) ? 1 : 0,
           1,
           false,
@@ -746,6 +795,79 @@ public final class ConstraintModelSynthesizer {
     throw new IllegalArgumentException(
         "Unsupported object-path navigation element " + element.getClass().getSimpleName()
             + " in " + fullPath + ".");
+  }
+
+  private static String concreteTargetFqn(
+      TransferDescription td,
+      AbstractClassDef declared,
+      String fullPath,
+      Map<String, String> concreteTargetOverrides) {
+    if (!(declared instanceof Table table)) {
+      throw new IllegalArgumentException(
+          "Navigation target is not a materializable class: " + fullPath);
+    }
+    return concreteTargetFqn(td, table, fullPath, concreteTargetOverrides);
+  }
+
+  private static String concreteTargetFqn(
+      TransferDescription td,
+      Table declared,
+      String fullPath,
+      Map<String, String> concreteTargetOverrides) {
+    if (!declared.isAbstract()) return declared.getScopedName(null);
+    List<Table> concrete = concreteExtensions(declared);
+    if (concrete.isEmpty()) {
+      throw new IllegalArgumentException(
+          "Navigation target is abstract and has no concrete subtype: " + fullPath);
+    }
+    String override = concreteTargetOverrides.get(declared.getScopedName(null));
+    if (override != null) {
+      return concrete.stream()
+          .filter(candidate -> override.equals(candidate.getScopedName(null)))
+          .findFirst()
+          .map(candidate -> candidate.getScopedName(null))
+          .orElseThrow(() -> new IllegalArgumentException(
+              "Concrete target override '" + override + "' is not a concrete subtype of "
+                  + declared.getScopedName(null) + " in path " + fullPath + "."));
+    }
+    if (concrete.size() > 1) {
+      throw new IllegalArgumentException(
+          "POLYMORPHIC_ROUTES_REQUIRE_DISTINCT_COVERAGE: path '" + fullPath
+              + "' has concrete targets "
+              + concrete.stream().map(table -> table.getScopedName(null)).sorted().toList());
+    }
+    return concrete.getFirst().getScopedName(null);
+  }
+
+  /** Returns all concrete ili2c subtypes for an abstract class, in stable FQN order. */
+  public static List<String> concreteTargetFqns(
+      TransferDescription td, String declaredFqn) {
+    Objects.requireNonNull(td, "td");
+    requireName(declaredFqn, "declaredFqn");
+    Object declared = td.getElement(declaredFqn);
+    if (!(declared instanceof Table table)) {
+      throw new IllegalArgumentException(
+          "Polymorphic navigation target is not a class: " + declaredFqn);
+    }
+    if (!table.isAbstract()) return List.of(table.getScopedName(null));
+    return concreteExtensions(table).stream()
+        .map(candidate -> candidate.getScopedName(null))
+        .sorted()
+        .toList();
+  }
+
+  private static List<Table> concreteExtensions(Table table) {
+    List<Table> result = new ArrayList<>();
+    collectConcreteExtensions(table, result);
+    result.sort(Comparator.comparing(candidate -> candidate.getScopedName(null)));
+    return List.copyOf(result);
+  }
+
+  private static void collectConcreteExtensions(Table table, List<Table> target) {
+    for (Object extension : table.getExtensions()) {
+      if (!(extension instanceof Table child)) continue;
+      if (child != table && !child.isAbstract() && !target.contains(child)) target.add(child);
+    }
   }
 
   /**
@@ -784,7 +906,8 @@ public final class ConstraintModelSynthesizer {
         target,
         minimum,
         maximum,
-        unbounded);
+        unbounded,
+        actual != null && actual.lightweight());
   }
 
   private static int multiValuedStepIndex(List<NavigationBinding> navigation) {

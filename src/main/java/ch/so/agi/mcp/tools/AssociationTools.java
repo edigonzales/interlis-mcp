@@ -12,7 +12,6 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
-import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
@@ -29,29 +28,32 @@ public class AssociationTools {
     public @Nullable Boolean external;
   }
 
-  @McpTool(name = "createAssociationSnippet",
-      description = "Erzeugt eine ASSOCIATION. Params: name (optional), roles (mindestens 2 Rollen mit classFQN, optional name, optional card, optional external), optional attrLines, iliDoc, metaAttributes. Fehlen name oder Rollenname, werden deterministische technische Platzhalter generiert und unter openQuestions zur fachlichen Bestaetigung ausgewiesen. card ist die Kardinalitaet in INTERLIS-Notation, z.B. {1}, {0..1}, {1..*}.")
   public Map<String, Object> createAssociation(
-      @McpToolParam(description = "Assoziationsname (optional; bei Leerwert wird ein technischer Platzhalter wie KlasseA__KlasseB generiert)", required = false) @Nullable String name,
-      @McpToolParam(description = "Rollen (mindestens 2) mit classFQN, optional name, optional card, optional external; fehlende Rollennamen werden als technische Platzhalter generiert. card ist die Kardinalitaet in INTERLIS-Notation, z.B. {1}, {0..1}, {1..*}.", required = true) List<Role> roles,
+      @McpToolParam(description = "Expliziter Assoziationsname", required = true) String name,
+      @McpToolParam(description = "Mindestens zwei Rollen mit explizitem name, classFQN und card; card verwendet INTERLIS-Notation wie {1}, {0..1} oder {1..*}.", required = true) List<Role> roles,
       @McpToolParam(description = "Beziehungsattribute als rohe ILI-Attributzeilen", required = false) @Nullable List<String> attrLines,
       @McpToolParam(description = "IliDoc-Blockkommentar direkt vor der ASSOCIATION", required = false) @Nullable String iliDoc,
       @McpToolParam(description = "INTERLIS-Metaattribute direkt vor der ASSOCIATION", required = false) @Nullable List<MetaAttributeSpec> metaAttributes
   ) {
     var nv = NameValidator.ascii();
     List<Role> normalizedRoles = validateRoles(roles, nv);
-    List<Map<String, Object>> nameCollisionsResolved = new ArrayList<>();
-
-    String associationName = resolveAssociationName(name, normalizedRoles, nv);
-    boolean associationNameGenerated = (name == null || name.isBlank());
-    ResolvedRoleSet resolvedRoleSet = resolveRoleNames(normalizedRoles, nv, nameCollisionsResolved);
-    List<String> openQuestions = findOpenQuestions(
-        resolvedRoleSet.roles(), associationName, associationNameGenerated, resolvedRoleSet.generatedRoleNames());
+    if (name == null || name.isBlank()) {
+      throw new IllegalArgumentException("Association name is required and must not be invented.");
+    }
+    String associationName = name.trim();
+    nv.validateIdent(associationName, "Association name");
+    for (int index = 0; index < normalizedRoles.size(); index++) {
+      if (normalizedRoles.get(index).name == null || normalizedRoles.get(index).name.isBlank()) {
+        throw new IllegalArgumentException(
+            "roles[" + index + "].name is required and must not be invented.");
+      }
+    }
+    List<ResolvedRole> resolvedRoles = resolveRoleNames(normalizedRoles, nv);
 
     StringBuilder sb = new StringBuilder();
     sb.append(AnnotationRenderer.renderAnnotations(iliDoc, metaAttributes));
     sb.append("ASSOCIATION ").append(associationName).append(" =\n");
-    for (ResolvedRole role : resolvedRoleSet.roles()) {
+    for (ResolvedRole role : resolvedRoles) {
       sb.append("  ").append(role.name());
       if (role.external()) {
         sb.append(" (EXTERNAL)");
@@ -70,19 +72,11 @@ public class AssociationTools {
     }
     sb.append("END ").append(associationName).append(";");
 
-    Map<String, Object> generatedNames = new LinkedHashMap<>();
-    if (associationNameGenerated) {
-      generatedNames.put("association", associationName);
-    }
-    if (!resolvedRoleSet.generatedRoleNames().isEmpty()) {
-      generatedNames.put("roles", resolvedRoleSet.generatedRoleNames());
-    }
-
     Map<String, Object> result = new LinkedHashMap<>();
     result.put("iliSnippet", sb.toString());
-    result.put("generatedNames", generatedNames);
-    result.put("openQuestions", openQuestions);
-    result.put("nameCollisionsResolved", nameCollisionsResolved);
+    result.put("generatedNames", Map.of());
+    result.put("openQuestions", List.of());
+    result.put("nameCollisionsResolved", List.of());
     return result;
   }
 
@@ -100,6 +94,10 @@ public class AssociationTools {
         nameValidator.validateIdent(role.name.trim(), "Association role name");
       }
       nameValidator.validateFqn(role.classFQN, "Association role class FQN");
+      if (role.card == null || role.card.isBlank()) {
+        throw new IllegalArgumentException(
+            "Association role cardinality is required and must not be invented.");
+      }
       validateCardinality(role.card);
 
       Role normalized = new Role();
@@ -133,198 +131,27 @@ public class AssociationTools {
     }
   }
 
-  private String resolveAssociationName(@Nullable String name, List<Role> roles, NameValidator nameValidator) {
-    if (name != null && !name.isBlank()) {
-      String trimmed = name.trim();
-      nameValidator.validateIdent(trimmed, "Association name");
-      return trimmed;
-    }
-
-    List<String> parts = new ArrayList<>();
-    for (Role role : roles) {
-      parts.add(shortClassName(role.classFQN));
-    }
-    String candidate = String.join("__", parts);
-    String sanitized = sanitizeAssociationIdentifier(candidate, "Assoc");
-    nameValidator.validateIdent(sanitized, "Association name");
-    return sanitized;
-  }
-
-  private ResolvedRoleSet resolveRoleNames(
-      List<Role> roles,
-      NameValidator nameValidator,
-      List<Map<String, Object>> nameCollisionsResolved) {
+  private List<ResolvedRole> resolveRoleNames(
+      List<Role> roles, NameValidator nameValidator) {
     Set<String> usedNames = new LinkedHashSet<>();
     List<ResolvedRole> resolvedRoles = new ArrayList<>();
-    List<Map<String, Object>> generatedRoleNames = new ArrayList<>();
-
-    // Reserve all explicit names first so generated names can avoid them.
-    Map<Integer, String> explicitNamesByIndex = new LinkedHashMap<>();
     for (int i = 0; i < roles.size(); i++) {
       Role role = roles.get(i);
-      if (role.name != null && !role.name.isBlank()) {
-        String explicitName = sanitizeIdentifier(role.name.trim(), "Role");
-        nameValidator.validateIdent(explicitName, "Association role name");
-        if (!usedNames.add(explicitName)) {
-          throw new IllegalArgumentException("Duplicate association role name: " + explicitName);
-        }
-        explicitNamesByIndex.put(i, explicitName);
+      String roleName = role.name.trim();
+      nameValidator.validateIdent(roleName, "Association role name");
+      if (!usedNames.add(roleName)) {
+        throw new IllegalArgumentException("Duplicate association role name: " + roleName);
       }
-    }
-
-    boolean selfAssociation = isSelfAssociation(roles);
-    for (int i = 0; i < roles.size(); i++) {
-      Role role = roles.get(i);
-      String explicitName = explicitNamesByIndex.get(i);
-      boolean generated = explicitName == null;
-      String unique;
-      if (generated) {
-        String baseName = defaultRoleName(roles, i, selfAssociation);
-        String sanitized = sanitizeIdentifier(baseName, "Role");
-        nameValidator.validateIdent(sanitized, "Association role name");
-        unique = ensureUniqueRoleName(sanitized, usedNames, nameCollisionsResolved, i, role.classFQN);
-        usedNames.add(unique);
-      } else {
-        unique = explicitName;
-      }
-
-      if (generated) {
-        generatedRoleNames.add(Map.of(
-            "index", i,
-            "classFQN", role.classFQN,
-            "name", unique
-        ));
-      }
-
       resolvedRoles.add(new ResolvedRole(
-          unique,
+          roleName,
           role.classFQN,
           role.card,
           role.external != null && role.external));
     }
-    return new ResolvedRoleSet(resolvedRoles, generatedRoleNames);
-  }
-
-  private boolean isSelfAssociation(List<Role> roles) {
-    if (roles.size() != 2) {
-      return false;
-    }
-    String left = shortClassName(roles.get(0).classFQN);
-    String right = shortClassName(roles.get(1).classFQN);
-    return left.equals(right);
-  }
-
-  private String defaultRoleName(List<Role> roles, int index, boolean selfAssociation) {
-    if (roles.size() == 2) {
-      if (selfAssociation) {
-        String own = shortClassName(roles.get(index).classFQN);
-        return "r_" + own + (index == 0 ? "_1" : "_2");
-      }
-      int otherIndex = index == 0 ? 1 : 0;
-      return "r_" + shortClassName(roles.get(otherIndex).classFQN);
-    }
-    return "r_" + shortClassName(roles.get(index).classFQN);
-  }
-
-  private String shortClassName(String classFqn) {
-    int idx = classFqn.lastIndexOf('.');
-    return idx >= 0 && idx < classFqn.length() - 1 ? classFqn.substring(idx + 1) : classFqn;
-  }
-
-  private String sanitizeIdentifier(String raw, String fallbackPrefix) {
-    StringBuilder sb = new StringBuilder();
-    for (int i = 0; i < raw.length(); i++) {
-      char ch = raw.charAt(i);
-      if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '_') {
-        sb.append(ch);
-      } else {
-        sb.append('_');
-      }
-    }
-    String sanitized = sb.toString().replaceAll("_+", "_");
-    if (sanitized.isBlank()) {
-      sanitized = fallbackPrefix;
-    }
-    if (!(sanitized.charAt(0) >= 'A' && sanitized.charAt(0) <= 'Z')
-        && !(sanitized.charAt(0) >= 'a' && sanitized.charAt(0) <= 'z')) {
-      sanitized = fallbackPrefix + "_" + sanitized;
-    }
-    return sanitized;
-  }
-
-  private String sanitizeAssociationIdentifier(String raw, String fallbackPrefix) {
-    StringBuilder sb = new StringBuilder();
-    for (int i = 0; i < raw.length(); i++) {
-      char ch = raw.charAt(i);
-      if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '_') {
-        sb.append(ch);
-      } else {
-        sb.append('_');
-      }
-    }
-    String sanitized = sb.toString();
-    if (sanitized.isBlank()) {
-      sanitized = fallbackPrefix;
-    }
-    if (!(sanitized.charAt(0) >= 'A' && sanitized.charAt(0) <= 'Z')
-        && !(sanitized.charAt(0) >= 'a' && sanitized.charAt(0) <= 'z')) {
-      sanitized = fallbackPrefix + "_" + sanitized;
-    }
-    return sanitized;
-  }
-
-  private String ensureUniqueRoleName(
-      String proposed,
-      Set<String> usedNames,
-      List<Map<String, Object>> nameCollisionsResolved,
-      int roleIndex,
-      String classFqn) {
-    if (!usedNames.contains(proposed)) {
-      return proposed;
-    }
-    int suffix = 2;
-    String candidate = proposed + "_" + suffix;
-    while (usedNames.contains(candidate)) {
-      suffix++;
-      candidate = proposed + "_" + suffix;
-    }
-    nameCollisionsResolved.add(Map.of(
-        "index", roleIndex,
-        "classFQN", classFqn,
-        "from", proposed,
-        "to", candidate
-    ));
-    return candidate;
-  }
-
-  private List<String> findOpenQuestions(
-      List<ResolvedRole> roles,
-      String associationName,
-      boolean associationNameGenerated,
-      List<Map<String, Object>> generatedRoleNames) {
-    List<String> openQuestions = new ArrayList<>();
-    if (associationNameGenerated) {
-      openQuestions.add("Generated association name '" + associationName
-          + "' is a technical placeholder; confirm the domain-appropriate name.");
-    }
-    for (Map<String, Object> generatedRole : generatedRoleNames) {
-      openQuestions.add("Generated role name '" + generatedRole.get("name")
-          + "' for class '" + generatedRole.get("classFQN")
-          + "' (index " + generatedRole.get("index")
-          + ") is a technical placeholder; confirm the domain-appropriate role name.");
-    }
-    for (int i = 0; i < roles.size(); i++) {
-      ResolvedRole role = roles.get(i);
-      if (role.card() == null || role.card().isBlank()) {
-        openQuestions.add("Missing cardinality for role '" + role.name() + "' (index " + i + ").");
-      }
-    }
-    return openQuestions;
+    return List.copyOf(resolvedRoles);
   }
 
   private record ResolvedRole(String name, String classFQN, @Nullable String card, boolean external) {
   }
 
-  private record ResolvedRoleSet(List<ResolvedRole> roles, List<Map<String, Object>> generatedRoleNames) {
-  }
 }

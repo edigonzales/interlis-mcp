@@ -20,9 +20,13 @@ High-Level-Gate für einen vollständigen aktuellen Modellstand. Eingaben sind `
 
 Vergleicht `beforeModelText` und `afterModelText` semantisch. Views sowie die deklarierten Typen von Domains und Attributen gehören zum Diff. Optional steuern `modelPurpose` und `ruleProfile` den Abschlussreview des Nachher-Stands.
 
-## `applyIliModelChange`
+## `authorIliModel`
 
-Führt unterstützte typisierte Änderungen source-preserving aus. Aktuell ist `ADD_ATTRIBUTE` für lokale Klassen und Strukturen verfügbar. Ein erfolgreiches Resultat enthält den neuen Modelltext, den semantischen Diff und das Abschlussreview.
+Erzeugt ein vollständiges Modell aus einer typisierten `IliModelSpec`. Name, URI, Modellversion und INTERLIS-Version sind explizit. Units, Domains, Topics, Klassen, Strukturen, Assoziationen, Attribute, Geometrien und alle fünf Constraint-Arten werden in einem Compile geprüft; AST-Roundtrip, Constraint-Proofs und `afterReview` verwenden denselben kompilierten Kontext.
+
+## `applyIliModelChanges`
+
+Wendet einen atomaren Batch source-preserving an. Unterstützt `ADD_IMPORT`, `ADD_TOPIC`, `ADD_DOMAIN`, `ADD_UNIT`, `ADD_CLASS`, `ADD_STRUCTURE`, `ADD_ASSOCIATION`, `ADD_ATTRIBUTE`, `UPDATE_ATTRIBUTE`, `REMOVE_ATTRIBUTE` und `ADD_CONSTRAINT`. Der Batch nutzt genau einen Before- und After-Compile. Potenziell brechende Änderungen werden ohne `allowPotentiallyBreaking=true` nur als geprüfter Kandidat zurückgegeben.
 
 ## `renameModelElement`
 
@@ -60,67 +64,7 @@ Sucht lexikalisch nach lokalen Modellbeispielen. Die Treffer sind Discovery-Meta
 
 Liest eine ausgewählte Datei innerhalb des konfigurierten Modellkorpus vollständig. Pfade ausserhalb dieser Grenzen werden abgewiesen.
 
-# Modellbausteine
-
-## `createModelSnippet`
-
-Erzeugt ein Modellgerüst. `name` ist erforderlich; Sprache, URI, Version, INTERLIS-Version, Imports, IliDoc und Metaattribute sind optional. Das Tool erzeugt keine kantonsspezifischen Titel, Kontakte oder Tags.
-
-## `createTopicSnippet`
-
-Erzeugt einen Topic-Block mit optionaler OID-Definition, Abstraktheit, IliDoc und Metaattributen.
-
-## `createClassSnippet`
-
-Erzeugt eine Klasse mit optionaler Abstraktheit, Basisklasse, OID-Definition und Attributzeilen.
-
-## `createStructureSnippet`
-
-Erzeugt eine Struktur mit optionaler Abstraktheit, Basistyp und Attributzeilen.
-
-## `createAssociationSnippet`
-
-Erzeugt eine Beziehung aus mindestens zwei Rollen. Fehlende Rollennamen werden nur als technische Platzhalter markiert; fehlende Kardinalitäten werden nicht fachlich geraten.
-
-## `createAttributeLine`
-
-Erzeugt eine streng typisierte Attributzeile aus `req`. `typeSpec` wählt genau eine Familie, darunter `domainFqn`, `structureFqn`, `baseType`, Referenz-, Blackbox-, Basket-, Object- oder Metaobject-Typ. Typfremde Felder werden abgewiesen statt ignoriert.
-
-## `createEnumDomainSnippet`
-
-Erzeugt eine flache Aufzählungsdomain. Entweder `items` oder annotierte `itemSpecs` müssen angegeben werden.
-
-## `createEnumTreeDomainSnippet`
-
-Erzeugt eine rekursive Aufzählungsdomain aus typisierten Baumknoten.
-
-## `createNumericDomainSnippet`
-
-Erzeugt eine numerische Domain aus Name, Minimum und Maximum sowie optionaler Einheit und Annotationen.
-
-## `createUnitSnippet`
-
-Erzeugt eine linear abgeleitete Einheit aus positivem Faktor und expliziter Basiseinheit.
-
-## `createCoordDomainSnippet`
-
-Erzeugt eine zwei- oder dreidimensionale COORD-Domain ohne CRS-Annahmen. Jede Achse verlangt `min`, `max` und `unitFqn`; eine Rotation muss als gültiges Paar angegeben werden.
-
-```json
-{
-  "name": "LocalCoord",
-  "axes": [
-    { "min": 0.00, "max": 100.00, "unitFqn": "INTERLIS.m" },
-    { "min": 10.00, "max": 200.00, "unitFqn": "INTERLIS.m" }
-  ],
-  "rotationFrom": 2,
-  "rotationTo": 1
-}
-```
-
-## `createUniqueConstraint`
-
-Erzeugt nur einen einfachen globalen UNIQUE-Snippet aus `attrs`. WHERE-, BASKET- und LOCAL-Semantik werden nicht aus diesem engen Schema abgeleitet. Nach Integration folgen semantischer Proof und Modellreview.
+# Modelltext
 
 ## `formatIliModel`
 
@@ -132,18 +76,7 @@ Regeneriert formatierten Modelltext mit ili2c. Formatierung ist kein fachliches 
 
 Listet die unterstützten INTERLIS- und CHBase-Geometrietypen für INTERLIS 2.3 oder 2.4.
 
-## `ensureGeometryDependencies`
-
-Erzeugt Importhinweise und eine Geometrie-Attributzeile. Ohne CHBase ist `coordDomainFqn` erforderlich; das Tool erfindet keine Koordinatendomain. Mit CHBase werden nur bekannte Typen des zur INTERLIS-Version passenden Modells akzeptiert.
-
-```json
-{
-  "attributeName": "Perimeter",
-  "geometryType": "SURFACE",
-  "coordDomainFqn": "Demo.Coord2",
-  "arcs": true
-}
-```
+Geometrien werden innerhalb von `authorIliModel` und `applyIliModelChanges` als `GeometryTypeSpec` angegeben. Die ungültigen früheren `BaseType`-Varianten `COORD`, `POLYLINE` und `SURFACE_SIMPLE` existieren nicht mehr. INTERLIS-Geometrien verlangen alle anwendbaren Angaben; CHBase lässt nur bekannte Typen der tatsächlichen INTERLIS-Version zu.
 
 # Constraint-Wissen und Proofs
 
@@ -169,11 +102,15 @@ Validiert höchstens 100 explizit vorgegebene Testfälle. Das Tool ist für fach
 
 ## `authorIliMandatoryConstraint`
 
-Erstellt einen Mandatory Constraint aus einer typisierten flachen Ausdrucks-Node-Liste, fügt ihn source-preserving ein und beweist ihn über die gemeinsame semantische Pipeline.
+Erstellt einen Mandatory Constraint aus einer rekursiven typisierten `ExpressionSpec`, fügt ihn source-preserving ein und beweist ihn über die gemeinsame semantische Pipeline.
+
+## `authorIliUniqueConstraint`
+
+Erstellt UNIQUE mit `GLOBAL`, `BASKET` oder `LOCAL`, mehreren Schlüsselpfaden, optionalem typisiertem WHERE und LOCAL-Präfix. Source-Edit, AST-Roundtrip, Proof, semantischer Diff und `afterReview` sind enthalten.
 
 ## `authorIliExistenceConstraint`
 
-Erstellt skalare EXISTENCE-Constraints aus einem expliziten eingeschränkten Pfad und vollständigen REQUIRED-IN-Zielen. Zielattribute werden nie geraten.
+Erstellt EXISTENCE aus einem expliziten eingeschränkten Pfad und vollständigen REQUIRED-IN-Zielen. Skalare, strukturierte, Referenz- und Geometriepfade werden typisiert; freigegeben werden nur vollständig validatorbestätigte Proofs. Zielattribute werden nie geraten.
 
 ## `authorIliPlausibilityConstraint`
 
@@ -181,7 +118,7 @@ Erstellt einen Plausibility Constraint aus Richtung, Prozentgrenze und typisiert
 
 ## `authorIliSetConstraint`
 
-Erstellt den unterstützten `INTERLIS.objectCount(ALL)`-Umfang mit Operator, Schwellwert, optionalem direktem WHERE und optionalem Basket-Scope.
+Erstellt SET mit `GLOBAL`/`BASKET`, optionalem WHERE und diskriminierter `OBJECT_COUNT`- oder `BOOLEAN_EXPRESSION`-Bedingung. Objektmengen sind `ALL` oder ein typisierter navigierter Objektpfad.
 
 ## `generateIliConstraintFromDecisionTable`
 

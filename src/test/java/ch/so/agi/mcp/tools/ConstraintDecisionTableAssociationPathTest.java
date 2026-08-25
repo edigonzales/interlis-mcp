@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ch.so.agi.mcp.constraint.ConstraintContextService;
+import ch.so.agi.mcp.model.IliAuthoringResult;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.List;
 import java.util.Map;
@@ -51,19 +52,20 @@ class ConstraintDecisionTableAssociationPathTest {
         condition("Bodeneinheit->Gewichtung", ">=", 10),
         condition("Bodeneinheit->Gewichtung", "<=", 20));
 
-    Map<String, Object> result = tools.generateIliConstraintFromDecisionTable(
+    IliAuthoringResult result = tools.generateIliConstraintFromDecisionTable(
         MODEL,
         "DecisionPathModel.Data.Nebenauspraegung",
         "MainWeightBetween10And20",
         List.of(allowed));
 
-    assertEquals(true, result.get("generated"), String.valueOf(result));
-    assertEquals(true, result.get("proofVerified"), String.valueOf(result));
+    assertEquals(true, result.generated, String.valueOf(result));
+    assertEquals(true, result.proofVerified, String.valueOf(result));
     assertEquals(
         "(Bodeneinheit->Gewichtung >= 10 AND Bodeneinheit->Gewichtung <= 20)",
-        result.get("constraintExpression"));
+        result.details.get("constraintExpression"));
 
-    List<Map<String, Object>> boundaryCases = list(result.get("boundaryCases"));
+    List<IliAuthoringResult.ProofCase> boundaryCases =
+        result.constraintProofs.getFirst().generatedCases;
     assertEquals(4, boundaryCases.size());
     assertCase(boundaryCases, "9", false);
     assertCase(boundaryCases, "10", true);
@@ -72,19 +74,19 @@ class ConstraintDecisionTableAssociationPathTest {
     assertTrue(boundaryCases.stream().allMatch(item -> Integer.valueOf(2).equals(item.get("objectCount"))));
     assertTrue(boundaryCases.stream().allMatch(item -> Integer.valueOf(1).equals(item.get("associationLinkCount"))));
 
-    Map<String, Object> verification = map(result.get("verification"));
-    assertEquals(4, verification.get("caseCount"));
-    assertEquals(4, verification.get("passedCount"));
-    assertEquals(true, verification.get("allPassed"));
+    IliAuthoringResult.ProofVerification verification =
+        result.constraintProofs.getFirst().verification;
+    assertEquals(4, verification.caseCount);
+    assertEquals(4, verification.passedCount);
+    assertEquals(true, verification.allPassed);
 
-    List<Map<String, Object>> verifiedCases = list(verification.get("cases"));
-    String xtf = String.valueOf(verifiedCases.getFirst().get("xtfText"));
+    String xtf = verification.cases.getFirst().xtfText;
     assertTrue(xtf.contains("<Bodeneinheit REF=\""), xtf);
   }
 
   @Test
   void doesNotGuessForMultiValuedAssociationPath() {
-    Map<String, Object> result = tools.generateIliConstraintFromDecisionTable(
+    IliAuthoringResult result = tools.generateIliConstraintFromDecisionTable(
         MODEL,
         "DecisionPathModel.Data.Hauptauspraegung",
         "SecondaryValueAtLeast10",
@@ -92,11 +94,12 @@ class ConstraintDecisionTableAssociationPathTest {
             "secondary value",
             condition("Nebenauspraegung->LokalerWert", ">=", 10))));
 
-    assertEquals(false, result.get("generated"));
-    assertEquals(false, result.get("proofVerified"));
+    assertEquals(false, result.generated);
+    assertEquals(false, result.proofVerified);
     assertTrue(
-        List.of("GENERATED_CONSTRAINT_NOT_COMPILABLE", "UNSUPPORTED_ATTRIBUTE_PATH_OR_TYPE")
-            .contains(String.valueOf(result.get("reasonCode"))),
+        List.of("CANDIDATE_MODEL_INVALID", "UNSUPPORTED_ATTRIBUTE_PATH_OR_TYPE",
+            "AST_ROUND_TRIP_FAILED", "PROOF_INCOMPLETE")
+            .contains(String.valueOf(result.reasonCode)),
         String.valueOf(result));
   }
 
@@ -121,10 +124,10 @@ class ConstraintDecisionTableAssociationPathTest {
   }
 
   private void assertCase(
-      List<Map<String, Object>> cases,
+      List<IliAuthoringResult.ProofCase> cases,
       String expectedValue,
       boolean expectedValid) {
-    Map<String, Object> match = cases.stream()
+    IliAuthoringResult.ProofCase match = cases.stream()
         .filter(item -> expectedValue.equals(String.valueOf(
             map(item.get("values")).get("Bodeneinheit->Gewichtung"))))
         .findFirst()

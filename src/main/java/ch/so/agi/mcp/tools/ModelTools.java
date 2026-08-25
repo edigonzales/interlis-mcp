@@ -4,15 +4,12 @@ import ch.so.agi.mcp.model.MetaAttributeSpec;
 import ch.so.agi.mcp.util.AnnotationRenderer;
 import ch.so.agi.mcp.util.NameValidator;
 import java.time.Clock;
-import java.time.LocalDate;
 import java.net.URI;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
-import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
@@ -24,10 +21,6 @@ public class ModelTools {
   private final Clock clock;
   public ModelTools(Clock clock) { this.clock = clock; }
 
-  @McpTool(
-      name = "createModelSnippet",
-      description = "Erzeugt ein INTERLIS-2 Modellgerüst aus expliziten Metadaten. Params: name (required), lang (default 'de'), version (default 'today'), uri (default 'https://example.org/<name>'), iliVersion (default '2.4'), imports (default []), iliDoc, metaAttributes."
-  )
   public Map<String, Object> createModelSnippet(
       @McpToolParam(description = "Modellname (Bezeichner ohne Leerzeichen)", required = true) String name,
       @McpToolParam(description = "Sprachcode, z. B. 'de' oder 'en'", required = false) @Nullable String lang,
@@ -62,19 +55,21 @@ public class ModelTools {
       validateImportModelName(m);
     }
 
-    String _lang = (lang == null || lang.isBlank()) ? "de" : lang.trim();
-    if (!_lang.matches("[a-z]{2}")) {
+    String _lang = (lang == null || lang.isBlank()) ? null : lang.trim();
+    if (_lang != null && !_lang.matches("[a-z]{2}")) {
       throw new IllegalArgumentException("lang must be a two-letter lowercase language code.");
     }
-    String _version = (version == null || version.isBlank()) ? LocalDate.now(clock).toString() : version.trim();
-    try {
-      LocalDate.parse(_version);
-    } catch (java.time.format.DateTimeParseException ex) {
-      throw new IllegalArgumentException("version must use ISO date format YYYY-MM-DD.");
+    if (version == null || version.isBlank()) {
+      throw new IllegalArgumentException("version is required and must not be invented.");
     }
-    String _uri = (uri == null || uri.isBlank())
-        ? ("https://example.org/" + modelName.toLowerCase(Locale.ROOT))
-        : uri.trim();
+    String _version = version.trim();
+    if (_version.contains("\"") || _version.contains("\n") || _version.contains("\r")) {
+      throw new IllegalArgumentException("version must not contain quotes or line breaks.");
+    }
+    if (uri == null || uri.isBlank()) {
+      throw new IllegalArgumentException("uri is required and must not be invented.");
+    }
+    String _uri = uri.trim();
     URI parsedUri;
     try {
       parsedUri = URI.create(_uri);
@@ -84,7 +79,10 @@ public class ModelTools {
     if (!parsedUri.isAbsolute() || _uri.contains("\"") || _uri.contains("\n") || _uri.contains("\r")) {
       throw new IllegalArgumentException("uri must be a valid absolute URI.");
     }
-    String _iliVersion = (iliVersion == null || iliVersion.isBlank()) ? DEFAULT_ILI_VERSION : iliVersion.trim();
+    if (iliVersion == null || iliVersion.isBlank()) {
+      throw new IllegalArgumentException("iliVersion is required and must not be invented.");
+    }
+    String _iliVersion = iliVersion.trim();
     if (!"2.3".equals(_iliVersion) && !DEFAULT_ILI_VERSION.equals(_iliVersion)) {
       throw new IllegalArgumentException("iliVersion must be either '2.3' or '2.4'. Got: '" + _iliVersion + "'.");
     }
@@ -96,10 +94,12 @@ public class ModelTools {
     String snippet = String.format(
             "INTERLIS %s;\n\n" +
             "%s" +
-            "MODEL %s (%s) AT \"%s\" VERSION \"%s\" =\n" +
+            "MODEL %s%s AT \"%s\" VERSION \"%s\" =\n" +
             "%s\n" +
             "END %s.\n",
-            _iliVersion, modelAnnotations, modelName, _lang, _uri, _version, importLines, modelName);
+            _iliVersion, modelAnnotations, modelName,
+            _lang == null ? "" : " (" + _lang + ")",
+            _uri, _version, importLines, modelName);
 
     return Map.of(
         "iliSnippet", snippet

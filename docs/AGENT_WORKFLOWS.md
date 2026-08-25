@@ -28,7 +28,7 @@ interlis-mcp
   - schreibt selbst keine Workspace-Dateien
 ```
 
-Diese Grenze ist absichtlich. Ein MCP-Tool wie `applyIliModelChange` oder `authorIliSetConstraint` liefert `updatedModelText`; der Agent entscheidet, ob und wo dieser Text in eine Datei geschrieben wird.
+Diese Grenze ist absichtlich. Ein MCP-Tool wie `applyIliModelChanges` oder `authorIliSetConstraint` liefert `updatedModelText`; der Agent entscheidet, ob und wo dieser Text in eine Datei geschrieben wird.
 
 ## Leitprinzip: das höchste passende Tool verwenden
 
@@ -38,7 +38,8 @@ Ein Agent soll nicht mehrere Low-Level-Werkzeuge kombinieren, wenn ein High-Leve
 | --- | --- |
 | vollständigen Modellstand prüfen | `reviewIliModel` |
 | Vorher/Nachher-Modell prüfen | `reviewIliChange` |
-| unterstützte semantische Änderung ausführen | `applyIliModelChange` |
+| neues vollständiges Modell erstellen | `authorIliModel` |
+| unterstützte semantische Änderungen ausführen | `applyIliModelChanges` |
 | neuen unterstützten Constraint erstellen | passendes `authorIli...Constraint`-Tool |
 | bestehenden Constraint automatisch beweisen | `generateIliConstraintCases` |
 | einzelnen Compilerfehler untersuchen | `validateIliModel` |
@@ -88,7 +89,7 @@ Anforderung:
 
 Ohne weitere Fachinformation darf der Agent **nicht** automatisch `{1}` und `{0..*}` festlegen. Eine mögliche technische Struktur kann vorbereitet werden, die Kardinalität bleibt aber eine offene Frage.
 
-`createAssociationSnippet` unterstützt dieses Prinzip: fehlende Kardinalitäten und automatisch erzeugte Namen werden in `openQuestions` sichtbar gemacht.
+Die typisierten Spezifikationen setzen deshalb Namen, Rollen und Kardinalitäten explizit voraus. Fehlende Angaben führen zu `INVALID_SPEC` oder `NEEDS_INPUT`; sie werden nicht ergänzt.
 
 ## Vollständiges Modell prüfen
 
@@ -116,28 +117,33 @@ Technische Befunde und fachliche Fragen werden getrennt dargestellt.
 
 Vor einer Änderung muss klar sein, ob ein spezielles semantisches Change-Tool existiert.
 
-### Unterstützte Änderung: Attribut hinzufügen
+### Unterstützte Änderungen als atomarer Batch
 
-Für `ADD_ATTRIBUTE` verwendet der Agent `applyIliModelChange` statt selbst eine Einfügestelle im Quelltext zu suchen.
+Für Ergänzungen sowie Attributänderungen und -löschungen verwendet der Agent `applyIliModelChanges` statt selbst Einfügestellen oder Deklarationsgrenzen im Quelltext zu suchen.
 
 ```json
 {
   "modelText": "<vorher>",
   "request": {
-    "operation": "ADD_ATTRIBUTE",
-    "addAttribute": {
-      "containerFqn": "Demo.Data.Building",
-      "attribute": {
-        "name": "egid",
-        "mandatory": true,
-        "typeSpec": {
-          "baseType": {
-            "kind": "TEXT",
-            "length": 14
+    "changes": [
+      {
+        "operation": "ADD_ATTRIBUTE",
+        "addAttribute": {
+          "containerFqn": "Demo.Data.Building",
+          "attribute": {
+            "name": "egid",
+            "mandatory": true,
+            "typeSpec": {
+              "baseType": {
+                "kind": "TEXT",
+                "length": 14
+              }
+            }
           }
         }
       }
-    }
+    ],
+    "allowPotentiallyBreaking": false
   },
   "modelPurpose": "CAPTURE",
   "ruleProfile": "CORE"
@@ -152,6 +158,8 @@ Bei `status=APPLIED` hat das Tool bereits:
 - einen semantischen Diff erstellt,
 - unerwartete Kollateraleffekte ausgeschlossen,
 - `afterReview` erstellt.
+
+Erkennt der Review eine potenziell brechende Änderung, wird der ganze Batch mit `status=BREAKING_CHANGE_REQUIRES_CONFIRMATION` und `candidateModelText` zurückgehalten. Erst derselbe explizite Batch mit `allowPotentiallyBreaking=true` liefert `updatedModelText`.
 
 Für genau diesen unveränderten Nachher-Stand folgt **kein** zusätzliches `reviewIliChange` und kein `reviewIliModel`.
 
@@ -176,7 +184,7 @@ Wird der Nachher-Stand danach noch einmal geändert, gilt das Review des alten S
 
 ## Einen Constraint erstellen
 
-Constraint-Authoring hat zwei getrennte technische Gates:
+Constraint-Authoring bündelt die technischen Gates in einem Aufruf:
 
 ```text
 fachliche Constraint-Regel
@@ -186,24 +194,18 @@ Constraint-Authoring + Validator-Proof
         |
         | proofVerified=true
         v
-aktualisierter Modelltext
-        |
-        v
-reviewIliChange(Vorher, Nachher)
-        |
-        v
-Modell-Level-Abschlussreview
+semantischer Diff + afterReview + aktualisierter Modelltext
 ```
 
-Das zweite Gate ist nur nötig, wenn ein **bestehendes Modell** durch Constraint-Authoring verändert wurde. Der Constraint-Proof sagt aus, dass die erzeugten Proof-Fälle die erwartete Validator-Semantik haben. `reviewIliChange` beurteilt dagegen den gesamten Modellunterschied.
+Der Constraint-Proof weist die erwartete Validator-Semantik nach. Diff und `afterReview` beurteilen im selben Aufruf den gesamten Modellunterschied; ein zusätzliches `reviewIliChange` wäre für denselben Text redundant.
 
 ### Toolwahl
 
 - MANDATORY → `authorIliMandatoryConstraint`
 - EXISTENCE → `authorIliExistenceConstraint`
 - PLAUSIBILITY → `authorIliPlausibilityConstraint`
-- unterstütztes SET → `authorIliSetConstraint`
-- UNIQUE → noch kein gleichwertiges typisiertes Authoring; einfacher `createUniqueConstraint`-Snippet oder gezielte Bearbeitung, danach `generateIliConstraintCases`
+- SET mit `OBJECT_COUNT` oder `BOOLEAN_EXPRESSION` → `authorIliSetConstraint`
+- UNIQUE → `authorIliUniqueConstraint`
 
 Bei einem typisierten Authoring-Tool muss `proofVerified=true` sein. Bei einem bestehenden oder separat integrierten Constraint ist `generationVerified=true` aus `generateIliConstraintCases` das Proof-Gate.
 
@@ -282,18 +284,17 @@ Der Agent übernimmt nur ein **technisches Muster**, wenn es passt. Fachliche Kl
 
 ## Geometrien modellieren
 
-Bei einer Geometrieanforderung darf der Agent weder CRS noch Achsgrenzen erraten. `ensureGeometryDependencies` verlangt ohne CHBase eine explizit gewählte Koordinatendomain und liefert daraus den zusammenhängenden technischen Vorschlag.
+Bei einer Geometrieanforderung darf der Agent weder CRS noch Achsgrenzen erraten. Geometrien werden als `GeometryTypeSpec` innerhalb von `authorIliModel` oder `applyIliModelChanges` angegeben. INTERLIS-Geometrien verlangen eine explizite Koordinatendomain und alle anwendbaren Parameter; CHBase-Geometrien verlangen einen bekannten Typ der gewählten INTERLIS-Version.
 
 ```json
 {
-  "attributeName": "Perimeter",
-  "geometryType": "SURFACE",
+  "provider": "INTERLIS",
+  "kind": "SURFACE",
   "coordDomainFqn": "Demo.Coord2",
-  "arcs": true
+  "arcs": true,
+  "overlapMm": 0.001
 }
 ```
-
-Anschliessend integriert der Agent `importLinesToAdd`, `domainsToAdd` und `attributeLine` in den Workspace und prüft den vollständigen neuen Modellstand.
 
 Wenn die genaue Geometrieart unklar ist, kann vorher `listGeometryTypes` verwendet werden.
 

@@ -9,10 +9,10 @@ Der interne Solver und Evaluator helfen beim Erzeugen geeigneter Fälle. **Der i
 | Constraint-Art | Bestehenden Constraint automatisch beweisen | Typisiertes High-Level-Authoring |
 | --- | --- | --- |
 | MANDATORY | ja | `authorIliMandatoryConstraint` |
-| UNIQUE | ja | noch nicht; einfacher `createUniqueConstraint`-Snippet als enger Fallback |
-| EXISTENCE | ja, mit dokumentierten Typgrenzen | `authorIliExistenceConstraint` für skalare Werte |
+| UNIQUE | ja | `authorIliUniqueConstraint` für GLOBAL, BASKET und LOCAL |
+| EXISTENCE | ja, mit dokumentierten Validator-/Navigationsgrenzen | `authorIliExistenceConstraint` |
 | PLAUSIBILITY | ja, mit echten Populationen | `authorIliPlausibilityConstraint` |
-| SET | ja für `INTERLIS.objectCount(ALL)`-Subset | `authorIliSetConstraint` für dasselbe sichere Subset |
+| SET | ja für typisierte `OBJECT_COUNT`- und boolesche Formen | `authorIliSetConstraint` |
 
 ## Drei unterschiedliche Aufgaben
 
@@ -75,7 +75,9 @@ Die erzeugten Fälle sind dann verifiziert, aber ein zusätzlicher gewünschter 
 
 Typisierte Authoring-Tools liefern `proofVerified=true`, wenn der neu erzeugte Constraint seinen internen semantischen Roundtrip bestanden hat und die erzeugten Proof-Fälle vom Validator bestätigt wurden.
 
-Der Proof bezieht sich auf **diesen Constraint**. Wenn das Tool damit ein bestehendes Modell verändert hat, wird das vollständige Vorher-/Nachher-Modell danach einmal mit `reviewIliChange` geprüft.
+Der Proof bezieht sich auf **diesen Constraint**. Die Authoring-Tools liefern zusätzlich den semantischen Vorher-/Nachher-Diff und `afterReview` aus denselben Compilations; für den unveränderten Resultattext ist kein zusätzlicher Review-Aufruf nötig.
+
+Die gemeinsamen Authoring-Resultate verwenden ein geschlossenes Status-Enum mit `GENERATED`, `APPLIED`, `BREAKING_CHANGE_REQUIRES_CONFIRMATION`, `NEEDS_INPUT`, `INVALID_SPEC`, `BEFORE_MODEL_INVALID`, `CANDIDATE_MODEL_INVALID`, `AST_ROUND_TRIP_FAILED`, `PROOF_INCOMPLETE`, `PROOF_FAILED`, `EXTERNAL_FUNCTION_SEMANTICS_REQUIRED` und `UNEXPECTED_SEMANTIC_CHANGE`. `updatedModelText` erscheint nur bei `GENERATED` beziehungsweise `APPLIED`; jeder kompilierbare, aber nicht freigegebene Stand erscheint ausschliesslich als `candidateModelText`.
 
 ## Gemeinsame technische Pipeline
 
@@ -195,7 +197,7 @@ Die logische Coverage ist bewusst endlich und für direkte Operanden MC/DC-ähnl
 
 ## Typisiertes Authoring
 
-`authorIliMandatoryConstraint` erhält eine flache Node-Liste. Kind-spezifische Kinder werden über IDs referenziert.
+`authorIliMandatoryConstraint` erhält eine rekursive `MandatoryConstraintSpec`. Jeder Ausdrucksknoten trägt seinen `kind`; Kinder sind direkt als weitere `ExpressionSpec` eingebettet. Freie Syntax und Node-ID-Verweise werden nicht akzeptiert.
 
 Fachliche Regel:
 
@@ -206,17 +208,32 @@ Beispiel-Payload:
 ```json
 {
   "modelText": "<vollständiger Modelltext ohne neuen Constraint>",
-  "context": "Demo.Data.Item",
-  "constraintName": "ValueRange",
-  "rootNodeId": "root",
-  "nodes": [
-    { "id": "value", "kind": "ATTRIBUTE", "name": "value" },
-    { "id": "low", "kind": "NUMERIC", "value": 10 },
-    { "id": "ge", "kind": "COMPARE", "operator": ">=", "children": ["value", "low"] },
-    { "id": "high", "kind": "NUMERIC", "value": 20 },
-    { "id": "le", "kind": "COMPARE", "operator": "<=", "children": ["value", "high"] },
-    { "id": "root", "kind": "AND", "children": ["ge", "le"] }
-  ]
+  "contextFqn": "Demo.Data.Item",
+  "spec": {
+    "kind": "MANDATORY",
+    "name": "ValueRange",
+    "condition": {
+      "kind": "AND",
+      "children": [
+        {
+          "kind": "COMPARE",
+          "operator": ">=",
+          "children": [
+            { "kind": "ATTRIBUTE", "name": "value" },
+            { "kind": "NUMERIC", "value": 10 }
+          ]
+        },
+        {
+          "kind": "COMPARE",
+          "operator": "<=",
+          "children": [
+            { "kind": "ATTRIBUTE", "name": "value" },
+            { "kind": "NUMERIC", "value": 20 }
+          ]
+        }
+      ]
+    }
+  }
 }
 ```
 
@@ -224,12 +241,10 @@ Bei Erfolg enthält das Resultat unter anderem:
 
 - `generated=true`
 - `proofVerified=true`
-- `constraintExpression`
-- `typedCanonicalExpression`
 - `updatedModelText`
-- `sourceEdit`
-- `typedReferences`
-- `proof`
+- `sourceEdits`
+- `semanticDiff` und `afterReview`
+- `constraintProofs` mit typisierten Coverage-Gaps, Fällen und Validatorresultaten
 
 Für Standardfunktionen sollte die stabile `semanticId` aus `listConstraintFunctions` verwendet werden. Ein Agent soll nicht versionsabhängige Funktionssyntax raten.
 
@@ -290,11 +305,18 @@ Navigierte LOCAL-Schlüssel, die nicht sicher synthetisiert werden können, werd
 
 ## Authoring
 
-Es gibt derzeit kein gleichwertiges typisiertes High-Level-Authoring für UNIQUE. Für einen **einfachen globalen Attributschlüssel** kann `createUniqueConstraint` als Snippet-Hilfe verwendet werden:
+`authorIliUniqueConstraint` erstellt UNIQUE vollständig typisiert und source-preserving. Unterstützt werden GLOBAL, BASKET und LOCAL, mehrere Schlüsselpfade, ein optionaler typisierter WHERE-Ausdruck und bei LOCAL ein explizites Präfix:
 
 ```json
 {
-  "attrs": ["code", "version"]
+  "modelText": "<vollständiger Modelltext>",
+  "contextFqn": "Demo.Data.Item",
+  "spec": {
+    "kind": "UNIQUE",
+    "name": "UniqueCodeVersion",
+    "scope": "GLOBAL",
+    "keyPaths": ["code", "version"]
+  }
 }
 ```
 
@@ -304,9 +326,7 @@ Erzeugt wird sinngemäss:
 UNIQUE code, version;
 ```
 
-Danach wird der integrierte Constraint mit `generateIliConstraintCases` bewiesen und die Modelländerung mit `reviewIliChange` abgeschlossen.
-
-Komplexe `WHERE`, `(BASKET)`- oder `LOCAL`-Syntax darf nicht aus dem einfachen Snippet-Schema erfunden werden.
+Der Aufruf kompiliert Before und After genau einmal und liefert Source-Edit, AST-Roundtrip, Validator-Proof, semantischen Diff und `afterReview`. Bei Erfolg ist weder eine zweite Proof-Runde noch ein zusätzliches `reviewIliChange` nötig.
 
 # EXISTENCE
 
@@ -342,13 +362,16 @@ Payload:
 ```json
 {
   "modelText": "<vollständiger Modelltext>",
-  "context": "Demo.Data.Source",
-  "constraintName": "CodeExists",
-  "restrictedPath": "code",
-  "requiredIn": [
-    { "viewableFqn": "Demo.Data.TargetA", "attributePath": "code" },
-    { "viewableFqn": "Demo.Data.TargetB", "attributePath": "code" }
-  ]
+  "contextFqn": "Demo.Data.Source",
+  "spec": {
+    "kind": "EXISTENCE",
+    "name": "CodeExists",
+    "restrictedPath": "code",
+    "requiredIn": [
+      { "viewableFqn": "Demo.Data.TargetA", "attributePath": "code" },
+      { "viewableFqn": "Demo.Data.TargetB", "attributePath": "code" }
+    ]
+  }
 }
 ```
 
@@ -367,16 +390,17 @@ Für bestehende Constraints kann `generateIliConstraintCases` auch einen bewusst
 
 Geprüft werden unter anderem fehlendes Target, member-wise Gleichheit, eine gezielte Member-Differenz und – wenn zulässig – ein undefinierter Source-Wert.
 
-## Explizite Safety-Grenzen
+## Typisierte Werte und Safety-Grenzen
 
-Bestimmte EXISTENCE-Formen werden **nicht** durch eine vermeintlich ähnliche skalare Semantik ersetzt:
+Direkte COORD-, POLYLINE-, SURFACE- und AREA-Werte erhalten gleiche Witnesses und verschiedene Counterexamples aus den tatsächlichen Metamodelldomains. UNIQUE unterstützt zusätzlich Referenz-OIDs, Strukturen sowie INTERLIS-2.4-Multigeometrien, soweit die übrigen Modellregeln isolierbare Fixtures erlauben.
 
-- `REFERENCE TO`: `EXISTENCE_REFERENCE_VALUE_PROOF_UNSAFE`
-- COORD: `EXISTENCE_COORD_FIXTURE_NOT_VALUE_AWARE`
-- POLYLINE/SURFACE/AREA: `EXISTENCE_COMPLEX_GEOMETRY_FIXTURE_UNAVAILABLE`
-- nicht unterstützte navigierte Spezialpfade: eigener Safety-/Coverage-Grund
+Safety-Grenzen bleiben sichtbar und werden nicht als Erfolg umgedeutet:
 
-Solche Constraints können mit `reviewIliConstraint` untersucht und bei Bedarf über explizit bereitgestellte Testdaten geprüft werden.
+- Die aktuell eingebundene ilivalidator-Version bricht bei `EXISTENCE`-Gleichheitsvergleichen für `REFERENCE` und Multigeometrien intern ab. Die gültigen OID-/Geometrie-Fixtures werden deshalb mit `REFERENCE_EQUALITY_VALIDATOR_FAILURE` beziehungsweise `GEOMETRY_EQUALITY_VALIDATOR_FAILURE` zurückgehalten.
+- AREA-/MULTIAREA-Duplikate können die Topologieregel gegen überlappende Flächen bereits vor UNIQUE verletzen. Dann lautet der Grund `UNIQUE_AREA_DUPLICATE_NOT_MODEL_VALID`.
+- Nicht sicher materialisierbare navigierte oder polymorphe Spezialpfade liefern einen eigenen Coverage-Grund.
+
+In allen Fällen erscheint kein `updatedModelText`. Der kompilierbare Stand bleibt als `candidateModelText` verfügbar.
 
 # PLAUSIBILITY
 
@@ -425,16 +449,21 @@ Ein wiederverwendetes TRUE-/FALSE-Mitglied muss genau **ein** Objekt des Constra
 ```json
 {
   "modelText": "<vollständiger Modelltext>",
-  "context": "Demo.Data.Item",
-  "constraintName": "UsuallyHigh",
-  "direction": "AT_LEAST",
-  "percentage": 80,
-  "rootNodeId": "root",
-  "nodes": [
-    { "id": "value", "kind": "ATTRIBUTE", "name": "value" },
-    { "id": "threshold", "kind": "NUMERIC", "value": 5 },
-    { "id": "root", "kind": "COMPARE", "operator": ">=", "children": ["value", "threshold"] }
-  ]
+  "contextFqn": "Demo.Data.Item",
+  "spec": {
+    "kind": "PLAUSIBILITY",
+    "name": "UsuallyHigh",
+    "direction": "AT_LEAST",
+    "percentage": 80,
+    "condition": {
+      "kind": "COMPARE",
+      "operator": ">=",
+      "children": [
+        { "kind": "ATTRIBUTE", "name": "value" },
+        { "kind": "NUMERIC", "value": 5 }
+      ]
+    }
+  }
 }
 ```
 
@@ -456,7 +485,7 @@ END;
 
 `OBJECTS OF` bezeichnet in INTERLIS den semantischen Parametertyp für Objektmengen. Der konkrete Objektmengen-Ausdruck, den der unterstützte SET-Proof verwendet, steht im Modell als `ALL` und wird von ili2c als eigener `Objects`-AST-Knoten repräsentiert.
 
-Die interne Object-Set-IR bewahrt zusätzlich Base-/`RESTRICTION`-Metadaten auf. Automatisch bewiesen wird derzeit bewusst nur der sichere `plain ALL`-Umfang.
+Die interne Object-Set-IR bewahrt zusätzlich Base-/`RESTRICTION`- und Polymorphie-Metadaten auf. Öffentlich typisiert sind `ALL` und ein navigierter Objektpfad (`PATH`). Konkrete Endtypen eines abstrakten Pfadziels werden bis zum harten Routenbudget einzeln und in stabiler FQN-Reihenfolge bewiesen; nicht materialisierbare Base-/Restriction- oder tiefere Routen werden mit einem präzisen Coverage-Grund zurückgehalten.
 
 ## `objectCount(ALL)`
 
@@ -515,21 +544,38 @@ global:    2 >= 2 -> gültig
 
 Damit lässt sich die Scope-Semantik mit echten Multi-Basket-XTF-Fixtures unterscheiden.
 
+Diese Populationsaddition gilt für `objectCount(ALL)`. Ein `objectCount(PATH)` wird dagegen für jedes Kontextobjekt über dessen eigenen navigierten Pfad ausgewertet; unabhängige Pfadzahlen verschiedener Wurzelobjekte dürfen deshalb nicht zu einem globalen Count addiert werden.
+
+## Navigierter Objektpfad und boolescher SET-Ausdruck
+
+Ein `PATH`-Objektset materialisiert Assoziations-, Referenz- oder Kompositionsnavigation aus dem kompilierten Metamodell. Für jede erreichbare Count-Grenze erzeugt der Planner einen eigenen Graphen. Mehrere konkrete polymorphe Endtypen erhalten jeweils eigene Witness-/Counterexample-Fälle und erscheinen als `routeTargetFqn` im typisierten Proof. Mehr als acht Routen oder eine nicht sicher auflösbare tiefere Polymorphie überschreiten bewusst das Proof-Budget und führen zu `PROOF_INCOMPLETE`.
+
+`BOOLEAN_EXPRESSION` verwendet dieselbe rekursive Expression-IR, Domain-Bindung und Wahr-/Falsch-Coverage wie MANDATORY. Externe Funktionen ohne bekannte ausführbare Semantik führen auch hier zu `EXTERNAL_FUNCTION_SEMANTICS_REQUIRED`.
+
 ## Typisiertes Authoring
 
 ```json
 {
   "modelText": "<vollständiger Modelltext>",
-  "context": "Demo.Data.Item",
-  "constraintName": "AtLeastTwoHigh",
-  "operator": ">=",
-  "threshold": 2,
-  "perBasket": false,
-  "where": {
-    "attribute": "value",
-    "operator": ">=",
-    "valueKind": "NUMERIC",
-    "value": 5
+  "contextFqn": "Demo.Data.Item",
+  "spec": {
+    "kind": "SET",
+    "name": "AtLeastTwoHigh",
+    "scope": "GLOBAL",
+    "where": {
+      "kind": "COMPARE",
+      "operator": ">=",
+      "children": [
+        { "kind": "ATTRIBUTE", "name": "value" },
+        { "kind": "NUMERIC", "value": 5 }
+      ]
+    },
+    "condition": {
+      "kind": "OBJECT_COUNT",
+      "objects": { "kind": "ALL" },
+      "operator": ">=",
+      "threshold": 2
+    }
   }
 }
 ```
@@ -540,8 +586,8 @@ Das Resultat enthält bei Erfolg `proofVerified=true`, `updatedModelText` und de
 
 Der automatische SET-Proof behauptet derzeit keine Semantik für:
 
-- `ALL(base)` bzw. `ALL(... RESTRICTION ...)`,
-- komplexe WHERE-Objektgraphen mit Hilfsobjekten oder Links,
+- Objektmengenrouten oberhalb des Polymorphie-Budgets oder mit nicht materialisierbarer tiefer Polymorphie,
+- komplexe WHERE-Objektgraphen, die nicht sicher mit dem Objektmengengraphen vereinigt werden können,
 - bestimmte Nullobjekt-Fixtures ohne WHERE,
 - geometry-aware Funktionen wie `INTERLIS.areAreas` / `areAreas2`,
 - unbekannte SET-spezifische AST-/Funktionsformen.
@@ -605,7 +651,7 @@ fachliche Regel
 -> proofVerified=true prüfen
 -> coverageUnsolved/Safety-Codes berichten
 -> updatedModelText übernehmen
--> bei bestehendem Modell genau ein reviewIliChange(Vorher, Nachher)
+-> Diff und afterReview aus demselben Aufruf prüfen
 ```
 
 Für einen bestehenden Constraint:
@@ -617,14 +663,13 @@ bei Bedarf reviewIliConstraint
 -> coverageComplete / coverageUnsolved berichten
 ```
 
-Für einen einfachen neuen UNIQUE-Schlüssel:
+Für einen neuen UNIQUE-Constraint:
 
 ```text
-createUniqueConstraint oder gezielte Quelltextänderung
--> Constraint in Modell integrieren
--> generateIliConstraintCases
--> generationVerified prüfen
--> reviewIliChange(Vorher, Nachher)
+authorIliUniqueConstraint
+-> proofVerified prüfen
+-> Diff und afterReview prüfen
+-> updatedModelText übernehmen
 ```
 
 Diese Abläufe vermeiden sowohl unbewiesene Semantik als auch redundante doppelte Validator-Durchläufe.

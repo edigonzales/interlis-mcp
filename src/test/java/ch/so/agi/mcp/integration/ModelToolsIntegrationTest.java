@@ -35,11 +35,13 @@ class ModelToolsIntegrationTest {
     private ModelTools modelTools;
 
     @Test
-    void createModelSnippet_usesDefaultsFromSpringContext() {
-        Map<String, Object> result = modelTools.createModelSnippet("TestModel", null, null, null, null, null, null, null);
+    void createModelSnippet_doesNotInventMetadataFromSpringContext() {
+        Map<String, Object> result = modelTools.createModelSnippet(
+                "TestModel", null, "https://example.org/testmodel", "2024-04-01", "2.4",
+                null, null, null);
 
         String expectedSnippet = "INTERLIS 2.4;\n\n" +
-                "MODEL TestModel (de) AT \"https://example.org/testmodel\" VERSION \"2024-04-01\" =\n" +
+                "MODEL TestModel AT \"https://example.org/testmodel\" VERSION \"2024-04-01\" =\n" +
                 "\n" +
                 "END TestModel.\n";
         assertEquals(expectedSnippet, result.get("iliSnippet"));

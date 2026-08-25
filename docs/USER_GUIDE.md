@@ -175,9 +175,9 @@ Wichtige Ergebnisfelder sind unter anderem:
 
 Wenn `reviewIliModel` die benötigte Antwort bereits liefert, sollten `validateIliModel`, `analyzeIliModel` und `checkModelingRules` nicht noch einmal routinemässig separat aufgerufen werden.
 
-## Aufgabe: ein Attribut zu einer bestehenden Klasse hinzufügen
+## Aufgabe: ein bestehendes Modell atomar ändern
 
-Für eine unterstützte semantische Änderung ist `applyIliModelChange` dem manuellen Umschreiben vorzuziehen. Aktuell unterstützt das Tool `ADD_ATTRIBUTE` für lokale `CLASS`- und `STRUCTURE`-Elemente.
+Für unterstützte semantische Änderungen ist `applyIliModelChanges` dem manuellen Umschreiben vorzuziehen. Ein Batch kann Imports, Topics, Domains, Units, Klassen, Strukturen, Assoziationen, Attribute und Constraints ergänzen sowie Attribute ändern oder löschen.
 
 Ausgangsmodell:
 
@@ -199,20 +199,25 @@ Passender Payload:
 {
   "modelText": "<vollständiger Modelltext>",
   "request": {
-    "operation": "ADD_ATTRIBUTE",
-    "addAttribute": {
-      "containerFqn": "Demo.Data.Building",
-      "attribute": {
-        "name": "egid",
-        "mandatory": true,
-        "typeSpec": {
-          "baseType": {
-            "kind": "TEXT",
-            "length": 14
+    "changes": [
+      {
+        "operation": "ADD_ATTRIBUTE",
+        "addAttribute": {
+          "containerFqn": "Demo.Data.Building",
+          "attribute": {
+            "name": "egid",
+            "mandatory": true,
+            "typeSpec": {
+              "baseType": {
+                "kind": "TEXT",
+                "length": 14
+              }
+            }
           }
         }
       }
-    }
+    ],
+    "allowPotentiallyBreaking": false
   },
   "modelPurpose": "CAPTURE",
   "ruleProfile": "CORE"
@@ -220,6 +225,10 @@ Passender Payload:
 ```
 
 Bei Erfolg liefert das Tool `status=APPLIED` und `updatedModelText`. Es kompiliert Vorher und Nachher, prüft den semantischen Diff auf unerwartete Kollateraleffekte und enthält bereits das `afterReview` des neuen Stands.
+
+`UPDATE_ATTRIBUTE` enthält einen Patch. Nicht angegebene fachliche Eigenschaften bedeuten `KEEP`; IliDoc und Metaattribute besitzen explizite KEEP-/SET-/REMOVE- beziehungsweise KEEP-/REPLACE-/REMOVE-Aktionen. `REMOVE_ATTRIBUTE` braucht nur das eindeutige lokale `attributeFqn` und entfernt zusätzlich eindeutig zugeordnete Annotationen. Referenzen auf ein gelöschtes Attribut werden durch den After-Compile abgewiesen.
+
+Bei potenziell brechender Semantik liefert das Tool ohne Bestätigung nur `candidateModelText` und `status=BREAKING_CHANGE_REQUIRES_CONFIRMATION`. Der unveränderte Batch muss danach explizit mit `allowPotentiallyBreaking=true` erneut aufgerufen werden.
 
 Für denselben unveränderten Nachher-Stand ist deshalb kein zusätzliches `reviewIliChange` oder `reviewIliModel` nötig.
 
@@ -262,7 +271,7 @@ Das enthaltene `afterReview` ist der Abschlussreview für genau diesen Nachher-S
 }
 ```
 
-Das Tool liefert einen vollständig neu generierten `updatedModelText`. Anders als `applyIliModelChange` ist dieser Vorgang **nicht source-preserving** bezüglich Whitespace und Deklarationslayout. Verwende ihn deshalb, wenn semantische Robustheit wichtiger ist als die Beibehaltung der ursprünglichen Formatierung.
+Das Tool liefert einen vollständig neu generierten `updatedModelText`. Anders als `applyIliModelChanges` ist dieser Vorgang **nicht source-preserving** bezüglich Whitespace und Deklarationslayout. Verwende ihn deshalb, wenn semantische Robustheit wichtiger ist als die Beibehaltung der ursprünglichen Formatierung.
 
 ## Aufgabe: ein ähnliches Modell als Vorbild finden
 
@@ -288,29 +297,23 @@ Anschliessend:
 
 `readModelExample` akzeptiert nur Pfade innerhalb des konfigurierten Modellkorpus.
 
-## Aufgabe: ein Geometrieattribut vorbereiten
+## Aufgabe: ein Geometrieattribut modellieren
 
-Für Geometrieattribute ist `ensureGeometryDependencies` der bevorzugte Einstieg. Ohne CHBase muss die bereits fachlich gewählte Koordinatendomain explizit angegeben werden; der Server erfindet kein CRS und keine Achsgrenzen.
+Geometrieattribute werden über `GeometryTypeSpec` direkt in `authorIliModel` oder `applyIliModelChanges` modelliert. Ohne CHBase muss die fachlich gewählte Koordinatendomain explizit angegeben werden; der Server erfindet kein CRS und keine Achsgrenzen.
 
 Beispiel:
 
 ```json
 {
-  "attributeName": "Perimeter",
-  "geometryType": "SURFACE",
+  "provider": "INTERLIS",
+  "kind": "SURFACE",
   "coordDomainFqn": "Demo.Coord2",
-  "arcs": true
+  "arcs": true,
+  "overlapMm": 0.001
 }
 ```
 
-Das Resultat enthält:
-
-- `importLinesToAdd`
-- `domainsToAdd`
-- `attributeLine`
-- `notes`
-
-`domainsToAdd` bleibt in diesem Fall leer. Eine neue Domain kann separat mit expliziten Achsgrenzen über den Koordinatendomain-Helper erzeugt werden. Der Agent integriert die Bausteine anschliessend in den Modelltext und prüft den vollständigen Stand.
+Die erforderlichen Imports werden ausschliesslich aus dem explizit gewählten Typ abgeleitet und in `derivedImports` ausgewiesen. INTERLIS-Geometrien verlangen alle anwendbaren Angaben; CHBase akzeptiert nur bekannte Typen der tatsächlichen INTERLIS-Version.
 
 ## Aufgabe: einen neuen Constraint erstellen
 
@@ -321,10 +324,12 @@ Für neue Constraints sollte das höchste semantische Authoring-Tool verwendet w
 | MANDATORY | `authorIliMandatoryConstraint` |
 | EXISTENCE | `authorIliExistenceConstraint` |
 | PLAUSIBILITY | `authorIliPlausibilityConstraint` |
-| SET mit `INTERLIS.objectCount(ALL)` | `authorIliSetConstraint` |
-| UNIQUE | noch kein gleichwertiges typisiertes Authoring; einfacher Snippet-Helper `createUniqueConstraint` |
+| SET mit `OBJECT_COUNT` oder `BOOLEAN_EXPRESSION` | `authorIliSetConstraint` |
+| UNIQUE | `authorIliUniqueConstraint` |
 
-Ein typisiertes Authoring-Tool liefert bei Erfolg `proofVerified=true` und `updatedModelText`. Der Constraint-Proof ist damit abgeschlossen. Wurde ein bestehendes Modell durch Constraint-Authoring geändert, wird das gesamte Modell danach **einmal** mit `reviewIliChange(before, updatedModelText)` geprüft.
+Ein typisiertes Authoring-Tool liefert bei Erfolg `proofVerified=true`, den semantischen Diff, `afterReview` und `updatedModelText`. Proof und Modellreview sind damit für genau diesen Text abgeschlossen; ein zusätzliches `reviewIliChange` ist nicht nötig.
+
+Alle fünf Tools erwarten `modelText`, `contextFqn` und ein `spec` mit verbindlichem `kind`. Alte flache Payloads werden abgewiesen. Ein kompilierbarer, aber nicht vollständig bewiesener Stand erscheint nur als `candidateModelText`, beispielsweise mit `PROOF_INCOMPLETE` oder `EXTERNAL_FUNCTION_SEMANTICS_REQUIRED`.
 
 Ein ausführliches MANDATORY-Beispiel sowie Beispiele für EXISTENCE, PLAUSIBILITY, UNIQUE und SET stehen in [Constraints](CONSTRAINTS.md).
 

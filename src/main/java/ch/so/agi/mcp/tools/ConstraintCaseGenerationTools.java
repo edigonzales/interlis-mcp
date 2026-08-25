@@ -1,6 +1,14 @@
 package ch.so.agi.mcp.tools;
 
 import ch.interlis.ili2c.generator.Interlis2Generator;
+import ch.interlis.ili2c.metamodel.ExistenceConstraint;
+import ch.interlis.ili2c.metamodel.AttributeRef;
+import ch.interlis.ili2c.metamodel.MultiAreaType;
+import ch.interlis.ili2c.metamodel.MultiCoordType;
+import ch.interlis.ili2c.metamodel.MultiPolylineType;
+import ch.interlis.ili2c.metamodel.MultiSurfaceType;
+import ch.interlis.ili2c.metamodel.PathElRefAttr;
+import ch.interlis.ili2c.metamodel.Type;
 import ch.so.agi.mcp.constraint.CompiledConstraintContext;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.constraint.ConstraintCoveragePlanner;
@@ -36,7 +44,8 @@ public class ConstraintCaseGenerationTools {
 
   @McpTool(
       name = "generateIliConstraintCases",
-      description = "Erzeugt fuer unterstuetzte INTERLIS Mandatory-, UNIQUE-, EXISTENCE-, PLAUSIBILITY- und SET-Constraints automatisch modellbewusste Witness-, Counterexample-, Boundary- und Scope-Faelle. Verwendet einen einmal kompilierten Constraint-Kontext fuer AST/semantische IR, Solver/Object-Graph-Synthese und Validator-Fixtures. Mandatory nutzt die bestehende Expression-Coverage-Pipeline. UNIQUE prueft globale, WHERE-, (BASKET)- und LOCAL-Semantik. EXISTENCE prueft skalare Werte sowie direkte STRUCTURE/COMPOSITION-Gleichheit member-wise; REFERENCE-, COORD- und komplexe Geometrieformen werden mit expliziten Safety-Reason-Codes als nicht automatisch beweisbar ausgewiesen statt approximiert. PLAUSIBILITY erzeugt echte Populationen knapp unter, auf und ueber der Prozentgrenze. SET unterstuetzt den typisierten objectCount(ALL)-Proof inklusive WHERE-Filterung und globaler vs. (BASKET)-Scope-Semantik. Alle generierten Faelle werden mit dem realen ilivalidator verifiziert."
+      description = "Erzeugt fuer INTERLIS Mandatory-, UNIQUE-, EXISTENCE-, PLAUSIBILITY- und SET-Constraints modellbewusste Witness-, Counterexample-, Boundary- und Scope-Faelle. Verwendet einen einmal kompilierten Constraint-Kontext fuer AST/semantische IR, Solver, Object-Graph-Synthese, TypedValueFixtureFactory, NavigationGraphSynthesizer und Validator-Fixtures. UNIQUE prueft GLOBAL/WHERE/(BASKET)/LOCAL sowie direkte REFERENCE-, STRUCTURE-/COMPOSITION- und Geometrieschlüssel. EXISTENCE prueft skalare, Struktur-, REFERENCE-, COORD-, Linien-, Flaechen- und Multigeometriewerte; Validatorgrenzen werden mit Safety-Reason-Codes zurückgehalten. PLAUSIBILITY erzeugt echte Populationen an der Prozentgrenze. SET unterstützt OBJECT_COUNT einschließlich objectCount(ALL), navigierte Objektmengen, boolesche Ausdrücke und Scope-Semantik, soweit alles materialisierbar ist. Alle freigegebenen Faelle sind vom realen ilivalidator bestätigt.",
+      annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> generateIliConstraintCases(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,
@@ -60,7 +69,7 @@ public class ConstraintCaseGenerationTools {
    * Internal entry point for callers that already own the compiled model and resolved constraint.
    * No ili2c compilation is performed by this method.
    */
-  Map<String, Object> generateCompiledConstraintCases(CompiledConstraintContext context) {
+  public Map<String, Object> generateCompiledConstraintCases(CompiledConstraintContext context) {
     Objects.requireNonNull(context, "context");
     if (context.semantics() instanceof SemanticConstraint.Mandatory mandatory) {
       return generateMandatoryConstraintCases(context, mandatory);
@@ -240,10 +249,23 @@ public class ConstraintCaseGenerationTools {
     }
     response.put("verification", verification);
     if (!verified) {
-      response.put("reasonCode", "GENERATED_CASES_NOT_VERIFIED");
-      response.put(
-          "reason",
-          "EXISTENCE proof cases were generated, but the real validator did not confirm all expected outcomes.");
+      boolean referenceEquality = context.constraint() instanceof ExistenceConstraint raw
+          && raw.getRestrictedAttribute() != null
+          && raw.getRestrictedAttribute().getLastPathEl() instanceof PathElRefAttr;
+      boolean multigeometryEquality = context.constraint() instanceof ExistenceConstraint raw
+          && raw.getRestrictedAttribute() != null
+          && raw.getRestrictedAttribute().getLastPathEl() instanceof AttributeRef ref
+          && isMultigeometry(ref.getAttr().getDomainOrDerivedDomain());
+      response.put("reasonCode", referenceEquality
+          ? "REFERENCE_EQUALITY_VALIDATOR_FAILURE"
+          : multigeometryEquality
+              ? "GEOMETRY_EQUALITY_VALIDATOR_FAILURE"
+              : "GENERATED_CASES_NOT_VERIFIED");
+      response.put("reason", referenceEquality
+          ? "The installed ilivalidator cannot execute REFERENCE-valued EXISTENCE equality without an internal error; the OID fixtures remain unproved."
+          : multigeometryEquality
+              ? "The installed ilivalidator cannot execute multigeometry-valued EXISTENCE equality without an internal error; the valid fixtures remain unproved."
+              : "EXISTENCE proof cases were generated, but the real validator did not confirm all expected outcomes.");
     }
     response.put("limitations", limitations());
     return response;
@@ -387,6 +409,9 @@ public class ConstraintCaseGenerationTools {
         if (!all.restrictedToFqns().isEmpty()) {
           result.put("allRestrictedToFqns", all.restrictedToFqns());
         }
+      } else if (objectCount.objects() instanceof SemanticConstraint.NavigatedObjects navigated) {
+        result.put("objectSet", "PATH");
+        result.put("objectPath", navigated.path().path());
       }
     }
     return Map.copyOf(result);
@@ -564,20 +589,27 @@ public class ConstraintCaseGenerationTools {
 
   private List<String> limitations() {
     return List.of(
-        "Automatic semantic generation covers all five INTERLIS constraint kinds for their documented proof-capable subsets. SET currently proves typed INTERLIS.objectCount(ALL) comparisons, including direct WHERE filtering and global versus (BASKET) scope.",
-        "SET preserves ili2c ALL base/RESTRICTION metadata but automatic proof currently accepts plain ALL only. Geometry-aware SET functions such as INTERLIS.areAreas/areAreas2 remain explicit unsupported boundaries rather than being approximated.",
-        "SET WHERE proof requires the finite-domain solver to synthesize one direct included and one direct excluded context object without auxiliary graph objects or links. More complex WHERE graphs remain coverageUnsolved.",
+        "Automatic semantic generation covers all five INTERLIS constraint kinds. SET supports OBJECT_COUNT over ALL and a typed navigated object path plus boolean expressions; every unmaterializable route remains explicit coverageUnsolved.",
+        "SET preserves ili2c base/RESTRICTION and polymorphy metadata. Geometry-aware SET functions such as INTERLIS.areAreas/areAreas2 remain unsupported unless executable semantics are registered.",
+        "SET WHERE and navigated object-set graphs are merged only when cardinalities and all concrete target routes can be synthesized without changing the population silently.",
         "PLAUSIBILITY proof uses the real population semantics: condition TRUE and validator skipEvaluation count as successful members, and successful/total*100 is compared with the declared >= or <= threshold. Boundary populations are capped at 20 context objects per generated case.",
         "PLAUSIBILITY population synthesis requires each generated condition member graph to contain exactly one object of the constraint context so the percentage denominator cannot change silently; unsupported graph shapes remain coverageUnsolved.",
-        "EXISTENCE proof supports scalar NUMERIC, BOOLEAN, ENUM, TEXT and MTEXT paths plus direct STRUCTURE/COMPOSITION equality for the same component type, small compatible cardinalities and identical source/target attribute names.",
-        "REFERENCE-valued EXISTENCE is intentionally guarded by EXISTENCE_REFERENCE_VALUE_PROOF_UNSAFE; current validator behavior is not used as a substitute for a value-discriminating equality proof.",
-        "COORD EXISTENCE has dedicated validator semantics but no arbitrary value-aware automatic fixture injection yet. POLYLINE/SURFACE/AREA fixtures are likewise not synthesized automatically; these boundaries are returned with explicit reason codes.",
+        "EXISTENCE supports scalar NUMERIC, BOOLEAN, ENUM, TEXT and MTEXT plus direct STRUCTURE/COMPOSITION, REFERENCE-OID, COORD, POLYLINE, SURFACE, AREA and INTERLIS-2.4-Multigeometrie-Fixtures.",
+        "The installed ilivalidator currently fails while comparing REFERENCE and multigeometry EXISTENCE values. Such valid fixtures are withheld with REFERENCE_EQUALITY_VALIDATOR_FAILURE or GEOMETRY_EQUALITY_VALIDATOR_FAILURE.",
         "Navigated non-scalar EXISTENCE paths are reported as unsupported instead of approximated.",
-        "Global UNIQUE keys reuse the existing scalar path binder/object-graph synthesizer; the same navigation limit of at most one multi-valued step and no geometry key synthesis applies.",
+        "Global UNIQUE supports scalar/navigated keys plus direct references, structures, COORD, lines, surfaces and multigeometries. AREA duplicates that cannot isolate UNIQUE from topology are withheld.",
         "LOCAL UNIQUE proof currently requires a direct structure/composition prefix and direct scalar member keys. Navigated LOCAL member keys are reported as unsolved rather than approximated.",
         "UNIQUE WHERE uses the finite-domain expression solver. If the predicate cannot be solved both true and false, or the false branch cannot preserve the same key, coverageComplete=false exposes the missing proof goal.",
         "The finite-domain solver is deliberately not complete; coverageComplete=false and coverageUnsolved expose goals that could not be solved.",
         "automaticCasesAvailable=true is returned only after every generated case passes the real ilivalidator with the expected outcome.");
+  }
+
+  private boolean isMultigeometry(Type declared) {
+    Type real = Type.findReal(declared);
+    return real instanceof MultiCoordType
+        || real instanceof MultiPolylineType
+        || real instanceof MultiSurfaceType
+        || real instanceof MultiAreaType;
   }
 
   private record GeneratedCases(

@@ -88,7 +88,7 @@ class ConstraintExistenceSpecialCaseGenerationTest {
         "StructureExists");
 
     assertThat(result.get("automaticCasesGenerated")).isEqualTo(true);
-    assertThat(result.get("automaticCasesAvailable")).isEqualTo(true);
+    assertThat(result.get("automaticCasesAvailable")).as(result.toString()).isEqualTo(true);
     assertThat(result.get("generationVerified")).isEqualTo(true);
     assertThat(result.get("coverageComplete")).isEqualTo(true);
     assertThat(result.get("pattern")).isEqualTo("EXISTENCE_SEMANTIC_PROOF");
@@ -123,27 +123,37 @@ class ConstraintExistenceSpecialCaseGenerationTest {
   }
 
   @Test
-  void referenceExistenceIsRejectedByExplicitSafetyGate() {
+  void referenceExistenceIsWithheldWhenValidatorCannotCompareTargetOids() {
     Map<String, Object> result = tools(new IliCompilerService()).generateIliConstraintCases(
         REFERENCE_MODEL,
         "ReferenceExists");
 
-    assertThat(result.get("automaticCasesGenerated")).isEqualTo(false);
-    assertThat(result.get("automaticCasesAvailable")).isEqualTo(false);
+    assertThat(result.get("automaticCasesGenerated")).isEqualTo(true);
+    assertThat(result.get("automaticCasesAvailable")).as(result.toString()).isEqualTo(false);
     assertThat(result.get("generationVerified")).isEqualTo(false);
-    assertThat(result.get("reasonCode")).isEqualTo("EXISTENCE_REFERENCE_VALUE_PROOF_UNSAFE");
-    assertThat(result.get("reason").toString()).contains("not value-discriminating");
+    assertThat(result.get("coverageComplete")).isEqualTo(true);
+    assertThat(maps(result.get("generatedCases")))
+        .anySatisfy(item -> assertCase(
+            item, "same referenced target OID in REQUIRED IN branch 1", true))
+        .anySatisfy(item -> assertCase(
+            item, "different referenced target OID in REQUIRED IN branch 1", false))
+        .anySatisfy(item -> assertCase(item, "undefined optional reference", true));
+    assertThat(result.get("reasonCode")).isEqualTo("REFERENCE_EQUALITY_VALIDATOR_FAILURE");
   }
 
   @Test
-  void coordExistenceReportsFixtureBoundaryInsteadOfPretendingScalarSemantics() {
+  void coordExistenceUsesValueAwareValidatorConfirmedFixtures() {
     Map<String, Object> result = tools(new IliCompilerService()).generateIliConstraintCases(
         COORD_MODEL,
         "CoordExists");
 
-    assertThat(result.get("automaticCasesGenerated")).isEqualTo(false);
-    assertThat(result.get("reasonCode")).isEqualTo("EXISTENCE_COORD_FIXTURE_NOT_VALUE_AWARE");
-    assertThat(result.get("reason").toString()).contains("coordinate values");
+    assertThat(result.get("automaticCasesGenerated")).isEqualTo(true);
+    assertThat(result.get("automaticCasesAvailable")).as(result.toString()).isEqualTo(true);
+    assertThat(result.get("generationVerified")).isEqualTo(true);
+    assertThat(result.get("coverageComplete")).isEqualTo(true);
+    assertThat(maps(result.get("generatedCases")))
+        .anySatisfy(item -> assertCase(item, "equal COORD in REQUIRED IN branch 1", true))
+        .anySatisfy(item -> assertCase(item, "different COORD in REQUIRED IN branch 1", false));
   }
 
   private ConstraintCaseGenerationTools tools(IliCompilerService compiler) {

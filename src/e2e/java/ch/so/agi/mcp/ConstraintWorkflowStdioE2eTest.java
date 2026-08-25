@@ -77,11 +77,12 @@ class ConstraintWorkflowStdioE2eTest {
     assertContainsAll(
         resource,
         "authorIliMandatoryConstraint",
+        "authorIliUniqueConstraint",
         "authorIliExistenceConstraint",
         "authorIliPlausibilityConstraint",
         "authorIliSetConstraint",
         "generateIliConstraintCases",
-        "reviewIliChange",
+        "afterReview",
         "proofVerified",
         "generationVerified");
 
@@ -93,9 +94,10 @@ class ConstraintWorkflowStdioE2eTest {
         prompt,
         "SET",
         "authorIliSetConstraint",
+        "authorIliUniqueConstraint",
         "generateIliConstraintCases",
         "proofVerified=true",
-        "reviewIliChange");
+        "afterReview");
   }
 
   @Test
@@ -116,16 +118,23 @@ class ConstraintWorkflowStdioE2eTest {
 
     String arguments = "{"
         + "\"modelText\":" + jsonString(modelText) + ","
-        + "\"context\":\"SetWorkflowE2e.Data.Item\","
-        + "\"constraintName\":\"AtLeastTwoHigh\","
-        + "\"operator\":\">=\","
-        + "\"threshold\":2,"
-        + "\"perBasket\":false,"
+        + "\"contextFqn\":\"SetWorkflowE2e.Data.Item\","
+        + "\"spec\":{"
+        + "\"kind\":\"SET\","
+        + "\"name\":\"AtLeastTwoHigh\","
+        + "\"scope\":\"GLOBAL\","
         + "\"where\":{"
-        + "\"attribute\":\"value\","
+        + "\"kind\":\"COMPARE\","
         + "\"operator\":\">=\","
-        + "\"valueKind\":\"NUMERIC\","
-        + "\"value\":5"
+        + "\"children\":["
+        + "{\"kind\":\"ATTRIBUTE\",\"name\":\"value\"},"
+        + "{\"kind\":\"NUMERIC\",\"value\":5}"
+        + "]},"
+        + "\"condition\":{"
+        + "\"kind\":\"OBJECT_COUNT\","
+        + "\"objects\":{\"kind\":\"ALL\"},"
+        + "\"operator\":\">=\","
+        + "\"threshold\":2}"
         + "}"
         + "}";
 
@@ -138,7 +147,9 @@ class ConstraintWorkflowStdioE2eTest {
         "\\\"proofVerified\\\":true",
         "\\\"generationVerified\\\":true",
         "\\\"updatedModelText\\\"",
-        "SET CONSTRAINT WHERE value >= 5:",
+        "\\\"semanticDiff\\\"",
+        "\\\"afterReview\\\"",
+        "SET CONSTRAINT WHERE (value >= 5):",
         "INTERLIS.objectCount(ALL)",
         "AtLeastTwoHigh");
   }

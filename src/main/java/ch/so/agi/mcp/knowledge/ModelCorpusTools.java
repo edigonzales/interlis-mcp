@@ -18,7 +18,8 @@ public class ModelCorpusTools {
 
   @McpTool(
       name = "indexConfiguredModels",
-      description = "Inventar-/Admin-Tool: scannt die konfigurierten lokalen INTERLIS-Beispielpfade und gibt den aktuellen In-Memory-Index zurueck. Nicht fuer die normale Mustersuche verwenden; dafuer findSimilarModels."
+      description = "Inventar-/Admin-Tool: scannt die konfigurierten lokalen INTERLIS-Beispielpfade und gibt den aktuellen In-Memory-Index zurueck. Nicht fuer die normale Mustersuche verwenden; dafuer findSimilarModels.",
+      annotations = @McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = false, idempotentHint = true, openWorldHint = false)
   )
   public Map<String, Object> indexConfiguredModels() {
     return corpusService.indexConfiguredModels();
@@ -26,7 +27,8 @@ public class ModelCorpusTools {
 
   @McpTool(
       name = "findSimilarModels",
-      description = "Discovery-Tool fuer passende INTERLIS-Beispiele im konfigurierten lokalen Modellkorpus. Verwenden, um Kandidaten fuer einen fachlichen oder strukturellen Modellierungsfall zu finden. Vor der Uebernahme eines Musters einen relevanten Treffer mit readModelExample vollstaendig lesen; nicht nur aus Treffer-Metadaten modellieren."
+      description = "Discovery-Tool fuer passende INTERLIS-Beispiele im konfigurierten lokalen Modellkorpus. Verwenden, um Kandidaten fuer einen fachlichen oder strukturellen Modellierungsfall zu finden. Vor der Uebernahme eines Musters einen relevanten Treffer mit readModelExample vollstaendig lesen; nicht nur aus Treffer-Metadaten modellieren.",
+      annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = false)
   )
   public Map<String, Object> findSimilarModels(
       @McpToolParam(description = "Suchbegriffe, fachlicher Kontext oder gewuenschte Modellstruktur", required = false) @Nullable String query,
@@ -39,7 +41,8 @@ public class ModelCorpusTools {
 
   @McpTool(
       name = "readModelExample",
-      description = "Liest den vollstaendigen Quelltext eines ausgewaehlten INTERLIS-Beispielmodells. Verwenden nach findSimilarModels oder bei einem bekannten path aus indexConfiguredModels, bevor ein Muster uebernommen wird. Nicht zum Lesen beliebiger Dateien verwenden; Pfade ausserhalb des konfigurierten Korpus werden abgelehnt."
+      description = "Liest den vollstaendigen Quelltext eines ausgewaehlten INTERLIS-Beispielmodells. Verwenden nach findSimilarModels oder bei einem bekannten path aus indexConfiguredModels, bevor ein Muster uebernommen wird. Nicht zum Lesen beliebiger Dateien verwenden; Pfade ausserhalb des konfigurierten Korpus werden abgelehnt.",
+      annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = false)
   )
   public Map<String, Object> readModelExample(
       @McpToolParam(description = "Pfad eines Treffers aus findSimilarModels oder indexConfiguredModels", required = true) String path

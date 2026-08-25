@@ -15,10 +15,7 @@ class ConstraintToolsTest {
     void uniqueConstraint_trimsAttributesAndJoinsWithComma() {
         Map<String, Object> response = constraintTools.unique(List.of("  name  ", "lage"), null, null);
 
-        assertEquals(String.join("\n",
-                "CONSTRAINTS",
-                "  UNIQUE name, lage;"
-        ), response.get("iliSnippet"));
+        assertEquals("UNIQUE name, lage;", response.get("iliSnippet"));
     }
 
 }

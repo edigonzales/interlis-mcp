@@ -2,7 +2,7 @@ package ch.so.agi.mcp.change;
 
 import ch.so.agi.mcp.analysis.ModelPurpose;
 import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
-import java.util.Map;
+import ch.so.agi.mcp.model.IliAuthoringResult;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
@@ -11,25 +11,30 @@ import org.springframework.stereotype.Component;
 @Component
 public class IliModelChangeTools {
 
-  private final IliModelChangeService changeService;
+  private final IliModelChangesService changesService;
 
-  public IliModelChangeTools(IliModelChangeService changeService) {
-    this.changeService = changeService;
+  public IliModelChangeTools(IliModelChangesService changesService) {
+    this.changesService = changesService;
   }
 
   @McpTool(
-      name = "applyIliModelChange",
-      description = "Standard-Tool fuer unterstuetzte semantische Aenderungen an einem bestehenden vollstaendigen INTERLIS-Modell. Fuehrt die Aenderung source-preserving aus, kompiliert Vorher und Nachher hoechstens einmal und liefert den semantischen Diff sowie afterReview als Abschlussgate. Aktuell wird ADD_ATTRIBUTE fuer CLASS und STRUCTURE unterstuetzt. Bei erfolgreichem APPLIED-Resultat nicht routinemaessig noch reviewIliChange fuer denselben unveraenderten Nachher-Stand aufrufen. Fuer noch nicht unterstuetzte Aenderungen den Modelltext direkt bearbeiten und mit reviewIliChange abschliessen."
-  )
-  public Map<String, Object> applyIliModelChange(
-      @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext vor der Aenderung", required = true)
+      name = "applyIliModelChanges",
+      description = "Wendet einen typisierten Batch atomar und source-preserving auf ein vollständiges INTERLIS-Modell an. Unterstützt ADD_IMPORT, ADD_TOPIC, ADD_DOMAIN, ADD_UNIT, ADD_CLASS, ADD_STRUCTURE, ADD_ASSOCIATION, ADD_ATTRIBUTE, UPDATE_ATTRIBUTE, REMOVE_ATTRIBUTE und ADD_CONSTRAINT. Der gesamte Batch nutzt genau einen Before- und einen After-Compile; Diff und afterReview werden daraus wiederverwendet. Das Breaking-Change-Gate liefert bei potenziell brechenden Änderungen ohne explizites allowPotentiallyBreaking=true nur einen geprüften candidateModelText. Das Tool schreibt keine Datei.",
+      generateOutputSchema = true,
+      annotations = @McpTool.McpAnnotations(
+          readOnlyHint = true,
+          destructiveHint = false,
+          idempotentHint = true,
+          openWorldHint = true))
+  public IliAuthoringResult applyIliModelChanges(
+      @McpToolParam(description = "Vollständiger INTERLIS-2 Modelltext vor dem Batch", required = true)
       String modelText,
-      @McpToolParam(description = "Typisierte Aenderung. ADD_ATTRIBUTE benoetigt addAttribute.containerFqn und addAttribute.attribute.", required = true)
-      IliModelChangeRequest request,
+      @McpToolParam(description = "Typisierter atomarer Batch und Breaking-Change-Freigabe", required = true)
+      IliModelChangesRequest request,
       @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false)
       @Nullable ModelPurpose modelPurpose,
       @McpToolParam(description = "Regelprofil: CORE oder SO (Default CORE)", required = false)
       @Nullable ModelingRuleProfile ruleProfile) {
-    return changeService.apply(modelText, request, null, modelPurpose, ruleProfile);
+    return changesService.apply(modelText, request, null, modelPurpose, ruleProfile);
   }
 }

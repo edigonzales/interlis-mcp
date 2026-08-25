@@ -3,8 +3,10 @@ package ch.so.agi.mcp.tools;
 import ch.so.agi.mcp.constraint.CompiledConstraintContext;
 import ch.so.agi.mcp.constraint.ConstraintExpression;
 import ch.so.agi.mcp.constraint.ConstraintExpressionEngine;
+import ch.so.agi.mcp.constraint.ConstraintCoveragePlanner;
 import ch.so.agi.mcp.constraint.ConstraintGoalSolver;
 import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer;
+import ch.so.agi.mcp.constraint.NavigationGraphSynthesizer;
 import ch.so.agi.mcp.constraint.SemanticConstraint;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -17,7 +19,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** Validator-backed B10/B11 proof planning for SET objectCount(ALL) semantics. */
+/** Validator-backed proof planning for SET object counts and boolean expressions. */
 final class SetConstraintCasePlanner {
 
   private static final int MAX_COUNT = 20;
@@ -67,21 +69,27 @@ final class SetConstraintCasePlanner {
     List<Map<String, Object>> summaries = new ArrayList<>();
     List<Map<String, Object>> unsolved = new ArrayList<>();
 
+    if (set.condition() instanceof SemanticConstraint.ValueSetCondition valueCondition) {
+      return planBooleanExpression(context, set, valueCondition.expression());
+    }
     if (!(set.condition() instanceof SemanticConstraint.ObjectCountSetCondition objectCount)) {
       String reasonCode = set.condition() instanceof SemanticConstraint.UntranslatedSetCondition untranslated
           ? untranslated.reasonCode()
           : "SET_CONDITION_PROOF_UNSUPPORTED";
       unsolved.add(Map.of(
           "reasonCode", reasonCode,
-          "reason", "Automatic SET proof currently requires an objectCount(ALL) comparison.",
+          "reason", "Automatic SET proof requires a translated objectCount comparison or boolean expression.",
           "conditionKind", set.condition().getClass().getSimpleName()));
       return new Plan(cases, summaries, unsolved);
     }
 
     if (!(objectCount.objects() instanceof SemanticConstraint.AllObjects all)) {
+      if (objectCount.objects() instanceof SemanticConstraint.NavigatedObjects navigated) {
+        return planNavigatedObjectCount(context, set, objectCount, navigated);
+      }
       unsolved.add(Map.of(
           "reasonCode", "SET_OBJECT_SET_EXPRESSION_UNSUPPORTED",
-          "reason", "Automatic SET proof currently supports the ili2c ALL object-set expression only."));
+          "reason", "The compiled SET object-set expression is unsupported."));
       return new Plan(cases, summaries, unsolved);
     }
     if (!all.plain()) {
@@ -212,6 +220,161 @@ final class SetConstraintCasePlanner {
     }
 
     return new Plan(cases, summaries, unsolved);
+  }
+
+  private static Plan planNavigatedObjectCount(
+      CompiledConstraintContext context,
+      SemanticConstraint.Set set,
+      SemanticConstraint.ObjectCountSetCondition condition,
+      SemanticConstraint.NavigatedObjects objects) {
+    List<ConstraintTestTools.TestCase> cases = new ArrayList<>();
+    List<Map<String, Object>> summaries = new ArrayList<>();
+    List<Map<String, Object>> unsolved = new ArrayList<>();
+    if (set.preCondition() != null) {
+      unsolved.add(Map.of(
+          "reasonCode", "SET_NAVIGATED_OBJECTS_WHERE_PROOF_UNAVAILABLE",
+          "reason", "Navigated objectCount with WHERE requires a combined root/selection graph solver.",
+          "goal", "NAVIGATED_OBJECT_SET_WHERE"));
+      return new Plan(cases, summaries, unsolved);
+    }
+    List<NavigationGraphSynthesizer.Binding> bindings;
+    try {
+      bindings = NavigationGraphSynthesizer.bindAll(
+          context.transferDescription(), set.contextFqn(), objects);
+    } catch (IllegalArgumentException ex) {
+      unsolved.add(Map.of(
+          "reasonCode", "SET_NAVIGATED_OBJECTS_BINDING_UNAVAILABLE",
+          "reason", ex.getMessage(),
+          "goal", objects.path().path()));
+      return new Plan(cases, summaries, unsolved);
+    }
+
+    int index = 1;
+    for (NavigationGraphSynthesizer.Binding binding : bindings) {
+      for (CountCandidate candidate : branchCandidates(condition)) {
+        try {
+          ConstraintModelSynthesizer.ObjectGraph graph = NavigationGraphSynthesizer.synthesize(
+              binding, candidate.count(), "set_path_" + index);
+          ConstraintTestTools.TestCase testCase = toTestCase(
+              "set navigated objectCount " + candidate.boundary().toLowerCase()
+                  + " selected=" + candidate.count()
+                  + " target=" + binding.routeTargetFqn(),
+              candidate.expectedValid(),
+              graph);
+          cases.add(testCase);
+          Map<String, Object> summary = new LinkedHashMap<>();
+          summary.put("name", testCase.name);
+          summary.put("purpose", candidate.expectedValid() ? "WITNESS" : "COUNTEREXAMPLE");
+          summary.put("boundary", candidate.boundary());
+          summary.put("objectSet", "PATH");
+          summary.put("objectPath", objects.path().path());
+          summary.put("routeTargetFqn", binding.routeTargetFqn());
+          summary.put("selectedCount", candidate.count());
+          summary.put("expectedConstraintValid", candidate.expectedValid());
+          summary.put("objectCount", graph.objects().size());
+          summary.put("associationLinkCount", graph.links().size());
+          summaries.add(Map.copyOf(summary));
+        } catch (IllegalArgumentException ex) {
+          unsolved.add(Map.of(
+              "reasonCode", "SET_NAVIGATED_OBJECTS_CARDINALITY_UNAVAILABLE",
+              "reason", ex.getMessage(),
+              "goal", candidate.boundary(),
+              "routeTargetFqn", binding.routeTargetFqn(),
+              "selectedCount", candidate.count()));
+        }
+        index++;
+      }
+    }
+
+    // A navigated objectCount is evaluated for each context object. Moving independent roots
+    // between baskets therefore cannot turn their per-object path counts into one global count;
+    // only objectCount(ALL) has a distinct cross-basket population goal.
+    return new Plan(cases, summaries, unsolved);
+  }
+
+  private static Plan planBooleanExpression(
+      CompiledConstraintContext context,
+      SemanticConstraint.Set set,
+      ConstraintExpression expression) {
+    List<ConstraintTestTools.TestCase> cases = new ArrayList<>();
+    List<Map<String, Object>> summaries = new ArrayList<>();
+    List<Map<String, Object>> unsolved = new ArrayList<>();
+    if (set.preCondition() != null) {
+      unsolved.add(Map.of(
+          "reasonCode", "SET_BOOLEAN_WHERE_COMBINED_PROOF_UNAVAILABLE",
+          "reason", "Boolean SET expressions with WHERE require a combined population solver; the candidate is retained instead of approximated.",
+          "goal", "WHERE_AND_BOOLEAN_CONDITION"));
+      return new Plan(cases, summaries, unsolved);
+    }
+    ConstraintModelSynthesizer.ModelBinding binding;
+    try {
+      binding = ConstraintModelSynthesizer.bind(
+          context.transferDescription(), set.contextFqn(), expression);
+    } catch (IllegalArgumentException ex) {
+      unsolved.add(Map.of(
+          "reasonCode", "SET_BOOLEAN_BINDING_UNAVAILABLE",
+          "reason", ex.getMessage(),
+          "goal", "BOOLEAN_EXPRESSION"));
+      return new Plan(cases, summaries, unsolved);
+    }
+    ConstraintCoveragePlanner.CoveragePlan coverage = ConstraintCoveragePlanner.solve(
+        expression, binding);
+    int index = 1;
+    for (ConstraintCoveragePlanner.CoverageCase coverageCase : coverage.cases()) {
+      Map<String, Object> assignment = coverageCase.solution().assignment();
+      boolean expected = ConstraintExpressionEngine.evaluateConstraint(
+          expression, ConstraintExpressionEngine.EvaluationContext.of(assignment));
+      ConstraintModelSynthesizer.ObjectGraph graph = ConstraintModelSynthesizer.synthesize(
+          binding, assignment, "set_boolean_" + index);
+      ConstraintTestTools.TestCase testCase = toTestCase(
+          "set boolean case " + index + " - " + coverageCase.goal().reason(),
+          expected,
+          graph);
+      cases.add(testCase);
+      Map<String, Object> summary = new LinkedHashMap<>();
+      summary.put("name", testCase.name);
+      summary.put("purpose", expected ? "WITNESS" : "COUNTEREXAMPLE");
+      summary.put("reason", coverageCase.goal().reason());
+      summary.put("source", coverageCase.goal().expression().toInterlis(set.version()));
+      summary.put("expectedConstraintValid", expected);
+      summary.put("values", summaryAssignment(assignment));
+      summary.put("objectCount", graph.objects().size());
+      summary.put("associationLinkCount", graph.links().size());
+      summaries.add(Map.copyOf(summary));
+      index++;
+    }
+    for (ConstraintGoalSolver.Solution solution : coverage.unsolved()) {
+      unsolved.add(Map.of(
+          "reasonCode", solution.reasonCode(),
+          "reason", solution.reason(),
+          "goal", solution.goal().reason(),
+          "expression", solution.goal().expression().toInterlis(set.version())));
+    }
+    return new Plan(cases, summaries, unsolved);
+  }
+
+  private static ConstraintTestTools.TestCase toTestCase(
+      String name,
+      boolean expected,
+      ConstraintModelSynthesizer.ObjectGraph graph) {
+    ConstraintTestTools.TestCase testCase = new ConstraintTestTools.TestCase();
+    testCase.name = name;
+    testCase.expectedConstraintValid = expected;
+    testCase.objects = graph.objects().stream().map(object -> {
+      ConstraintTestTools.TestObject result = new ConstraintTestTools.TestObject();
+      result.classFqn = object.classFqn();
+      result.oid = object.oid();
+      result.values = object.values();
+      result.references = object.references();
+      return result;
+    }).toList();
+    testCase.links = graph.links().stream().map(link -> {
+      ConstraintTestTools.TestLink result = new ConstraintTestTools.TestLink();
+      result.associationFqn = link.associationFqn();
+      result.roles = link.roles();
+      return result;
+    }).toList();
+    return testCase;
   }
 
   private static WhereTemplates whereTemplates(

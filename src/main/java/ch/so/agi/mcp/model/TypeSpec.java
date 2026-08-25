@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Pattern;
 public class TypeSpec {
 
   private static final String TYPE_SELECTION_ERROR =
-      "typeSpec must define exactly one of 'domainFqn', 'structureFqn', 'baseType', 'referenceType', 'blackboxType', 'enumTreeValueType', 'basketType', 'objectType' or 'metaobjectType'.";
+      "typeSpec must define exactly one of 'domainFqn', 'structureFqn', 'baseType', 'referenceType', 'blackboxType', 'enumTreeValueType', 'basketType', 'objectType', 'metaobjectType' or 'geometryType'.";
 
   @Pattern(regexp = "^([A-Za-z][A-Za-z0-9_]*)(\\.[A-Za-z][A-Za-z0-9_]*)*$", message = "FQN must be dot-separated identifiers")
   @JsonProperty(required = false)
@@ -30,6 +30,8 @@ public class TypeSpec {
   private ObjectTypeSpec objectType;
   @JsonProperty(required = false)
   private MetaobjectTypeSpec metaobjectType;
+  @JsonProperty(required = false)
+  private GeometryTypeSpec geometryType;
 
   public String getDomainFqn() { return domainFqn; }
   public void setDomainFqn(String domainFqn) { this.domainFqn = domainFqn; }
@@ -58,6 +60,9 @@ public class TypeSpec {
   public MetaobjectTypeSpec getMetaobjectType() { return metaobjectType; }
   public void setMetaobjectType(MetaobjectTypeSpec metaobjectType) { this.metaobjectType = metaobjectType; }
 
+  public GeometryTypeSpec getGeometryType() { return geometryType; }
+  public void setGeometryType(GeometryTypeSpec geometryType) { this.geometryType = geometryType; }
+
   public Object requireSingleType() {
     Object selected = null;
     Object[] candidates = {
@@ -69,7 +74,8 @@ public class TypeSpec {
         enumTreeValueType,
         basketType,
         objectType,
-        metaobjectType
+        metaobjectType,
+        geometryType
     };
 
     for (Object candidate : candidates) {

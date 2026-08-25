@@ -19,13 +19,14 @@ class ModelToolsTest {
   @Test
   void createsMinimalModelWithoutInventedMetadata() {
     Map<String, Object> result = tools.createModelSnippet(
-        "TestModel", null, null, null, null, null, null, null);
+        "TestModel", null, "https://example.org/testmodel", "2024-05-01", "2.4",
+        null, null, null);
 
     assertThat(result.get("iliSnippet").toString())
         .isEqualTo("""
             INTERLIS 2.4;
 
-            MODEL TestModel (de) AT "https://example.org/testmodel" VERSION "2024-05-01" =
+            MODEL TestModel AT "https://example.org/testmodel" VERSION "2024-05-01" =
 
             END TestModel.
             """)
@@ -59,22 +60,23 @@ class ModelToolsTest {
   @Test
   void rejectsInvalidModelMetadata() {
     assertThatThrownBy(() -> tools.createModelSnippet(
-        "Invalid-Model", null, null, null, null, null, null, null))
+        "Invalid-Model", null, "https://example.org", "v1", "2.4", null, null, null))
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> tools.createModelSnippet(
-        "Demo", "de", "relative/path", null, null, null, null, null))
+        "Demo", "de", "relative/path", "v1", "2.4", null, null, null))
         .hasMessageContaining("absolute URI");
     assertThatThrownBy(() -> tools.createModelSnippet(
-        "Demo", "DE", null, null, null, null, null, null))
+        "Demo", "DE", "https://example.org", "v1", "2.4", null, null, null))
         .hasMessageContaining("language code");
     assertThatThrownBy(() -> tools.createModelSnippet(
-        "Demo", null, null, "2024-02-31", null, null, null, null))
-        .hasMessageContaining("YYYY-MM-DD");
+        "Demo", null, "https://example.org", null, "2.4", null, null, null))
+        .hasMessageContaining("version is required");
     assertThatThrownBy(() -> tools.createModelSnippet(
-        "Demo", null, null, null, "2.2", null, null, null))
+        "Demo", null, "https://example.org", "v1", "2.2", null, null, null))
         .hasMessageContaining("2.3");
     assertThatThrownBy(() -> tools.createModelSnippet(
-        "Demo", null, null, null, null, List.of("INTERLIS", "INTERLIS"), null, null))
+        "Demo", null, "https://example.org", "v1", "2.4",
+        List.of("INTERLIS", "INTERLIS"), null, null))
         .hasMessageContaining("Duplicate");
   }
 }

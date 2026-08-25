@@ -185,7 +185,7 @@ public sealed interface SemanticConstraint
   }
 
   /** Object-set expression used as an actual argument to an OBJECTS OF function parameter. */
-  sealed interface ObjectSetExpression permits AllObjects {
+  sealed interface ObjectSetExpression permits AllObjects, NavigatedObjects {
   }
 
   /**
@@ -213,6 +213,16 @@ public sealed interface SemanticConstraint
 
     public boolean plain() {
       return baseFqn == null && restrictedToFqns.isEmpty();
+    }
+  }
+
+  /** A compiled, typed object path used as the source of an OBJECTS OF argument. */
+  record NavigatedObjects(ConstraintPath path) implements ObjectSetExpression {
+    public NavigatedObjects {
+      Objects.requireNonNull(path, "path");
+      if (path.attributePath()) {
+        throw new IllegalArgumentException("Navigated object sets must end in objects, not attributes.");
+      }
     }
   }
 

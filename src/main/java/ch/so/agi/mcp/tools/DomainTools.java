@@ -14,7 +14,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
-import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
@@ -65,8 +64,6 @@ public class DomainTools {
     }
   }
 
-  @McpTool(name = "createEnumDomainSnippet",
-        description = "Erzeugt eine Aufzählungs-DOMAIN. Params: name (required), items (legacy list of enum item names) XOR itemSpecs (annotated enum items), iliDoc, metaAttributes.")
   public Map<String,Object> createEnumDomain(
       @McpToolParam(description = "Domain-Name", required = true) String name,
       @McpToolParam(description = "Enum-Items in Reihenfolge (einfache Variante ohne Item-Metaattribute)", required = false) @Nullable List<String> items,
@@ -85,8 +82,6 @@ public class DomainTools {
     return Map.of("iliSnippet", snippet);
   }
 
-  @McpTool(name = "createNumericDomainSnippet",
-        description = "Erzeugt eine numerische DOMAIN. Params: name (required), min, max (required), unitFQN (optional), iliDoc, metaAttributes.")
   public Map<String,Object> createNumericDomain(
       @McpToolParam(description = "Domain-Name", required = true) String name,
       @McpToolParam(description = "Minimum", required = true) String min,
@@ -129,8 +124,6 @@ public class DomainTools {
     return Map.of("iliSnippet", snippet);
   }
 
-  @McpTool(name = "createUnitSnippet",
-        description = "Erzeugt eine linear abgeleitete UNIT. Params: name (required), factor (positiver Faktor zur Basis-Einheit), base (Basis-Unit, z. B. INTERLIS.m), iliDoc, metaAttributes.")
   public Map<String,Object> createUnit(
       @McpToolParam(description = "Einheiten-Name", required = true) String name,
       @McpToolParam(description = "Positiver Faktor zur Basis-Einheit, z. B. 1000 für Kilometer", required = true) BigDecimal factor,
@@ -160,8 +153,6 @@ public class DomainTools {
     return Map.of("iliSnippet", snippet);
   }
 
-  @McpTool(name = "createCoordDomainSnippet",
-        description = "Erzeugt eine COORD-DOMAIN aus expliziten Achsgrenzen und Einheiten. Es werden keine Koordinatensystem-Annahmen getroffen.")
   public Map<String, Object> createCoordDomainSnippet(
       @McpToolParam(description = "Domain-Name", required = true) String name,
       @McpToolParam(description = "Zwei oder drei Achsen mit min, max und unitFqn", required = true) List<CoordinateAxis> axes,
@@ -233,8 +224,6 @@ public class DomainTools {
     return Map.of("iliSnippet", snippet);
   }
 
-  @McpTool(name = "createEnumTreeDomainSnippet",
-      description = "Erzeugt eine verschachtelte Aufzählungs-DOMAIN. Params: name (required), items (required: recursive tree items), iliDoc, metaAttributes.")
   public Map<String, Object> createEnumTreeDomainSnippet(
       @McpToolParam(description = "Domain-Name", required = true) String name,
       @McpToolParam(description = "Rekursiver Enum-Baum. Jedes Element ist ein Objekt mit name (required) und optional iliDoc, metaAttributes und children mit derselben Struktur.", required = true) List<?> items,

@@ -19,7 +19,8 @@ public class XtfTools {
 
   @McpTool(
       name = "generateExampleXtf",
-      description = "Erzeugt aus einem INTERLIS-Modell ein deterministisches Minimal-XTF. Rückgabe: {generated,xtfText?,messages,basketCount,objectCount,objectsByClass,skippedClasses}."
+      description = "Erzeugt aus einem INTERLIS-Modell ein deterministisches Minimal-XTF. Rückgabe: {generated,xtfText?,messages,basketCount,objectCount,objectsByClass,skippedClasses}. Das Tool schreibt keine Datei.",
+      annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> generateExampleXtf(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
@@ -42,7 +43,8 @@ public class XtfTools {
 
   @McpTool(
       name = "validateXtf",
-      description = "Validiert XTF gegen INTERLIS-Modell via ilivalidator. Rückgabe: {valid,messages,errorCount,warningCount}."
+      description = "Validiert XTF gegen INTERLIS-Modell via ilivalidator. Rückgabe: {valid,messages,errorCount,warningCount}.",
+      annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> validateXtf(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,

@@ -29,6 +29,13 @@ public final class IliSourceLocator {
       IliSourceSpan bodySpan,
       IliSourceSpan endMarkerSpan) {}
 
+  /** Exact attribute declaration plus the IliDoc/meta-attribute prelude owned by it. */
+  public record AttributeLocation(
+      IliSourceSpan declarationSpan,
+      IliSourceSpan annotationSpan,
+      IliSourceSpan ownedSpan,
+      String indent) {}
+
   private enum TokenKind {
     IDENTIFIER,
     STRING,
@@ -140,6 +147,60 @@ public final class IliSourceLocator {
         approximateLine,
         IliSourceSpan::startLine,
         "Attribute '" + attributeName + "'");
+  }
+
+  public AttributeLocation locateAttributeDeclaration(
+      IliSourceDocument document,
+      BlockLocation container,
+      String attributeName,
+      int approximateLine) {
+    IliSourceSpan declaration = locateAttribute(
+        document, container, attributeName, approximateLine);
+    int declarationLineStart = document.lineStartOffset(declaration.startLine());
+    String indent = document.text().substring(declarationLineStart, declaration.startOffset());
+    if (!indent.isBlank() && !indent.chars().allMatch(Character::isWhitespace)) {
+      throw new IllegalArgumentException(
+          "Attribute declaration must begin after whitespace only: " + attributeName);
+    }
+
+    int annotationStartLine = findOwnedAnnotationStartLine(document, declaration.startLine());
+    int annotationStart = document.lineStartOffset(annotationStartLine);
+    IliSourceSpan annotationSpan = document.span(annotationStart, declarationLineStart);
+    int ownedEnd = declaration.endLine() < document.lineCount()
+        ? document.lineStartOffset(declaration.endLine() + 1)
+        : document.length();
+    return new AttributeLocation(
+        declaration,
+        annotationSpan,
+        document.span(annotationStart, ownedEnd),
+        indent);
+  }
+
+  private int findOwnedAnnotationStartLine(
+      IliSourceDocument document,
+      int declarationStartLine) {
+    int line = declarationStartLine - 1;
+    int start = declarationStartLine;
+    while (line >= 1) {
+      String trimmed = document.lineText(line).trim();
+      if (trimmed.startsWith("!!@")) {
+        start = line--;
+        continue;
+      }
+      if (trimmed.endsWith("*/")) {
+        while (line >= 1 && !document.lineText(line).trim().startsWith("/**")) {
+          line--;
+        }
+        if (line < 1) {
+          return start;
+        }
+        start = line;
+        line--;
+        continue;
+      }
+      break;
+    }
+    return start;
   }
 
   private List<BlockLocation> parseBlocks(IliSourceDocument document) {

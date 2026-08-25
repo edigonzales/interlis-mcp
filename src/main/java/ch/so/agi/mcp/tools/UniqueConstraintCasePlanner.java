@@ -72,6 +72,8 @@ final class UniqueConstraintCasePlanner {
       SemanticConstraint.Unique unique) {
     Objects.requireNonNull(context, "context");
     Objects.requireNonNull(unique, "unique");
+    Plan typed = UniqueConstraintTypedValueCasePlanner.planIfTyped(context, unique);
+    if (typed != null) return typed;
     return unique.local()
         ? planLocal(context, unique)
         : planGlobal(context, unique);
@@ -782,7 +784,8 @@ final class UniqueConstraintCasePlanner {
     List<ConstraintModelSynthesizer.GraphLink> links = original.links().stream().map(link -> {
       Map<String, String> roles = new LinkedHashMap<>();
       link.roles().forEach((role, oid) -> roles.put(role, oidMap.getOrDefault(oid, oid)));
-      return new ConstraintModelSynthesizer.GraphLink(link.associationFqn(), roles);
+      return new ConstraintModelSynthesizer.GraphLink(
+          link.associationFqn(), roles, link.lightweight());
     }).toList();
     return new ConstraintModelSynthesizer.ObjectGraph(objects, links);
   }

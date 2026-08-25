@@ -1,10 +1,16 @@
 package ch.so.agi.mcp.tools;
 
-import ch.so.agi.mcp.constraint.CompiledConstraintContext;
+import ch.so.agi.mcp.analysis.ModelAnalysisTools;
+import ch.so.agi.mcp.analysis.ModelChangeReviewService;
+import ch.so.agi.mcp.constraint.ConstraintAuthoringEngine;
 import ch.so.agi.mcp.constraint.ConstraintAuthoringWorkflow;
 import ch.so.agi.mcp.constraint.ConstraintExpression;
-import ch.so.agi.mcp.constraint.SemanticConstraint;
 import ch.so.agi.mcp.constraint.StandardFunctionRegistry;
+import ch.so.agi.mcp.knowledge.KnowledgeRuleLoader;
+import ch.so.agi.mcp.knowledge.ModelingRuleTools;
+import ch.so.agi.mcp.model.IliAuthoringResult;
+import ch.so.agi.mcp.model.IliConstraintSpec;
+import ch.so.agi.mcp.model.IliSpecRenderer;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -18,6 +24,7 @@ import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -28,14 +35,26 @@ public class ConstraintDecisionTableTools {
   private static final Pattern ENUM_VALUE = Pattern.compile("[A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z][A-Za-z0-9_]*)*");
   private static final Pattern INTERLIS_VERSION = Pattern.compile("(?m)^\\s*INTERLIS\\s+(2\\.3|2\\.4)\\s*;");
 
-  private final ConstraintAuthoringWorkflow authoringWorkflow;
-  private final ConstraintCaseGenerationTools caseGenerationTools;
+  private final ConstraintAuthoringEngine authoringEngine;
 
   public ConstraintDecisionTableTools(
       ConstraintAuthoringWorkflow authoringWorkflow,
       ConstraintCaseGenerationTools caseGenerationTools) {
-    this.authoringWorkflow = authoringWorkflow;
-    this.caseGenerationTools = caseGenerationTools;
+    var compiler = authoringWorkflow.compilerService();
+    ModelAnalysisTools analysis = new ModelAnalysisTools(compiler);
+    ModelingRuleTools rules = new ModelingRuleTools(
+        new KnowledgeRuleLoader(), analysis, compiler);
+    this.authoringEngine = new ConstraintAuthoringEngine(
+        authoringWorkflow,
+        new IliSpecRenderer(new AttributeTools(), new DomainTools()),
+        caseGenerationTools,
+        new ModelChangeReviewService(analysis, rules));
+  }
+
+  @Autowired
+  public ConstraintDecisionTableTools(
+      ConstraintAuthoringEngine authoringEngine) {
+    this.authoringEngine = authoringEngine;
   }
 
   public static class DecisionRow {
@@ -54,125 +73,69 @@ public class ConstraintDecisionTableTools {
 
   @McpTool(
       name = "generateIliConstraintFromDecisionTable",
-      description = "Erzeugt aus einer strukturierten Entscheidungstabelle einen INTERLIS Mandatory Constraint, leitet ueber die gemeinsame semantische IR-/Solver-Pipeline Boundary-/Kategoriefaelle ab und beweist den erzeugten Constraint mit testIliConstraint und dem echten ilivalidator. Unterstuetzt direkte NUMERIC/BOOLEAN/ENUM-Attribute, einen einzelnen hoechstens einwertigen Association-Pfad Rolle->Attribut, SUM auf einem mehrwertigen numerischen Association-Pfad sowie DEFINED/NOT DEFINED und SUM plus direktes NUMERIC-Attribut."
+      description = "Erzeugt aus einer strukturierten Entscheidungstabelle einen INTERLIS Mandatory Constraint, leitet ueber die gemeinsame semantische IR-/Solver-Pipeline Boundary-/Kategoriefaelle ab und beweist den erzeugten Constraint mit testIliConstraint und dem echten ilivalidator. Diff und afterReview werden aus den vorhandenen Before-/After-Compilations erzeugt; danach ist kein reviewIliChange nötig. Unterstuetzt direkte NUMERIC/BOOLEAN/ENUM-Attribute, einen einzelnen hoechstens einwertigen Association-Pfad Rolle->Attribut, SUM auf einem mehrwertigen numerischen Association-Pfad sowie DEFINED/NOT DEFINED und SUM plus direktes NUMERIC-Attribut.",
+      generateOutputSchema = true,
+      annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
-  public Map<String, Object> generateIliConstraintFromDecisionTable(
+  public IliAuthoringResult generateIliConstraintFromDecisionTable(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext ohne den zu erzeugenden Constraint", required = true) String modelText,
       @McpToolParam(description = "Vollqualifizierter Klassenkontext Model.Topic.Class", required = true) String context,
       @McpToolParam(description = "Technischer Name des zu erzeugenden Constraints", required = true) String constraintName,
       @McpToolParam(description = "Erlaubte Entscheidungszeilen. Standardbedingung: attribute, operator, value. Optional aggregate=SUM. Fuer Summenpraesenz: defined=true/false ohne operator/value. Fuer Addition: addAttribute=<direktes NUMERIC-Attribut> zusammen mit aggregate=SUM, operator == und numerischem value.", required = true) List<DecisionRow> rows) {
-    String normalizedContext = requireContext(context);
-    String normalizedConstraintName = requireIdentifier(constraintName, "constraintName");
-    List<NormalizedRow> normalizedRows = normalizeRows(rows);
-
-    ConstraintExpression.IliVersion version = iliVersion(modelText);
-    ConstraintExpression semanticExpression = decisionTableExpression(normalizedRows);
-    String expression = semanticExpression.toInterlis(version);
-    String constraintBlock = renderConstraintBlock(normalizedContext, normalizedConstraintName, expression);
-
-    var beforeCompilation = authoringWorkflow.compileBefore(
-        modelText,
-        "ili2c_constraint_decision_table_before_");
-    if (!beforeCompilation.valid() || beforeCompilation.transferDescription() == null) {
-      return unavailable(
-          "BEFORE_MODEL_NOT_COMPILABLE",
-          "The supplied model must compile before a source-preserving constraint can be inserted.",
-          expression,
-          constraintBlock,
-          normalizedRows,
-          Map.of("compilerMessages", beforeCompilation.messages()));
-    }
-
-    ConstraintAuthoringWorkflow.PreparedConstraint prepared;
+    String normalizedContext;
+    String normalizedConstraintName;
+    List<NormalizedRow> normalizedRows;
+    ConstraintExpression semanticExpression;
     try {
-      prepared = authoringWorkflow.insertAndResolve(
-          modelText,
-          beforeCompilation,
-          normalizedContext,
-          constraintBlock,
-          normalizedContext + "." + normalizedConstraintName,
-          "ili2c_constraint_decision_table_after_");
+      normalizedContext = requireContext(context);
+      normalizedConstraintName = requireIdentifier(constraintName, "constraintName");
+      normalizedRows = normalizeRows(rows);
+      semanticExpression = decisionTableExpression(normalizedRows);
     } catch (IllegalArgumentException ex) {
-      return unavailable(
-          "CONSTRAINT_INSERTION_FAILED",
-          ex.getMessage(),
-          expression,
-          constraintBlock,
-          normalizedRows,
-          null);
+      IliAuthoringResult failure = new IliAuthoringResult();
+      failure.status = IliAuthoringResult.Status.INVALID_SPEC;
+      failure.reasonCode = failure.status.name();
+      failure.reason = ex.getMessage();
+      failure.complete = false;
+      failure.generated = false;
+      failure.proofVerified = false;
+      return failure;
     }
 
-    var insertion = prepared.insertion();
-    var afterResolution = prepared.resolution();
-    if (!afterResolution.available()) {
-      Map<String, Object> details = new LinkedHashMap<>();
-      details.put("compilerMessages", afterResolution.compilation().messages());
-      details.put("candidateModelText", insertion.updatedModelText());
-      details.put("sourceEdit", insertion.sourceEdit());
-      return unavailable(
-          afterResolution.compilation().valid()
-              ? decisionTableReasonCode(afterResolution.reasonCode())
-              : "GENERATED_CONSTRAINT_NOT_COMPILABLE",
-          afterResolution.compilation().valid()
-              ? afterResolution.reason()
-              : "The decision-table constraint could not be compiled in the supplied model.",
-          expression,
-          constraintBlock,
-          normalizedRows,
-          details);
-    }
-
-    CompiledConstraintContext compiled = afterResolution.context();
-    if (!(compiled.semantics() instanceof SemanticConstraint.Mandatory mandatory)) {
-      return unavailable(
-          "CONSTRAINT_KIND_ROUND_TRIP_MISMATCH",
-          "Compiled decision-table constraint is not a Mandatory Constraint: " + compiled.semantics().kind(),
-          expression,
-          constraintBlock,
-          normalizedRows,
-          null);
-    }
-    if (!normalizedContext.equals(mandatory.contextFqn())) {
-      return unavailable(
-          "CONTEXT_ROUND_TRIP_MISMATCH",
-          "Compiled decision-table context differs from the requested context: " + mandatory.contextFqn(),
-          expression,
-          constraintBlock,
-          normalizedRows,
-          null);
-    }
-
-    Map<String, Object> proof = caseGenerationTools.generateCompiledConstraintCases(compiled);
-    boolean verified = Boolean.TRUE.equals(proof.get("generationVerified"));
-
-    Map<String, Object> result = new LinkedHashMap<>();
-    result.put("generated", true);
-    result.put("proofVerified", verified);
-    result.put("constraintName", normalizedConstraintName);
-    result.put("context", normalizedContext);
-    result.put("decisionTable", decisionTableSummary(normalizedRows));
-    result.put("constraintExpression", expression);
-    result.put("typedCanonicalExpression", mandatory.condition().toInterlis(version));
-    result.put("constraintBlock", constraintBlock);
-    result.put("updatedModelText", insertion.updatedModelText());
-    result.put("sourceEdit", insertion.sourceEdit());
-    result.put("proof", proof);
-    List<Map<String, Object>> boundaryCases = decisionBoundaryCases(proof, normalizedRows);
-    result.put("boundaryCases", boundaryCases);
-    result.put("boundaryCaseCount", boundaryCases.size());
-    copyIfPresent(proof, result, "coverageGoalCount");
-    copyIfPresent(proof, result, "coverageSolvedCount");
-    copyIfPresent(proof, result, "coverageComplete");
-    copyIfPresent(proof, result, "coverageUnsolved");
-    copyIfPresent(proof, result, "verification");
-    if (!verified) {
-      result.put("reasonCode", proof.getOrDefault("reasonCode", "BOUNDARY_PROOF_FAILED"));
-      result.put("reason", proof.getOrDefault(
-          "reason",
-          "The generated semantic proof cases were created, but the validator did not confirm all expected outcomes."));
-    }
-    result.put("limitations", limitations());
+    IliConstraintSpec.Mandatory spec = new IliConstraintSpec.Mandatory();
+    spec.name = normalizedConstraintName;
+    spec.condition = expressionSpec(semanticExpression);
+    IliAuthoringResult result = authoringEngine.author(
+        modelText, normalizedContext, spec, null, null);
+    normalizeDecisionProof(result, normalizedRows);
+    Map<String, Object> details = new LinkedHashMap<>();
+    details.put("context", normalizedContext);
+    details.put("constraintName", normalizedConstraintName);
+    details.put("decisionTable", decisionTableSummary(normalizedRows));
+    details.put("constraintExpression", semanticExpression.toInterlis(iliVersion(modelText)));
+    details.put("limitations", limitations());
+    result.details = Map.copyOf(details);
     return result;
+  }
+
+  private void normalizeDecisionProof(
+      IliAuthoringResult result, List<NormalizedRow> rows) {
+    for (IliAuthoringResult.ConstraintProof proof : result.constraintProofs) {
+      for (IliAuthoringResult.ProofCase proofCase : proof.generatedCases) {
+        if (proofCase.reason != null) {
+          proofCase.outcome = proofCase.purpose;
+          proofCase.purpose = proofCase.reason;
+        }
+        Map<String, Object> normalized = new LinkedHashMap<>();
+        for (String reference : referencedAttributes(rows)) {
+          normalized.put(
+              reference,
+              summaryAssignmentValue(
+                  proofCase.values.get(reference), aggregateForAttribute(rows, reference)));
+        }
+        proofCase.values = Map.copyOf(normalized);
+      }
+    }
   }
 
   private List<NormalizedRow> normalizeRows(@Nullable List<DecisionRow> rows) {
@@ -328,6 +291,75 @@ public class ConstraintDecisionTableTools {
         : new ConstraintExpression.Or(expressions);
   }
 
+  private IliConstraintSpec.ExpressionSpec expressionSpec(ConstraintExpression expression) {
+    return switch (expression) {
+      case ConstraintExpression.Attribute attribute ->
+          expression(IliConstraintSpec.ExpressionKind.ATTRIBUTE, attribute.name(), null, null, null);
+      case ConstraintExpression.Path path ->
+          expression(IliConstraintSpec.ExpressionKind.PATH, path.path(), null, null, null);
+      case ConstraintExpression.NumericLiteral numeric ->
+          expression(IliConstraintSpec.ExpressionKind.NUMERIC, null, null, numeric.value(), null);
+      case ConstraintExpression.BooleanLiteral bool ->
+          expression(IliConstraintSpec.ExpressionKind.BOOLEAN, null, null, bool.value(), null);
+      case ConstraintExpression.EnumLiteral enumeration ->
+          expression(IliConstraintSpec.ExpressionKind.ENUM, null, null, enumeration.value(), null);
+      case ConstraintExpression.TextLiteral text -> expression(
+          text.kind() == ConstraintExpression.ScalarKind.MTEXT
+              ? IliConstraintSpec.ExpressionKind.MTEXT
+              : IliConstraintSpec.ExpressionKind.TEXT,
+          null, null, text.value(), null);
+      case ConstraintExpression.FunctionCall call -> {
+        IliConstraintSpec.ExpressionSpec spec = expression(
+            IliConstraintSpec.ExpressionKind.FUNCTION,
+            call.semanticId(),
+            null,
+            null,
+            call.arguments().stream().map(this::expressionSpec).toList());
+        spec.functionOrigin = IliConstraintSpec.FunctionOrigin.STANDARD;
+        yield spec;
+      }
+      case ConstraintExpression.Defined defined -> expression(
+          IliConstraintSpec.ExpressionKind.DEFINED,
+          null, null, null, List.of(expressionSpec(defined.operand())));
+      case ConstraintExpression.Not not -> expression(
+          IliConstraintSpec.ExpressionKind.NOT,
+          null, null, null, List.of(expressionSpec(not.operand())));
+      case ConstraintExpression.And and -> expression(
+          IliConstraintSpec.ExpressionKind.AND,
+          null, null, null, and.operands().stream().map(this::expressionSpec).toList());
+      case ConstraintExpression.Or or -> expression(
+          IliConstraintSpec.ExpressionKind.OR,
+          null, null, null, or.operands().stream().map(this::expressionSpec).toList());
+      case ConstraintExpression.Implies implies -> expression(
+          IliConstraintSpec.ExpressionKind.IMPLIES,
+          null,
+          null,
+          null,
+          List.of(expressionSpec(implies.antecedent()), expressionSpec(implies.consequent())));
+      case ConstraintExpression.Comparison comparison -> expression(
+          IliConstraintSpec.ExpressionKind.COMPARE,
+          null,
+          comparison.operator().interlis(),
+          null,
+          List.of(expressionSpec(comparison.left()), expressionSpec(comparison.right())));
+    };
+  }
+
+  private IliConstraintSpec.ExpressionSpec expression(
+      IliConstraintSpec.ExpressionKind kind,
+      @Nullable String name,
+      @Nullable String operator,
+      @Nullable Object value,
+      @Nullable List<IliConstraintSpec.ExpressionSpec> children) {
+    IliConstraintSpec.ExpressionSpec result = new IliConstraintSpec.ExpressionSpec();
+    result.kind = kind;
+    result.name = name;
+    result.operator = operator;
+    result.value = value;
+    result.children = children;
+    return result;
+  }
+
   private ConstraintExpression rowExpression(NormalizedRow row) {
     List<ConstraintExpression> expressions = row.conditions().stream()
         .map(this::conditionExpression)
@@ -423,14 +455,6 @@ public class ConstraintDecisionTableTools {
         : ConstraintExpression.IliVersion.ILI_23;
   }
 
-  private String renderConstraintBlock(String context, String constraintName, String expression) {
-    return "CONSTRAINTS OF " + context + " =\n"
-        + "  !!@ name = \"" + constraintName + "\"\n"
-        + "  MANDATORY CONSTRAINT\n"
-        + "    " + expression + ";\n"
-        + "END;";
-  }
-
   private String requireContext(@Nullable String context) {
     if (context == null || context.isBlank()) {
       throw new IllegalArgumentException("context is required.");
@@ -507,73 +531,6 @@ public class ConstraintDecisionTableTools {
       case BOOLEAN -> literal.value();
       case ENUM -> "#" + literal.value();
     };
-  }
-
-  private Map<String, Object> unavailable(
-      String reasonCode,
-      String reason,
-      String expression,
-      String constraintBlock,
-      List<NormalizedRow> rows,
-      @Nullable Map<String, Object> details) {
-    Map<String, Object> result = new LinkedHashMap<>();
-    result.put("generated", false);
-    result.put("proofVerified", false);
-    result.put("reasonCode", reasonCode);
-    result.put("reason", reason);
-    result.put("decisionTable", decisionTableSummary(rows));
-    result.put("constraintExpression", expression);
-    result.put("constraintBlock", constraintBlock);
-    if (details != null) {
-      result.putAll(details);
-    }
-    result.put("limitations", limitations());
-    return result;
-  }
-
-  private void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
-    if (source.containsKey(key)) {
-      target.put(key, source.get(key));
-    }
-  }
-
-  private String decisionTableReasonCode(@Nullable String reasonCode) {
-    return "UNSUPPORTED_CONSTRAINT_SEMANTICS".equals(reasonCode)
-        ? "UNSUPPORTED_ATTRIBUTE_PATH_OR_TYPE"
-        : String.valueOf(reasonCode);
-  }
-
-  private List<Map<String, Object>> decisionBoundaryCases(
-      Map<String, Object> proof,
-      List<NormalizedRow> rows) {
-    Object generated = proof.get("generatedCases");
-    if (!(generated instanceof List<?> list)) {
-      return List.of();
-    }
-    List<Map<String, Object>> result = new ArrayList<>();
-    for (Object item : list) {
-      if (!(item instanceof Map<?, ?> map)) {
-        continue;
-      }
-      Map<String, Object> summary = new LinkedHashMap<>();
-      map.forEach((key, value) -> summary.put(String.valueOf(key), value));
-      if (summary.containsKey("reason")) {
-        summary.put("outcome", summary.get("purpose"));
-        summary.put("purpose", summary.get("reason"));
-      }
-      Object rawValues = summary.get("values");
-      if (rawValues instanceof Map<?, ?> values) {
-        Map<String, Object> normalizedValues = new LinkedHashMap<>();
-        for (String reference : referencedAttributes(rows)) {
-          normalizedValues.put(
-              reference,
-              summaryAssignmentValue(values.get(reference), aggregateForAttribute(rows, reference)));
-        }
-        summary.put("values", normalizedValues);
-      }
-      result.add(summary);
-    }
-    return result;
   }
 
   private Object summaryAssignmentValue(@Nullable Object raw, AggregateKind aggregate) {

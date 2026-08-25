@@ -36,17 +36,16 @@ public class AgentPrompts {
         - Höchstens einmal wiederholen, wenn ein transienter Fehler plausibel ist; vor einem erfolgreichen Retry keine `.ili`-Datei schreiben oder ändern.
         - Fehlgeschlagenes Tool, Argumente und exakte Fehlermeldung berichten.
         - Keine INTERLIS-Syntax als Ersatz für eine nicht verfügbare MCP-Fähigkeit erfinden.
-        - Nur erfolgreich von `interlis-mcp` gelieferte INTERLIS-Snippets dürfen exakt zusammengesetzt werden.
+        - Neue Modelle und unterstützte Änderungen ausschließlich über die typisierten High-Level-Tools authoren.
 
         Sicherheitsgates für neue Modelle:
-        - MCP-Snippets einzeln erzeugen und prüfen.
-        - Kandidatenmodell nur aus erfolgreichen Rückgaben zusammensetzen.
-        - `reviewIliModel` vor dem Schreiben ausführen.
-        - Erst nach erfolgreichem Compiler-/Review-Gate schreiben und danach den finalen Dateistand erneut prüfen.
+        - `authorIliModel` mit explizitem Namen, URI, Modellversion und INTERLIS-Version verwenden.
+        - Nur ein vollständiges Resultat mit `status=GENERATED`, `complete=true` und `updatedModelText` freigeben.
+        - `candidateModelText`, `NEEDS_INPUT` oder ein fehlgeschlagener Constraint-Proof dürfen nicht geschrieben werden.
 
         Geometrie:
-        - `ensureGeometryDependencies` nie mit `geometryType=COORD` aufrufen.
-        - Für ein INTERLIS-2.4-LV95-Koordinatenattribut `GeometryCHLV95_V2.Coord2` verwenden.
+        - Geometrien als `GeometryTypeSpec` angeben; keine früheren `BaseType`-Geometrievarianten verwenden.
+        - INTERLIS-Geometrien verlangen alle anwendbaren Parameter; CHBase akzeptiert nur bekannte Typen der gewählten Version.
 
         Regelprofile:
         - `CORE` enthält nur portable technische und agentische Basisregeln.
@@ -54,21 +53,20 @@ public class AgentPrompts {
           dieses Profil enthält CORE plus die Regeln aus dem Solothurner Modellierungshandbuch.
 
         Bevorzuge diesen Ablauf:
-        - Für ein vollständiges Modell ohne Vorher-Stand: `reviewIliModel`.
-        - Für eine von `applyIliModelChange` unterstützte Änderung eines bestehenden Modells: verwende dieses Tool statt
-          den INTERLIS-Quelltext selbst umzuschreiben. Aktuell wird `ADD_ATTRIBUTE` für CLASS und STRUCTURE unterstützt.
-          Ein erfolgreiches `APPLIED`-Resultat enthält den semantischen Diff und `afterReview` als Abschlussgate; führe für
-          denselben unveränderten Nachher-Stand nicht routinemässig noch `reviewIliChange` oder `reviewIliModel` aus.
+        - Für ein neues vollständiges Modell: `authorIliModel`; dessen Compile, Constraint-Proofs und `afterReview` bilden das Gate.
+        - Für unterstützte Änderungen eines bestehenden Modells: `applyIliModelChanges`. Das Tool unterstützt atomare ADD-,
+          Attribut-UPDATE-/REMOVE- und Constraint-Operationen. Ein erfolgreiches `APPLIED`-Resultat enthält Diff und
+          `afterReview`; führe für denselben Stand nicht routinemässig noch `reviewIliChange` oder `reviewIliModel` aus.
+        - Bei `BREAKING_CHANGE_REQUIRES_CONFIRMATION` nur den Kandidaten und die Gründe zeigen. Erst nach ausdrücklicher
+          Bestätigung denselben Batch mit `allowPotentiallyBreaking=true` erneut aufrufen.
         - Für neue Constraints verwende den Prompt `author-interlis-constraint` bzw. das höchste passende Constraint-Tool:
-          `authorIliMandatoryConstraint`, `authorIliExistenceConstraint`, `authorIliPlausibilityConstraint` oder
-          `authorIliSetConstraint`. Für UNIQUE gibt es noch kein gleichwertiges typisiertes Authoring-Tool; nutze bei einfachen
-          Schlüsseln `createUniqueConstraint` nur als Snippet-Hilfe oder bearbeite den Quelltext gezielt und prüfe den
-          resultierenden Constraint mit `generateIliConstraintCases`.
+          `authorIliMandatoryConstraint`, `authorIliUniqueConstraint`, `authorIliExistenceConstraint`,
+          `authorIliPlausibilityConstraint` oder `authorIliSetConstraint`.
         - `proofVerified=true` eines Authoring-Tools bzw. `generationVerified=true` von `generateIliConstraintCases` ist das
           technische Proof-Gate für genau diesen Constraint. Führe für denselben unveränderten Constraint nicht nochmals
           routinemässig `testIliConstraint` oder `validateXtf` aus.
-        - Constraint-Authoring ersetzt nicht das Modell-Level-Change-Review: Wenn dabei ein bestehendes Modell geändert wurde,
-          führe danach genau einmal `reviewIliChange` mit Vorher- und dem gelieferten `updatedModelText` aus.
+        - Erfolgreiches Constraint-Authoring enthält bereits semantischen Diff und `afterReview`; kein redundantes
+          `reviewIliChange` für denselben unveränderten Nachher-Stand.
         - Für noch nicht unterstützte sonstige Änderungen: bearbeite den Modelltext gezielt und verwende danach `reviewIliChange`
           mit Vorher-/Nachher-Modell. Das enthaltene `afterReview` ist zusammen mit `afterCompilerValid` und
           `afterDiagnostics` der Abschlussreview für den Nachher-Stand.
@@ -79,8 +77,7 @@ public class AgentPrompts {
         Führe diese Tools nicht standardmässig zusätzlich zu einem passenden High-Level-Review oder bereits verifizierten
         automatischen Constraint-Proof aus.
 
-        Automatisch erzeugte Namen sind technische Platzhalter. Bestätige fachliche Namen, Kardinalitäten, Rollen,
-        Constraints und Datenumbauten explizit oder markiere sie als Rückfrage.
+        Namen, Kardinalitäten, Rollen, Constraints und Datenumbauten müssen explizit vorliegen; die Tools erfinden sie nicht.
         """);
   }
 
@@ -127,15 +124,12 @@ public class AgentPrompts {
         Vorgehen:
         1. Kläre die verlangte Änderung und erfinde keine fachlichen Details, die nicht vorgegeben sind.
         2. Suche bei Bedarf lokale Vorbilder mit `findSimilarModels` und lies ein ausgewähltes Modell mit `readModelExample`.
-        3. Wenn die Änderung von `applyIliModelChange` unterstützt wird, verwende dieses Tool. Aktuell ist `ADD_ATTRIBUTE`
-           für CLASS und STRUCTURE unterstützt. Bei `APPLIED` sind der enthaltene semantische Diff, `afterCompilerValid`,
+        3. Wenn die Änderung von `applyIliModelChanges` unterstützt wird, verwende dieses Tool. Bei `APPLIED` sind der enthaltene semantische Diff, `afterCompilerValid`,
            `afterDiagnostics` und `afterReview` das Abschlussgate; führe für denselben unveränderten Stand kein weiteres
            `reviewIliChange` oder `reviewIliModel` aus.
         4. Wenn die Änderung ein neuer Constraint ist, verwende das höchste passende Constraint-Authoring-Tool. Bei
            `proofVerified=true` ist kein zusätzlicher `testIliConstraint`-/`validateXtf`-Durchlauf für denselben Constraint
-           erforderlich. Führe danach aber genau einmal `reviewIliChange` für Vorher und `updatedModelText` aus, weil der
-           Constraint-Proof das Modell-Level-Review nicht ersetzt. Für UNIQUE ohne typisiertes Authoring gilt derselbe Abschluss,
-           nachdem der Quelltext gezielt geändert und der Constraint mit `generateIliConstraintCases` bewiesen wurde.
+           erforderlich. Das Authoring liefert bereits Diff und `afterReview`; kein zusätzliches `reviewIliChange` für denselben Stand.
         5. Wenn die Änderung sonst noch nicht unterstützt wird, mache nur die geforderte Erweiterung im Modelltext und vergleiche
            Vorher und Nachher mit `reviewIliChange`. Beachte `potentiallyBreakingChanges` und `impact`.
         6. Liefere den neuen Modelltext, die semantische Änderung, Compiler-/Regelbefunde und offene fachliche Entscheide.
@@ -161,30 +155,27 @@ public class AgentPrompts {
         Erzeuge oder ergänze einen INTERLIS-Constraint vom Typ `%s`, ohne fachliche Semantik zu erfinden.
 
         Tool-Hierarchie für neue Constraints:
-        - MANDATORY: `authorIliMandatoryConstraint` mit der strukturierten semantischen Node-Liste.
-        - UNIQUE: Es gibt noch kein typisiertes High-Level-Authoring. Für einfache Attributschlüssel darf
-          `createUniqueConstraint` als Snippet-Hilfe dienen; integriere das Snippet gezielt in den Modelltext. Komplexe
-          UNIQUE-Formen wie WHERE/(BASKET)/LOCAL werden nicht aus dem Low-Level-Schema geraten.
+        - MANDATORY: `authorIliMandatoryConstraint` mit rekursiver typisierter `condition`.
+        - UNIQUE: `authorIliUniqueConstraint` mit GLOBAL/BASKET/LOCAL, expliziten Schlüsselpfaden, optionalem WHERE und LOCAL-Präfix.
         - EXISTENCE: `authorIliExistenceConstraint` mit explizitem `restrictedPath` und jedem REQUIRED-IN-Ziel als
           `viewableFqn` + `attributePath`.
         - PLAUSIBILITY: `authorIliPlausibilityConstraint` mit `direction`, `percentage` und strukturierter Condition.
-        - SET: `authorIliSetConstraint` für den unterstützten `INTERLIS.objectCount(ALL)`-Umfang mit `operator`,
-          `threshold`, optionalem `where` und `perBasket`.
+        - SET: `authorIliSetConstraint` mit `scope`, optionalem `where` und diskriminierter `OBJECT_COUNT`- oder
+          `BOOLEAN_EXPRESSION`-Condition; Objektmengen sind `ALL` oder ein typisierter navigierter Pfad.
 
         Proof-Vertrag:
         1. Bei einem typisierten Authoring-Tool muss `proofVerified=true` sein. Wenn `coverageUnsolved` oder ein Safety-Reason-Code
            geliefert wird, berichte diese Grenze und erfinde keinen Ersatzbeweis.
-        2. Bei UNIQUE oder einem bereits vorhandenen Constraint verwende `generateIliConstraintCases`; für den unterstützten
+        2. Bei einem bereits vorhandenen Constraint verwende `generateIliConstraintCases`; für den unterstützten
            Umfang muss `generationVerified=true` sein. Das Tool deckt MANDATORY, UNIQUE, EXISTENCE, PLAUSIBILITY und SET ab.
         3. `reviewIliConstraint` dient zur Erklärung und AST-Diagnose, `testIliConstraint` für explizit vom Nutzer vorgegebene
            Testfälle. Beide sind kein routinemässiger Zusatz zu einem bereits verifizierten automatischen Proof.
-        4. Ein Constraint-Proof ist kein Modell-Level-Review. Wenn ein bestehendes Modell geändert wurde, führe danach
-           genau einmal `reviewIliChange` mit Vorher und dem neuen Modelltext aus und behandle dessen `afterReview` als
-           Abschlussgate für das Gesamtmodell.
+        4. Die Constraint-Authoring-Tools liefern zusätzlich semantischen Diff und `afterReview` aus ihren vorhandenen
+           Compilations; für denselben Nachher-Stand ist kein weiteres Modell-Level-Review nötig.
 
         Freie Mandatory-/Existence-/Set-Snippet-Tools sind nicht Teil der MCP-Oberfläche. Wenn das typisierte Authoring den
         Fall nicht ausdrücken kann, bearbeite den Modelltext gezielt, behaupte keinen Ersatzbeweis und schliesse mit den
-        passenden Review- und Proof-Tools ab. Bei UNIQUE ist `createUniqueConstraint` die bewusst enge Snippet-Ausnahme.
+        passenden Review- und Proof-Tools ab. Fragmentbasierte Constraint-Authoring-Tools sind nicht öffentlich.
         """.formatted(blankFallback(constraintKind, "UNKNOWN")));
   }
 

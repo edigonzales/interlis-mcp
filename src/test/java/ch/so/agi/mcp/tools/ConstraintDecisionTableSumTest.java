@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ch.so.agi.mcp.constraint.ConstraintContextService;
+import ch.so.agi.mcp.model.IliAuthoringResult;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.List;
 import java.util.Map;
@@ -58,47 +59,48 @@ class ConstraintDecisionTableSumTest {
         sumCondition("Nebenauspraegung->Gewichtung", ">=", 10),
         sumCondition("Nebenauspraegung->Gewichtung", "<=", 20));
 
-    Map<String, Object> result = tools.generateIliConstraintFromDecisionTable(
+    IliAuthoringResult result = tools.generateIliConstraintFromDecisionTable(
         MODEL,
         "DecisionSumModel.Data.Hauptauspraegung",
         "SecondarySumBetween10And20",
         List.of(allowed));
 
-    assertEquals(true, result.get("generated"), String.valueOf(result));
-    assertEquals(true, result.get("proofVerified"), String.valueOf(result));
+    assertEquals(true, result.generated, String.valueOf(result));
+    assertEquals(true, result.proofVerified, String.valueOf(result));
     assertEquals(
         "(Math.sum(\"Nebenauspraegung->Gewichtung\") >= 10 AND Math.sum(\"Nebenauspraegung->Gewichtung\") <= 20)",
-        result.get("constraintExpression"));
+        result.details.get("constraintExpression"));
 
-    List<Map<String, Object>> cases = list(result.get("boundaryCases"));
+    List<IliAuthoringResult.ProofCase> cases = result.constraintProofs.getFirst().generatedCases;
     assertEquals(7, cases.size(), String.valueOf(cases));
     assertCase(cases, "9", false);
     assertCase(cases, "10", true);
     assertCase(cases, "20", true);
     assertCase(cases, "21", false);
 
-    Map<String, Object> empty = caseByPurpose(cases, "aggregate empty collection");
+    IliAuthoringResult.ProofCase empty = caseByPurpose(cases, "aggregate empty collection");
     assertEquals(true, empty.get("expectedConstraintValid"));
     assertEquals(1, ((Number) empty.get("objectCount")).intValue());
     assertEquals(0, ((Number) empty.get("associationLinkCount")).intValue());
 
-    Map<String, Object> maximum = caseByPurpose(cases, "aggregate maximum relevant cardinality 3");
+    IliAuthoringResult.ProofCase maximum = caseByPurpose(
+        cases, "aggregate maximum relevant cardinality 3");
     assertEquals(4, ((Number) maximum.get("objectCount")).intValue());
     assertEquals(3, ((Number) maximum.get("associationLinkCount")).intValue());
 
-    Map<String, Object> verification = map(result.get("verification"));
-    assertEquals(7, verification.get("caseCount"));
-    assertEquals(7, verification.get("passedCount"));
-    assertEquals(true, verification.get("allPassed"));
+    IliAuthoringResult.ProofVerification verification =
+        result.constraintProofs.getFirst().verification;
+    assertEquals(7, verification.caseCount);
+    assertEquals(7, verification.passedCount);
+    assertEquals(true, verification.allPassed);
 
-    List<Map<String, Object>> verifiedCases = list(verification.get("cases"));
-    String xtf = String.valueOf(verifiedCases.getFirst().get("xtfText"));
+    String xtf = verification.cases.getFirst().xtfText;
     assertTrue(count(xtf, "<Bodeneinheit REF=\"auto_case_1_root\"") >= 1, xtf);
   }
 
   @Test
   void supportsAggregateValuesAboveSingleAttributeMaximum() {
-    Map<String, Object> result = tools.generateIliConstraintFromDecisionTable(
+    IliAuthoringResult result = tools.generateIliConstraintFromDecisionTable(
         MODEL,
         "DecisionSumModel.Data.Hauptauspraegung",
         "SecondarySum150",
@@ -106,19 +108,19 @@ class ConstraintDecisionTableSumTest {
             "sum 150",
             sumCondition("Nebenauspraegung->Gewichtung", "==", 150))));
 
-    assertEquals(true, result.get("generated"), String.valueOf(result));
-    assertEquals(true, result.get("proofVerified"), String.valueOf(result));
-    assertEquals("Math.sum(\"Nebenauspraegung->Gewichtung\") == 150", result.get("constraintExpression"));
+    assertEquals(true, result.generated, String.valueOf(result));
+    assertEquals(true, result.proofVerified, String.valueOf(result));
+    assertEquals("Math.sum(\"Nebenauspraegung->Gewichtung\") == 150",
+        result.details.get("constraintExpression"));
 
-    List<Map<String, Object>> cases = list(result.get("boundaryCases"));
+    List<IliAuthoringResult.ProofCase> cases = result.constraintProofs.getFirst().generatedCases;
     assertCase(cases, "150", true);
     assertCase(cases, "149", false);
     assertEquals(true, caseByPurpose(cases, "aggregate empty collection").get("expectedConstraintValid"));
     assertEquals(3, ((Number) caseByPurpose(
         cases, "aggregate maximum relevant cardinality 3").get("associationLinkCount")).intValue());
 
-    Map<String, Object> verification = map(result.get("verification"));
-    assertEquals(true, verification.get("allPassed"));
+    assertEquals(true, result.constraintProofs.getFirst().verification.allPassed);
   }
 
   private ConstraintDecisionTableTools.DecisionRow row(
@@ -143,10 +145,10 @@ class ConstraintDecisionTableSumTest {
   }
 
   private void assertCase(
-      List<Map<String, Object>> cases,
+      List<IliAuthoringResult.ProofCase> cases,
       String expectedValue,
       boolean expectedValid) {
-    Map<String, Object> match = cases.stream()
+    IliAuthoringResult.ProofCase match = cases.stream()
         .filter(item -> expectedValue.equals(String.valueOf(
             map(item.get("values")).get("Nebenauspraegung->Gewichtung"))))
         .findFirst()
@@ -154,8 +156,8 @@ class ConstraintDecisionTableSumTest {
     assertEquals(expectedValid, match.get("expectedConstraintValid"));
   }
 
-  private Map<String, Object> caseByPurpose(
-      List<Map<String, Object>> cases,
+  private IliAuthoringResult.ProofCase caseByPurpose(
+      List<IliAuthoringResult.ProofCase> cases,
       String purpose) {
     return cases.stream()
         .filter(item -> purpose.equals(item.get("purpose")))

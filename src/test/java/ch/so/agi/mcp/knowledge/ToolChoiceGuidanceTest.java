@@ -32,9 +32,9 @@ class ToolChoiceGuidanceTest {
 
   @Test
   void semanticChangeToolAdvertisesSupportedScopeAndFinalGate() {
-    assertThat(description(IliModelChangeTools.class, "applyIliModelChange"))
-        .contains("Standard-Tool", "source-preserving", "ADD_ATTRIBUTE", "CLASS", "STRUCTURE")
-        .contains("afterReview", "APPLIED", "reviewIliChange");
+    assertThat(description(IliModelChangeTools.class, "applyIliModelChanges"))
+        .contains("atomar", "source-preserving", "ADD_ATTRIBUTE", "UPDATE_ATTRIBUTE", "REMOVE_ATTRIBUTE")
+        .contains("afterReview", "Breaking-Change");
   }
 
   @Test
@@ -136,13 +136,16 @@ class ToolChoiceGuidanceTest {
     assertThat(guide)
         .contains("interlis://knowledge/tool-guide")
         .contains("reviewIliModel")
-        .contains("applyIliModelChange")
-        .contains("ADD_ATTRIBUTE")
+        .contains("applyIliModelChanges")
+        .contains("UPDATE_ATTRIBUTE")
+        .contains("REMOVE_ATTRIBUTE")
+        .contains("BREAKING_CHANGE_REQUIRES_CONFIRMATION")
         .contains("UNEXPECTED_SEMANTIC_CHANGE")
         .contains("reviewIliChange")
         .contains("afterReview")
         .contains("STRUCTURE")
-        .contains("EXISTENCE_REFERENCE_VALUE_PROOF_UNSAFE")
+        .contains("REFERENCE_EQUALITY_VALIDATOR_FAILURE")
+        .contains("GEOMETRY_EQUALITY_VALIDATOR_FAILURE")
         .contains("authorIliPlausibilityConstraint")
         .contains("UNDEFINED_COUNTS_AS_SUCCESS")
         .contains("SET")

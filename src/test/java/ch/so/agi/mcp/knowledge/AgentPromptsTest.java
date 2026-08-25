@@ -14,8 +14,10 @@ class AgentPromptsTest {
 
     assertThat(prompt)
         .contains("reviewIliModel")
-        .contains("applyIliModelChange")
-        .contains("ADD_ATTRIBUTE")
+        .contains("authorIliModel")
+        .contains("applyIliModelChanges")
+        .contains("Attribut-UPDATE-/REMOVE-")
+        .contains("BREAKING_CHANGE_REQUIRES_CONFIRMATION")
         .contains("reviewIliChange")
         .contains("afterReview")
         .contains("findSimilarModels")
@@ -24,23 +26,24 @@ class AgentPromptsTest {
         .contains("MCP-Ausfallvertrag")
         .contains("einzeln und nacheinander")
         .contains("keine `.ili`-Datei schreiben")
-        .contains("GeometryCHLV95_V2.Coord2");
+        .contains("GeometryTypeSpec");
   }
 
   @Test
-  void modelingAgentSeparatesConstraintProofFromModelChangeReview() {
+  void modelingAgentCombinesConstraintProofDiffAndModelReview() {
     String prompt = prompts.interlisModelingAgent().toString();
 
     assertThat(prompt)
         .contains("author-interlis-constraint")
         .contains("authorIliMandatoryConstraint")
+        .contains("authorIliUniqueConstraint")
         .contains("authorIliExistenceConstraint")
         .contains("authorIliPlausibilityConstraint")
         .contains("authorIliSetConstraint")
-        .contains("createUniqueConstraint")
         .contains("proofVerified=true")
         .contains("generationVerified=true")
-        .contains("genau einmal `reviewIliChange`")
+        .contains("semantischen Diff und `afterReview`")
+        .contains("kein redundantes")
         .contains("nicht nochmals")
         .contains("testIliConstraint")
         .contains("validateXtf");
@@ -64,8 +67,8 @@ class AgentPromptsTest {
     String prompt = prompts.extendInterlisModel("CAPTURE").toString();
 
     assertThat(prompt)
-        .contains("applyIliModelChange")
-        .contains("ADD_ATTRIBUTE")
+        .contains("applyIliModelChanges")
+        .contains("semantische Diff")
         .contains("APPLIED")
         .contains("reviewIliChange")
         .contains("potentiallyBreakingChanges")
@@ -73,8 +76,7 @@ class AgentPromptsTest {
         .contains("afterReview")
         .contains("kein weiteres")
         .contains("readModelExample")
-        .contains("proofVerified=true")
-        .contains("generateIliConstraintCases");
+        .contains("proofVerified=true");
   }
 
   @Test
@@ -88,18 +90,17 @@ class AgentPromptsTest {
         .contains("EXISTENCE")
         .contains("PLAUSIBILITY")
         .contains("authorIliMandatoryConstraint")
+        .contains("authorIliUniqueConstraint")
         .contains("authorIliExistenceConstraint")
         .contains("authorIliPlausibilityConstraint")
         .contains("authorIliSetConstraint")
-        .contains("createUniqueConstraint")
-        .contains("kein typisiertes High-Level-Authoring")
         .contains("generateIliConstraintCases")
         .contains("proofVerified=true")
         .contains("generationVerified=true")
         .contains("coverageUnsolved")
-        .contains("reviewIliChange")
         .contains("afterReview")
-        .contains("nicht Teil der MCP-Oberfläche");
+        .contains("kein weiteres Modell-Level-Review")
+        .contains("Fragmentbasierte Constraint-Authoring-Tools sind nicht öffentlich");
   }
 
   @Test
@@ -109,16 +110,16 @@ class AgentPromptsTest {
     assertThat(resource)
         .contains("findSimilarModels")
         .contains("readModelExample")
-        .contains("applyIliModelChange")
-        .contains("ADD_ATTRIBUTE")
+        .contains("authorIliModel")
+        .contains("applyIliModelChanges")
         .contains("reviewIliChange")
         .contains("afterReview")
         .contains("nicht zusaetzlich `reviewIliChange` oder `reviewIliModel`")
         .contains("nicht als Standard-Dreierfolge")
         .contains("MCP-Sicherheitsvertrag")
         .contains("Keine INTERLIS-Syntax erfinden")
-        .contains("Kandidatentext nur aus erfolgreichen MCP-Rueckgaben")
-        .contains("GeometryCHLV95_V2.Coord2");
+        .contains("authorIliModel.updatedModelText")
+        .contains("GeometryTypeSpec");
   }
 
   @Test
@@ -133,13 +134,14 @@ class AgentPromptsTest {
         .contains("PLAUSIBILITY")
         .contains("SET")
         .contains("authorIliMandatoryConstraint")
+        .contains("authorIliUniqueConstraint")
         .contains("authorIliExistenceConstraint")
         .contains("authorIliPlausibilityConstraint")
         .contains("authorIliSetConstraint")
         .contains("generateIliConstraintCases")
         .contains("proofVerified")
-        .contains("generationVerified")
-        .contains("reviewIliChange")
+        .contains("generateIliConstraintCases")
+        .contains("afterReview")
         .contains("Reason-Codes");
   }
 }

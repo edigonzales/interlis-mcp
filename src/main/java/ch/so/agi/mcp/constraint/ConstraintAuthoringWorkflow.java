@@ -1,6 +1,7 @@
 package ch.so.agi.mcp.constraint;
 
 import ch.so.agi.mcp.service.IliCompilerService;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -33,6 +34,10 @@ public final class ConstraintAuthoringWorkflow {
     return compilerService.compile(modelText, null, tempPrefix);
   }
 
+  public IliCompilerService compilerService() {
+    return compilerService;
+  }
+
   public PreparedConstraint insertAndResolve(
       String modelText,
       IliCompilerService.CompilationResult beforeCompilation,
@@ -40,11 +45,30 @@ public final class ConstraintAuthoringWorkflow {
       String constraintBlock,
       String constraintFqn,
       String afterTempPrefix) {
+    return insertAndResolve(
+        modelText,
+        beforeCompilation,
+        contextFqn,
+        constraintBlock,
+        constraintFqn,
+        afterTempPrefix,
+        Set.of());
+  }
+
+  public PreparedConstraint insertAndResolve(
+      String modelText,
+      IliCompilerService.CompilationResult beforeCompilation,
+      String contextFqn,
+      String constraintBlock,
+      String constraintFqn,
+      String afterTempPrefix,
+      Set<String> requiredImports) {
     ConstraintSourceEditService.PreparedInsertion insertion = sourceEditService.insertConstraintBlock(
         modelText,
         beforeCompilation,
         contextFqn,
-        constraintBlock);
+        constraintBlock,
+        requiredImports);
     ConstraintContextService.Resolution resolution = contextService.compileAndResolve(
         insertion.updatedModelText(),
         constraintFqn,

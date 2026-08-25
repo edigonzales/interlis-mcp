@@ -13,31 +13,27 @@ import org.springframework.stereotype.Component;
 @Component
 public class AttributeTools {
 
+  private final GeometryTypeRenderer geometryRenderer;
+
+  public AttributeTools() {
+    this(new GeometryTypeRenderer());
+  }
+
+  public AttributeTools(GeometryTypeRenderer geometryRenderer) {
+    this.geometryRenderer = geometryRenderer;
+  }
+
   /**
    * New, strict version that supports numeric ranges and simple NUMERIC variants.
    * Input: AttributeLineRequest (name, mandatory?, collection?, typeSpec oneOf).
    * Output: AttributeLineResponse with a single ILI line.
    */
-  @McpTool(
-      name = "createAttributeLine",
-      description = """
-        Create a single INTERLIS attribute line with strict typing.
-        Use exactly one typeSpec family: domainFqn, baseType, referenceType, blackboxType, enumTreeValueType, basketType, objectType or metaobjectType.
-        Examples:
-        - TEXT: {"baseType":{"kind":"TEXT","length":120}}
-        - NUM_RANGE: {"baseType":{"kind":"NUM_RANGE","min":0.0,"max":100.0,"unitFqn":"INTERLIS.percent"}}
-        - NUMERIC with refSys: {"baseType":{"kind":"NUMERIC","unitFqn":"INTERLIS.deg","refSysFqn":"MyModel.AngleRef","circular":true}}
-        - Domain: {"domainFqn":"Demo.Farbe"}
-        - Structure: {"structureFqn":"Demo.Topic.Address"}
-        - Reference: {"referenceType":{"targetClassFqn":"Demo.Topic.Target","external":true}}
-        - Blackbox: {"blackboxType":{"kind":"XML"}}
-        - Enum tree value domain: {"enumTreeValueType":{"enumTreeDomainFqn":"Demo.Topic.StatusTree"}}
-        - Basket: {"basketType":{"kind":"DATA","topicFqn":"Demo.Topic"}}
-        """
-  )
   public AttributeLineResponse createAttributeLine(
-      @McpToolParam(description = "Structured attribute definition (name, mandatory, collection, typeSpec oneOf)", required = true)
       AttributeLineRequest req) {
+    return renderAttribute(req, "2.4").response();
+  }
+
+  public RenderedAttribute renderAttribute(AttributeLineRequest req, String iliVersion) {
     // ---- basic checks
     if (req.getName() == null || req.getName().isBlank()) {
       throw new IllegalArgumentException("Attribute 'name' is required.");
@@ -53,6 +49,7 @@ public class AttributeTools {
     Object selectedType = req.getTypeSpec().requireSingleType();
 
     // ---- build RHS (type)
+    java.util.List<String> requiredImports = new java.util.ArrayList<>();
     String rhs = switch (selectedType) {
       case TypeSpec.NamedType namedType -> {
         nv.validateFqn(namedType.fqn(), namedType.structure() ? "Structure FQN" : "Domain FQN");
@@ -65,9 +62,6 @@ public class AttributeTools {
           case MTEXT -> (bt.getLength() == null) ? "MTEXT" : "MTEXT*" + bt.getLength();
           case NUMERIC, NUM_RANGE -> numericFragment(bt);
           case BOOLEAN -> "BOOLEAN";
-          case COORD -> "COORD";
-          case POLYLINE -> "POLYLINE";
-          case SURFACE_SIMPLE -> "SURFACE WITH (STRAIGHTS) VERTEX COORD";
         };
       }
       case ReferenceTypeSpec ref -> {
@@ -102,6 +96,11 @@ public class AttributeTools {
         nv.validateFqn(metaobjectType.getTableFqn(), "Metaobject table FQN");
         yield "METAOBJECT OF " + metaobjectType.getTableFqn().trim();
       }
+      case GeometryTypeSpec geometryType -> {
+        GeometryTypeRenderer.RenderedGeometry rendered = geometryRenderer.render(geometryType, iliVersion);
+        requiredImports.addAll(rendered.requiredImports());
+        yield rendered.typeText();
+      }
       default -> throw new IllegalArgumentException("Unsupported typeSpec configuration.");
     };
 
@@ -115,8 +114,12 @@ public class AttributeTools {
     };
 
     String line = req.getName().trim() + " : " + prefix + collectionPrefix + rhs + ";";
-    return new AttributeLineResponse(AnnotationRenderer.renderAnnotations(req.getIliDoc(), req.getMetaAttributes()) + line);
+    return new RenderedAttribute(
+        new AttributeLineResponse(AnnotationRenderer.renderAnnotations(req.getIliDoc(), req.getMetaAttributes()) + line),
+        java.util.List.copyOf(requiredImports));
   }
+
+  public record RenderedAttribute(AttributeLineResponse response, java.util.List<String> requiredImports) {}
 
   private String numericFragment(BaseType bt) {
     boolean hasUnit = bt.getUnitFqn() != null && !bt.getUnitFqn().isBlank();

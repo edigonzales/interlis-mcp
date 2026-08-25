@@ -59,7 +59,8 @@ public class ConstraintReviewTools {
 
   @McpTool(
       name = "reviewIliConstraint",
-      description = "Erklaert und prueft einen bestehenden INTERLIS-Constraint aus einem vollstaendigen Modell. Liefert compilerbasierten AST, Kontext, referenzierte Elemente, Funktionen, String-Pfade, Typen und strukturelle Edge Cases. Erzeugt keine Testdaten, Witnesses oder Counterexamples."
+      description = "Erklaert und prueft einen bestehenden INTERLIS-Constraint aus einem vollstaendigen Modell. Liefert compilerbasierten AST, Kontext, referenzierte Elemente, Funktionen, String-Pfade, Typen und strukturelle Edge Cases. Erzeugt keine Testdaten, Witnesses oder Counterexamples.",
+      annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> reviewIliConstraint(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,

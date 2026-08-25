@@ -6,14 +6,14 @@ Der Server läuft ausschliesslich über **STDIO**. Er ist bewusst **kein Datei- 
 
 ## Was kann der Server?
 
-- INTERLIS-Bausteine für Modelle, Topics, Klassen, Strukturen, Beziehungen, Domains, Units, Attribute und Geometrien erzeugen.
+- Vollständige INTERLIS-Modelle aus typisierten Spezifikationen erzeugen und atomare Modelländerungen source-preserving anwenden.
 - Vollständige Modelle mit ili2c kompilieren, analysieren und gegen kuratierte Modellierungsregeln prüfen.
 - Vorher-/Nachher-Stände semantisch vergleichen und potenziell inkompatible Änderungen sichtbar machen.
-- Unterstützte Modelländerungen source-preserving ausführen; aktuell `ADD_ATTRIBUTE` für `CLASS` und `STRUCTURE`.
+- Ergänzungen, Attributänderungen und Attributlöschungen als atomare, source-preserving Batches ausführen.
 - Lokale `.ili`-Modelle als Beispiele durchsuchen und vollständig lesen.
 - XTF-Beispieldaten erzeugen und XTF mit ilivalidator prüfen.
 - INTERLIS-Constraints erklären, automatisch Testfälle erzeugen und mit dem echten ilivalidator verifizieren.
-- Neue MANDATORY-, skalare EXISTENCE-, PLAUSIBILITY- und unterstützte SET-Constraints typisiert und source-preserving erstellen.
+- Alle fünf Constraint-Arten über diskriminierte Specs typisiert und source-preserving erstellen; unvollständige Proofs werden als Kandidat zurückgehalten.
 - Agenten über MCP-Resources und MCP-Prompts einen stabilen Arbeitsablauf und eine klare Tool-Hierarchie bereitstellen.
 
 ## Schnellstart
@@ -43,16 +43,17 @@ docker run --rm -i sogis/interlis-mcp:latest
 | --- | --- |
 | Vollständiges Modell prüfen | `reviewIliModel` |
 | Bestehendes Modell semantisch vergleichen | `reviewIliChange` |
-| Attribut source-preserving hinzufügen | `applyIliModelChange` mit `ADD_ATTRIBUTE` |
+| Neues vollständiges Modell erstellen | `authorIliModel` |
+| Bestehendes Modell atomar ändern | `applyIliModelChanges` |
 | Passendes Modellbeispiel finden | `findSimilarModels` → `readModelExample` |
 | Bestehenden Constraint verstehen | `reviewIliConstraint` |
 | Bestehenden Constraint automatisch beweisen | `generateIliConstraintCases` |
 | Neuen MANDATORY Constraint erstellen | `authorIliMandatoryConstraint` |
 | Neuen EXISTENCE Constraint erstellen | `authorIliExistenceConstraint` |
 | Neuen PLAUSIBILITY Constraint erstellen | `authorIliPlausibilityConstraint` |
-| Neuen `objectCount(ALL)`-SET-Constraint erstellen | `authorIliSetConstraint` |
-| Einfachen UNIQUE-Schlüssel erzeugen | `createUniqueConstraint`, danach `generateIliConstraintCases` |
-| Geometrieattribut mit Abhängigkeiten vorbereiten | `ensureGeometryDependencies` |
+| Neuen SET-Constraint erstellen | `authorIliSetConstraint` |
+| UNIQUE-Constraint erstellen | `authorIliUniqueConstraint` |
+| Geometrie modellieren | `GeometryTypeSpec` in `authorIliModel` oder `applyIliModelChanges` |
 | XTF erzeugen bzw. prüfen | `generateExampleXtf` / `validateXtf` |
 
 ## Agentische Nutzung
@@ -62,8 +63,8 @@ Die wichtigste Regel lautet: **Das höchste Tool verwenden, das die Aufgabe voll
 Beispiele:
 
 - Ein vollständiges Modell wird mit `reviewIliModel` geprüft. Ein zusätzlicher Standarddurchlauf von `validateIliModel`, `analyzeIliModel` und `checkModelingRules` wäre redundant.
-- Eine von `applyIliModelChange` unterstützte Änderung wird direkt mit diesem Tool ausgeführt. Ein erfolgreiches `APPLIED`-Resultat enthält bereits semantischen Diff und `afterReview` für den unveränderten Nachher-Stand.
-- Ein Constraint-Proof (`proofVerified=true` oder `generationVerified=true`) beweist den Constraint, ersetzt aber bei einer separat vorgenommenen Modelländerung nicht das Modell-Level-Review mit `reviewIliChange`.
+- Eine unterstützte Änderung wird als Batch mit `applyIliModelChanges` ausgeführt. Ein erfolgreiches `APPLIED`-Resultat enthält bereits semantischen Diff, Constraint-Proofs und `afterReview` für den unveränderten Nachher-Stand.
+- Die `authorIli...Constraint`-Tools enthalten bereits Proof, Diff und `afterReview`. Nur bei einer separat vorgenommenen Quelltextänderung ist zusätzlich `reviewIliChange` nötig.
 - Fachliche Semantik wird nicht erfunden. Fehlende Kardinalitäten, Rollen, Schlüssel oder Constraints werden als offene Fragen behandelt.
 
 Die MCP-Resource `interlis://knowledge/agent-workflow` und der Prompt `interlis-modeling-agent` stellen diese Regeln direkt einem Agenten zur Verfügung.

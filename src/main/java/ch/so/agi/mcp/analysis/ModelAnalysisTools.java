@@ -60,7 +60,8 @@ public class ModelAnalysisTools {
 
   @McpTool(
       name = "analyzeIliModel",
-      description = "Low-Level-Tool fuer gezielte strukturelle und semantische Inspektion eines vollstaendigen INTERLIS-Modells, z. B. Vererbung, Topic-Abhaengigkeiten, Association-Rollen, Constraints, Units, Metaattribute oder Typdetails. Nicht als allgemeines Qualitaetsgate oder Standardreview verwenden; dafuer reviewIliModel."
+      description = "Low-Level-Tool fuer gezielte strukturelle und semantische Inspektion eines vollstaendigen INTERLIS-Modells, z. B. Vererbung, Topic-Abhaengigkeiten, Association-Rollen, Constraints, Units, Metaattribute oder Typdetails. Nicht als allgemeines Qualitaetsgate oder Standardreview verwenden; dafuer reviewIliModel.",
+      annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> analyzeIliModel(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,

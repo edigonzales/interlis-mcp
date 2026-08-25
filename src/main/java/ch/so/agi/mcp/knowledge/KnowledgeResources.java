@@ -47,28 +47,25 @@ public class KnowledgeResources {
         - Bei Fehler, Timeout oder unbrauchbarem Resultat sofort stoppen und Tool, Argumente sowie exakte Fehlermeldung berichten.
         - Hoechstens einmal bei plausibel transientem Fehler wiederholen.
         - Vor einem erfolgreichen Retry keine `.ili`-Datei schreiben oder aendern.
-        - Keine INTERLIS-Syntax erfinden; nur erfolgreich gelieferte Snippets exakt zusammensetzen.
+        - Keine INTERLIS-Syntax erfinden; die typisierten High-Level-Tools verwenden.
 
         Modell-Gates:
         1. Klaere Modellzweck, fachliche Begriffe, Quellsysteme, Publikationsbedarf und offene Fragen.
         2. Suche bei Bedarf passende Beispiele mit `findSimilarModels` und lies ein ausgewaehltes Modell mit `readModelExample`.
-        3. Fuer eine von `applyIliModelChange` unterstuetzte Aenderung eines bestehenden Modells verwende das semantische
-          Change-Tool statt den Quelltext selbst umzuschreiben. Aktuell ist `ADD_ATTRIBUTE` fuer CLASS und STRUCTURE unterstuetzt.
-        4. Ein erfolgreiches `APPLIED`-Resultat von `applyIliModelChange` enthaelt den semantischen Diff und `afterReview` als
+        3. Fuer ein neues Modell `authorIliModel`, fuer einen bestehenden Stand den atomaren Batch `applyIliModelChanges` verwenden.
+        4. Ein erfolgreiches `APPLIED`-Resultat von `applyIliModelChanges` enthaelt den semantischen Diff und `afterReview` als
           Abschlussgate. Fuer denselben unveraenderten Nachher-Stand nicht zusaetzlich `reviewIliChange` oder `reviewIliModel` ausfuehren.
         5. Fuer einen neuen Constraint verwende das hoechste passende Authoring-Tool. Ein erfolgreiches `proofVerified=true`
            ist das technische Constraint-Gate; fuer denselben unveraenderten Constraint folgt kein redundanter Validator-Durchlauf.
-        6. Wenn Constraint-Authoring ein bestehendes Modell geaendert hat, schliesse die Modell-Aenderung genau einmal mit
-           `reviewIliChange` fuer Vorher und `updatedModelText` ab.
+        6. Constraint-Authoring liefert Diff und `afterReview` aus denselben Compilations; kein redundantes Abschlussreview.
         7. Fuer noch nicht unterstuetzte sonstige Aenderungen bearbeite den Modelltext gezielt und vergleiche Vorher und Nachher mit `reviewIliChange`.
         8. Fuer einen einzelnen vollstaendigen Modellstand ohne Vorher-Stand verwende `reviewIliModel`.
         9. Behandle Compilerfehler und automatisierte ERROR-Findings vor WARNING/INFO-Findings.
         10. Liste `manualChecks` und `openQuestions` als fachliche Rueckfragen, ohne Kardinalitaeten, Rollen oder Constraints zu erfinden.
         11. Nutze `analyzeIliModel`, `checkModelingRules` und `validateIliModel` nur fuer gezielte Einzeldiagnosen, nicht als Standard-Dreierfolge.
         12. Wenn ein bereits gepruefter Nachher-Stand erneut geaendert wird, pruefe den neuen Stand wieder mit dem passenden High-Level-Tool.
-        13. Fuer ein neues Modell Kandidatentext nur aus erfolgreichen MCP-Rueckgaben zusammensetzen, mit `reviewIliModel` pruefen,
-            erst danach schreiben und den geschriebenen Dateistand abschliessend erneut pruefen.
-        14. `ensureGeometryDependencies` nie mit `geometryType=COORD` aufrufen; fuer INTERLIS 2.4 und LV95 `GeometryCHLV95_V2.Coord2` verwenden.
+        13. Ein neues Modell nur aus `authorIliModel.updatedModelText` bei `complete=true` uebernehmen.
+        14. Geometrien ausschliesslich mit `GeometryTypeSpec` und expliziter Fachsemantik beschreiben.
         """);
   }
 
@@ -88,9 +85,11 @@ public class KnowledgeResources {
         ## Modell-Reviews und Aenderungen
 
         - Vollstaendigen aktuellen Modellstand ohne Vorher-Stand pruefen: `reviewIliModel`.
-        - Unterstuetzte semantische Aenderung ausfuehren: `applyIliModelChange`. Aktuell ist `ADD_ATTRIBUTE` fuer CLASS und
-          STRUCTURE unterstuetzt. Das Tool arbeitet source-preserving und liefert bei `APPLIED` bereits semantischen Diff,
+        - Neues Modell authoren: `authorIliModel`.
+        - Unterstuetzte semantische Aenderung ausfuehren: `applyIliModelChanges`. Das Tool arbeitet atomar und source-preserving und liefert bei `APPLIED` bereits semantischen Diff,
           Compilerzustand und `afterReview` fuer den unveraenderten Nachher-Stand; fuer diesen Stand kein zusaetzliches `reviewIliChange` oder `reviewIliModel` ausfuehren.
+        - Der Batch unterstuetzt unter anderem `ADD_CLASS`, `ADD_STRUCTURE`, `ADD_ATTRIBUTE`, `UPDATE_ATTRIBUTE` und `REMOVE_ATTRIBUTE`. Bei potenziell brechender Semantik wird der ganze Batch mit
+          `BREAKING_CHANGE_REQUIRES_CONFIRMATION` zurueckgehalten, bis `allowPotentiallyBreaking=true` explizit gesetzt wird.
         - Wenn der Kandidat unerwartete semantische Nebenaenderungen enthaelt, wird `UNEXPECTED_SEMANTIC_CHANGE` geliefert.
         - Nicht unterstuetzte Aenderung: Quelltext gezielt bearbeiten und mit `reviewIliChange` abschliessen.
         - Lokales Vorbild: `findSimilarModels` -> ausgewaehlten Treffer mit `readModelExample` vollstaendig lesen.
@@ -101,21 +100,20 @@ public class KnowledgeResources {
         - Bestehenden Constraint automatisch beweisen: `generateIliConstraintCases` fuer MANDATORY, UNIQUE, EXISTENCE,
           PLAUSIBILITY und den unterstuetzten SET-Umfang.
         - MANDATORY authoren: `authorIliMandatoryConstraint`.
-        - EXISTENCE authoren: `authorIliExistenceConstraint` fuer skalare NUMERIC/BOOLEAN/ENUM/TEXT/MTEXT-Pfade.
+        - EXISTENCE authoren: `authorIliExistenceConstraint` mit explizitem Source-Pfad und vollstaendigen REQUIRED-IN-Zielen.
         - PLAUSIBILITY authoren: `authorIliPlausibilityConstraint`; der Proof verwendet echte Populationen und kann
           `UNDEFINED_COUNTS_AS_SUCCESS` verifizieren.
-        - SET authoren: `authorIliSetConstraint` fuer `INTERLIS.objectCount(ALL)`, optionales direktes WHERE und `(BASKET)`.
-        - UNIQUE besitzt noch kein gleichwertiges typed High-Level-Authoring. `createUniqueConstraint` ist nur ein enger
-          Snippet-Helper fuer einfache globale Attributschluessel; der semantische Proof folgt mit `generateIliConstraintCases`.
+        - SET authoren: `authorIliSetConstraint` fuer `OBJECT_COUNT` ueber `ALL` oder einen navigierten Objektpfad sowie `BOOLEAN_EXPRESSION`, optionales WHERE und GLOBAL/BASKET.
+        - UNIQUE authoren: `authorIliUniqueConstraint` fuer GLOBAL/BASKET/LOCAL, mehrere Schluesselpfade, WHERE und LOCAL-Praefix.
         - `proofVerified=true` bzw. `generationVerified=true` bedeutet, dass alle erzeugten Proof-Faelle vom echten
           ilivalidator mit dem erwarteten Resultat bestaetigt wurden. `coverageComplete=false` kann trotzdem verbleibende
           sichere Coverage-Grenzen anzeigen.
-        - Safety-Grenzen nicht approximieren. Beispiel: `EXISTENCE_REFERENCE_VALUE_PROOF_UNSAFE` bedeutet, dass kein
-          automatischer Ersatzbeweis behauptet wird.
+        - Safety-Grenzen nicht approximieren. `REFERENCE_EQUALITY_VALIDATOR_FAILURE`, `GEOMETRY_EQUALITY_VALIDATOR_FAILURE`
+          oder ein Polymorphie-Budget-Gap bedeuten, dass kein automatischer Ersatzbeweis behauptet wird; materialisierbare
+          konkrete SET-Endtypen werden dagegen als getrennte `routeTargetFqn`-Coverage-Faelle bewiesen.
         - `testIliConstraint` ist fuer explizit vorgegebene Testfaelle. Nach einem bereits verifizierten automatischen Proof
           nicht routinemaessig nochmals denselben Constraint damit pruefen.
-        - Constraint-Proof und Modell-Level-Review sind getrennt: Wenn ein bestehendes Modell durch Constraint-Authoring
-          geaendert wurde, danach genau einmal `reviewIliChange` fuer Vorher/Nachher ausfuehren.
+        - Constraint-Authoring liefert Proof, Diff und `afterReview` gemeinsam; kein redundantes `reviewIliChange`.
 
         ## Pfade und Funktionen
 
@@ -149,18 +147,18 @@ public class KnowledgeResources {
         Trenne drei Ebenen:
 
         1. Constraint verstehen: `reviewIliConstraint` fuer AST, Pfade, Typen und technische Erklaerung.
-        2. Constraint beweisen: `generateIliConstraintCases` fuer automatisch erzeugte Faelle; `testIliConstraint` nur fuer explizit vorgegebene Testfaelle.
-        3. Modellaenderung abschliessen: nach einer separaten Constraint-Aenderung genau einmal `reviewIliChange` fuer Vorher und Nachher.
+        2. Constraint beweisen: `generateIliConstraintCases` fuer automatisch erzeugte Faelle und `generationVerified=true` als Gate; `testIliConstraint` nur fuer explizit vorgegebene Testfaelle.
+        3. Modellaenderung abschliessen: Authoring-Resultat mit Proof, Diff und `afterReview` gemeinsam pruefen.
 
         ## Neue Constraints
 
         | Art | Bevorzugtes Authoring | Proof |
         | --- | --- | --- |
         | MANDATORY | `authorIliMandatoryConstraint` | im Authoring enthalten (`proofVerified`) |
-        | UNIQUE | `createUniqueConstraint` nur fuer einfache globale Schluessel | `generateIliConstraintCases` (`generationVerified`) |
+        | UNIQUE | `authorIliUniqueConstraint` | im Authoring enthalten (`proofVerified`) |
         | EXISTENCE | `authorIliExistenceConstraint` | im Authoring enthalten (`proofVerified`) |
         | PLAUSIBILITY | `authorIliPlausibilityConstraint` | im Authoring enthalten (`proofVerified`) |
-        | SET | `authorIliSetConstraint` fuer den unterstuetzten `objectCount(ALL)`-Umfang | im Authoring enthalten (`proofVerified`) |
+        | SET | `authorIliSetConstraint` fuer `OBJECT_COUNT` oder `BOOLEAN_EXPRESSION` | im Authoring enthalten (`proofVerified`) |
 
         Freie Mandatory-/Existence-/Set-Snippet-Helper sind nicht Teil der MCP-Oberflaeche. Wenn ein typed Authoring einen Fall
         nicht ausdruecken kann, bearbeitet der Agent den Modelltext gezielt und schliesst mit dem passenden Review und Proof ab.
@@ -168,10 +166,10 @@ public class KnowledgeResources {
         ## Safety-Grenzen
 
         - Proof-Reason-Codes und `coverageUnsolved` werden berichtet und nicht approximiert.
-        - EXISTENCE REFERENCE/COORD/komplexe Geometrie besitzt keine skalare Ersatzsemantik.
+        - EXISTENCE REFERENCE/COORD/komplexe Geometrie besitzt keine skalare Ersatzsemantik; nur validatorbestaetigte typisierte Fixtures zaehlen.
         - PLAUSIBILITY wird mit echten Populationen bewiesen.
-        - SET unterstuetzt plain `ALL` mit `INTERLIS.objectCount`, optionalem direktem WHERE und `(BASKET)`-Scope.
-        - Ein erfolgreicher Constraint-Proof ersetzt bei einer separaten Modellaenderung nicht das Modell-Level-Review.
+        - SET unterstuetzt `ALL` und navigierte Objektmengen, boolesche Ausdruecke, optionales WHERE und GLOBAL/BASKET, soweit alle Routen materialisierbar sind.
+        - Jedes Authoring-Tool liefert auch das Modell-Level-`afterReview` aus seinen vorhandenen Compilations.
         """);
   }
 

@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class BaseType {
 
-  public enum Kind { TEXT, MTEXT, NUMERIC, NUM_RANGE, BOOLEAN, COORD, POLYLINE, SURFACE_SIMPLE }
+  public enum Kind { TEXT, MTEXT, NUMERIC, NUM_RANGE, BOOLEAN }
 
   @JsonProperty(required = true)
   private Kind kind;
@@ -77,7 +77,7 @@ public class BaseType {
         if (refSysFqn != null && !refSysFqn.isBlank()) throw new IllegalArgumentException("NUM_RANGE does not support 'refSysFqn'.");
         if (circular != null) throw new IllegalArgumentException("NUM_RANGE does not support 'circular'.");
       }
-      case BOOLEAN, COORD, POLYLINE, SURFACE_SIMPLE -> rejectAllOptions(kind.name());
+      case BOOLEAN -> rejectAllOptions(kind.name());
       default -> throw new IllegalArgumentException("Unsupported baseType.kind: " + kind);
     }
   }

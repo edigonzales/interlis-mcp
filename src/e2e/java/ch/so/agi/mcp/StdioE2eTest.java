@@ -4,7 +4,6 @@ import org.junit.jupiter.api.*;
 import java.io.*;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -73,61 +72,72 @@ public class StdioE2eTest {
     }
 
     @Test
-    void initialize_listTools_and_createAnnotatedModelSnippet() throws Exception {
+    void initialize_listTools_and_authorAnnotatedModel() throws Exception {
         initializeSession();
 
         String toolsResp = listTools(2);
         assertContainsAll(toolsResp,
                 "\"tools\"",
-                "createModelSnippet",
-                "createAttributeLine",
-                "createEnumTreeDomainSnippet",
-                "createCoordDomainSnippet",
+                "authorIliModel",
+                "applyIliModelChanges",
+                "authorIliUniqueConstraint",
                 "renameModelElement",
                 "analyzeIliModel",
                 "checkModelingRules",
                 "findSimilarModels",
                 "generateExampleXtf",
                 "validateXtf");
+        assertFalse(toolsResp.contains("createModelSnippet"), toolsResp);
+        assertFalse(toolsResp.contains("createAttributeLine"), toolsResp);
+        assertFalse(toolsResp.contains("createUniqueConstraint"), toolsResp);
+        assertFalse(toolsResp.contains("ensureGeometryDependencies"), toolsResp);
 
-        String today = LocalDate.now().toString();
         String argsJson = "{"
-                + "\"name\":\"DemoModel\"," 
-                + "\"lang\":\"de\"," 
-                + "\"uri\":\"https://example.org/DemoModel\"," 
-                + "\"version\":\"" + today + "\"," 
-                + "\"iliVersion\":\"2.4\"," 
-                + "\"imports\":[\"INTERLIS\"]," 
+                + "\"spec\":{"
+                + "\"name\":\"DemoModel\","
+                + "\"language\":\"de\","
+                + "\"uri\":\"https://example.org/DemoModel\","
+                + "\"version\":\"2026-08-24\","
+                + "\"iliVersion\":\"2.4\","
                 + "\"metaAttributes\":[{\"name\":\"title\",\"value\":\"Demo\"}]"
+                + "},"
+                + "\"modelPurpose\":\"CAPTURE\""
                 + "}";
 
-        String createResp = callTool(3, "createModelSnippet", argsJson);
+        String createResp = callTool(3, "authorIliModel", argsJson);
         assertSuccessfulToolResponse(
-                createResp, "createModelSnippet", "INTERLIS 2.4", "MODEL DemoModel (de)", "!!@ title=", "Demo");
+                createResp, "authorIliModel", "GENERATED", "INTERLIS 2.4", "MODEL DemoModel (de)", "!!@ title=", "Demo");
     }
 
     @Test
-    void createAttributeLine_referenceType_overStdio() throws Exception {
+    void applyIliModelChanges_addsReferenceAttribute_overStdio() throws Exception {
         initializeSession();
 
+        String modelText = "INTERLIS 2.4;\n\n"
+                + "MODEL Demo (de) AT \"https://example.org/demo\" VERSION \"2026-08-24\" =\n"
+                + "  TOPIC Topic =\n"
+                + "    CLASS Target = END Target;\n"
+                + "    CLASS Holder = END Holder;\n"
+                + "  END Topic;\n"
+                + "END Demo.\n";
         String argsJson = "{"
-                + "\"req\":{"
-                + "\"name\":\"ziel\","
-                + "\"typeSpec\":{"
-                + "\"referenceType\":{"
-                + "\"targetClassFqn\":\"Demo.Topic.Target\","
-                + "\"external\":true"
-                + "}"
-                + "}"
-                + "}"
+                + "\"modelText\":" + jsonString(modelText) + ","
+                + "\"request\":{\"changes\":[{"
+                + "\"operation\":\"ADD_ATTRIBUTE\","
+                + "\"addAttribute\":{"
+                + "\"containerFqn\":\"Demo.Topic.Holder\","
+                + "\"attribute\":{\"name\":\"ziel\",\"typeSpec\":{"
+                + "\"referenceType\":{\"targetClassFqn\":\"Demo.Topic.Target\",\"external\":false}"
+                + "}}}}]},"
+                + "\"modelPurpose\":\"CAPTURE\""
                 + "}";
 
-        String response = callTool(3, "createAttributeLine", argsJson);
+        String response = callTool(3, "applyIliModelChanges", argsJson);
         assertSuccessfulToolResponse(response,
-                "createAttributeLine",
+                "applyIliModelChanges",
+                "APPLIED",
                 "ziel",
                 "REFERENCE TO",
-                "EXTERNAL",
                 "Demo.Topic.Target");
     }
 
@@ -135,15 +145,15 @@ public class StdioE2eTest {
     void concurrentToolCalls_returnEveryResponseWithoutTransportErrors() throws Exception {
         initializeSession();
 
-        send(createModelSnippetRequest(2, "ConcurrentModelA"));
-        send(createModelSnippetRequest(3, "ConcurrentModelB"));
+        send(authorIliModelRequest(2, "ConcurrentModelA"));
+        send(authorIliModelRequest(3, "ConcurrentModelB"));
 
         String responseA = waitForResponseWithId(2, 15_000);
         String responseB = waitForResponseWithId(3, 15_000);
         assertNotNull(responseA, "Did not receive response for concurrent request 2");
         assertNotNull(responseB, "Did not receive response for concurrent request 3");
-        assertSuccessfulToolResponse(responseA, "createModelSnippet", "ConcurrentModelA");
-        assertSuccessfulToolResponse(responseB, "createModelSnippet", "ConcurrentModelB");
+        assertSuccessfulToolResponse(responseA, "authorIliModel", "GENERATED", "ConcurrentModelA");
+        assertSuccessfulToolResponse(responseB, "authorIliModel", "GENERATED", "ConcurrentModelB");
         assertNoTransportErrors();
     }
 
@@ -210,12 +220,14 @@ public class StdioE2eTest {
     }
 
     @Test
-    void createEnumTreeDomainSnippet_recursivePayload_overStdio() throws Exception {
+    void authorIliModel_enumTreeDomain_recursivePayload_overStdio() throws Exception {
         initializeSession();
 
         String argsJson = "{"
-                + "\"name\":\"StatusTree\","
-                + "\"items\":["
+                + "\"spec\":{\"name\":\"EnumTreeModel\",\"uri\":\"https://example.org/enum-tree\","
+                + "\"version\":\"2026-08-24\",\"iliVersion\":\"2.4\",\"domains\":[{"
+                + "\"name\":\"StatusTree\",\"kind\":\"ENUM_TREE\","
+                + "\"enumTreeItems\":["
                 + "{"
                 + "\"name\":\"A\","
                 + "\"iliDoc\":\"Elternwert\","
@@ -226,12 +238,12 @@ public class StdioE2eTest {
                 + "]"
                 + "},"
                 + "{\"name\":\"D\"}"
-                + "]"
-                + "}";
+                + "]}]},\"modelPurpose\":\"CAPTURE\"}";
 
-        String response = callTool(3, "createEnumTreeDomainSnippet", argsJson);
+        String response = callTool(3, "authorIliModel", argsJson);
         assertSuccessfulToolResponse(response,
-                "createEnumTreeDomainSnippet",
+                "authorIliModel",
+                "GENERATED",
                 "StatusTree",
                 "/**",
                 "!!@ ili2db.dispName=",
@@ -241,24 +253,26 @@ public class StdioE2eTest {
     }
 
     @Test
-    void createEnumDomainSnippet_itemSpecs_withDispName_overStdio() throws Exception {
+    void authorIliModel_enumDomain_withDispName_overStdio() throws Exception {
         initializeSession();
 
         String argsJson = "{"
-                + "\"name\":\"GebaeudeArt\","
-                + "\"itemSpecs\":["
+                + "\"spec\":{\"name\":\"EnumModel\",\"uri\":\"https://example.org/enum\","
+                + "\"version\":\"2026-08-24\",\"iliVersion\":\"2.4\",\"domains\":[{"
+                + "\"name\":\"GebaeudeArt\",\"kind\":\"ENUM\","
+                + "\"enumItems\":["
                 + "{"
                 + "\"name\":\"Wohnhaus\","
                 + "\"iliDoc\":\"Wohngebaeude\","
                 + "\"metaAttributes\":[{\"name\":\"ili2db.dispName\",\"value\":\"Wohngebaeude\"}]"
                 + "},"
                 + "{\"name\":\"Gewerbe\"}"
-                + "]"
-                + "}";
+                + "]}]},\"modelPurpose\":\"CAPTURE\"}";
 
-        String response = callTool(3, "createEnumDomainSnippet", argsJson);
+        String response = callTool(3, "authorIliModel", argsJson);
         assertSuccessfulToolResponse(response,
-                "createEnumDomainSnippet",
+                "authorIliModel",
+                "GENERATED",
                 "GebaeudeArt",
                 "!!@ ili2db.dispName=",
                 "Wohnhaus",
@@ -266,74 +280,52 @@ public class StdioE2eTest {
     }
 
     @Test
-    void createAssociationSnippet_withExternalRole_overStdio() throws Exception {
+    void authorIliModel_withTypedAssociation_overStdio() throws Exception {
         initializeSession();
 
         String argsJson = "{"
-                + "\"name\":\"Link\","
-                + "\"roles\":["
+                + "\"spec\":{\"name\":\"AssociationModel\",\"uri\":\"https://example.org/association\","
+                + "\"version\":\"2026-08-24\",\"iliVersion\":\"2.4\",\"topics\":[{\"name\":\"Topic\","
+                + "\"classes\":[{\"name\":\"Source\"},{\"name\":\"Target\"}],"
+                + "\"associations\":[{\"name\":\"Link\",\"roles\":["
                 + "{"
                 + "\"name\":\"from\","
-                + "\"classFQN\":\"Demo.Topic.Source\","
-                + "\"card\":\"{1}\","
-                + "\"external\":true"
+                + "\"classFqn\":\"AssociationModel.Topic.Source\","
+                + "\"cardinality\":{\"min\":0,\"max\":\"*\"}"
                 + "},"
                 + "{"
                 + "\"name\":\"to\","
-                + "\"classFQN\":\"Demo.Topic.Target\","
-                + "\"card\":\"{0..*}\""
+                + "\"classFqn\":\"AssociationModel.Topic.Target\","
+                + "\"cardinality\":{\"min\":0,\"max\":\"1\"}"
                 + "}"
-                + "]"
-                + "}";
+                + "]}]}]},\"modelPurpose\":\"CAPTURE\"}";
 
-        String response = callTool(3, "createAssociationSnippet", argsJson);
+        String response = callTool(3, "authorIliModel", argsJson);
         assertSuccessfulToolResponse(response,
-                "createAssociationSnippet",
+                "authorIliModel",
+                "GENERATED",
                 "ASSOCIATION Link",
-                "from (EXTERNAL) -- {1} Demo.Topic.Source",
-                "to -- {0..*} Demo.Topic.Target");
+                "from -- {0..*} AssociationModel.Topic.Source",
+                "to -- {0..1} AssociationModel.Topic.Target");
     }
 
     @Test
-    void createAssociationSnippet_withRelationshipAttributes_overStdio() throws Exception {
+    void authorIliModel_withoutExplicitAssociationNames_returnsInvalidSpec() throws Exception {
         initializeSession();
 
         String argsJson = "{"
-                + "\"name\":\"Link\","
-                + "\"roles\":["
-                + "{\"name\":\"from\",\"classFQN\":\"Demo.Topic.Source\"},"
-                + "{\"name\":\"to\",\"classFQN\":\"Demo.Topic.Target\",\"card\":\"{0..1}\"}"
-                + "],"
-                + "\"attrLines\":[\"/** Beziehungscode */\\ncode : TEXT*20;\"]"
-                + "}";
+                + "\"spec\":{\"name\":\"BadAssociation\",\"uri\":\"https://example.org/bad\","
+                + "\"version\":\"2026-08-24\",\"iliVersion\":\"2.4\",\"topics\":[{\"name\":\"Topic\","
+                + "\"classes\":[{\"name\":\"Source\"},{\"name\":\"Target\"}],"
+                + "\"associations\":[{\"roles\":["
+                + "{\"classFqn\":\"BadAssociation.Topic.Source\",\"cardinality\":{\"min\":0,\"max\":\"*\"}},"
+                + "{\"classFqn\":\"BadAssociation.Topic.Target\",\"cardinality\":{\"min\":0,\"max\":\"1\"}}"
+                + "]}]}]},\"modelPurpose\":\"CAPTURE\"}";
 
-        String response = callTool(3, "createAssociationSnippet", argsJson);
-        assertSuccessfulToolResponse(response,
-                "createAssociationSnippet",
-                "ASSOCIATION Link",
-                "ATTRIBUTE",
-                "/** Beziehungscode */",
-                "code : TEXT*20;");
-    }
-
-    @Test
-    void createAssociationSnippet_withoutExplicitNames_overStdio() throws Exception {
-        initializeSession();
-
-        String argsJson = "{"
-                + "\"roles\":["
-                + "{\"classFQN\":\"Demo.Topic.Source\"},"
-                + "{\"classFQN\":\"Demo.Topic.Target\",\"card\":\"{0..1}\"}"
-                + "]"
-                + "}";
-
-        String response = callTool(3, "createAssociationSnippet", argsJson);
-        assertSuccessfulToolResponse(response,
-                "createAssociationSnippet",
-                "ASSOCIATION Source__Target",
-                "r_Target -- Demo.Topic.Source",
-                "r_Source -- {0..1} Demo.Topic.Target",
-                "generatedNames");
+        String response = callTool(3, "authorIliModel", argsJson);
+        assertErrorToolResponse(response,
+                "authorIliModel",
+                "required property 'name' not found");
     }
 
     @Test
@@ -386,19 +378,19 @@ public class StdioE2eTest {
     }
 
     @Test
-    void createModelSnippet_duplicateMetaAttributes_returnsError() throws Exception {
+    void authorIliModel_duplicateMetaAttributes_returnsInvalidSpec() throws Exception {
         initializeSession();
 
         String argsJson = "{"
-                + "\"name\":\"Demo\","
+                + "\"spec\":{\"name\":\"Demo\",\"uri\":\"https://example.org/demo\","
+                + "\"version\":\"2026-08-24\",\"iliVersion\":\"2.4\","
                 + "\"metaAttributes\":["
                 + "{\"name\":\"title\",\"value\":\"Demo\"},"
                 + "{\"name\":\"title\",\"value\":\"Demo 2\"}"
-                + "]"
-                + "}";
+                + "]},\"modelPurpose\":\"CAPTURE\"}";
 
-        String response = callTool(3, "createModelSnippet", argsJson);
-        assertErrorToolResponse(response, "createModelSnippet", "Duplicate meta attribute");
+        String response = callTool(3, "authorIliModel", argsJson);
+        assertSuccessfulToolResponse(response, "authorIliModel", "INVALID_SPEC", "Duplicate meta attribute");
     }
 
     @Test
@@ -610,19 +602,20 @@ public class StdioE2eTest {
         // System.out.println("[client ->] " + oneLineJson);
     }
 
-    private String createModelSnippetRequest(int id, String name) {
+    private String authorIliModelRequest(int id, String name) {
         return "{"
                 + "\"jsonrpc\":\"2.0\","
                 + "\"id\":" + id + ","
                 + "\"method\":\"tools/call\","
                 + "\"params\":{"
-                + "\"name\":\"createModelSnippet\","
+                + "\"name\":\"authorIliModel\","
                 + "\"arguments\":{"
-                + "\"name\":\"" + name + "\","
-                + "\"lang\":\"de\","
+                + "\"spec\":{\"name\":\"" + name + "\","
+                + "\"language\":\"de\","
                 + "\"uri\":\"https://example.org/" + name + "\","
                 + "\"version\":\"2026-08-24\","
-                + "\"iliVersion\":\"2.4\""
+                + "\"iliVersion\":\"2.4\"},"
+                + "\"modelPurpose\":\"CAPTURE\""
                 + "}"
                 + "}"
                 + "}";

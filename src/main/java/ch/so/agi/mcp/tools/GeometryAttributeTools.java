@@ -18,15 +18,6 @@ import java.util.Set;
 @Component
 public class GeometryAttributeTools {
 
-  @McpTool(
-      name = "ensureGeometryDependencies",
-      description = """
-          Stellt sicher, dass für ein Geometrieattribut alle benötigten Imports/Domains vorhanden sind.
-          Params: attributeName (required), arcs (default false), overlapMm (default 1),
-          chbase (default false), iliVersion ('2.3' oder '2.4', default '2.4'), geometryType (default SURFACE),
-          coordDomainFqn (required without CHBase), directed (default false).
-          """
-  )
   public Map<String, Object> ensureGeometryDependencies(
       @McpToolParam(description = "Attributname", required = true) String attributeName,
       @McpToolParam(description = "Kreisbogen erlaubt (true = WITH ARCS)", required = false) @Nullable Boolean arcs,
@@ -108,7 +99,8 @@ public class GeometryAttributeTools {
 
   @McpTool(
       name = "listGeometryTypes",
-      description = "Liste alle unterstützten Geometrietypen für die gewünschte INTERLIS-Sprachversion und Modell (INTERLIS/CHBase)."
+      description = "Liste alle unterstützten Geometrietypen für die gewünschte INTERLIS-Sprachversion und Modell (INTERLIS/CHBase).",
+      annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = false)
   )
   public Map<String, Object> listGeometryTypes(
       @McpToolParam(description = "INTERLIS Sprachversion (2.3 oder 2.4)", required = false) @Nullable String iliVersion
@@ -200,8 +192,7 @@ public class GeometryAttributeTools {
   }
 
   private Set<String> chBaseGeometryTypes(String ili) {
-    Map<String, String> raw = "2.3".equals(ili) ? chBase23() : chBase24();
-    return new LinkedHashSet<>(raw.values());
+    return new LinkedHashSet<>(new GeometryTypeRenderer().supportedChBaseTypes(ili));
   }
 
   private Map<String, String> chBase23() {

@@ -31,7 +31,8 @@ public class RenameTools {
 
   @McpTool(
       name = "renameModelElement",
-      description = "Benennt ein INTERLIS-Modellelement robust über ili2c-Metamodell und vollständige Modell-Neugenerierung um. Nicht source-preserving."
+      description = "Benennt ein INTERLIS-Modellelement robust über ili2c-Metamodell und vollständige Modell-Neugenerierung um. Nicht source-preserving. Das Tool schreibt keine Datei.",
+      annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> renameModelElement(
       @McpToolParam(description = "Vollständiger INTERLIS-2 Modelltext", required = true) String modelText,

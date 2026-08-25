@@ -30,12 +30,11 @@ class StructureToolsTest {
     }
 
     @Test
-    void createStructure_usesPlaceholderWhenNoAttributes() {
+    void createStructure_doesNotInventPlaceholderWhenNoAttributes() {
         Map<String, Object> response = structureTools.createStructure("Koordinate", true, null, null, null, null);
 
         assertEquals(String.join("\n",
                 "STRUCTURE Koordinate (ABSTRACT) =",
-                "  /** Attribute hier */",
                 "END Koordinate;"
         ), response.get("iliSnippet"));
     }

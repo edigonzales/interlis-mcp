@@ -35,7 +35,7 @@ class ClassToolsTest {
     }
 
     @Test
-    void createClass_usesPlaceholderWhenNoAttributes() {
+    void createClass_doesNotInventPlaceholderWhenNoAttributes() {
         Map<String, Object> response = classTools.createClass(
                 "Strauch",
                 false,
@@ -48,7 +48,6 @@ class ClassToolsTest {
 
         assertEquals(String.join("\n",
                 "CLASS Strauch =",
-                "  /** Attribute hier */",
                 "END Strauch;"
         ), response.get("iliSnippet"));
     }

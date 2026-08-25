@@ -2,20 +2,16 @@ package ch.so.agi.mcp.tools;
 
 import ch.so.agi.mcp.model.MetaAttributeSpec;
 import ch.so.agi.mcp.util.AnnotationRenderer;
+import ch.so.agi.mcp.util.NameValidator;
 import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
-import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
 @Component
 public class StructureTools {
 
-  @McpTool(
-      name = "createStructureSnippet",
-      description = "Erzeugt eine STRUCTURE-Definition (keine OID/TID). Params: name (required), isAbstract?, extendsFqn?, attrLines?, iliDoc, metaAttributes."
-  )
   public Map<String, Object> createStructure(
       @McpToolParam(description = "Strukturname", required = true) String name,
       @McpToolParam(description = "Abstrakt?", required = false) @Nullable Boolean isAbstract,
@@ -24,8 +20,17 @@ public class StructureTools {
       @McpToolParam(description = "IliDoc-Blockkommentar direkt vor der STRUCTURE", required = false) @Nullable String iliDoc,
       @McpToolParam(description = "INTERLIS-Metaattribute direkt vor der STRUCTURE", required = false) @Nullable List<MetaAttributeSpec> metaAttributes
   ) {
+    if (name == null || name.isBlank()) {
+      throw new IllegalArgumentException("Structure name is required.");
+    }
+    String structureName = name.trim();
+    var validator = NameValidator.ascii();
+    validator.validateIdent(structureName, "Structure name");
+    if (extendsFqn != null && !extendsFqn.isBlank()) {
+      validator.validateFqn(extendsFqn.trim(), "Structure EXTENDS");
+    }
     boolean abs = isAbstract != null && isAbstract;
-    String header = "STRUCTURE " + name
+    String header = "STRUCTURE " + structureName
         + (abs ? " (ABSTRACT)" : "")
         + (extendsFqn != null && !extendsFqn.isBlank() ? " EXTENDS " + extendsFqn.trim() : "")
         + " =";
@@ -38,11 +43,9 @@ public class StructureTools {
       for (String l : attrLines) {
         sb.append(AnnotationRenderer.indentBlock(l, "  ")).append("\n");
       }
-    } else {
-      sb.append("  /** Attribute hier */\n");
     }
 
-    sb.append("END ").append(name).append(";");
+    sb.append("END ").append(structureName).append(";");
     return Map.of("iliSnippet", sb.toString());
   }
 }

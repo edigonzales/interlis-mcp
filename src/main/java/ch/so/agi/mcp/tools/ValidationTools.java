@@ -18,7 +18,8 @@ public class ValidationTools {
 
   @McpTool(
       name = "validateIliModel",
-      description = "Low-Level-Tool fuer reine ili2c-Compilerpruefung und gezielte Syntax-/Compiler-Reparatur. Rueckgabe: {valid:bool, messages:[{severity,file?,line?,message,sourceExcerpt?:{startLine,endLine,text}}]}. Prueft keine Modellierungsregeln und ersetzt keinen vollstaendigen Review; dafuer reviewIliModel."
+      description = "Low-Level-Tool fuer reine ili2c-Compilerpruefung und gezielte Syntax-/Compiler-Reparatur. Rueckgabe: {valid:bool, messages:[{severity,file?,line?,message,sourceExcerpt?:{startLine,endLine,text}}]}. Prueft keine Modellierungsregeln und ersetzt keinen vollstaendigen Review; dafuer reviewIliModel.",
+      annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> validateIliModel(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText

@@ -220,14 +220,14 @@ public final class ConstraintSemanticTranslator {
     BigDecimal right = numericConstant(comparison.right());
     if (left != null && right != null) {
       return new SemanticConstraint.ObjectCountSetCondition(
-          allObjects(left.objects()), comparison.operator(), right);
+          objectSet(left.objects()), comparison.operator(), right);
     }
 
     ObjectCountCall rightCall = objectCountCall(comparison.right());
     BigDecimal leftConstant = numericConstant(comparison.left());
     if (rightCall != null && leftConstant != null) {
       return new SemanticConstraint.ObjectCountSetCondition(
-          allObjects(rightCall.objects()), reverse(comparison.operator()), leftConstant);
+          objectSet(rightCall.objects()), reverse(comparison.operator()), leftConstant);
     }
     return null;
   }
@@ -240,10 +240,23 @@ public final class ConstraintSemanticTranslator {
     }
     Evaluable[] arguments = call.getArguments();
     if (arguments == null || arguments.length != 1
-        || !(arguments[0] instanceof ch.interlis.ili2c.metamodel.Objects objects)) {
+        || (!(arguments[0] instanceof ch.interlis.ili2c.metamodel.Objects)
+            && !(arguments[0] instanceof ObjectPath))) {
       return null;
     }
-    return new ObjectCountCall(objects);
+    return new ObjectCountCall(arguments[0]);
+  }
+
+  private static SemanticConstraint.ObjectSetExpression objectSet(Evaluable expression) {
+    if (expression instanceof ch.interlis.ili2c.metamodel.Objects objects) {
+      return allObjects(objects);
+    }
+    if (expression instanceof ObjectPath path) {
+      return new SemanticConstraint.NavigatedObjects(path(path));
+    }
+    throw new TranslationException(
+        "SET_OBJECT_SET_EXPRESSION_UNSUPPORTED",
+        "Unsupported object-set AST node: " + expression.getClass().getName());
   }
 
   private static SemanticConstraint.AllObjects allObjects(
@@ -457,7 +470,7 @@ public final class ConstraintSemanticTranslator {
       Evaluable right) {
   }
 
-  private record ObjectCountCall(ch.interlis.ili2c.metamodel.Objects objects) {
+  private record ObjectCountCall(Evaluable objects) {
   }
 
   private record Metadata(

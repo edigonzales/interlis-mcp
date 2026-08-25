@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ch.so.agi.mcp.constraint.ConstraintContextService;
+import ch.so.agi.mcp.model.IliAuthoringResult;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.List;
 import java.util.Map;
@@ -62,22 +63,23 @@ class ConstraintDecisionTableIr24Test {
         condition("Gewichtung", "==", 100),
         sumDefined(false));
 
-    Map<String, Object> result = tools.generateIliConstraintFromDecisionTable(
+    IliAuthoringResult result = tools.generateIliConstraintFromDecisionTable(
         MODEL,
         "DecisionIr24Model.Data.Haupt",
         "WeightSum100",
         List.of(withSecondary, withoutSecondary));
 
-    assertEquals(true, result.get("generated"), String.valueOf(result));
-    assertEquals(true, result.get("proofVerified"), String.valueOf(result));
+    assertEquals(true, result.generated, String.valueOf(result));
+    assertEquals(true, result.proofVerified, String.valueOf(result));
 
-    String expression = String.valueOf(result.get("constraintExpression"));
+    String expression = String.valueOf(result.details.get("constraintExpression"));
     assertTrue(expression.contains("Math_V2.sum(\"Nebenauspraegung->Gewichtung\")"), expression);
     assertTrue(expression.contains("Math_V2.sum(\"Nebenauspraegung->Gewichtung\") + Gewichtung"), expression);
     assertTrue(!expression.contains("Math.add("), expression);
 
-    Map<String, Object> verification = map(result.get("verification"));
-    assertEquals(true, verification.get("allPassed"), String.valueOf(verification));
+    IliAuthoringResult.ProofVerification verification =
+        result.constraintProofs.getFirst().verification;
+    assertEquals(true, verification.allPassed, String.valueOf(verification));
   }
 
   private ConstraintDecisionTableTools.DecisionRow row(

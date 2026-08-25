@@ -122,11 +122,11 @@ public final class ConstraintCoveragePlanner {
         collect(not.operand(), binding, goals);
       }
       case And and -> {
-        addAndProbes(and, goals);
+        addAndProbes(and, binding, goals);
         and.operands().forEach(operand -> collect(operand, binding, goals));
       }
       case Or or -> {
-        addOrProbes(or, goals);
+        addOrProbes(or, binding, goals);
         or.operands().forEach(operand -> collect(operand, binding, goals));
       }
       case Implies implies -> {
@@ -145,32 +145,38 @@ public final class ConstraintCoveragePlanner {
 
   private static void addAndProbes(
       And and,
+      ConstraintModelSynthesizer.ModelBinding binding,
       Set<ConstraintExpressionEngine.TestGoal> goals) {
     List<ConstraintExpression> operands = and.operands();
-    addTruthPattern(goals, operands, all(operands.size(), true), "AND all operands true");
+    addTruthPatternIfReachable(
+        goals, operands, all(operands.size(), true), binding, "AND all operands true");
     for (int index = 0; index < operands.size(); index++) {
       boolean[] truth = all(operands.size(), true);
       truth[index] = false;
-      addTruthPattern(
+      addTruthPatternIfReachable(
           goals,
           operands,
           truth,
+          binding,
           "AND operand " + (index + 1) + " independently false");
     }
   }
 
   private static void addOrProbes(
       Or or,
+      ConstraintModelSynthesizer.ModelBinding binding,
       Set<ConstraintExpressionEngine.TestGoal> goals) {
     List<ConstraintExpression> operands = or.operands();
-    addTruthPattern(goals, operands, all(operands.size(), false), "OR all branches false");
+    addTruthPatternIfReachable(
+        goals, operands, all(operands.size(), false), binding, "OR all branches false");
     for (int index = 0; index < operands.size(); index++) {
       boolean[] truth = all(operands.size(), false);
       truth[index] = true;
-      addTruthPattern(
+      addTruthPatternIfReachable(
           goals,
           operands,
           truth,
+          binding,
           "OR branch " + (index + 1) + " independently true");
     }
   }
@@ -198,6 +204,72 @@ public final class ConstraintCoveragePlanner {
         ConstraintExpressionEngine.GoalKind.TRUE,
         required.size() == 1 ? required.getFirst() : new And(required),
         reason));
+  }
+
+  private static void addTruthPatternIfReachable(
+      Set<ConstraintExpressionEngine.TestGoal> goals,
+      List<ConstraintExpression> operands,
+      boolean[] truth,
+      ConstraintModelSynthesizer.ModelBinding binding,
+      String reason) {
+    for (int index = 0; index < operands.size(); index++) {
+      if (!truthValuePossible(operands.get(index), truth[index], binding)) return;
+    }
+    for (int index = 0; index < operands.size(); index++) {
+      if (truth[index] || !(operands.get(index) instanceof Defined defined)) continue;
+      Set<ConstraintExpression.Reference> undefinedReferences = defined.operand().references();
+      for (int other = 0; other < operands.size(); other++) {
+        if (other == index || !truth[other]) continue;
+        if (operands.get(other) instanceof Comparison
+            && operands.get(other).references().stream().anyMatch(undefinedReferences::contains)) {
+          return;
+        }
+      }
+    }
+    addTruthPattern(goals, operands, truth, reason);
+  }
+
+  /** Rejects only branches that a direct typed domain proves unreachable. */
+  private static boolean truthValuePossible(
+      ConstraintExpression expression,
+      boolean expected,
+      ConstraintModelSynthesizer.ModelBinding binding) {
+    if (!(expression instanceof Comparison comparison)) return true;
+    ConstraintExpression operand;
+    NumericLiteral literal;
+    ComparisonOperator operator;
+    if (comparison.right() instanceof NumericLiteral right) {
+      operand = comparison.left();
+      literal = right;
+      operator = comparison.operator();
+    } else if (comparison.left() instanceof NumericLiteral left) {
+      operand = comparison.right();
+      literal = left;
+      operator = reverse(comparison.operator());
+    } else {
+      return true;
+    }
+    ConstraintModelSynthesizer.ValueDomain valueDomain = singleReferenceDomain(operand, binding);
+    if (valueDomain == null || valueDomain.numeric() == null) return true;
+    ConstraintModelSynthesizer.NumericDomain domain = valueDomain.numeric();
+    BigDecimal pivot = literal.value();
+    BigDecimal minimum = domain.minimum();
+    BigDecimal maximum = domain.maximum();
+    return switch (operator) {
+      case EQ -> expected ? domain.contains(pivot)
+          : minimum == null || maximum == null || minimum.compareTo(maximum) != 0
+              || minimum.compareTo(pivot) != 0;
+      case NE -> truthValuePossible(
+          new Comparison(ComparisonOperator.EQ, operand, literal), !expected, binding);
+      case LT -> expected ? minimum == null || minimum.compareTo(pivot) < 0
+          : maximum == null || maximum.compareTo(pivot) >= 0;
+      case LE -> expected ? minimum == null || minimum.compareTo(pivot) <= 0
+          : maximum == null || maximum.compareTo(pivot) > 0;
+      case GT -> expected ? maximum == null || maximum.compareTo(pivot) > 0
+          : minimum == null || minimum.compareTo(pivot) <= 0;
+      case GE -> expected ? maximum == null || maximum.compareTo(pivot) >= 0
+          : minimum == null || minimum.compareTo(pivot) < 0;
+    };
   }
 
   private static boolean[] all(int size, boolean value) {
@@ -441,25 +513,25 @@ public final class ConstraintCoveragePlanner {
     BigDecimal above = pivot.add(step);
     switch (operator) {
       case EQ, NE -> {
-        addNumericEquality(goals, operand, pivot, "at comparison value");
-        addNumericEquality(goals, operand, below, "just below comparison value");
-        addNumericEquality(goals, operand, above, "just above comparison value");
+        addNumericEqualityIfInDomain(goals, operand, pivot, binding, "at comparison value");
+        addNumericEqualityIfInDomain(goals, operand, below, binding, "just below comparison value");
+        addNumericEqualityIfInDomain(goals, operand, above, binding, "just above comparison value");
       }
       case LT -> {
-        addNumericEquality(goals, operand, below, "just below exclusive upper bound");
-        addNumericEquality(goals, operand, pivot, "at exclusive upper bound");
+        addNumericEqualityIfInDomain(goals, operand, below, binding, "just below exclusive upper bound");
+        addNumericEqualityIfInDomain(goals, operand, pivot, binding, "at exclusive upper bound");
       }
       case LE -> {
-        addNumericEquality(goals, operand, pivot, "at inclusive upper bound");
-        addNumericEquality(goals, operand, above, "just above inclusive upper bound");
+        addNumericEqualityIfInDomain(goals, operand, pivot, binding, "at inclusive upper bound");
+        addNumericEqualityIfInDomain(goals, operand, above, binding, "just above inclusive upper bound");
       }
       case GT -> {
-        addNumericEquality(goals, operand, pivot, "at exclusive lower bound");
-        addNumericEquality(goals, operand, above, "just above exclusive lower bound");
+        addNumericEqualityIfInDomain(goals, operand, pivot, binding, "at exclusive lower bound");
+        addNumericEqualityIfInDomain(goals, operand, above, binding, "just above exclusive lower bound");
       }
       case GE -> {
-        addNumericEquality(goals, operand, below, "just below inclusive lower bound");
-        addNumericEquality(goals, operand, pivot, "at inclusive lower bound");
+        addNumericEqualityIfInDomain(goals, operand, below, binding, "just below inclusive lower bound");
+        addNumericEqualityIfInDomain(goals, operand, pivot, binding, "at inclusive lower bound");
       }
     }
   }
@@ -475,6 +547,18 @@ public final class ConstraintCoveragePlanner {
         new NumericLiteral(value));
     goals.add(new ConstraintExpressionEngine.TestGoal(
         ConstraintExpressionEngine.GoalKind.TRUE, probe, reason));
+  }
+
+  private static void addNumericEqualityIfInDomain(
+      Set<ConstraintExpressionEngine.TestGoal> goals,
+      ConstraintExpression operand,
+      BigDecimal value,
+      ConstraintModelSynthesizer.ModelBinding binding,
+      String reason) {
+    ConstraintModelSynthesizer.ValueDomain domain = operand instanceof Attribute || operand instanceof Path
+        ? singleReferenceDomain(operand, binding) : null;
+    if (domain != null && domain.numeric() != null && !domain.numeric().contains(value)) return;
+    addNumericEquality(goals, operand, value, reason);
   }
 
   private static void addBooleanProbes(

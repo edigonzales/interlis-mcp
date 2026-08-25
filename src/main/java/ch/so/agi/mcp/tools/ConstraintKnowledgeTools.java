@@ -50,7 +50,8 @@ public class ConstraintKnowledgeTools {
 
   @McpTool(
       name = "listConstraintFunctions",
-      description = "Listet bekannte Constraint-Funktionen mit Herkunft, stabiler semantischer ID, Parametern und semantischen Parametertypen. Math/Text stammen aus INTERLIS-Funktionsmodellen; Validator-Extensions und Modellfunktionen werden als eigene Herkunftskategorien unterschieden."
+      description = "Listet bekannte Constraint-Funktionen mit Herkunft, stabiler semantischer ID, Parametern und semantischen Parametertypen. Math/Text stammen aus INTERLIS-Funktionsmodellen; Validator-Extensions und Modellfunktionen werden als eigene Herkunftskategorien unterschieden.",
+      annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = false)
   )
   public Map<String, Object> listConstraintFunctions(
       @McpToolParam(description = "INTERLIS Sprachversion (2.3 oder 2.4)", required = false) @Nullable String iliVersion) {
@@ -77,7 +78,8 @@ public class ConstraintKnowledgeTools {
 
   @McpTool(
       name = "resolveConstraintPath",
-      description = "Loest einen String-Objekt-/Attributpfad im Kontext einer Klasse oder Association exakt mit dem ili2c-Ili23Parser auf. Geeignet insbesondere fuer attributePath-Parameter wie Math_V2.sum(\"Rolle->Attribut\"). Gibt Pfadschritte, Kardinalitaeten, Zieltyp und bei Fehlern moegliche Elemente zurueck."
+      description = "Loest einen String-Objekt-/Attributpfad im Kontext einer Klasse oder Association exakt mit dem ili2c-Ili23Parser auf. Geeignet insbesondere fuer attributePath-Parameter wie Math_V2.sum(\"Rolle->Attribut\"). Gibt Pfadschritte, Kardinalitaeten, Zieltyp und bei Fehlern moegliche Elemente zurueck.",
+      annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> resolveConstraintPath(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,

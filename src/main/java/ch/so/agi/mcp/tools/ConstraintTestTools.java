@@ -99,7 +99,8 @@ public class ConstraintTestTools {
 
   @McpTool(
       name = "testIliConstraint",
-      description = "Prueft einen bestehenden INTERLIS-Constraint mit explizit vom Agenten definierten Testfaellen. Erzeugt fuer jeden Fall ein minimales XTF, unterstuetzt mehrere Objekte und optional mehrere Baskets pro Topic ueber object.basketId bzw. bei heavyweight Associations link.basketId, deaktiviert andere Constraints, validiert mit iox-ili/ilivalidator und vergleicht das beobachtete Ergebnis mit expectedConstraintValid. Erzeugt selbst noch keine Witnesses oder Counterexamples."
+      description = "Prueft einen bestehenden INTERLIS-Constraint mit explizit vom Agenten definierten Testfaellen. Erzeugt fuer jeden Fall ein minimales XTF, unterstuetzt mehrere Objekte und optional mehrere Baskets pro Topic ueber object.basketId bzw. bei heavyweight Associations link.basketId, deaktiviert andere Constraints, validiert mit iox-ili/ilivalidator und vergleicht das beobachtete Ergebnis mit expectedConstraintValid. Erzeugt selbst noch keine Witnesses oder Counterexamples.",
+      annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> testIliConstraint(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,
@@ -830,7 +831,9 @@ public class ConstraintTestTools {
       String name = entry.getKey().trim();
       AttributeDef attribute = findAttribute(table, name);
       Type type = attribute != null ? Type.findReal(attribute.getDomainOrDerivedDomain()) : null;
-      if (type instanceof CompositionType composition) {
+      if (entry.getValue() instanceof TypedValueFixtureFactory.GeometryValue geometry) {
+        applyGeometryValue(object, name, geometry);
+      } else if (type instanceof CompositionType composition) {
         applyCompositionValue(
             object,
             name,
@@ -902,7 +905,8 @@ public class ConstraintTestTools {
       throw new IllegalArgumentException(
           "REFERENCE assignment for '" + attributeName + "' requires one target OID.");
     }
-    String oid = String.valueOf(raw).trim();
+    String oid = raw instanceof TypedValueFixtureFactory.ReferenceValue reference
+        ? reference.targetOid() : String.valueOf(raw).trim();
     PreparedObject target = objectsByOid.get(oid);
     if (target == null) {
       throw new IllegalArgumentException(
@@ -911,6 +915,84 @@ public class ConstraintTestTools {
     IomObject ref = owner.addattrobj(attributeName, Iom_jObject.REF);
     ref.setobjectrefoid(target.oid());
     setReferenceBasketIfNeeded(ref, topicOf(sourceTable), sourceBasketId, target);
+  }
+
+  private void applyGeometryValue(
+      IomObject owner,
+      String attributeName,
+      TypedValueFixtureFactory.GeometryValue geometry) {
+    switch (geometry) {
+      case TypedValueFixtureFactory.CoordinateValue coordinate ->
+          addCoordinate(owner, attributeName, coordinate);
+      case TypedValueFixtureFactory.PolylineValue polyline -> {
+        IomObject target = owner.addattrobj(attributeName, Iom_jObject.POLYLINE);
+        fillPolyline(target, polyline);
+      }
+      case TypedValueFixtureFactory.SurfaceValue surface -> {
+        IomObject target = owner.addattrobj(attributeName, Iom_jObject.MULTISURFACE);
+        addSurface(target, surface);
+      }
+      case TypedValueFixtureFactory.MultiCoordinateValue multi -> {
+        IomObject target = owner.addattrobj(attributeName, Iom_jObject.MULTICOORD);
+        for (TypedValueFixtureFactory.CoordinateValue coordinate : multi.coordinates()) {
+          addCoordinate(target, Iom_jObject.MULTICOORD_COORD, coordinate);
+        }
+      }
+      case TypedValueFixtureFactory.MultiPolylineValue multi -> {
+        IomObject target = owner.addattrobj(attributeName, Iom_jObject.MULTIPOLYLINE);
+        for (TypedValueFixtureFactory.PolylineValue polyline : multi.polylines()) {
+          IomObject child = target.addattrobj(
+              Iom_jObject.MULTIPOLYLINE_POLYLINE, Iom_jObject.POLYLINE);
+          fillPolyline(child, polyline);
+        }
+      }
+      case TypedValueFixtureFactory.MultiSurfaceValue multi -> {
+        IomObject target = owner.addattrobj(attributeName, Iom_jObject.MULTISURFACE);
+        for (TypedValueFixtureFactory.SurfaceValue surface : multi.surfaces()) {
+          addSurface(target, surface);
+        }
+      }
+    }
+  }
+
+  private void addCoordinate(
+      IomObject owner,
+      String attributeName,
+      TypedValueFixtureFactory.CoordinateValue coordinate) {
+    IomObject target = owner.addattrobj(attributeName, Iom_jObject.COORD);
+    for (int index = 0; index < coordinate.ordinates().size(); index++) {
+      String name = switch (index) {
+        case 0 -> Iom_jObject.COORD_C1;
+        case 1 -> Iom_jObject.COORD_C2;
+        case 2 -> Iom_jObject.COORD_C3;
+        default -> throw new IllegalArgumentException("Coordinate fixture has too many axes.");
+      };
+      target.setattrvalue(name, coordinate.ordinates().get(index).stripTrailingZeros().toPlainString());
+    }
+  }
+
+  private void fillPolyline(
+      IomObject polyline,
+      TypedValueFixtureFactory.PolylineValue value) {
+    IomObject sequence = polyline.addattrobj(
+        Iom_jObject.POLYLINE_SEQUENCE, Iom_jObject.SEGMENTS);
+    for (TypedValueFixtureFactory.CoordinateValue coordinate : value.points()) {
+      addCoordinate(sequence, Iom_jObject.SEGMENTS_SEGMENT, coordinate);
+    }
+  }
+
+  private void addSurface(
+      IomObject multiSurface,
+      TypedValueFixtureFactory.SurfaceValue value) {
+    IomObject surface = multiSurface.addattrobj(
+        Iom_jObject.MULTISURFACE_SURFACE, Iom_jObject.SURFACE);
+    for (TypedValueFixtureFactory.PolylineValue boundaryValue : value.boundaries()) {
+      IomObject boundary = surface.addattrobj(
+          Iom_jObject.SURFACE_BOUNDARY, Iom_jObject.BOUNDARY);
+      IomObject polyline = boundary.addattrobj(
+          Iom_jObject.BOUNDARY_POLYLINE, Iom_jObject.POLYLINE);
+      fillPolyline(polyline, boundaryValue);
+    }
   }
 
   private Map<String, Object> stringKeyedMap(Map<?, ?> values, String attributeName) {
