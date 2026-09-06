@@ -9,6 +9,7 @@ import ch.interlis.ili2c.metamodel.Cardinality;
 import ch.interlis.ili2c.metamodel.CompositionType;
 import ch.interlis.ili2c.metamodel.Constraint;
 import ch.interlis.ili2c.metamodel.Container;
+import ch.interlis.ili2c.metamodel.Domain;
 import ch.interlis.ili2c.metamodel.Element;
 import ch.interlis.ili2c.metamodel.EnumTreeValueType;
 import ch.interlis.ili2c.metamodel.EnumerationType;
@@ -25,6 +26,7 @@ import ch.interlis.ili2c.metamodel.TransferDescription;
 import ch.interlis.ili2c.metamodel.Type;
 import ch.interlis.iom.IomObject;
 import ch.interlis.iom_j.Iom_jObject;
+import ch.interlis.iom_j.xtf.Xtf23Reader0;
 import ch.interlis.iom_j.xtf.Xtf24Reader;
 import ch.interlis.iom_j.xtf.XtfWriter;
 import ch.interlis.iox.IoxEvent;
@@ -60,6 +62,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
@@ -69,6 +72,7 @@ import org.springframework.stereotype.Component;
 public class ConstraintTestTools {
 
   private static final String TARGET_VIOLATION_MARKER = "INTERLIS_MCP_TARGET_CONSTRAINT_VIOLATED";
+  private static final int MAX_AUTOMATIC_ASSOCIATION_ELEMENTS = 64;
 
   private final IliCompilerService compilerService;
 
@@ -185,7 +189,34 @@ public class ConstraintTestTools {
       List<Constraint> allConstraints,
       TestCase testCase,
       int caseIndex) {
-    PreparedCase prepared = prepareCase(td, target, testCase, caseIndex);
+    PreparedCase prepared;
+    try {
+      prepared = prepareCase(td, target, testCase, caseIndex);
+    } catch (FixturePreparationException ex) {
+      Map<String, Object> fixtureError = Map.of(
+          "severity", "ERROR",
+          "code", ex.reasonCode(),
+          "message", ex.getMessage());
+      Map<String, Object> result = new LinkedHashMap<>();
+      result.put("name", testCase.name.trim());
+      result.put("expectedConstraintValid", testCase.expectedConstraintValid);
+      result.put("actualConstraintValid", false);
+      result.put("passed", false);
+      result.put("constraintExercised", false);
+      result.put("subjectCount", 0);
+      result.put("basketCount", 0);
+      result.put("baskets", List.of());
+      result.put("fixtureValid", false);
+      result.put("validatorValid", false);
+      result.put("targetViolationCount", 0);
+      result.put("errorCount", 1);
+      result.put("warningCount", 0);
+      result.put("messages", List.of(fixtureError));
+      result.put("fixtureErrors", List.of(fixtureError));
+      result.put("fixturePreparationReasonCode", ex.reasonCode());
+      result.put("reason", ex.getMessage());
+      return result;
+    }
     Path xtfFile = null;
     try {
       xtfFile = Files.createTempFile("interlis-mcp-constraint-case-", ".xtf");
@@ -309,6 +340,9 @@ public class ConstraintTestTools {
       }
     }
 
+    completeMandatoryAssociations(
+        testCase, caseIndex, objectDrafts, draftsByOid, linkDrafts);
+
     validateReferenceTargets(testCase, objectDrafts, draftsByOid);
     validateExplicitBasketIds(testCase, objectDrafts, linkDrafts);
     Map<Topic, String> defaultBasketIds = allocateDefaultBasketIds(objectDrafts, linkDrafts);
@@ -345,6 +379,202 @@ public class ConstraintTestTools {
     List<BasketKey> baskets = collectBaskets(objects, links);
     int subjectCount = countSubjects(target, objects, links);
     return new PreparedCase(objects, links, objectsByOid, objectsByClass, baskets, subjectCount);
+  }
+
+  private void completeMandatoryAssociations(
+      TestCase testCase,
+      int caseIndex,
+      List<ObjectDraft> objects,
+      Map<String, ObjectDraft> objectsByOid,
+      List<LinkDraft> links) {
+    int generatedElements = 0;
+    int generatedObjectIndex = 1;
+    Set<String> visitedRolePaths = new LinkedHashSet<>();
+
+    for (int objectIndex = 0; objectIndex < objects.size(); objectIndex++) {
+      ObjectDraft source = objects.get(objectIndex);
+      List<RoleDef> navigationRoles = new ArrayList<>();
+      Iterator<RoleDef> iterator = source.table().getOpposideRoles();
+      while (iterator.hasNext()) {
+        navigationRoles.add(iterator.next());
+      }
+      navigationRoles.sort(Comparator.comparing(role -> role.getScopedName(null)));
+
+      for (RoleDef targetRole : navigationRoles) {
+        String visitedRolePath = source.oid() + "\u0000" + targetRole.getScopedName(null);
+        if (!visitedRolePaths.add(visitedRolePath)) {
+          continue;
+        }
+        if (!(targetRole.getContainer() instanceof AssociationDef association)
+            || targetRole.getOppEnd() == null
+            || targetRole.getDestination() == null) {
+          continue;
+        }
+        Cardinality cardinality = targetRole.getCardinality();
+        long minimum = cardinality != null ? cardinality.getMinimum() : 1;
+        if (minimum <= 0) {
+          continue;
+        }
+        if (!targetRole.hasOneOppEnd()) {
+          throw fixturePreparationFailure(
+              "MANDATORY_ASSOCIATION_NARY_UNSUPPORTED",
+              testCase,
+              "Cannot complete non-binary mandatory association "
+                  + association.getScopedName(null) + ".");
+        }
+
+        RoleDef sourceRole = targetRole.getOppEnd();
+        while (countLinksForSource(links, association, sourceRole, source.oid()) < minimum) {
+          ObjectDraft target = reusableTarget(objects, links, targetRole, source);
+          boolean createsObject = target == null;
+          int requiredElements = createsObject ? 2 : 1;
+          if (generatedElements + requiredElements > MAX_AUTOMATIC_ASSOCIATION_ELEMENTS) {
+            throw fixturePreparationFailure(
+                "MANDATORY_ASSOCIATION_FIXTURE_LIMIT",
+                testCase,
+                "Completing mandatory associations would exceed the limit of "
+                    + MAX_AUTOMATIC_ASSOCIATION_ELEMENTS + " generated objects and links.");
+          }
+          if (createsObject) {
+            Table targetTable = concreteTargetTable(targetRole, testCase);
+            String oid;
+            do {
+              int objectSequence = generatedObjectIndex++;
+              oid = generatedObjectOid(targetTable, caseIndex, objectSequence);
+            } while (objectsByOid.containsKey(oid));
+            String targetBasketId = topicOf(targetTable) == topicOf(source.table())
+                    && !targetRole.isExternal()
+                ? source.requestedBasketId()
+                : null;
+            target = new ObjectDraft(targetTable, oid, targetBasketId, Map.of(), Map.of());
+            objects.add(target);
+            objectsByOid.put(oid, target);
+            generatedElements++;
+          }
+
+          Map<String, String> roles = new LinkedHashMap<>();
+          roles.put(sourceRole.getName(), source.oid());
+          roles.put(targetRole.getName(), Objects.requireNonNull(target).oid());
+          links.add(new LinkDraft(association, null, Map.copyOf(roles)));
+          generatedElements++;
+        }
+      }
+    }
+  }
+
+  private String generatedObjectOid(Table table, int caseIndex, int objectIndex) {
+    String seed = table.getScopedName(null) + ":" + caseIndex + ":" + objectIndex;
+    Domain oidDomain = table.getOid();
+    if (usesUuidOid(oidDomain)) {
+      return UUID.nameUUIDFromBytes(seed.getBytes(StandardCharsets.UTF_8)).toString();
+    }
+    return "case" + caseIndex + "_mandatory_" + objectIndex;
+  }
+
+  private boolean usesUuidOid(@Nullable Domain oidDomain) {
+    Set<Domain> visited = new LinkedHashSet<>();
+    Domain current = oidDomain;
+    while (current != null && visited.add(current)) {
+      if (current.getScopedName(null).endsWith(".UUIDOID")) {
+        return true;
+      }
+      current = current.getExtending();
+    }
+    return false;
+  }
+
+  private long countLinksForSource(
+      List<LinkDraft> links,
+      AssociationDef association,
+      RoleDef sourceRole,
+      String sourceOid) {
+    return links.stream()
+        .filter(link -> link.association() == association)
+        .filter(link -> sourceOid.equals(link.roles().get(sourceRole.getName())))
+        .count();
+  }
+
+  private @Nullable ObjectDraft reusableTarget(
+      List<ObjectDraft> objects,
+      List<LinkDraft> links,
+      RoleDef targetRole,
+      ObjectDraft source) {
+    if (!(targetRole.getDestination() instanceof Table declaredTarget)) {
+      return null;
+    }
+    RoleDef sourceRole = targetRole.getOppEnd();
+    long maximumBackReferences = sourceRole.getCardinality() != null
+        ? sourceRole.getCardinality().getMaximum()
+        : 1;
+    return objects.stream()
+        .filter(candidate -> candidate != source)
+        .filter(candidate -> compatibleTable(candidate.table(), declaredTarget))
+        .filter(candidate -> targetRole.isExternal()
+            || topicOf(candidate.table()) != topicOf(source.table())
+            || Objects.equals(candidate.requestedBasketId(), source.requestedBasketId()))
+        .filter(candidate -> links.stream().noneMatch(link ->
+            link.association() == targetRole.getContainer()
+                && source.oid().equals(link.roles().get(sourceRole.getName()))
+                && candidate.oid().equals(link.roles().get(targetRole.getName()))))
+        .filter(candidate -> maximumBackReferences == Cardinality.UNBOUND
+            || links.stream()
+                .filter(link -> link.association() == targetRole.getContainer())
+                .filter(link -> candidate.oid().equals(link.roles().get(targetRole.getName())))
+                .count() < maximumBackReferences)
+        .sorted(Comparator.comparing(ObjectDraft::oid))
+        .findFirst()
+        .orElse(null);
+  }
+
+  private boolean compatibleTable(Table actual, Table declared) {
+    return actual == declared || actual.isExtending(declared);
+  }
+
+  private Table concreteTargetTable(RoleDef targetRole, TestCase testCase) {
+    if (!(targetRole.getDestination() instanceof Table declared) || !declared.isIdentifiable()) {
+      throw fixturePreparationFailure(
+          "MANDATORY_ASSOCIATION_TARGET_UNSUPPORTED",
+          testCase,
+          "Mandatory role " + targetRole.getScopedName(null)
+              + " does not target an identifiable class.");
+    }
+    if (!declared.isAbstract()) {
+      return declared;
+    }
+
+    List<Table> candidates = new ArrayList<>();
+    collectConcreteExtensions(declared, candidates);
+    candidates.sort(Comparator.comparing(table -> table.getScopedName(null)));
+    if (candidates.size() != 1) {
+      throw fixturePreparationFailure(
+          "MANDATORY_ASSOCIATION_TARGET_AMBIGUOUS",
+          testCase,
+          "Mandatory role " + targetRole.getScopedName(null) + " targets abstract class "
+              + declared.getScopedName(null) + " with " + candidates.size()
+              + " concrete choices; the fixture cannot choose one without changing semantics.");
+    }
+    return candidates.getFirst();
+  }
+
+  private void collectConcreteExtensions(Table parent, List<Table> result) {
+    for (Object extension : parent.getExtensions()) {
+      if (!(extension instanceof Table child) || child == parent) {
+        continue;
+      }
+      if (!child.isAbstract() && child.isIdentifiable() && !result.contains(child)) {
+        result.add(child);
+      }
+      collectConcreteExtensions(child, result);
+    }
+  }
+
+  private FixturePreparationException fixturePreparationFailure(
+      String reasonCode,
+      TestCase testCase,
+      String reason) {
+    return new FixturePreparationException(
+        reasonCode,
+        "Case '" + testCase.name + "': " + reason);
   }
 
   private void validateReferenceTargets(
@@ -467,11 +697,43 @@ public class ConstraintTestTools {
         result.add(new BasketKey(topicOf(link.association()), Objects.requireNonNull(link.basketId())));
       }
     }
-    return result.stream()
-        .sorted(Comparator
-            .comparing((BasketKey key) -> key.topic().getScopedName(null))
-            .thenComparing(BasketKey::basketId))
-        .toList();
+    return orderBaskets(result);
+  }
+
+  private List<BasketKey> orderBaskets(Iterable<BasketKey> baskets) {
+    List<BasketKey> remaining = new ArrayList<>();
+    baskets.forEach(remaining::add);
+    List<BasketKey> ordered = new ArrayList<>();
+    Comparator<BasketKey> stableOrder = Comparator
+        .comparing((BasketKey key) -> key.topic().getScopedName(null))
+        .thenComparing(BasketKey::basketId);
+
+    while (!remaining.isEmpty()) {
+      Set<Topic> remainingTopics = new LinkedHashSet<>();
+      remaining.forEach(key -> remainingTopics.add(key.topic()));
+      List<BasketKey> ready = remaining.stream()
+          .filter(key -> !hasRemainingTopicDependency(key.topic(), remainingTopics))
+          .sorted(stableOrder)
+          .toList();
+      if (ready.isEmpty()) {
+        remaining.sort(stableOrder);
+        ordered.addAll(remaining);
+        break;
+      }
+      ordered.addAll(ready);
+      remaining.removeAll(ready);
+    }
+    return ordered;
+  }
+
+  private boolean hasRemainingTopicDependency(Topic topic, Set<Topic> remainingTopics) {
+    Iterator<Topic> dependencies = topic.getDependentOn();
+    while (dependencies.hasNext()) {
+      if (remainingTopics.contains(dependencies.next())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private List<Map<String, Object>> basketSummaries(PreparedCase prepared) {
@@ -545,10 +807,7 @@ public class ConstraintTestTools {
       objectsByBasket.computeIfAbsent(basket, key -> new ArrayList<>()).add(associationObject);
     }
 
-    List<BasketKey> baskets = new ArrayList<>(objectsByBasket.keySet());
-    baskets.sort(Comparator
-        .comparing((BasketKey key) -> key.topic().getScopedName(null))
-        .thenComparing(BasketKey::basketId));
+    List<BasketKey> baskets = orderBaskets(objectsByBasket.keySet());
     try (OutputStream outputStream = Files.newOutputStream(xtfFile)) {
       XtfWriter writer = new XtfWriter(outputStream, td);
       try {
@@ -638,7 +897,11 @@ public class ConstraintTestTools {
 
     IoxReader reader = null;
     try {
-      reader = Xtf24Reader.createReader(xtfFile.toFile());
+      // The current default XTF 2.3 reader ignores the normative EXTREF attribute.
+      // Its compatibility reader preserves cross-basket association references.
+      reader = td.getLastModel().isIli23()
+          ? new Xtf23Reader0(xtfFile.toFile())
+          : Xtf24Reader.createReader(xtfFile.toFile());
       if (reader instanceof IoxIliReader iliReader) {
         iliReader.setModel(td);
       }
@@ -1191,6 +1454,19 @@ public class ConstraintTestTools {
   }
 
   private record ValidationOutcome(List<Map<String, Object>> messages, int errorCount, int warningCount) {
+  }
+
+  private static final class FixturePreparationException extends IllegalArgumentException {
+    private final String reasonCode;
+
+    private FixturePreparationException(String reasonCode, String message) {
+      super(message);
+      this.reasonCode = reasonCode;
+    }
+
+    private String reasonCode() {
+      return reasonCode;
+    }
   }
 
   private static final class CollectingIoxLogging implements IoxLogging {

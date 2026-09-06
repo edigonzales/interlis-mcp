@@ -143,9 +143,10 @@ public class ConstraintCaseGenerationTools {
     }
     response.put("verification", verification);
     if (!verified) {
-      response.put("reasonCode", "GENERATED_CASES_NOT_VERIFIED");
-      response.put(
-          "reason",
+      addVerificationFailure(
+          response,
+          verification,
+          "GENERATED_CASES_NOT_VERIFIED",
           "Semantic cases were generated, but the real validator did not confirm all expected outcomes.");
     }
     response.put("limitations", limitations());
@@ -196,9 +197,10 @@ public class ConstraintCaseGenerationTools {
     }
     response.put("verification", verification);
     if (!verified) {
-      response.put("reasonCode", "GENERATED_CASES_NOT_VERIFIED");
-      response.put(
-          "reason",
+      addVerificationFailure(
+          response,
+          verification,
+          "GENERATED_CASES_NOT_VERIFIED",
           "UNIQUE proof cases were generated, but the real validator did not confirm all expected outcomes.");
     }
     response.put("limitations", limitations());
@@ -249,6 +251,7 @@ public class ConstraintCaseGenerationTools {
     }
     response.put("verification", verification);
     if (!verified) {
+      Map<String, Object> fixtureFailure = firstFixturePreparationFailure(verification);
       boolean referenceEquality = context.constraint() instanceof ExistenceConstraint raw
           && raw.getRestrictedAttribute() != null
           && raw.getRestrictedAttribute().getLastPathEl() instanceof PathElRefAttr;
@@ -256,16 +259,23 @@ public class ConstraintCaseGenerationTools {
           && raw.getRestrictedAttribute() != null
           && raw.getRestrictedAttribute().getLastPathEl() instanceof AttributeRef ref
           && isMultigeometry(ref.getAttr().getDomainOrDerivedDomain());
-      response.put("reasonCode", referenceEquality
+      response.put("reasonCode", fixtureFailure != null
+          ? fixtureFailure.get("fixturePreparationReasonCode")
+          : referenceEquality
           ? "REFERENCE_EQUALITY_VALIDATOR_FAILURE"
           : multigeometryEquality
               ? "GEOMETRY_EQUALITY_VALIDATOR_FAILURE"
               : "GENERATED_CASES_NOT_VERIFIED");
-      response.put("reason", referenceEquality
+      response.put("reason", fixtureFailure != null
+          ? fixtureFailure.get("reason")
+          : referenceEquality
           ? "The installed ilivalidator cannot execute REFERENCE-valued EXISTENCE equality without an internal error; the OID fixtures remain unproved."
           : multigeometryEquality
               ? "The installed ilivalidator cannot execute multigeometry-valued EXISTENCE equality without an internal error; the valid fixtures remain unproved."
               : "EXISTENCE proof cases were generated, but the real validator did not confirm all expected outcomes.");
+      if (fixtureFailure != null) {
+        response.put("proofIncomplete", true);
+      }
     }
     response.put("limitations", limitations());
     return response;
@@ -319,9 +329,10 @@ public class ConstraintCaseGenerationTools {
     }
     response.put("verification", verification);
     if (!verified) {
-      response.put("reasonCode", "GENERATED_CASES_NOT_VERIFIED");
-      response.put(
-          "reason",
+      addVerificationFailure(
+          response,
+          verification,
+          "GENERATED_CASES_NOT_VERIFIED",
           "PLAUSIBILITY population cases were generated, but the real validator did not confirm all expected outcomes.");
     }
     response.put("limitations", limitations());
@@ -373,9 +384,10 @@ public class ConstraintCaseGenerationTools {
     }
     response.put("verification", verification);
     if (!verified) {
-      response.put("reasonCode", "GENERATED_CASES_NOT_VERIFIED");
-      response.put(
-          "reason",
+      addVerificationFailure(
+          response,
+          verification,
+          "GENERATED_CASES_NOT_VERIFIED",
           "SET objectCount cases were generated, but the real validator did not confirm all expected outcomes.");
     }
     response.put("limitations", limitations());
@@ -585,6 +597,43 @@ public class ConstraintCaseGenerationTools {
     }
     response.put("limitations", limitations());
     return response;
+  }
+
+  private void addVerificationFailure(
+      Map<String, Object> response,
+      Map<String, Object> verification,
+      String defaultReasonCode,
+      String defaultReason) {
+    Map<String, Object> fixtureFailure = firstFixturePreparationFailure(verification);
+    if (fixtureFailure == null) {
+      response.put("reasonCode", defaultReasonCode);
+      response.put("reason", defaultReason);
+      return;
+    }
+    response.put("reasonCode", fixtureFailure.get("fixturePreparationReasonCode"));
+    response.put("reason", fixtureFailure.get("reason"));
+    response.put("proofIncomplete", true);
+  }
+
+  private @Nullable Map<String, Object> firstFixturePreparationFailure(
+      Map<String, Object> verification) {
+    Object rawCases = verification.get("cases");
+    if (!(rawCases instanceof List<?> cases)) {
+      return null;
+    }
+    for (Object rawCase : cases) {
+      if (rawCase instanceof Map<?, ?> map
+          && map.get("fixturePreparationReasonCode") != null) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+          if (entry.getKey() instanceof String key) {
+            result.put(key, entry.getValue());
+          }
+        }
+        return result;
+      }
+    }
+    return null;
   }
 
   private List<String> limitations() {

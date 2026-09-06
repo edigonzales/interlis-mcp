@@ -157,7 +157,10 @@ public final class ConstraintAuthoringEngine {
         compiled.constraintFqn(), verified, proof));
     if (!verified) {
       boolean generated = Boolean.TRUE.equals(proof.get("automaticCasesGenerated"));
-      result.status = generated
+      boolean proofIncomplete = Boolean.TRUE.equals(proof.get("proofIncomplete"));
+      result.status = proofIncomplete
+          ? IliAuthoringResult.Status.PROOF_INCOMPLETE
+          : generated
           ? IliAuthoringResult.Status.PROOF_FAILED
           : IliAuthoringResult.Status.PROOF_INCOMPLETE;
       if (generated && Boolean.TRUE.equals(proof.get("automaticCasesAvailable"))) {

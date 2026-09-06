@@ -24,6 +24,10 @@ class ConstraintExistenceCaseGenerationTest {
             code : 0..10;
           END TargetB;
 
+          CLASS MandatoryTextTarget =
+            textCode : MANDATORY TEXT*20;
+          END MandatoryTextTarget;
+
           CLASS Source =
             mandatoryCode : MANDATORY 0..10;
             optionalCode : 0..10;
@@ -41,6 +45,13 @@ class ConstraintExistenceCaseGenerationTest {
             !!@ name = "TextExists"
             EXISTENCE CONSTRAINT textCode REQUIRED IN TargetA : textCode;
           END Source;
+
+          CLASS MandatoryTextSource =
+            textCode : MANDATORY TEXT*20;
+
+            !!@ name = "MandatoryTextExists"
+            EXISTENCE CONSTRAINT textCode REQUIRED IN MandatoryTextTarget : textCode;
+          END MandatoryTextSource;
         END Data;
       END ExistenceProof.
       """;
@@ -100,6 +111,30 @@ class ConstraintExistenceCaseGenerationTest {
     assertVerifiedExistence(result);
     assertThat(maps(result.get("generatedCases")))
         .anySatisfy(item -> assertCase(item, "value exists in REQUIRED IN target 1", true));
+  }
+
+  @Test
+  void mandatoryTextCounterexampleUsesMaterializableDifferentValue() {
+    Map<String, Object> result = tools(new IliCompilerService()).generateIliConstraintCases(
+        MODEL,
+        "MandatoryTextExists");
+
+    assertVerifiedExistence(result);
+    Map<String, Object> different = maps(result.get("generatedCases")).stream()
+        .filter(item -> "REQUIRED IN target contains only a different value".equals(item.get("name")))
+        .findFirst()
+        .orElseThrow();
+    assertThat(map(different.get("values")).get("targetValue").toString()).isNotBlank();
+
+    Map<String, Object> verification = map(result.get("verification"));
+    assertThat(maps(verification.get("cases"))).anySatisfy(item -> {
+      if ("REQUIRED IN target contains only a different value".equals(item.get("name"))) {
+        assertThat(item.get("fixtureValid")).isEqualTo(true);
+        assertThat(String.valueOf(item.get("xtfText")))
+            .contains("<MandatoryTextTarget")
+            .contains("<textCode>y</textCode>");
+      }
+    });
   }
 
   @Test
