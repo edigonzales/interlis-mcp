@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "caseId": "P09",
+  "category": "POSITIVE",
+  "corpus": {
+    "repository": "sogis-interlis-repository",
+    "commit": "b94abb0953c8413d4eaaa647fa66fa7d585aa4df",
+    "path": "models/AFU/SO_AFU_Schiesslaerm_20260210.ili"
+  },
+  "originalConstraintSelector": "SO_AFU_Schiesslaerm_20260210.Schiesslaerm.Anlage_Kandidat.Constraint1",
+  "expectedTypeOrBoundary": "EXISTENCE; scalar text value must occur in target IDs",
+  "expectedHighLevelTools": [
+    "authorIliExistenceConstraint"
+  ],
+  "gold": {
+    "constraintKind": "EXISTENCE_CONSTRAINT",
+    "contextFqn": "SO_AFU_Schiesslaerm_20260210.Schiesslaerm.Anlage_Kandidat",
+    "astComplete": true,
+    "ast": {
+      "kind": "EXISTENCE_CONSTRAINT",
+      "restrictedAttribute": {
+        "type": {
+          "kind": "TEXT",
+          "typeText": "TEXT*50"
+        },
+        "kind": "OBJECT_PATH",
+        "path": "ID",
+        "collection": false,
+        "steps": [
+          {
+            "index": 0,
+            "kind": "ATTRIBUTE",
+            "name": "ID",
+            "type": {
+              "kind": "TEXT",
+              "typeText": "TEXT*50"
+            },
+            "mandatory": true,
+            "collection": false
+          }
+        ]
+      },
+      "requiredIn": [
+        {
+          "type": {
+            "kind": "TEXT",
+            "typeText": "TEXT*50"
+          },
+          "kind": "OBJECT_PATH",
+          "path": "ID",
+          "collection": false,
+          "steps": [
+            {
+              "index": 0,
+              "kind": "ATTRIBUTE",
+              "name": "ID",
+              "type": {
+                "kind": "TEXT",
+                "typeText": "TEXT*50"
+              },
+              "mandatory": true,
+              "collection": false
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "astComparison": {
+    "ignore": [
+      "constraintName",
+      "sourceLine",
+      "pureGrouping",
+      "commutativeOperandOrder:AND",
+      "commutativeOperandOrder:OR",
+      "symmetricOperandOrder:EQUALITY"
+    ],
+    "requireExplicitJustificationForOtherLogicalEquivalence": true
+  },
+  "acceptedBoundaryStatuses": [],
+  "scoring": {
+    "requireCorrectHighLevelTool": true,
+    "requireStatus": "GENERATED",
+    "requireProofVerified": true,
+    "requireCompilingUpdatedModel": true,
+    "requireExactIntendedConstraintOnly": true,
+    "requireNoReleasedUpdatedModel": false
+  },
+  "removal": {
+    "sourceStartOffset": 1541,
+    "sourceEndOffset": 1646,
+    "sourceChars": 2121,
+    "publicChars": 2016
+  }
+}

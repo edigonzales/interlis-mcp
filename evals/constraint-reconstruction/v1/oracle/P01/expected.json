@@ -1,0 +1,2291 @@
+{
+  "schemaVersion": 1,
+  "caseId": "P01",
+  "category": "POSITIVE",
+  "corpus": {
+    "repository": "sogis-interlis-repository",
+    "commit": "b94abb0953c8413d4eaaa647fa66fa7d585aa4df",
+    "path": "models/AFU/SO_AFU_Bodeneinheiten_20251210.ili"
+  },
+  "originalConstraintSelector": "CheckKoernungsklasseUbTongehalt_Land",
+  "expectedTypeOrBoundary": "MANDATORY; enum-to-inclusive-numeric-range mapping",
+  "expectedHighLevelTools": [
+    "generateIliConstraintFromDecisionTable",
+    "authorIliMandatoryConstraint"
+  ],
+  "gold": {
+    "constraintKind": "MANDATORY_CONSTRAINT",
+    "contextFqn": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft",
+    "astComplete": true,
+    "ast": {
+      "kind": "MANDATORY_CONSTRAINT",
+      "condition": {
+        "type": {
+          "kind": "BOOLEAN",
+          "typeText": "BOOLEAN"
+        },
+        "kind": "GROUP",
+        "expression": {
+          "type": {
+            "kind": "BOOLEAN",
+            "typeText": "BOOLEAN"
+          },
+          "kind": "OR",
+          "children": [
+            {
+              "type": {
+                "kind": "BOOLEAN",
+                "typeText": "BOOLEAN"
+              },
+              "kind": "GROUP",
+              "expression": {
+                "type": {
+                  "kind": "BOOLEAN",
+                  "typeText": "BOOLEAN"
+                },
+                "kind": "AND",
+                "children": [
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "GROUP",
+                    "expression": {
+                      "type": {
+                        "kind": "BOOLEAN",
+                        "typeText": "BOOLEAN"
+                      },
+                      "kind": "OR",
+                      "children": [
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "==",
+                          "left": {
+                            "type": {
+                              "kind": "ENUM",
+                              "values": [
+                                "sand",
+                                "schluffiger_sand",
+                                "lehmiger_sand",
+                                "lehmreicher_sand",
+                                "sandiger_lehm",
+                                "lehm",
+                                "toniger_lehm",
+                                "lehmiger_ton",
+                                "ton",
+                                "sandiger_schluff",
+                                "schluff",
+                                "lehmiger_schluff",
+                                "toniger_schluff"
+                              ]
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Koernungsklasse",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Koernungsklasse",
+                                "type": {
+                                  "kind": "ENUM",
+                                  "values": [
+                                    "sand",
+                                    "schluffiger_sand",
+                                    "lehmiger_sand",
+                                    "lehmreicher_sand",
+                                    "sandiger_lehm",
+                                    "lehm",
+                                    "toniger_lehm",
+                                    "lehmiger_ton",
+                                    "ton",
+                                    "sandiger_schluff",
+                                    "schluff",
+                                    "lehmiger_schluff",
+                                    "toniger_schluff"
+                                  ]
+                                },
+                                "mandatory": false,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "ENUM",
+                              "values": [
+                                "sand",
+                                "schluffiger_sand",
+                                "lehmiger_sand",
+                                "lehmreicher_sand",
+                                "sandiger_lehm",
+                                "lehm",
+                                "toniger_lehm",
+                                "lehmiger_ton",
+                                "ton",
+                                "sandiger_schluff",
+                                "schluff",
+                                "lehmiger_schluff",
+                                "toniger_schluff"
+                              ]
+                            },
+                            "kind": "ENUM_LITERAL",
+                            "value": "#sand"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "==",
+                          "left": {
+                            "type": {
+                              "kind": "ENUM",
+                              "values": [
+                                "sand",
+                                "schluffiger_sand",
+                                "lehmiger_sand",
+                                "lehmreicher_sand",
+                                "sandiger_lehm",
+                                "lehm",
+                                "toniger_lehm",
+                                "lehmiger_ton",
+                                "ton",
+                                "sandiger_schluff",
+                                "schluff",
+                                "lehmiger_schluff",
+                                "toniger_schluff"
+                              ]
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Koernungsklasse",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Koernungsklasse",
+                                "type": {
+                                  "kind": "ENUM",
+                                  "values": [
+                                    "sand",
+                                    "schluffiger_sand",
+                                    "lehmiger_sand",
+                                    "lehmreicher_sand",
+                                    "sandiger_lehm",
+                                    "lehm",
+                                    "toniger_lehm",
+                                    "lehmiger_ton",
+                                    "ton",
+                                    "sandiger_schluff",
+                                    "schluff",
+                                    "lehmiger_schluff",
+                                    "toniger_schluff"
+                                  ]
+                                },
+                                "mandatory": false,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "ENUM",
+                              "values": [
+                                "sand",
+                                "schluffiger_sand",
+                                "lehmiger_sand",
+                                "lehmreicher_sand",
+                                "sandiger_lehm",
+                                "lehm",
+                                "toniger_lehm",
+                                "lehmiger_ton",
+                                "ton",
+                                "sandiger_schluff",
+                                "schluff",
+                                "lehmiger_schluff",
+                                "toniger_schluff"
+                              ]
+                            },
+                            "kind": "ENUM_LITERAL",
+                            "value": "#schluffiger_sand"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "GROUP",
+                    "expression": {
+                      "type": {
+                        "kind": "BOOLEAN",
+                        "typeText": "BOOLEAN"
+                      },
+                      "kind": "AND",
+                      "children": [
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": ">=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "0.0"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "<=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "5.0"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": {
+                "kind": "BOOLEAN",
+                "typeText": "BOOLEAN"
+              },
+              "kind": "GROUP",
+              "expression": {
+                "type": {
+                  "kind": "BOOLEAN",
+                  "typeText": "BOOLEAN"
+                },
+                "kind": "AND",
+                "children": [
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "==",
+                    "left": {
+                      "type": {
+                        "kind": "ENUM",
+                        "values": [
+                          "sand",
+                          "schluffiger_sand",
+                          "lehmiger_sand",
+                          "lehmreicher_sand",
+                          "sandiger_lehm",
+                          "lehm",
+                          "toniger_lehm",
+                          "lehmiger_ton",
+                          "ton",
+                          "sandiger_schluff",
+                          "schluff",
+                          "lehmiger_schluff",
+                          "toniger_schluff"
+                        ]
+                      },
+                      "kind": "OBJECT_PATH",
+                      "path": "Koernungsklasse",
+                      "collection": false,
+                      "steps": [
+                        {
+                          "index": 0,
+                          "kind": "ATTRIBUTE",
+                          "name": "Koernungsklasse",
+                          "type": {
+                            "kind": "ENUM",
+                            "values": [
+                              "sand",
+                              "schluffiger_sand",
+                              "lehmiger_sand",
+                              "lehmreicher_sand",
+                              "sandiger_lehm",
+                              "lehm",
+                              "toniger_lehm",
+                              "lehmiger_ton",
+                              "ton",
+                              "sandiger_schluff",
+                              "schluff",
+                              "lehmiger_schluff",
+                              "toniger_schluff"
+                            ]
+                          },
+                          "mandatory": false,
+                          "collection": false
+                        }
+                      ]
+                    },
+                    "right": {
+                      "type": {
+                        "kind": "ENUM",
+                        "values": [
+                          "sand",
+                          "schluffiger_sand",
+                          "lehmiger_sand",
+                          "lehmreicher_sand",
+                          "sandiger_lehm",
+                          "lehm",
+                          "toniger_lehm",
+                          "lehmiger_ton",
+                          "ton",
+                          "sandiger_schluff",
+                          "schluff",
+                          "lehmiger_schluff",
+                          "toniger_schluff"
+                        ]
+                      },
+                      "kind": "ENUM_LITERAL",
+                      "value": "#lehmiger_sand"
+                    }
+                  },
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "GROUP",
+                    "expression": {
+                      "type": {
+                        "kind": "BOOLEAN",
+                        "typeText": "BOOLEAN"
+                      },
+                      "kind": "AND",
+                      "children": [
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": ">=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "5.0"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "<=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "10.0"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": {
+                "kind": "BOOLEAN",
+                "typeText": "BOOLEAN"
+              },
+              "kind": "GROUP",
+              "expression": {
+                "type": {
+                  "kind": "BOOLEAN",
+                  "typeText": "BOOLEAN"
+                },
+                "kind": "AND",
+                "children": [
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "==",
+                    "left": {
+                      "type": {
+                        "kind": "ENUM",
+                        "values": [
+                          "sand",
+                          "schluffiger_sand",
+                          "lehmiger_sand",
+                          "lehmreicher_sand",
+                          "sandiger_lehm",
+                          "lehm",
+                          "toniger_lehm",
+                          "lehmiger_ton",
+                          "ton",
+                          "sandiger_schluff",
+                          "schluff",
+                          "lehmiger_schluff",
+                          "toniger_schluff"
+                        ]
+                      },
+                      "kind": "OBJECT_PATH",
+                      "path": "Koernungsklasse",
+                      "collection": false,
+                      "steps": [
+                        {
+                          "index": 0,
+                          "kind": "ATTRIBUTE",
+                          "name": "Koernungsklasse",
+                          "type": {
+                            "kind": "ENUM",
+                            "values": [
+                              "sand",
+                              "schluffiger_sand",
+                              "lehmiger_sand",
+                              "lehmreicher_sand",
+                              "sandiger_lehm",
+                              "lehm",
+                              "toniger_lehm",
+                              "lehmiger_ton",
+                              "ton",
+                              "sandiger_schluff",
+                              "schluff",
+                              "lehmiger_schluff",
+                              "toniger_schluff"
+                            ]
+                          },
+                          "mandatory": false,
+                          "collection": false
+                        }
+                      ]
+                    },
+                    "right": {
+                      "type": {
+                        "kind": "ENUM",
+                        "values": [
+                          "sand",
+                          "schluffiger_sand",
+                          "lehmiger_sand",
+                          "lehmreicher_sand",
+                          "sandiger_lehm",
+                          "lehm",
+                          "toniger_lehm",
+                          "lehmiger_ton",
+                          "ton",
+                          "sandiger_schluff",
+                          "schluff",
+                          "lehmiger_schluff",
+                          "toniger_schluff"
+                        ]
+                      },
+                      "kind": "ENUM_LITERAL",
+                      "value": "#lehmreicher_sand"
+                    }
+                  },
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "GROUP",
+                    "expression": {
+                      "type": {
+                        "kind": "BOOLEAN",
+                        "typeText": "BOOLEAN"
+                      },
+                      "kind": "AND",
+                      "children": [
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": ">=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "10.0"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "<=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "15.0"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": {
+                "kind": "BOOLEAN",
+                "typeText": "BOOLEAN"
+              },
+              "kind": "GROUP",
+              "expression": {
+                "type": {
+                  "kind": "BOOLEAN",
+                  "typeText": "BOOLEAN"
+                },
+                "kind": "AND",
+                "children": [
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "==",
+                    "left": {
+                      "type": {
+                        "kind": "ENUM",
+                        "values": [
+                          "sand",
+                          "schluffiger_sand",
+                          "lehmiger_sand",
+                          "lehmreicher_sand",
+                          "sandiger_lehm",
+                          "lehm",
+                          "toniger_lehm",
+                          "lehmiger_ton",
+                          "ton",
+                          "sandiger_schluff",
+                          "schluff",
+                          "lehmiger_schluff",
+                          "toniger_schluff"
+                        ]
+                      },
+                      "kind": "OBJECT_PATH",
+                      "path": "Koernungsklasse",
+                      "collection": false,
+                      "steps": [
+                        {
+                          "index": 0,
+                          "kind": "ATTRIBUTE",
+                          "name": "Koernungsklasse",
+                          "type": {
+                            "kind": "ENUM",
+                            "values": [
+                              "sand",
+                              "schluffiger_sand",
+                              "lehmiger_sand",
+                              "lehmreicher_sand",
+                              "sandiger_lehm",
+                              "lehm",
+                              "toniger_lehm",
+                              "lehmiger_ton",
+                              "ton",
+                              "sandiger_schluff",
+                              "schluff",
+                              "lehmiger_schluff",
+                              "toniger_schluff"
+                            ]
+                          },
+                          "mandatory": false,
+                          "collection": false
+                        }
+                      ]
+                    },
+                    "right": {
+                      "type": {
+                        "kind": "ENUM",
+                        "values": [
+                          "sand",
+                          "schluffiger_sand",
+                          "lehmiger_sand",
+                          "lehmreicher_sand",
+                          "sandiger_lehm",
+                          "lehm",
+                          "toniger_lehm",
+                          "lehmiger_ton",
+                          "ton",
+                          "sandiger_schluff",
+                          "schluff",
+                          "lehmiger_schluff",
+                          "toniger_schluff"
+                        ]
+                      },
+                      "kind": "ENUM_LITERAL",
+                      "value": "#sandiger_lehm"
+                    }
+                  },
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "GROUP",
+                    "expression": {
+                      "type": {
+                        "kind": "BOOLEAN",
+                        "typeText": "BOOLEAN"
+                      },
+                      "kind": "AND",
+                      "children": [
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": ">=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "15.0"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "<=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "20.0"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": {
+                "kind": "BOOLEAN",
+                "typeText": "BOOLEAN"
+              },
+              "kind": "GROUP",
+              "expression": {
+                "type": {
+                  "kind": "BOOLEAN",
+                  "typeText": "BOOLEAN"
+                },
+                "kind": "AND",
+                "children": [
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "==",
+                    "left": {
+                      "type": {
+                        "kind": "ENUM",
+                        "values": [
+                          "sand",
+                          "schluffiger_sand",
+                          "lehmiger_sand",
+                          "lehmreicher_sand",
+                          "sandiger_lehm",
+                          "lehm",
+                          "toniger_lehm",
+                          "lehmiger_ton",
+                          "ton",
+                          "sandiger_schluff",
+                          "schluff",
+                          "lehmiger_schluff",
+                          "toniger_schluff"
+                        ]
+                      },
+                      "kind": "OBJECT_PATH",
+                      "path": "Koernungsklasse",
+                      "collection": false,
+                      "steps": [
+                        {
+                          "index": 0,
+                          "kind": "ATTRIBUTE",
+                          "name": "Koernungsklasse",
+                          "type": {
+                            "kind": "ENUM",
+                            "values": [
+                              "sand",
+                              "schluffiger_sand",
+                              "lehmiger_sand",
+                              "lehmreicher_sand",
+                              "sandiger_lehm",
+                              "lehm",
+                              "toniger_lehm",
+                              "lehmiger_ton",
+                              "ton",
+                              "sandiger_schluff",
+                              "schluff",
+                              "lehmiger_schluff",
+                              "toniger_schluff"
+                            ]
+                          },
+                          "mandatory": false,
+                          "collection": false
+                        }
+                      ]
+                    },
+                    "right": {
+                      "type": {
+                        "kind": "ENUM",
+                        "values": [
+                          "sand",
+                          "schluffiger_sand",
+                          "lehmiger_sand",
+                          "lehmreicher_sand",
+                          "sandiger_lehm",
+                          "lehm",
+                          "toniger_lehm",
+                          "lehmiger_ton",
+                          "ton",
+                          "sandiger_schluff",
+                          "schluff",
+                          "lehmiger_schluff",
+                          "toniger_schluff"
+                        ]
+                      },
+                      "kind": "ENUM_LITERAL",
+                      "value": "#lehm"
+                    }
+                  },
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "GROUP",
+                    "expression": {
+                      "type": {
+                        "kind": "BOOLEAN",
+                        "typeText": "BOOLEAN"
+                      },
+                      "kind": "AND",
+                      "children": [
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": ">=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "20.0"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "<=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "30.0"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": {
+                "kind": "BOOLEAN",
+                "typeText": "BOOLEAN"
+              },
+              "kind": "GROUP",
+              "expression": {
+                "type": {
+                  "kind": "BOOLEAN",
+                  "typeText": "BOOLEAN"
+                },
+                "kind": "AND",
+                "children": [
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "==",
+                    "left": {
+                      "type": {
+                        "kind": "ENUM",
+                        "values": [
+                          "sand",
+                          "schluffiger_sand",
+                          "lehmiger_sand",
+                          "lehmreicher_sand",
+                          "sandiger_lehm",
+                          "lehm",
+                          "toniger_lehm",
+                          "lehmiger_ton",
+                          "ton",
+                          "sandiger_schluff",
+                          "schluff",
+                          "lehmiger_schluff",
+                          "toniger_schluff"
+                        ]
+                      },
+                      "kind": "OBJECT_PATH",
+                      "path": "Koernungsklasse",
+                      "collection": false,
+                      "steps": [
+                        {
+                          "index": 0,
+                          "kind": "ATTRIBUTE",
+                          "name": "Koernungsklasse",
+                          "type": {
+                            "kind": "ENUM",
+                            "values": [
+                              "sand",
+                              "schluffiger_sand",
+                              "lehmiger_sand",
+                              "lehmreicher_sand",
+                              "sandiger_lehm",
+                              "lehm",
+                              "toniger_lehm",
+                              "lehmiger_ton",
+                              "ton",
+                              "sandiger_schluff",
+                              "schluff",
+                              "lehmiger_schluff",
+                              "toniger_schluff"
+                            ]
+                          },
+                          "mandatory": false,
+                          "collection": false
+                        }
+                      ]
+                    },
+                    "right": {
+                      "type": {
+                        "kind": "ENUM",
+                        "values": [
+                          "sand",
+                          "schluffiger_sand",
+                          "lehmiger_sand",
+                          "lehmreicher_sand",
+                          "sandiger_lehm",
+                          "lehm",
+                          "toniger_lehm",
+                          "lehmiger_ton",
+                          "ton",
+                          "sandiger_schluff",
+                          "schluff",
+                          "lehmiger_schluff",
+                          "toniger_schluff"
+                        ]
+                      },
+                      "kind": "ENUM_LITERAL",
+                      "value": "#toniger_lehm"
+                    }
+                  },
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "GROUP",
+                    "expression": {
+                      "type": {
+                        "kind": "BOOLEAN",
+                        "typeText": "BOOLEAN"
+                      },
+                      "kind": "AND",
+                      "children": [
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": ">=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "30.0"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "<=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "40.0"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": {
+                "kind": "BOOLEAN",
+                "typeText": "BOOLEAN"
+              },
+              "kind": "GROUP",
+              "expression": {
+                "type": {
+                  "kind": "BOOLEAN",
+                  "typeText": "BOOLEAN"
+                },
+                "kind": "AND",
+                "children": [
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "==",
+                    "left": {
+                      "type": {
+                        "kind": "ENUM",
+                        "values": [
+                          "sand",
+                          "schluffiger_sand",
+                          "lehmiger_sand",
+                          "lehmreicher_sand",
+                          "sandiger_lehm",
+                          "lehm",
+                          "toniger_lehm",
+                          "lehmiger_ton",
+                          "ton",
+                          "sandiger_schluff",
+                          "schluff",
+                          "lehmiger_schluff",
+                          "toniger_schluff"
+                        ]
+                      },
+                      "kind": "OBJECT_PATH",
+                      "path": "Koernungsklasse",
+                      "collection": false,
+                      "steps": [
+                        {
+                          "index": 0,
+                          "kind": "ATTRIBUTE",
+                          "name": "Koernungsklasse",
+                          "type": {
+                            "kind": "ENUM",
+                            "values": [
+                              "sand",
+                              "schluffiger_sand",
+                              "lehmiger_sand",
+                              "lehmreicher_sand",
+                              "sandiger_lehm",
+                              "lehm",
+                              "toniger_lehm",
+                              "lehmiger_ton",
+                              "ton",
+                              "sandiger_schluff",
+                              "schluff",
+                              "lehmiger_schluff",
+                              "toniger_schluff"
+                            ]
+                          },
+                          "mandatory": false,
+                          "collection": false
+                        }
+                      ]
+                    },
+                    "right": {
+                      "type": {
+                        "kind": "ENUM",
+                        "values": [
+                          "sand",
+                          "schluffiger_sand",
+                          "lehmiger_sand",
+                          "lehmreicher_sand",
+                          "sandiger_lehm",
+                          "lehm",
+                          "toniger_lehm",
+                          "lehmiger_ton",
+                          "ton",
+                          "sandiger_schluff",
+                          "schluff",
+                          "lehmiger_schluff",
+                          "toniger_schluff"
+                        ]
+                      },
+                      "kind": "ENUM_LITERAL",
+                      "value": "#lehmiger_ton"
+                    }
+                  },
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "GROUP",
+                    "expression": {
+                      "type": {
+                        "kind": "BOOLEAN",
+                        "typeText": "BOOLEAN"
+                      },
+                      "kind": "AND",
+                      "children": [
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": ">=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "40.0"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "<=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "50.0"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": {
+                "kind": "BOOLEAN",
+                "typeText": "BOOLEAN"
+              },
+              "kind": "GROUP",
+              "expression": {
+                "type": {
+                  "kind": "BOOLEAN",
+                  "typeText": "BOOLEAN"
+                },
+                "kind": "AND",
+                "children": [
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "==",
+                    "left": {
+                      "type": {
+                        "kind": "ENUM",
+                        "values": [
+                          "sand",
+                          "schluffiger_sand",
+                          "lehmiger_sand",
+                          "lehmreicher_sand",
+                          "sandiger_lehm",
+                          "lehm",
+                          "toniger_lehm",
+                          "lehmiger_ton",
+                          "ton",
+                          "sandiger_schluff",
+                          "schluff",
+                          "lehmiger_schluff",
+                          "toniger_schluff"
+                        ]
+                      },
+                      "kind": "OBJECT_PATH",
+                      "path": "Koernungsklasse",
+                      "collection": false,
+                      "steps": [
+                        {
+                          "index": 0,
+                          "kind": "ATTRIBUTE",
+                          "name": "Koernungsklasse",
+                          "type": {
+                            "kind": "ENUM",
+                            "values": [
+                              "sand",
+                              "schluffiger_sand",
+                              "lehmiger_sand",
+                              "lehmreicher_sand",
+                              "sandiger_lehm",
+                              "lehm",
+                              "toniger_lehm",
+                              "lehmiger_ton",
+                              "ton",
+                              "sandiger_schluff",
+                              "schluff",
+                              "lehmiger_schluff",
+                              "toniger_schluff"
+                            ]
+                          },
+                          "mandatory": false,
+                          "collection": false
+                        }
+                      ]
+                    },
+                    "right": {
+                      "type": {
+                        "kind": "ENUM",
+                        "values": [
+                          "sand",
+                          "schluffiger_sand",
+                          "lehmiger_sand",
+                          "lehmreicher_sand",
+                          "sandiger_lehm",
+                          "lehm",
+                          "toniger_lehm",
+                          "lehmiger_ton",
+                          "ton",
+                          "sandiger_schluff",
+                          "schluff",
+                          "lehmiger_schluff",
+                          "toniger_schluff"
+                        ]
+                      },
+                      "kind": "ENUM_LITERAL",
+                      "value": "#ton"
+                    }
+                  },
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "GROUP",
+                    "expression": {
+                      "type": {
+                        "kind": "BOOLEAN",
+                        "typeText": "BOOLEAN"
+                      },
+                      "kind": "AND",
+                      "children": [
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": ">=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "50.0"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "<=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "100.0"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": {
+                "kind": "BOOLEAN",
+                "typeText": "BOOLEAN"
+              },
+              "kind": "GROUP",
+              "expression": {
+                "type": {
+                  "kind": "BOOLEAN",
+                  "typeText": "BOOLEAN"
+                },
+                "kind": "AND",
+                "children": [
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "GROUP",
+                    "expression": {
+                      "type": {
+                        "kind": "BOOLEAN",
+                        "typeText": "BOOLEAN"
+                      },
+                      "kind": "OR",
+                      "children": [
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "==",
+                          "left": {
+                            "type": {
+                              "kind": "ENUM",
+                              "values": [
+                                "sand",
+                                "schluffiger_sand",
+                                "lehmiger_sand",
+                                "lehmreicher_sand",
+                                "sandiger_lehm",
+                                "lehm",
+                                "toniger_lehm",
+                                "lehmiger_ton",
+                                "ton",
+                                "sandiger_schluff",
+                                "schluff",
+                                "lehmiger_schluff",
+                                "toniger_schluff"
+                              ]
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Koernungsklasse",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Koernungsklasse",
+                                "type": {
+                                  "kind": "ENUM",
+                                  "values": [
+                                    "sand",
+                                    "schluffiger_sand",
+                                    "lehmiger_sand",
+                                    "lehmreicher_sand",
+                                    "sandiger_lehm",
+                                    "lehm",
+                                    "toniger_lehm",
+                                    "lehmiger_ton",
+                                    "ton",
+                                    "sandiger_schluff",
+                                    "schluff",
+                                    "lehmiger_schluff",
+                                    "toniger_schluff"
+                                  ]
+                                },
+                                "mandatory": false,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "ENUM",
+                              "values": [
+                                "sand",
+                                "schluffiger_sand",
+                                "lehmiger_sand",
+                                "lehmreicher_sand",
+                                "sandiger_lehm",
+                                "lehm",
+                                "toniger_lehm",
+                                "lehmiger_ton",
+                                "ton",
+                                "sandiger_schluff",
+                                "schluff",
+                                "lehmiger_schluff",
+                                "toniger_schluff"
+                              ]
+                            },
+                            "kind": "ENUM_LITERAL",
+                            "value": "#sandiger_schluff"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "==",
+                          "left": {
+                            "type": {
+                              "kind": "ENUM",
+                              "values": [
+                                "sand",
+                                "schluffiger_sand",
+                                "lehmiger_sand",
+                                "lehmreicher_sand",
+                                "sandiger_lehm",
+                                "lehm",
+                                "toniger_lehm",
+                                "lehmiger_ton",
+                                "ton",
+                                "sandiger_schluff",
+                                "schluff",
+                                "lehmiger_schluff",
+                                "toniger_schluff"
+                              ]
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Koernungsklasse",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Koernungsklasse",
+                                "type": {
+                                  "kind": "ENUM",
+                                  "values": [
+                                    "sand",
+                                    "schluffiger_sand",
+                                    "lehmiger_sand",
+                                    "lehmreicher_sand",
+                                    "sandiger_lehm",
+                                    "lehm",
+                                    "toniger_lehm",
+                                    "lehmiger_ton",
+                                    "ton",
+                                    "sandiger_schluff",
+                                    "schluff",
+                                    "lehmiger_schluff",
+                                    "toniger_schluff"
+                                  ]
+                                },
+                                "mandatory": false,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "ENUM",
+                              "values": [
+                                "sand",
+                                "schluffiger_sand",
+                                "lehmiger_sand",
+                                "lehmreicher_sand",
+                                "sandiger_lehm",
+                                "lehm",
+                                "toniger_lehm",
+                                "lehmiger_ton",
+                                "ton",
+                                "sandiger_schluff",
+                                "schluff",
+                                "lehmiger_schluff",
+                                "toniger_schluff"
+                              ]
+                            },
+                            "kind": "ENUM_LITERAL",
+                            "value": "#schluff"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "GROUP",
+                    "expression": {
+                      "type": {
+                        "kind": "BOOLEAN",
+                        "typeText": "BOOLEAN"
+                      },
+                      "kind": "AND",
+                      "children": [
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": ">=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "0.0"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "<=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "10.0"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": {
+                "kind": "BOOLEAN",
+                "typeText": "BOOLEAN"
+              },
+              "kind": "GROUP",
+              "expression": {
+                "type": {
+                  "kind": "BOOLEAN",
+                  "typeText": "BOOLEAN"
+                },
+                "kind": "AND",
+                "children": [
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "==",
+                    "left": {
+                      "type": {
+                        "kind": "ENUM",
+                        "values": [
+                          "sand",
+                          "schluffiger_sand",
+                          "lehmiger_sand",
+                          "lehmreicher_sand",
+                          "sandiger_lehm",
+                          "lehm",
+                          "toniger_lehm",
+                          "lehmiger_ton",
+                          "ton",
+                          "sandiger_schluff",
+                          "schluff",
+                          "lehmiger_schluff",
+                          "toniger_schluff"
+                        ]
+                      },
+                      "kind": "OBJECT_PATH",
+                      "path": "Koernungsklasse",
+                      "collection": false,
+                      "steps": [
+                        {
+                          "index": 0,
+                          "kind": "ATTRIBUTE",
+                          "name": "Koernungsklasse",
+                          "type": {
+                            "kind": "ENUM",
+                            "values": [
+                              "sand",
+                              "schluffiger_sand",
+                              "lehmiger_sand",
+                              "lehmreicher_sand",
+                              "sandiger_lehm",
+                              "lehm",
+                              "toniger_lehm",
+                              "lehmiger_ton",
+                              "ton",
+                              "sandiger_schluff",
+                              "schluff",
+                              "lehmiger_schluff",
+                              "toniger_schluff"
+                            ]
+                          },
+                          "mandatory": false,
+                          "collection": false
+                        }
+                      ]
+                    },
+                    "right": {
+                      "type": {
+                        "kind": "ENUM",
+                        "values": [
+                          "sand",
+                          "schluffiger_sand",
+                          "lehmiger_sand",
+                          "lehmreicher_sand",
+                          "sandiger_lehm",
+                          "lehm",
+                          "toniger_lehm",
+                          "lehmiger_ton",
+                          "ton",
+                          "sandiger_schluff",
+                          "schluff",
+                          "lehmiger_schluff",
+                          "toniger_schluff"
+                        ]
+                      },
+                      "kind": "ENUM_LITERAL",
+                      "value": "#lehmiger_schluff"
+                    }
+                  },
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "GROUP",
+                    "expression": {
+                      "type": {
+                        "kind": "BOOLEAN",
+                        "typeText": "BOOLEAN"
+                      },
+                      "kind": "AND",
+                      "children": [
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": ">=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "10.0"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "<=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "30.0"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": {
+                "kind": "BOOLEAN",
+                "typeText": "BOOLEAN"
+              },
+              "kind": "GROUP",
+              "expression": {
+                "type": {
+                  "kind": "BOOLEAN",
+                  "typeText": "BOOLEAN"
+                },
+                "kind": "AND",
+                "children": [
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "==",
+                    "left": {
+                      "type": {
+                        "kind": "ENUM",
+                        "values": [
+                          "sand",
+                          "schluffiger_sand",
+                          "lehmiger_sand",
+                          "lehmreicher_sand",
+                          "sandiger_lehm",
+                          "lehm",
+                          "toniger_lehm",
+                          "lehmiger_ton",
+                          "ton",
+                          "sandiger_schluff",
+                          "schluff",
+                          "lehmiger_schluff",
+                          "toniger_schluff"
+                        ]
+                      },
+                      "kind": "OBJECT_PATH",
+                      "path": "Koernungsklasse",
+                      "collection": false,
+                      "steps": [
+                        {
+                          "index": 0,
+                          "kind": "ATTRIBUTE",
+                          "name": "Koernungsklasse",
+                          "type": {
+                            "kind": "ENUM",
+                            "values": [
+                              "sand",
+                              "schluffiger_sand",
+                              "lehmiger_sand",
+                              "lehmreicher_sand",
+                              "sandiger_lehm",
+                              "lehm",
+                              "toniger_lehm",
+                              "lehmiger_ton",
+                              "ton",
+                              "sandiger_schluff",
+                              "schluff",
+                              "lehmiger_schluff",
+                              "toniger_schluff"
+                            ]
+                          },
+                          "mandatory": false,
+                          "collection": false
+                        }
+                      ]
+                    },
+                    "right": {
+                      "type": {
+                        "kind": "ENUM",
+                        "values": [
+                          "sand",
+                          "schluffiger_sand",
+                          "lehmiger_sand",
+                          "lehmreicher_sand",
+                          "sandiger_lehm",
+                          "lehm",
+                          "toniger_lehm",
+                          "lehmiger_ton",
+                          "ton",
+                          "sandiger_schluff",
+                          "schluff",
+                          "lehmiger_schluff",
+                          "toniger_schluff"
+                        ]
+                      },
+                      "kind": "ENUM_LITERAL",
+                      "value": "#toniger_schluff"
+                    }
+                  },
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "GROUP",
+                    "expression": {
+                      "type": {
+                        "kind": "BOOLEAN",
+                        "typeText": "BOOLEAN"
+                      },
+                      "kind": "AND",
+                      "children": [
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": ">=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "30.0"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "<=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0..100"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Tongehalt",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Tongehalt",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0..100"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "50.0"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "astComparison": {
+    "ignore": [
+      "constraintName",
+      "sourceLine",
+      "pureGrouping",
+      "commutativeOperandOrder:AND",
+      "commutativeOperandOrder:OR",
+      "symmetricOperandOrder:EQUALITY"
+    ],
+    "requireExplicitJustificationForOtherLogicalEquivalence": true
+  },
+  "acceptedBoundaryStatuses": [],
+  "scoring": {
+    "requireCorrectHighLevelTool": true,
+    "requireStatus": "GENERATED",
+    "requireProofVerified": true,
+    "requireCompilingUpdatedModel": true,
+    "requireExactIntendedConstraintOnly": true,
+    "requireNoReleasedUpdatedModel": false
+  },
+  "removal": {
+    "sourceStartOffset": 24885,
+    "sourceEndOffset": 26355,
+    "sourceChars": 77097,
+    "publicChars": 75627
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "caseId": "P10",
+  "category": "POSITIVE",
+  "corpus": {
+    "repository": "sogis-interlis-repository",
+    "commit": "b94abb0953c8413d4eaaa647fa66fa7d585aa4df",
+    "path": "models/AFU/VSADSSMINI_2020_1_LV95_Validierung_IPW_S2_20250123.ili"
+  },
+  "originalConstraintSelector": "19901",
+  "expectedTypeOrBoundary": "SET; object count of the complete view equals zero",
+  "expectedHighLevelTools": [
+    "authorIliSetConstraint"
+  ],
+  "gold": {
+    "constraintKind": "SET_CONSTRAINT",
+    "contextFqn": "VSADSSMINI_2020_1_LV95_Validierung_IPW_S2_20250123.VSADSSMini_Validierung.v_Bauwerkskomponente",
+    "astComplete": false,
+    "ast": {
+      "kind": "SET_CONSTRAINT",
+      "perBasket": false,
+      "condition": {
+        "type": {
+          "kind": "BOOLEAN",
+          "typeText": "BOOLEAN"
+        },
+        "kind": "==",
+        "left": {
+          "type": {
+            "kind": "NUMERIC",
+            "typeText": "NUMERIC"
+          },
+          "kind": "FUNCTION_CALL",
+          "function": "INTERLIS.objectCount",
+          "arguments": [
+            {
+              "index": 0,
+              "parameter": {
+                "name": "Objects",
+                "type": {
+                  "kind": "ObjectType"
+                },
+                "semanticType": "VALUE"
+              },
+              "value": {
+                "type": {
+                  "kind": "UNKNOWN"
+                },
+                "kind": "UNSUPPORTED",
+                "metamodelType": "ch.interlis.ili2c.metamodel.Objects",
+                "text": "ch.interlis.ili2c.metamodel.Objects@4c72fcd"
+              }
+            }
+          ]
+        },
+        "right": {
+          "type": {
+            "kind": "NUMERIC",
+            "typeText": "NUMERIC"
+          },
+          "kind": "NUMERIC_LITERAL",
+          "value": "0"
+        }
+      }
+    }
+  },
+  "astComparison": {
+    "ignore": [
+      "constraintName",
+      "sourceLine",
+      "pureGrouping",
+      "commutativeOperandOrder:AND",
+      "commutativeOperandOrder:OR",
+      "symmetricOperandOrder:EQUALITY"
+    ],
+    "requireExplicitJustificationForOtherLogicalEquivalence": true
+  },
+  "acceptedBoundaryStatuses": [],
+  "scoring": {
+    "requireCorrectHighLevelTool": true,
+    "requireStatus": "GENERATED",
+    "requireProofVerified": true,
+    "requireCompilingUpdatedModel": true,
+    "requireExactIntendedConstraintOnly": true,
+    "requireNoReleasedUpdatedModel": false
+  },
+  "removal": {
+    "sourceStartOffset": 22237,
+    "sourceEndOffset": 22371,
+    "sourceChars": 25473,
+    "publicChars": 25339
+  }
+}

@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "caseId": "P03",
+  "category": "POSITIVE",
+  "corpus": {
+    "repository": "sogis-interlis-repository",
+    "commit": "b94abb0953c8413d4eaaa647fa66fa7d585aa4df",
+    "path": "models/AFU/SO_AFU_Bodeneinheiten_20251210.ili"
+  },
+  "originalConstraintSelector": "HauptHatMehrGewicht_alsNeben_Landwirtschaft",
+  "expectedTypeOrBoundary": "MANDATORY; strict comparison across a mandatory role",
+  "expectedHighLevelTools": [
+    "authorIliMandatoryConstraint"
+  ],
+  "gold": {
+    "constraintKind": "MANDATORY_CONSTRAINT",
+    "contextFqn": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Nebenauspraegung_Landwirtschaft",
+    "astComplete": true,
+    "ast": {
+      "kind": "MANDATORY_CONSTRAINT",
+      "condition": {
+        "type": {
+          "kind": "BOOLEAN",
+          "typeText": "BOOLEAN"
+        },
+        "kind": "GROUP",
+        "expression": {
+          "type": {
+            "kind": "BOOLEAN",
+            "typeText": "BOOLEAN"
+          },
+          "kind": ">",
+          "left": {
+            "type": {
+              "kind": "NUMERIC",
+              "typeText": "0..100"
+            },
+            "kind": "GROUP",
+            "expression": {
+              "type": {
+                "kind": "NUMERIC",
+                "typeText": "0..100"
+              },
+              "kind": "OBJECT_PATH",
+              "path": "Bodeneinheit->Gewichtung",
+              "collection": false,
+              "steps": [
+                {
+                  "index": 0,
+                  "kind": "ROLE",
+                  "name": "Bodeneinheit",
+                  "target": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.BodeneinheitHauptauspraegung_Landwirtschaft",
+                  "cardinality": "{1}",
+                  "minimum": 1,
+                  "maximum": 1,
+                  "collection": false
+                },
+                {
+                  "index": 1,
+                  "kind": "ATTRIBUTE",
+                  "name": "Gewichtung",
+                  "type": {
+                    "kind": "NUMERIC",
+                    "typeText": "0..100"
+                  },
+                  "mandatory": true,
+                  "collection": false
+                }
+              ]
+            }
+          },
+          "right": {
+            "type": {
+              "kind": "NUMERIC",
+              "typeText": "0..100"
+            },
+            "kind": "OBJECT_PATH",
+            "path": "Gewichtung",
+            "collection": false,
+            "steps": [
+              {
+                "index": 0,
+                "kind": "ATTRIBUTE",
+                "name": "Gewichtung",
+                "type": {
+                  "kind": "NUMERIC",
+                  "typeText": "0..100"
+                },
+                "mandatory": true,
+                "collection": false
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "astComparison": {
+    "ignore": [
+      "constraintName",
+      "sourceLine",
+      "pureGrouping",
+      "commutativeOperandOrder:AND",
+      "commutativeOperandOrder:OR",
+      "symmetricOperandOrder:EQUALITY"
+    ],
+    "requireExplicitJustificationForOtherLogicalEquivalence": true
+  },
+  "acceptedBoundaryStatuses": [],
+  "scoring": {
+    "requireCorrectHighLevelTool": true,
+    "requireStatus": "GENERATED",
+    "requireProofVerified": true,
+    "requireCompilingUpdatedModel": true,
+    "requireExactIntendedConstraintOnly": true,
+    "requireNoReleasedUpdatedModel": false
+  },
+  "removal": {
+    "sourceStartOffset": 64311,
+    "sourceEndOffset": 64569,
+    "sourceChars": 77097,
+    "publicChars": 76839
+  }
+}

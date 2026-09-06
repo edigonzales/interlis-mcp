@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "caseId": "N12",
+  "category": "BOUNDARY",
+  "corpus": {
+    "repository": "sogis-interlis-repository",
+    "commit": "b94abb0953c8413d4eaaa647fa66fa7d585aa4df",
+    "path": "models/AFU/SO_AFU_Naturgefahren_20240515.ili"
+  },
+  "originalConstraintSelector": "CheckBefundSteinBlockschlagKeineUeberragung",
+  "expectedTypeOrBoundary": "BOUNDARY; nested external object-set function semantics",
+  "expectedHighLevelTools": [
+    "authorIliSetConstraint"
+  ],
+  "gold": {
+    "constraintKind": "SET_CONSTRAINT",
+    "contextFqn": "SO_AFU_Naturgefahren_20240515.Befunde.BefundSteinBlockschlag",
+    "astComplete": false,
+    "ast": {
+      "kind": "SET_CONSTRAINT",
+      "perBasket": false,
+      "condition": {
+        "type": {
+          "kind": "BOOLEAN",
+          "typeText": "BOOLEAN"
+        },
+        "kind": "FUNCTION_CALL",
+        "function": "NGK_SO_FunctionsExt.IsInsideAreaByCode",
+        "arguments": [
+          {
+            "index": 0,
+            "parameter": {
+              "name": "Objects",
+              "type": {
+                "kind": "ObjectType"
+              },
+              "semanticType": "VALUE"
+            },
+            "value": {
+              "type": {
+                "kind": "ObjectType"
+              },
+              "kind": "FUNCTION_CALL",
+              "function": "GeoW_FunctionsExt.GetInGroups",
+              "arguments": [
+                {
+                  "index": 0,
+                  "parameter": {
+                    "name": "Objects",
+                    "type": {
+                      "kind": "ObjectType"
+                    },
+                    "semanticType": "VALUE"
+                  },
+                  "value": {
+                    "type": {
+                      "kind": "UNKNOWN"
+                    },
+                    "kind": "UNSUPPORTED",
+                    "metamodelType": "ch.interlis.ili2c.metamodel.Objects",
+                    "text": "ch.interlis.ili2c.metamodel.Objects@737f4ea4"
+                  }
+                },
+                {
+                  "index": 1,
+                  "parameter": {
+                    "name": "Attr",
+                    "type": {
+                      "kind": "TEXT",
+                      "typeText": "TEXT"
+                    },
+                    "semanticType": "VALUE"
+                  },
+                  "value": {
+                    "type": {
+                      "kind": "TEXT",
+                      "typeText": "TEXT"
+                    },
+                    "kind": "TEXT_LITERAL",
+                    "value": "PQ_Jaehrlichkeit_SteinBlockschlag_R->Prozessquelle_R"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "index": 1,
+            "parameter": {
+              "name": "GeometryAttr",
+              "type": {
+                "kind": "TEXT",
+                "typeText": "TEXT"
+              },
+              "semanticType": "VALUE"
+            },
+            "value": {
+              "type": {
+                "kind": "TEXT",
+                "typeText": "TEXT"
+              },
+              "kind": "TEXT_LITERAL",
+              "value": "Geometrie"
+            }
+          },
+          {
+            "index": 2,
+            "parameter": {
+              "name": "CodeAttr",
+              "type": {
+                "kind": "TEXT",
+                "typeText": "TEXT"
+              },
+              "semanticType": "VALUE"
+            },
+            "value": {
+              "type": {
+                "kind": "TEXT",
+                "typeText": "TEXT"
+              },
+              "kind": "TEXT_LITERAL",
+              "value": "IWCode"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "astComparison": {
+    "ignore": [
+      "constraintName",
+      "sourceLine",
+      "pureGrouping",
+      "commutativeOperandOrder:AND",
+      "commutativeOperandOrder:OR",
+      "symmetricOperandOrder:EQUALITY"
+    ],
+    "requireExplicitJustificationForOtherLogicalEquivalence": true
+  },
+  "acceptedBoundaryStatuses": [
+    "EXTERNAL_FUNCTION_SEMANTICS_REQUIRED",
+    "PROOF_INCOMPLETE"
+  ],
+  "scoring": {
+    "requireCorrectHighLevelTool": true,
+    "requireStatus": null,
+    "requireProofVerified": false,
+    "requireCompilingUpdatedModel": false,
+    "requireExactIntendedConstraintOnly": false,
+    "requireNoReleasedUpdatedModel": true
+  },
+  "removal": {
+    "sourceStartOffset": 30966,
+    "sourceEndOffset": 31326,
+    "sourceChars": 64672,
+    "publicChars": 64312
+  }
+}

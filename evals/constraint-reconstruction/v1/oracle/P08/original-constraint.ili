@@ -1,0 +1,3 @@
+      !!@ name = 11006b
+      !!@ ilivalid.msg = "Knoten: Attribut 'Bezeichnung' ist nicht eindeutig."
+      UNIQUE Bezeichnung, DatenherrRef;

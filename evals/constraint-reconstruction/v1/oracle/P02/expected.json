@@ -1,0 +1,1064 @@
+{
+  "schemaVersion": 1,
+  "caseId": "P02",
+  "category": "POSITIVE",
+  "corpus": {
+    "repository": "sogis-interlis-repository",
+    "commit": "b94abb0953c8413d4eaaa647fa66fa7d585aa4df",
+    "path": "models/AFU/SO_AFU_Bodeneinheiten_20251210.ili"
+  },
+  "originalConstraintSelector": "UntertypENachPH_Unterboden_Wald_Neben",
+  "expectedTypeOrBoundary": "MANDATORY; optional pH range-to-enum mapping",
+  "expectedHighLevelTools": [
+    "generateIliConstraintFromDecisionTable",
+    "authorIliMandatoryConstraint"
+  ],
+  "gold": {
+    "constraintKind": "MANDATORY_CONSTRAINT",
+    "contextFqn": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Nebenauspraegung_Wald",
+    "astComplete": true,
+    "ast": {
+      "kind": "MANDATORY_CONSTRAINT",
+      "condition": {
+        "type": {
+          "kind": "BOOLEAN",
+          "typeText": "BOOLEAN"
+        },
+        "kind": "GROUP",
+        "expression": {
+          "type": {
+            "kind": "BOOLEAN",
+            "typeText": "BOOLEAN"
+          },
+          "kind": "OR",
+          "children": [
+            {
+              "type": {
+                "kind": "BOOLEAN",
+                "typeText": "BOOLEAN"
+              },
+              "kind": "NOT",
+              "operand": {
+                "type": {
+                  "kind": "BOOLEAN",
+                  "typeText": "BOOLEAN"
+                },
+                "kind": "DEFINED",
+                "argument": {
+                  "type": {
+                    "kind": "NUMERIC",
+                    "typeText": "0.0..10.0"
+                  },
+                  "kind": "OBJECT_PATH",
+                  "path": "Unterboden->Ph",
+                  "collection": false,
+                  "steps": [
+                    {
+                      "index": 0,
+                      "kind": "ATTRIBUTE",
+                      "name": "Unterboden",
+                      "type": {
+                        "kind": "COMPOSITION",
+                        "target": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Wald",
+                        "cardinality": "{0..1}"
+                      },
+                      "mandatory": false,
+                      "collection": false
+                    },
+                    {
+                      "index": 1,
+                      "kind": "ATTRIBUTE",
+                      "name": "Ph",
+                      "type": {
+                        "kind": "NUMERIC",
+                        "typeText": "0.0..10.0"
+                      },
+                      "mandatory": true,
+                      "collection": false
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": {
+                "kind": "BOOLEAN",
+                "typeText": "BOOLEAN"
+              },
+              "kind": "GROUP",
+              "expression": {
+                "type": {
+                  "kind": "BOOLEAN",
+                  "typeText": "BOOLEAN"
+                },
+                "kind": "OR",
+                "children": [
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "GROUP",
+                    "expression": {
+                      "type": {
+                        "kind": "BOOLEAN",
+                        "typeText": "BOOLEAN"
+                      },
+                      "kind": "AND",
+                      "children": [
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": ">",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0.0..10.0"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Unterboden->Ph",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Unterboden",
+                                "type": {
+                                  "kind": "COMPOSITION",
+                                  "target": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Wald",
+                                  "cardinality": "{0..1}"
+                                },
+                                "mandatory": false,
+                                "collection": false
+                              },
+                              {
+                                "index": 1,
+                                "kind": "ATTRIBUTE",
+                                "name": "Ph",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0.0..10.0"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "6.7"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "==",
+                          "left": {
+                            "type": {
+                              "kind": "ENUM",
+                              "values": [
+                                "E0",
+                                "E1",
+                                "E2",
+                                "E3",
+                                "E4",
+                                "E5"
+                              ]
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Untertyp_E",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Untertyp_E",
+                                "type": {
+                                  "kind": "ENUM",
+                                  "values": [
+                                    "E0",
+                                    "E1",
+                                    "E2",
+                                    "E3",
+                                    "E4",
+                                    "E5"
+                                  ]
+                                },
+                                "mandatory": false,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "ENUM",
+                              "values": [
+                                "E0",
+                                "E1",
+                                "E2",
+                                "E3",
+                                "E4",
+                                "E5"
+                              ]
+                            },
+                            "kind": "ENUM_LITERAL",
+                            "value": "#E0"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "GROUP",
+                    "expression": {
+                      "type": {
+                        "kind": "BOOLEAN",
+                        "typeText": "BOOLEAN"
+                      },
+                      "kind": "AND",
+                      "children": [
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": ">=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0.0..10.0"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Unterboden->Ph",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Unterboden",
+                                "type": {
+                                  "kind": "COMPOSITION",
+                                  "target": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Wald",
+                                  "cardinality": "{0..1}"
+                                },
+                                "mandatory": false,
+                                "collection": false
+                              },
+                              {
+                                "index": 1,
+                                "kind": "ATTRIBUTE",
+                                "name": "Ph",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0.0..10.0"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "6.2"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "<=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0.0..10.0"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Unterboden->Ph",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Unterboden",
+                                "type": {
+                                  "kind": "COMPOSITION",
+                                  "target": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Wald",
+                                  "cardinality": "{0..1}"
+                                },
+                                "mandatory": false,
+                                "collection": false
+                              },
+                              {
+                                "index": 1,
+                                "kind": "ATTRIBUTE",
+                                "name": "Ph",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0.0..10.0"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "6.7"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "==",
+                          "left": {
+                            "type": {
+                              "kind": "ENUM",
+                              "values": [
+                                "E0",
+                                "E1",
+                                "E2",
+                                "E3",
+                                "E4",
+                                "E5"
+                              ]
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Untertyp_E",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Untertyp_E",
+                                "type": {
+                                  "kind": "ENUM",
+                                  "values": [
+                                    "E0",
+                                    "E1",
+                                    "E2",
+                                    "E3",
+                                    "E4",
+                                    "E5"
+                                  ]
+                                },
+                                "mandatory": false,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "ENUM",
+                              "values": [
+                                "E0",
+                                "E1",
+                                "E2",
+                                "E3",
+                                "E4",
+                                "E5"
+                              ]
+                            },
+                            "kind": "ENUM_LITERAL",
+                            "value": "#E1"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "GROUP",
+                    "expression": {
+                      "type": {
+                        "kind": "BOOLEAN",
+                        "typeText": "BOOLEAN"
+                      },
+                      "kind": "AND",
+                      "children": [
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": ">=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0.0..10.0"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Unterboden->Ph",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Unterboden",
+                                "type": {
+                                  "kind": "COMPOSITION",
+                                  "target": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Wald",
+                                  "cardinality": "{0..1}"
+                                },
+                                "mandatory": false,
+                                "collection": false
+                              },
+                              {
+                                "index": 1,
+                                "kind": "ATTRIBUTE",
+                                "name": "Ph",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0.0..10.0"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "5.1"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "<=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0.0..10.0"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Unterboden->Ph",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Unterboden",
+                                "type": {
+                                  "kind": "COMPOSITION",
+                                  "target": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Wald",
+                                  "cardinality": "{0..1}"
+                                },
+                                "mandatory": false,
+                                "collection": false
+                              },
+                              {
+                                "index": 1,
+                                "kind": "ATTRIBUTE",
+                                "name": "Ph",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0.0..10.0"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "6.1"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "==",
+                          "left": {
+                            "type": {
+                              "kind": "ENUM",
+                              "values": [
+                                "E0",
+                                "E1",
+                                "E2",
+                                "E3",
+                                "E4",
+                                "E5"
+                              ]
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Untertyp_E",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Untertyp_E",
+                                "type": {
+                                  "kind": "ENUM",
+                                  "values": [
+                                    "E0",
+                                    "E1",
+                                    "E2",
+                                    "E3",
+                                    "E4",
+                                    "E5"
+                                  ]
+                                },
+                                "mandatory": false,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "ENUM",
+                              "values": [
+                                "E0",
+                                "E1",
+                                "E2",
+                                "E3",
+                                "E4",
+                                "E5"
+                              ]
+                            },
+                            "kind": "ENUM_LITERAL",
+                            "value": "#E2"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "GROUP",
+                    "expression": {
+                      "type": {
+                        "kind": "BOOLEAN",
+                        "typeText": "BOOLEAN"
+                      },
+                      "kind": "AND",
+                      "children": [
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": ">=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0.0..10.0"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Unterboden->Ph",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Unterboden",
+                                "type": {
+                                  "kind": "COMPOSITION",
+                                  "target": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Wald",
+                                  "cardinality": "{0..1}"
+                                },
+                                "mandatory": false,
+                                "collection": false
+                              },
+                              {
+                                "index": 1,
+                                "kind": "ATTRIBUTE",
+                                "name": "Ph",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0.0..10.0"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "4.3"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "<=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0.0..10.0"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Unterboden->Ph",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Unterboden",
+                                "type": {
+                                  "kind": "COMPOSITION",
+                                  "target": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Wald",
+                                  "cardinality": "{0..1}"
+                                },
+                                "mandatory": false,
+                                "collection": false
+                              },
+                              {
+                                "index": 1,
+                                "kind": "ATTRIBUTE",
+                                "name": "Ph",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0.0..10.0"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "5.0"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "==",
+                          "left": {
+                            "type": {
+                              "kind": "ENUM",
+                              "values": [
+                                "E0",
+                                "E1",
+                                "E2",
+                                "E3",
+                                "E4",
+                                "E5"
+                              ]
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Untertyp_E",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Untertyp_E",
+                                "type": {
+                                  "kind": "ENUM",
+                                  "values": [
+                                    "E0",
+                                    "E1",
+                                    "E2",
+                                    "E3",
+                                    "E4",
+                                    "E5"
+                                  ]
+                                },
+                                "mandatory": false,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "ENUM",
+                              "values": [
+                                "E0",
+                                "E1",
+                                "E2",
+                                "E3",
+                                "E4",
+                                "E5"
+                              ]
+                            },
+                            "kind": "ENUM_LITERAL",
+                            "value": "#E3"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "GROUP",
+                    "expression": {
+                      "type": {
+                        "kind": "BOOLEAN",
+                        "typeText": "BOOLEAN"
+                      },
+                      "kind": "AND",
+                      "children": [
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": ">=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0.0..10.0"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Unterboden->Ph",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Unterboden",
+                                "type": {
+                                  "kind": "COMPOSITION",
+                                  "target": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Wald",
+                                  "cardinality": "{0..1}"
+                                },
+                                "mandatory": false,
+                                "collection": false
+                              },
+                              {
+                                "index": 1,
+                                "kind": "ATTRIBUTE",
+                                "name": "Ph",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0.0..10.0"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "3.3"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "<=",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0.0..10.0"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Unterboden->Ph",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Unterboden",
+                                "type": {
+                                  "kind": "COMPOSITION",
+                                  "target": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Wald",
+                                  "cardinality": "{0..1}"
+                                },
+                                "mandatory": false,
+                                "collection": false
+                              },
+                              {
+                                "index": 1,
+                                "kind": "ATTRIBUTE",
+                                "name": "Ph",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0.0..10.0"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "4.2"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "==",
+                          "left": {
+                            "type": {
+                              "kind": "ENUM",
+                              "values": [
+                                "E0",
+                                "E1",
+                                "E2",
+                                "E3",
+                                "E4",
+                                "E5"
+                              ]
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Untertyp_E",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Untertyp_E",
+                                "type": {
+                                  "kind": "ENUM",
+                                  "values": [
+                                    "E0",
+                                    "E1",
+                                    "E2",
+                                    "E3",
+                                    "E4",
+                                    "E5"
+                                  ]
+                                },
+                                "mandatory": false,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "ENUM",
+                              "values": [
+                                "E0",
+                                "E1",
+                                "E2",
+                                "E3",
+                                "E4",
+                                "E5"
+                              ]
+                            },
+                            "kind": "ENUM_LITERAL",
+                            "value": "#E4"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "GROUP",
+                    "expression": {
+                      "type": {
+                        "kind": "BOOLEAN",
+                        "typeText": "BOOLEAN"
+                      },
+                      "kind": "AND",
+                      "children": [
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "<",
+                          "left": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "0.0..10.0"
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Unterboden->Ph",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Unterboden",
+                                "type": {
+                                  "kind": "COMPOSITION",
+                                  "target": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Wald",
+                                  "cardinality": "{0..1}"
+                                },
+                                "mandatory": false,
+                                "collection": false
+                              },
+                              {
+                                "index": 1,
+                                "kind": "ATTRIBUTE",
+                                "name": "Ph",
+                                "type": {
+                                  "kind": "NUMERIC",
+                                  "typeText": "0.0..10.0"
+                                },
+                                "mandatory": true,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "NUMERIC",
+                              "typeText": "NUMERIC"
+                            },
+                            "kind": "NUMERIC_LITERAL",
+                            "value": "3.3"
+                          }
+                        },
+                        {
+                          "type": {
+                            "kind": "BOOLEAN",
+                            "typeText": "BOOLEAN"
+                          },
+                          "kind": "==",
+                          "left": {
+                            "type": {
+                              "kind": "ENUM",
+                              "values": [
+                                "E0",
+                                "E1",
+                                "E2",
+                                "E3",
+                                "E4",
+                                "E5"
+                              ]
+                            },
+                            "kind": "OBJECT_PATH",
+                            "path": "Untertyp_E",
+                            "collection": false,
+                            "steps": [
+                              {
+                                "index": 0,
+                                "kind": "ATTRIBUTE",
+                                "name": "Untertyp_E",
+                                "type": {
+                                  "kind": "ENUM",
+                                  "values": [
+                                    "E0",
+                                    "E1",
+                                    "E2",
+                                    "E3",
+                                    "E4",
+                                    "E5"
+                                  ]
+                                },
+                                "mandatory": false,
+                                "collection": false
+                              }
+                            ]
+                          },
+                          "right": {
+                            "type": {
+                              "kind": "ENUM",
+                              "values": [
+                                "E0",
+                                "E1",
+                                "E2",
+                                "E3",
+                                "E4",
+                                "E5"
+                              ]
+                            },
+                            "kind": "ENUM_LITERAL",
+                            "value": "#E5"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "astComparison": {
+    "ignore": [
+      "constraintName",
+      "sourceLine",
+      "pureGrouping",
+      "commutativeOperandOrder:AND",
+      "commutativeOperandOrder:OR",
+      "symmetricOperandOrder:EQUALITY"
+    ],
+    "requireExplicitJustificationForOtherLogicalEquivalence": true
+  },
+  "acceptedBoundaryStatuses": [],
+  "scoring": {
+    "requireCorrectHighLevelTool": true,
+    "requireStatus": "GENERATED",
+    "requireProofVerified": true,
+    "requireCompilingUpdatedModel": true,
+    "requireExactIntendedConstraintOnly": true,
+    "requireNoReleasedUpdatedModel": false
+  },
+  "removal": {
+    "sourceStartOffset": 66086,
+    "sourceEndOffset": 66788,
+    "sourceChars": 77097,
+    "publicChars": 76395
+  }
+}

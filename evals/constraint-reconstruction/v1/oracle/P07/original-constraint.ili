@@ -1,0 +1,3 @@
+      !!@ name = 10201
+      !!@ ilivalid.msg = "ALR: mehr als 50% Beseitigung_Ist mit Wert /unbekannt/ erfasst."
+      CONSTRAINT <= 50% DEFINED(Beseitigung_Ist) AND Beseitigung_Ist == #unbekannt;

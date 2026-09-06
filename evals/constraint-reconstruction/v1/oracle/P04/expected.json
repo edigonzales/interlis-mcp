@@ -1,0 +1,414 @@
+{
+  "schemaVersion": 1,
+  "caseId": "P04",
+  "category": "POSITIVE",
+  "corpus": {
+    "repository": "sogis-interlis-repository",
+    "commit": "b94abb0953c8413d4eaaa647fa66fa7d585aa4df",
+    "path": "models/ALW/VSADSSMINI_2020_LV95_Validierung_Drainage_20250311.ili"
+  },
+  "originalConstraintSelector": "105_1",
+  "expectedTypeOrBoundary": "MANDATORY; trigger plus four-value consequence under three-valued logic",
+  "expectedHighLevelTools": [
+    "authorIliMandatoryConstraint"
+  ],
+  "gold": {
+    "constraintKind": "MANDATORY_CONSTRAINT",
+    "contextFqn": "VSADSSMINI_2020_LV95_Validierung_Drainage_20250311.VSADSSMini_Validierung.v_Leitung",
+    "astComplete": true,
+    "ast": {
+      "kind": "MANDATORY_CONSTRAINT",
+      "condition": {
+        "type": {
+          "kind": "BOOLEAN",
+          "typeText": "BOOLEAN"
+        },
+        "kind": "OR",
+        "children": [
+          {
+            "type": {
+              "kind": "BOOLEAN",
+              "typeText": "BOOLEAN"
+            },
+            "kind": "NOT",
+            "operand": {
+              "type": {
+                "kind": "BOOLEAN",
+                "typeText": "BOOLEAN"
+              },
+              "kind": "==",
+              "left": {
+                "type": {
+                  "kind": "TEXT",
+                  "typeText": "TEXT*20"
+                },
+                "kind": "OBJECT_PATH",
+                "path": "RohrprofilRef->Bezeichnung",
+                "collection": false,
+                "steps": [
+                  {
+                    "index": 0,
+                    "kind": "ROLE",
+                    "name": "RohrprofilRef",
+                    "target": "VSADSSMINI_2020_LV95.VSADSSMini.Rohrprofil",
+                    "cardinality": "{0..1}",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "collection": false
+                  },
+                  {
+                    "index": 1,
+                    "kind": "ATTRIBUTE",
+                    "name": "Bezeichnung",
+                    "type": {
+                      "kind": "TEXT",
+                      "typeText": "TEXT*20"
+                    },
+                    "mandatory": true,
+                    "collection": false
+                  }
+                ]
+              },
+              "right": {
+                "type": {
+                  "kind": "TEXT",
+                  "typeText": "TEXT"
+                },
+                "kind": "TEXT_LITERAL",
+                "value": "Kiesschlitzdrainage"
+              }
+            }
+          },
+          {
+            "type": {
+              "kind": "BOOLEAN",
+              "typeText": "BOOLEAN"
+            },
+            "kind": "GROUP",
+            "expression": {
+              "type": {
+                "kind": "BOOLEAN",
+                "typeText": "BOOLEAN"
+              },
+              "kind": "AND",
+              "children": [
+                {
+                  "type": {
+                    "kind": "BOOLEAN",
+                    "typeText": "BOOLEAN"
+                  },
+                  "kind": "==",
+                  "left": {
+                    "type": {
+                      "kind": "ENUM",
+                      "values": [
+                        "PAA.andere",
+                        "PAA.Gewaesser",
+                        "PAA.Hauptsammelkanal",
+                        "PAA.Hauptsammelkanal_regional",
+                        "PAA.Liegenschaftsentwaesserung",
+                        "PAA.Sammelkanal",
+                        "PAA.Sanierungsleitung",
+                        "PAA.Strassenentwaesserung",
+                        "PAA.unbekannt",
+                        "SAA.andere",
+                        "SAA.Liegenschaftsentwaesserung",
+                        "SAA.Sanierungsleitung",
+                        "SAA.Strassenentwaesserung",
+                        "SAA.unbekannt"
+                      ]
+                    },
+                    "kind": "OBJECT_PATH",
+                    "path": "FunktionHierarchisch",
+                    "collection": false,
+                    "steps": [
+                      {
+                        "index": 0,
+                        "kind": "ATTRIBUTE",
+                        "name": "FunktionHierarchisch",
+                        "type": {
+                          "kind": "ENUM",
+                          "values": [
+                            "PAA.andere",
+                            "PAA.Gewaesser",
+                            "PAA.Hauptsammelkanal",
+                            "PAA.Hauptsammelkanal_regional",
+                            "PAA.Liegenschaftsentwaesserung",
+                            "PAA.Sammelkanal",
+                            "PAA.Sanierungsleitung",
+                            "PAA.Strassenentwaesserung",
+                            "PAA.unbekannt",
+                            "SAA.andere",
+                            "SAA.Liegenschaftsentwaesserung",
+                            "SAA.Sanierungsleitung",
+                            "SAA.Strassenentwaesserung",
+                            "SAA.unbekannt"
+                          ]
+                        },
+                        "mandatory": false,
+                        "collection": false
+                      }
+                    ]
+                  },
+                  "right": {
+                    "type": {
+                      "kind": "ENUM",
+                      "values": [
+                        "PAA.andere",
+                        "PAA.Gewaesser",
+                        "PAA.Hauptsammelkanal",
+                        "PAA.Hauptsammelkanal_regional",
+                        "PAA.Liegenschaftsentwaesserung",
+                        "PAA.Sammelkanal",
+                        "PAA.Sanierungsleitung",
+                        "PAA.Strassenentwaesserung",
+                        "PAA.unbekannt",
+                        "SAA.andere",
+                        "SAA.Liegenschaftsentwaesserung",
+                        "SAA.Sanierungsleitung",
+                        "SAA.Strassenentwaesserung",
+                        "SAA.unbekannt"
+                      ]
+                    },
+                    "kind": "ENUM_LITERAL",
+                    "value": "#SAA.andere"
+                  }
+                },
+                {
+                  "type": {
+                    "kind": "BOOLEAN",
+                    "typeText": "BOOLEAN"
+                  },
+                  "kind": "==",
+                  "left": {
+                    "type": {
+                      "kind": "ENUM",
+                      "values": [
+                        "andere",
+                        "Drainagetransportleitung",
+                        "Drosselleitung",
+                        "Duekerleitung",
+                        "Freispiegelleitung",
+                        "Pumpendruckleitung",
+                        "Sickerleitung",
+                        "Speicherleitung",
+                        "Spuelleitung",
+                        "unbekannt",
+                        "Vakuumleitung",
+                        "Versickerungsleitung"
+                      ]
+                    },
+                    "kind": "OBJECT_PATH",
+                    "path": "FunktionHydraulisch",
+                    "collection": false,
+                    "steps": [
+                      {
+                        "index": 0,
+                        "kind": "ATTRIBUTE",
+                        "name": "FunktionHydraulisch",
+                        "type": {
+                          "kind": "ENUM",
+                          "values": [
+                            "andere",
+                            "Drainagetransportleitung",
+                            "Drosselleitung",
+                            "Duekerleitung",
+                            "Freispiegelleitung",
+                            "Pumpendruckleitung",
+                            "Sickerleitung",
+                            "Speicherleitung",
+                            "Spuelleitung",
+                            "unbekannt",
+                            "Vakuumleitung",
+                            "Versickerungsleitung"
+                          ]
+                        },
+                        "mandatory": false,
+                        "collection": false
+                      }
+                    ]
+                  },
+                  "right": {
+                    "type": {
+                      "kind": "ENUM",
+                      "values": [
+                        "andere",
+                        "Drainagetransportleitung",
+                        "Drosselleitung",
+                        "Duekerleitung",
+                        "Freispiegelleitung",
+                        "Pumpendruckleitung",
+                        "Sickerleitung",
+                        "Speicherleitung",
+                        "Spuelleitung",
+                        "unbekannt",
+                        "Vakuumleitung",
+                        "Versickerungsleitung"
+                      ]
+                    },
+                    "kind": "ENUM_LITERAL",
+                    "value": "#Sickerleitung"
+                  }
+                },
+                {
+                  "type": {
+                    "kind": "BOOLEAN",
+                    "typeText": "BOOLEAN"
+                  },
+                  "kind": "==",
+                  "left": {
+                    "type": {
+                      "kind": "ENUM",
+                      "values": [
+                        "andere",
+                        "Bachwasser",
+                        "entlastetes_Mischabwasser",
+                        "Industrieabwasser",
+                        "Mischabwasser",
+                        "Niederschlagsabwasser",
+                        "Reinabwasser",
+                        "Schmutzabwasser",
+                        "unbekannt"
+                      ]
+                    },
+                    "kind": "OBJECT_PATH",
+                    "path": "Nutzungsart_Ist",
+                    "collection": false,
+                    "steps": [
+                      {
+                        "index": 0,
+                        "kind": "ATTRIBUTE",
+                        "name": "Nutzungsart_Ist",
+                        "type": {
+                          "kind": "ENUM",
+                          "values": [
+                            "andere",
+                            "Bachwasser",
+                            "entlastetes_Mischabwasser",
+                            "Industrieabwasser",
+                            "Mischabwasser",
+                            "Niederschlagsabwasser",
+                            "Reinabwasser",
+                            "Schmutzabwasser",
+                            "unbekannt"
+                          ]
+                        },
+                        "mandatory": false,
+                        "collection": false
+                      }
+                    ]
+                  },
+                  "right": {
+                    "type": {
+                      "kind": "ENUM",
+                      "values": [
+                        "andere",
+                        "Bachwasser",
+                        "entlastetes_Mischabwasser",
+                        "Industrieabwasser",
+                        "Mischabwasser",
+                        "Niederschlagsabwasser",
+                        "Reinabwasser",
+                        "Schmutzabwasser",
+                        "unbekannt"
+                      ]
+                    },
+                    "kind": "ENUM_LITERAL",
+                    "value": "#Reinabwasser"
+                  }
+                },
+                {
+                  "type": {
+                    "kind": "BOOLEAN",
+                    "typeText": "BOOLEAN"
+                  },
+                  "kind": "==",
+                  "left": {
+                    "type": {
+                      "kind": "ENUM",
+                      "values": [
+                        "Eiprofil",
+                        "Kreisprofil",
+                        "Maulprofil",
+                        "offenes_Profil",
+                        "Rechteckprofil",
+                        "Spezialprofil",
+                        "unbekannt"
+                      ]
+                    },
+                    "kind": "OBJECT_PATH",
+                    "path": "Profiltyp",
+                    "collection": false,
+                    "steps": [
+                      {
+                        "index": 0,
+                        "kind": "ATTRIBUTE",
+                        "name": "Profiltyp",
+                        "type": {
+                          "kind": "ENUM",
+                          "values": [
+                            "Eiprofil",
+                            "Kreisprofil",
+                            "Maulprofil",
+                            "offenes_Profil",
+                            "Rechteckprofil",
+                            "Spezialprofil",
+                            "unbekannt"
+                          ]
+                        },
+                        "mandatory": false,
+                        "collection": false
+                      }
+                    ]
+                  },
+                  "right": {
+                    "type": {
+                      "kind": "ENUM",
+                      "values": [
+                        "Eiprofil",
+                        "Kreisprofil",
+                        "Maulprofil",
+                        "offenes_Profil",
+                        "Rechteckprofil",
+                        "Spezialprofil",
+                        "unbekannt"
+                      ]
+                    },
+                    "kind": "ENUM_LITERAL",
+                    "value": "#Spezialprofil"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "astComparison": {
+    "ignore": [
+      "constraintName",
+      "sourceLine",
+      "pureGrouping",
+      "commutativeOperandOrder:AND",
+      "commutativeOperandOrder:OR",
+      "symmetricOperandOrder:EQUALITY"
+    ],
+    "requireExplicitJustificationForOtherLogicalEquivalence": true
+  },
+  "acceptedBoundaryStatuses": [],
+  "scoring": {
+    "requireCorrectHighLevelTool": true,
+    "requireStatus": "GENERATED",
+    "requireProofVerified": true,
+    "requireCompilingUpdatedModel": true,
+    "requireExactIntendedConstraintOnly": true,
+    "requireNoReleasedUpdatedModel": false
+  },
+  "removal": {
+    "sourceStartOffset": 631,
+    "sourceEndOffset": 1096,
+    "sourceChars": 14738,
+    "publicChars": 14273
+  }
+}

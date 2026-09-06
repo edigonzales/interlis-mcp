@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "caseId": "P05",
+  "category": "POSITIVE",
+  "corpus": {
+    "repository": "sogis-interlis-repository",
+    "commit": "b94abb0953c8413d4eaaa647fa66fa7d585aa4df",
+    "path": "models/ALW/VSADSSMINI_2020_LV95_Validierung_Drainage_20250311.ili"
+  },
+  "originalConstraintSelector": "103_1",
+  "expectedTypeOrBoundary": "MANDATORY; navigation object count equals one",
+  "expectedHighLevelTools": [
+    "authorIliMandatoryConstraint"
+  ],
+  "gold": {
+    "constraintKind": "MANDATORY_CONSTRAINT",
+    "contextFqn": "VSADSSMINI_2020_LV95_Validierung_Drainage_20250311.VSADSSMini_Validierung.v_Drainageleitung",
+    "astComplete": true,
+    "ast": {
+      "kind": "MANDATORY_CONSTRAINT",
+      "condition": {
+        "type": {
+          "kind": "BOOLEAN",
+          "typeText": "BOOLEAN"
+        },
+        "kind": "==",
+        "left": {
+          "type": {
+            "kind": "NUMERIC",
+            "typeText": "NUMERIC"
+          },
+          "kind": "FUNCTION_CALL",
+          "function": "INTERLIS.objectCount",
+          "arguments": [
+            {
+              "index": 0,
+              "parameter": {
+                "name": "Objects",
+                "type": {
+                  "kind": "ObjectType"
+                },
+                "semanticType": "VALUE"
+              },
+              "value": {
+                "type": {
+                  "kind": "ObjectType"
+                },
+                "kind": "OBJECT_PATH",
+                "path": "Knoten_vonRef",
+                "collection": false,
+                "steps": [
+                  {
+                    "index": 0,
+                    "kind": "ROLE",
+                    "name": "Knoten_vonRef",
+                    "target": "VSADSSMINI_2020_LV95.VSADSSMini.Knoten",
+                    "cardinality": "{0..1}",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "collection": false
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "right": {
+          "type": {
+            "kind": "NUMERIC",
+            "typeText": "NUMERIC"
+          },
+          "kind": "NUMERIC_LITERAL",
+          "value": "1"
+        }
+      }
+    }
+  },
+  "astComparison": {
+    "ignore": [
+      "constraintName",
+      "sourceLine",
+      "pureGrouping",
+      "commutativeOperandOrder:AND",
+      "commutativeOperandOrder:OR",
+      "symmetricOperandOrder:EQUALITY"
+    ],
+    "requireExplicitJustificationForOtherLogicalEquivalence": true
+  },
+  "acceptedBoundaryStatuses": [],
+  "scoring": {
+    "requireCorrectHighLevelTool": true,
+    "requireStatus": "GENERATED",
+    "requireProofVerified": true,
+    "requireCompilingUpdatedModel": true,
+    "requireExactIntendedConstraintOnly": true,
+    "requireNoReleasedUpdatedModel": false
+  },
+  "removal": {
+    "sourceStartOffset": 5766,
+    "sourceEndOffset": 5966,
+    "sourceChars": 14738,
+    "publicChars": 14538
+  }
+}

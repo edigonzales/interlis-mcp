@@ -1,0 +1,3 @@
+      !!@ name = 103_1
+      !!@ ilivalid.msg = "Leitung: Verknüpfung mit 'Knoten_von' ist obligatorisch für Drainageleitungen (Regel 103)."
+      MANDATORY CONSTRAINT objectCount(Knoten_vonRef) == 1;

@@ -1,0 +1,3 @@
+# Fachanforderung P02
+
+Bei einer Klasse "Nebenauspraegung_Wald" müssen wir prüfen, ob der "Untertyp_E"-Werte zum "pH"-Wert des Strukturattributes "Unterboden" passt. Es gilt folgendes: Ein fehlender pH-Wert lässt jedes Untertyp_E zu. Bei vorhandenem pH-Wert gelten exakt diese Zuordnungen: oberhalb 6.7 zu E0; 6.2 bis einschliesslich 6.7 zu E1; 5.1 bis einschliesslich 6.1 zu E2; 4.3 bis einschliesslich 5.0 zu E3; 3.3 bis einschliesslich 4.2 zu E4; unterhalb 3.3 zu E5. Die Zwischenbereiche 6.1 bis 6.2, 5.0 bis 5.1 und 4.2 bis 4.3 sind damit nicht abgedeckt. Der pH-Wert wird über Unterboden erreicht; Untertyp_E selbst ist ein Pflichtwert.

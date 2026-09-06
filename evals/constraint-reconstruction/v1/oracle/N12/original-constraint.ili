@@ -1,0 +1,3 @@
+      !!@ name = "CheckBefundSteinBlockschlagKeineUeberragung"
+      !!@ ilivalid.msg = "Die Gesamtausdehnung der kleineren Jährlichkeit überragt diejenige der grösseren Jährlichkeit."
+      SET CONSTRAINT NGK_SO_FunctionsExt.IsInsideAreaByCode(GeoW_FunctionsExt.GetInGroups(ALL, "PQ_Jaehrlichkeit_SteinBlockschlag_R->Prozessquelle_R"), "Geometrie" ,"IWCode");

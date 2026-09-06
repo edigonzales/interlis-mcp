@@ -1,0 +1,4 @@
+      !!@ name = "HauptHatMehrGewicht_alsNeben_Landwirtschaft"
+      !!@ ilivalid.msg = "Die Hauptausprägung muss mehr Gewichtung haben als die Nebenausprägungen (Landwirtschaft)."
+      MANDATORY CONSTRAINT
+        ((Bodeneinheit->Gewichtung) > Gewichtung);

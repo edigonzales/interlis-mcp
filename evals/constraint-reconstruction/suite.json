@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "activeVersion": "v1",
+  "manifest": "v1/manifest.json",
+  "runnableStatuses": [
+    "APPROVED"
+  ]
+}

@@ -1,0 +1,7 @@
+      !!@ name = 105_1
+      !!@ ilivalid.msg = "Leitung: Kiesschlitzdrainagen ausserhalb Draingenetz (Regel 105)."
+      MANDATORY CONSTRAINT  NOT(RohrprofilRef->Bezeichnung == "Kiesschlitzdrainage") OR
+                            (FunktionHierarchisch == #SAA.andere AND
+                            FunktionHydraulisch == #Sickerleitung AND
+                            Nutzungsart_Ist == #Reinabwasser AND
+                            Profiltyp == #Spezialprofil);

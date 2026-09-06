@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "caseId": "N11",
+  "category": "BOUNDARY",
+  "corpus": {
+    "repository": "sogis-interlis-repository",
+    "commit": "b94abb0953c8413d4eaaa647fa66fa7d585aa4df",
+    "path": "models/ARP/SO_ARP_Nutzungsplanung_Nachfuehrung_20221118_Validierung_20221118.ili"
+  },
+  "originalConstraintSelector": "SO_ARP_Nutzungsplanung_Nachfuehrung_20221118_Validierung_20221118.Nutzungsplanung_Validierung.v_Grundnutzung.checkMinimumFlaeche",
+  "expectedTypeOrBoundary": "BOUNDARY; external area-function semantics",
+  "expectedHighLevelTools": [
+    "authorIliMandatoryConstraint"
+  ],
+  "gold": {
+    "constraintKind": "MANDATORY_CONSTRAINT",
+    "contextFqn": "SO_ARP_Nutzungsplanung_Nachfuehrung_20221118_Validierung_20221118.Nutzungsplanung_Validierung.v_Grundnutzung",
+    "astComplete": true,
+    "ast": {
+      "kind": "MANDATORY_CONSTRAINT",
+      "condition": {
+        "type": {
+          "kind": "BOOLEAN",
+          "typeText": "BOOLEAN"
+        },
+        "kind": ">",
+        "left": {
+          "type": {
+            "kind": "NUMERIC",
+            "typeText": "NUMERIC"
+          },
+          "kind": "FUNCTION_CALL",
+          "function": "SO_FunctionsExt.area",
+          "arguments": [
+            {
+              "index": 0,
+              "parameter": {
+                "name": "geometry",
+                "type": {
+                  "kind": "ObjectType"
+                },
+                "semanticType": "VALUE"
+              },
+              "value": {
+                "type": {
+                  "kind": "SurfaceType"
+                },
+                "kind": "OBJECT_PATH",
+                "path": "Geometrie",
+                "collection": false,
+                "steps": [
+                  {
+                    "index": 0,
+                    "kind": "ATTRIBUTE",
+                    "name": "Geometrie",
+                    "type": {
+                      "kind": "SurfaceType"
+                    },
+                    "mandatory": false,
+                    "collection": false
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "right": {
+          "type": {
+            "kind": "NUMERIC",
+            "typeText": "NUMERIC"
+          },
+          "kind": "NUMERIC_LITERAL",
+          "value": "0.01"
+        }
+      }
+    }
+  },
+  "astComparison": {
+    "ignore": [
+      "constraintName",
+      "sourceLine",
+      "pureGrouping",
+      "commutativeOperandOrder:AND",
+      "commutativeOperandOrder:OR",
+      "symmetricOperandOrder:EQUALITY"
+    ],
+    "requireExplicitJustificationForOtherLogicalEquivalence": true
+  },
+  "acceptedBoundaryStatuses": [
+    "EXTERNAL_FUNCTION_SEMANTICS_REQUIRED",
+    "PROOF_INCOMPLETE"
+  ],
+  "scoring": {
+    "requireCorrectHighLevelTool": true,
+    "requireStatus": null,
+    "requireProofVerified": false,
+    "requireCompilingUpdatedModel": false,
+    "requireExactIntendedConstraintOnly": false,
+    "requireNoReleasedUpdatedModel": true
+  },
+  "removal": {
+    "sourceStartOffset": 1500,
+    "sourceEndOffset": 1672,
+    "sourceChars": 60042,
+    "publicChars": 59870
+  }
+}

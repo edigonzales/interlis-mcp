@@ -1,0 +1,309 @@
+{
+  "schemaVersion": 1,
+  "suiteVersion": "v1",
+  "status": "APPROVED",
+  "corpus": {
+    "repositoryPath": "../sogis-interlis-repository",
+    "commit": "b94abb0953c8413d4eaaa647fa66fa7d585aa4df"
+  },
+  "caseOrder": [
+    "P01",
+    "P02",
+    "P03",
+    "P04",
+    "P05",
+    "P06",
+    "P07",
+    "P08",
+    "P09",
+    "P10",
+    "N11",
+    "N12"
+  ],
+  "cases": [
+    {
+      "id": "P01",
+      "publicModel": "public/P01/model.ili",
+      "requirement": "public/P01/requirement.de.md",
+      "goldConstraint": "oracle/P01/original-constraint.ili",
+      "expected": "oracle/P01/expected.json"
+    },
+    {
+      "id": "P02",
+      "publicModel": "public/P02/model.ili",
+      "requirement": "public/P02/requirement.de.md",
+      "goldConstraint": "oracle/P02/original-constraint.ili",
+      "expected": "oracle/P02/expected.json"
+    },
+    {
+      "id": "P03",
+      "publicModel": "public/P03/model.ili",
+      "requirement": "public/P03/requirement.de.md",
+      "goldConstraint": "oracle/P03/original-constraint.ili",
+      "expected": "oracle/P03/expected.json"
+    },
+    {
+      "id": "P04",
+      "publicModel": "public/P04/model.ili",
+      "requirement": "public/P04/requirement.de.md",
+      "goldConstraint": "oracle/P04/original-constraint.ili",
+      "expected": "oracle/P04/expected.json"
+    },
+    {
+      "id": "P05",
+      "publicModel": "public/P05/model.ili",
+      "requirement": "public/P05/requirement.de.md",
+      "goldConstraint": "oracle/P05/original-constraint.ili",
+      "expected": "oracle/P05/expected.json"
+    },
+    {
+      "id": "P06",
+      "publicModel": "public/P06/model.ili",
+      "requirement": "public/P06/requirement.de.md",
+      "goldConstraint": "oracle/P06/original-constraint.ili",
+      "expected": "oracle/P06/expected.json"
+    },
+    {
+      "id": "P07",
+      "publicModel": "public/P07/model.ili",
+      "requirement": "public/P07/requirement.de.md",
+      "goldConstraint": "oracle/P07/original-constraint.ili",
+      "expected": "oracle/P07/expected.json"
+    },
+    {
+      "id": "P08",
+      "publicModel": "public/P08/model.ili",
+      "requirement": "public/P08/requirement.de.md",
+      "goldConstraint": "oracle/P08/original-constraint.ili",
+      "expected": "oracle/P08/expected.json"
+    },
+    {
+      "id": "P09",
+      "publicModel": "public/P09/model.ili",
+      "requirement": "public/P09/requirement.de.md",
+      "goldConstraint": "oracle/P09/original-constraint.ili",
+      "expected": "oracle/P09/expected.json"
+    },
+    {
+      "id": "P10",
+      "publicModel": "public/P10/model.ili",
+      "requirement": "public/P10/requirement.de.md",
+      "goldConstraint": "oracle/P10/original-constraint.ili",
+      "expected": "oracle/P10/expected.json"
+    },
+    {
+      "id": "N11",
+      "publicModel": "public/N11/model.ili",
+      "requirement": "public/N11/requirement.de.md",
+      "goldConstraint": "oracle/N11/original-constraint.ili",
+      "expected": "oracle/N11/expected.json"
+    },
+    {
+      "id": "N12",
+      "publicModel": "public/N12/model.ili",
+      "requirement": "public/N12/requirement.de.md",
+      "goldConstraint": "oracle/N12/original-constraint.ili",
+      "expected": "oracle/N12/expected.json"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "oracle/N11/expected.json",
+      "sha256": "30f080d67f2b29aeeb04c05c647e9e524f2b4c9238ae667e887f35b912dbd81e"
+    },
+    {
+      "path": "oracle/N11/original-constraint.ili",
+      "sha256": "1f3f0d6d86627187aa320e22409115ff2485005bd125c96d85f6d2b79818ac13"
+    },
+    {
+      "path": "oracle/N12/expected.json",
+      "sha256": "e00539b027312bdd30318f81f390572a455d2c22a2ebafe23a81a322956be169"
+    },
+    {
+      "path": "oracle/N12/original-constraint.ili",
+      "sha256": "e3effe90e67d701b84ec86c9a92ffe3d345db3477333f6e524b71cb07da663ac"
+    },
+    {
+      "path": "oracle/P01/expected.json",
+      "sha256": "de1707408558f7c917e8ba7d8975382d72902ebb5eb54df18f283b9713ba5121"
+    },
+    {
+      "path": "oracle/P01/original-constraint.ili",
+      "sha256": "fee23ca2e6f691733cd0dc52ef760ebb1444d8f8bc7ababafdb710365c22e11a"
+    },
+    {
+      "path": "oracle/P02/expected.json",
+      "sha256": "90ff3b3d1d7c159e34e5279f71a0b7f30e5d3e8179c3c797e470c430d31cdf10"
+    },
+    {
+      "path": "oracle/P02/original-constraint.ili",
+      "sha256": "3e0a1dae34ed76b55bf1052629ebb1ff1397026267de8312bb1b0a68b7aae93e"
+    },
+    {
+      "path": "oracle/P03/expected.json",
+      "sha256": "5db20518332e9ff6b950bc178af7b874db3067fffd1bfc15c88a4d3ceafdc550"
+    },
+    {
+      "path": "oracle/P03/original-constraint.ili",
+      "sha256": "5b5d41f1f4e54683fda9344dcc5bca5a081e7e2d5f8f5936642b63c0ba1c4a11"
+    },
+    {
+      "path": "oracle/P04/expected.json",
+      "sha256": "8d2910733a4e9255fff65559a22833cb6b7f0a3c46bf1980e0d1680af9d518df"
+    },
+    {
+      "path": "oracle/P04/original-constraint.ili",
+      "sha256": "5e4ffa29e570f731448eab9774abb52750bd70d6eceebf2d3b37c0b2176fdf47"
+    },
+    {
+      "path": "oracle/P05/expected.json",
+      "sha256": "f675b589e7b50a41909df5a4d1574d439ae7aa6118a39f0aa220eaf4d5d32d77"
+    },
+    {
+      "path": "oracle/P05/original-constraint.ili",
+      "sha256": "b4aabd20c1b6ffc7cbca37850e4da64857c10a34af3c4b1abf1913c51404c7b2"
+    },
+    {
+      "path": "oracle/P06/expected.json",
+      "sha256": "a3347c46eb6cc650bd94bf5ea6b3facf6d3dcf19ac2aa04a38740c740a83fe42"
+    },
+    {
+      "path": "oracle/P06/original-constraint.ili",
+      "sha256": "88d8adb3b3fbd15031f30ab631e2939266a790ef0a79a589c74667211955833c"
+    },
+    {
+      "path": "oracle/P07/expected.json",
+      "sha256": "aeaf0c591cb036018592637535d5031d57bb24a9bffb63d9dfc368ee8699dc82"
+    },
+    {
+      "path": "oracle/P07/original-constraint.ili",
+      "sha256": "59b92029f80b6be081ed0105381a6850789b9d21d6b648e4d7b003868db42f37"
+    },
+    {
+      "path": "oracle/P08/expected.json",
+      "sha256": "f68b7df5d334cb7410b609d9a5dc0dd348e6f6330d9c1085c953a9b997c88bcb"
+    },
+    {
+      "path": "oracle/P08/original-constraint.ili",
+      "sha256": "467c7a1df2b8ac1077af0911bb4314559d9fe95ef587245b6e9f9a13cfb1f659"
+    },
+    {
+      "path": "oracle/P09/expected.json",
+      "sha256": "fe331bb46cbd2c48792c4846176e03de8b3ae1770d1191245329a27f3483365f"
+    },
+    {
+      "path": "oracle/P09/original-constraint.ili",
+      "sha256": "c2ca020824c8ca0889082b618e7bfceca7389282e27a03870840baf187140555"
+    },
+    {
+      "path": "oracle/P10/expected.json",
+      "sha256": "193d1705fac2561ac222a3a9f8e4dfdecec98df30145d6a17d1aefbc1a55f947"
+    },
+    {
+      "path": "oracle/P10/original-constraint.ili",
+      "sha256": "574f9bccdf11030a234cdabc1f3fd9db8d7490c48703d6a20d98098316b84af0"
+    },
+    {
+      "path": "public/N11/model.ili",
+      "sha256": "364dd3b48f35171d6a235f4b327c089b40f255c8c143072a3784233ee675aa8c"
+    },
+    {
+      "path": "public/N11/requirement.de.md",
+      "sha256": "3e0bdfaff961374c358987ecb433c854f278ec2e2054e23704727d46a1b73c04"
+    },
+    {
+      "path": "public/N12/model.ili",
+      "sha256": "afb3a7a7b84d323cb0f28c1e8b792dd9360209d41229d725fd40b35a303177f8"
+    },
+    {
+      "path": "public/N12/requirement.de.md",
+      "sha256": "84ceb00dc563e1dc5bd154a47c9cca8913878ca4af3afcb322647f09db28dd99"
+    },
+    {
+      "path": "public/P01/model.ili",
+      "sha256": "02a213e92523f94744c05b7bbec4b8752016ff298eaf0c21d4f3a31797dd4ab6"
+    },
+    {
+      "path": "public/P01/requirement.de.md",
+      "sha256": "2805a0b0eb8a9c51f5c188727e5706fdb32547208c5eb574102bc94f630b0102"
+    },
+    {
+      "path": "public/P02/model.ili",
+      "sha256": "ee0efb7fc62654dcdfcf7fc58b630089462ab6cfd12bcd455452a088389d4fbf"
+    },
+    {
+      "path": "public/P02/requirement.de.md",
+      "sha256": "058449760f54d5ad4d6c3cee3dc2efefd8159f63d6e1002fbc4213c5c222ad0b"
+    },
+    {
+      "path": "public/P03/model.ili",
+      "sha256": "f57280c6902491d391177414a29468444b0a11eec7ee07df3a6f0b8f365fd7f1"
+    },
+    {
+      "path": "public/P03/requirement.de.md",
+      "sha256": "7249d419513102bfcee7dcb252941e9156ab289136c6658dd0b66ce00bc6b8b7"
+    },
+    {
+      "path": "public/P04/model.ili",
+      "sha256": "c56350aadc1744a34961c1fdcc486a9534ac19f6b7bbc7dd32437e4ba038c23e"
+    },
+    {
+      "path": "public/P04/requirement.de.md",
+      "sha256": "a7aba5a5cd4ccf73ad6b51ae046e3c60406df0b662af6ca4492950b2ed29f43c"
+    },
+    {
+      "path": "public/P05/model.ili",
+      "sha256": "163abaa99b9118af2c9f1f7bc5ac0ded5ec6226217873a60324508a8cdeac694"
+    },
+    {
+      "path": "public/P05/requirement.de.md",
+      "sha256": "8a273175555536c1afa9a33a013d7154e93af21463a608c031e2f566e36435bb"
+    },
+    {
+      "path": "public/P06/model.ili",
+      "sha256": "87c04821451a9e112579f6c3b6f764a0a671f653557419621939a6c139c49c84"
+    },
+    {
+      "path": "public/P06/requirement.de.md",
+      "sha256": "31be1b6c6cc1fde9a87fb294a2c8c6c5b0d3e466154198fa520481193e8db85b"
+    },
+    {
+      "path": "public/P07/model.ili",
+      "sha256": "fe2c9eeef7cd9f1f8b0051c4455588c64853932158fc9e92a06531d8beb8272d"
+    },
+    {
+      "path": "public/P07/requirement.de.md",
+      "sha256": "a84c78312d5ea7d62073c3b9373a2a9cc5f4fdca3772db23e9813be642d0d822"
+    },
+    {
+      "path": "public/P08/model.ili",
+      "sha256": "b78318eccff052d7cb03fec2a83becb25204babe5c70e6cfff0165a3c495f396"
+    },
+    {
+      "path": "public/P08/requirement.de.md",
+      "sha256": "1b1545e1a58b1a68f0d2819a5534fa09087e27f89f6744d66ab17ce4e850afa2"
+    },
+    {
+      "path": "public/P09/model.ili",
+      "sha256": "ec8227e4f41df3fd08ce8f3643c0f0912585a46505f96bd252a3562c5ac4537f"
+    },
+    {
+      "path": "public/P09/requirement.de.md",
+      "sha256": "cf4db4df281d7118223947a6e4dc58002939de7b0d5fdb5b4ffd5d38e8c21a2a"
+    },
+    {
+      "path": "public/P10/model.ili",
+      "sha256": "2dde4a2e848bc0f59686161c05beec27e95c19ad91edb9b462b8bd4a7e7e7a37"
+    },
+    {
+      "path": "public/P10/requirement.de.md",
+      "sha256": "395fb2347cb2f4fe19c598a25999f862737c2b05da7ef34cb69d1da9e67f4d95"
+    }
+  ],
+  "approval": {
+    "required": true,
+    "approvedBy": null,
+    "approvedAt": null,
+    "notes": "Review all German requirements before changing status to APPROVED. An approved suite version is immutable."
+  }
+}

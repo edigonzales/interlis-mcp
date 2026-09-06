@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "caseId": "P08",
+  "category": "POSITIVE",
+  "corpus": {
+    "repository": "sogis-interlis-repository",
+    "commit": "b94abb0953c8413d4eaaa647fa66fa7d585aa4df",
+    "path": "models/AFU/VSADSSMINI_2020_1_LV95_Validierung_IPW_S2_20250123.ili"
+  },
+  "originalConstraintSelector": "11006b",
+  "expectedTypeOrBoundary": "UNIQUE; view-scope composite key",
+  "expectedHighLevelTools": [
+    "authorIliUniqueConstraint"
+  ],
+  "gold": {
+    "constraintKind": "UNIQUENESS_CONSTRAINT",
+    "contextFqn": "VSADSSMINI_2020_1_LV95_Validierung_IPW_S2_20250123.VSADSSMini_Validierung.v_Knoten_inBetrieb",
+    "astComplete": true,
+    "ast": {
+      "kind": "UNIQUENESS_CONSTRAINT",
+      "local": false,
+      "perBasket": false,
+      "uniqueElements": [
+        {
+          "type": {
+            "kind": "TEXT",
+            "typeText": "TEXT*20"
+          },
+          "kind": "OBJECT_PATH",
+          "path": "Bezeichnung",
+          "collection": false,
+          "steps": [
+            {
+              "index": 0,
+              "kind": "ATTRIBUTE",
+              "name": "Bezeichnung",
+              "type": {
+                "kind": "TEXT",
+                "typeText": "TEXT*20"
+              },
+              "mandatory": true,
+              "collection": false
+            }
+          ]
+        },
+        {
+          "type": {
+            "kind": "ObjectType"
+          },
+          "kind": "OBJECT_PATH",
+          "path": "DatenherrRef",
+          "collection": false,
+          "steps": [
+            {
+              "index": 0,
+              "kind": "ROLE",
+              "name": "DatenherrRef",
+              "target": "SIA405_Base_Abwasser_1_LV95.Administration.Organisation",
+              "cardinality": "{1}",
+              "minimum": 1,
+              "maximum": 1,
+              "collection": false
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "astComparison": {
+    "ignore": [
+      "constraintName",
+      "sourceLine",
+      "pureGrouping",
+      "commutativeOperandOrder:AND",
+      "commutativeOperandOrder:OR",
+      "symmetricOperandOrder:EQUALITY"
+    ],
+    "requireExplicitJustificationForOtherLogicalEquivalence": true
+  },
+  "acceptedBoundaryStatuses": [],
+  "scoring": {
+    "requireCorrectHighLevelTool": true,
+    "requireStatus": "GENERATED",
+    "requireProofVerified": true,
+    "requireCompilingUpdatedModel": true,
+    "requireExactIntendedConstraintOnly": true,
+    "requireNoReleasedUpdatedModel": false
+  },
+  "removal": {
+    "sourceStartOffset": 3321,
+    "sourceEndOffset": 3463,
+    "sourceChars": 25473,
+    "publicChars": 25331
+  }
+}

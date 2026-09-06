@@ -1,0 +1,3 @@
+      !!@ name = checkMinimumFlaeche
+      !!@ ilivalid.msg = "Fläche der Geometrie ist kleiner 0.01 m2."
+      MANDATORY CONSTRAINT SO_FunctionsExt.area(Geometrie) > 0.01;

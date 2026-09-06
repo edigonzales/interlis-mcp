@@ -1,0 +1,290 @@
+{
+  "schemaVersion": 1,
+  "caseId": "P06",
+  "category": "POSITIVE",
+  "corpus": {
+    "repository": "sogis-interlis-repository",
+    "commit": "b94abb0953c8413d4eaaa647fa66fa7d585aa4df",
+    "path": "models/AFU/SO_AFU_Bodeneinheiten_20251210.ili"
+  },
+  "originalConstraintSelector": "GewichtungSumme100_Wald",
+  "expectedTypeOrBoundary": "MANDATORY; aggregate sum equals 100 with empty-collection branch",
+  "expectedHighLevelTools": [
+    "generateIliConstraintFromDecisionTable",
+    "authorIliMandatoryConstraint"
+  ],
+  "gold": {
+    "constraintKind": "MANDATORY_CONSTRAINT",
+    "contextFqn": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.BodeneinheitHauptauspraegung_Wald",
+    "astComplete": true,
+    "ast": {
+      "kind": "MANDATORY_CONSTRAINT",
+      "condition": {
+        "type": {
+          "kind": "BOOLEAN",
+          "typeText": "BOOLEAN"
+        },
+        "kind": "OR",
+        "children": [
+          {
+            "type": {
+              "kind": "BOOLEAN",
+              "typeText": "BOOLEAN"
+            },
+            "kind": "GROUP",
+            "expression": {
+              "type": {
+                "kind": "BOOLEAN",
+                "typeText": "BOOLEAN"
+              },
+              "kind": "AND",
+              "children": [
+                {
+                  "type": {
+                    "kind": "BOOLEAN",
+                    "typeText": "BOOLEAN"
+                  },
+                  "kind": "DEFINED",
+                  "argument": {
+                    "type": {
+                      "kind": "NUMERIC",
+                      "typeText": "NUMERIC"
+                    },
+                    "kind": "FUNCTION_CALL",
+                    "function": "Math.sum",
+                    "arguments": [
+                      {
+                        "index": 0,
+                        "parameter": {
+                          "type": "TEXT",
+                          "name": "attributePath",
+                          "semanticType": "ATTRIBUTE_PATH"
+                        },
+                        "value": {
+                          "type": {
+                            "kind": "TEXT",
+                            "typeText": "TEXT"
+                          },
+                          "kind": "TEXT_LITERAL",
+                          "value": "Nebenauspraegung->Gewichtung"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": {
+                    "kind": "BOOLEAN",
+                    "typeText": "BOOLEAN"
+                  },
+                  "kind": "==",
+                  "left": {
+                    "type": {
+                      "kind": "NUMERIC",
+                      "typeText": "NUMERIC"
+                    },
+                    "kind": "FUNCTION_CALL",
+                    "function": "Math.add",
+                    "arguments": [
+                      {
+                        "index": 0,
+                        "parameter": {
+                          "type": "NUMERIC",
+                          "name": "a",
+                          "semanticType": "VALUE"
+                        },
+                        "value": {
+                          "type": {
+                            "kind": "NUMERIC",
+                            "typeText": "NUMERIC"
+                          },
+                          "kind": "FUNCTION_CALL",
+                          "function": "Math.sum",
+                          "arguments": [
+                            {
+                              "index": 0,
+                              "parameter": {
+                                "type": "TEXT",
+                                "name": "attributePath",
+                                "semanticType": "ATTRIBUTE_PATH"
+                              },
+                              "value": {
+                                "type": {
+                                  "kind": "TEXT",
+                                  "typeText": "TEXT"
+                                },
+                                "kind": "TEXT_LITERAL",
+                                "value": "Nebenauspraegung->Gewichtung"
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "index": 1,
+                        "parameter": {
+                          "type": "NUMERIC",
+                          "name": "b",
+                          "semanticType": "VALUE"
+                        },
+                        "value": {
+                          "type": {
+                            "kind": "NUMERIC",
+                            "typeText": "0..100"
+                          },
+                          "kind": "OBJECT_PATH",
+                          "path": "Gewichtung",
+                          "collection": false,
+                          "steps": [
+                            {
+                              "index": 0,
+                              "kind": "ATTRIBUTE",
+                              "name": "Gewichtung",
+                              "type": {
+                                "kind": "NUMERIC",
+                                "typeText": "0..100"
+                              },
+                              "mandatory": true,
+                              "collection": false
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  "right": {
+                    "type": {
+                      "kind": "NUMERIC",
+                      "typeText": "NUMERIC"
+                    },
+                    "kind": "NUMERIC_LITERAL",
+                    "value": "100"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "type": {
+              "kind": "BOOLEAN",
+              "typeText": "BOOLEAN"
+            },
+            "kind": "GROUP",
+            "expression": {
+              "type": {
+                "kind": "BOOLEAN",
+                "typeText": "BOOLEAN"
+              },
+              "kind": "AND",
+              "children": [
+                {
+                  "type": {
+                    "kind": "BOOLEAN",
+                    "typeText": "BOOLEAN"
+                  },
+                  "kind": "==",
+                  "left": {
+                    "type": {
+                      "kind": "NUMERIC",
+                      "typeText": "0..100"
+                    },
+                    "kind": "OBJECT_PATH",
+                    "path": "Gewichtung",
+                    "collection": false,
+                    "steps": [
+                      {
+                        "index": 0,
+                        "kind": "ATTRIBUTE",
+                        "name": "Gewichtung",
+                        "type": {
+                          "kind": "NUMERIC",
+                          "typeText": "0..100"
+                        },
+                        "mandatory": true,
+                        "collection": false
+                      }
+                    ]
+                  },
+                  "right": {
+                    "type": {
+                      "kind": "NUMERIC",
+                      "typeText": "NUMERIC"
+                    },
+                    "kind": "NUMERIC_LITERAL",
+                    "value": "100"
+                  }
+                },
+                {
+                  "type": {
+                    "kind": "BOOLEAN",
+                    "typeText": "BOOLEAN"
+                  },
+                  "kind": "NOT",
+                  "operand": {
+                    "type": {
+                      "kind": "BOOLEAN",
+                      "typeText": "BOOLEAN"
+                    },
+                    "kind": "DEFINED",
+                    "argument": {
+                      "type": {
+                        "kind": "NUMERIC",
+                        "typeText": "NUMERIC"
+                      },
+                      "kind": "FUNCTION_CALL",
+                      "function": "Math.sum",
+                      "arguments": [
+                        {
+                          "index": 0,
+                          "parameter": {
+                            "type": "TEXT",
+                            "name": "attributePath",
+                            "semanticType": "ATTRIBUTE_PATH"
+                          },
+                          "value": {
+                            "type": {
+                              "kind": "TEXT",
+                              "typeText": "TEXT"
+                            },
+                            "kind": "TEXT_LITERAL",
+                            "value": "Nebenauspraegung->Gewichtung"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "astComparison": {
+    "ignore": [
+      "constraintName",
+      "sourceLine",
+      "pureGrouping",
+      "commutativeOperandOrder:AND",
+      "commutativeOperandOrder:OR",
+      "symmetricOperandOrder:EQUALITY"
+    ],
+    "requireExplicitJustificationForOtherLogicalEquivalence": true
+  },
+  "acceptedBoundaryStatuses": [],
+  "scoring": {
+    "requireCorrectHighLevelTool": true,
+    "requireStatus": "GENERATED",
+    "requireProofVerified": true,
+    "requireCompilingUpdatedModel": true,
+    "requireExactIntendedConstraintOnly": true,
+    "requireNoReleasedUpdatedModel": false
+  },
+  "removal": {
+    "sourceStartOffset": 69310,
+    "sourceEndOffset": 69754,
+    "sourceChars": 77097,
+    "publicChars": 76653
+  }
+}
