@@ -248,6 +248,50 @@ Bei Erfolg enthält das Resultat unter anderem:
 
 Für Standardfunktionen sollte die stabile `semanticId` aus `listConstraintFunctions` verwendet werden. Ein Agent soll nicht versionsabhängige Funktionssyntax raten.
 
+## Dreiwertige Coverage und ausgeschlossene Ziele
+
+Die gemeinsame Coverage-Planung für Mandatory, Decision Tables und boolesche SET-Bedingungen unterscheidet `TRUE`, `FALSE` und `UNDEFINED`. Zusätzlich zu strikten Belegungsmustern wird die tatsächliche Erreichbarkeit von AND-/OR-Zweigen geprüft: Vor einem späteren AND-Operanden müssen alle Vorgänger TRUE sein, vor einem späteren OR-Operanden FALSE. Nachfolgende Operanden sind nach dem Abbruch irrelevant. Zusammengesetzte Ziele verwenden interne Zustandsbedingungen; sie werden nicht als künstliche INTERLIS-Ausdrücke ausgeführt. In der Diagnostik kennzeichnet `STATE CONDITIONS:` solche Prüfbedingungen. Diese Ziele verändern den erzeugten Constraint nicht.
+
+`coverageGoalCount` zählt anwendbare Ziele, `coverageSolvedCount` erfüllte Ziele. Mehrere Ziele können dieselbe Fixture verwenden; `generatedCases[*].coveredGoals` bewahrt ihre Zuordnung. Die Zahl der Fixtures ist deshalb unabhängig von der Zahl erfüllter Ziele. Historische Coverage-Brüche, die deduplizierte Fixtures zählten, sind nicht direkt mit diesen Zählerständen vergleichbar.
+
+`coverageExcludedCount` und `coverageExcludedGoals` führen nachweislich unerreichbare strukturelle Ziele separat auf. Jeder Ausschluss enthält `goal`, `reason`, `expression`, `reasonCode=PROVEN_UNREACHABLE` und `justification`. Die skalare Prüfung berücksichtigt vollständige Boolean-/Enum-Domänen, numerische Vergleichspartitionen und Optionalität entlang einwertiger Pfade. Eine ergänzende Definiertheitsabstraktion kann Widersprüche unter SUM und strikter ADD/SUB/MUL/DIV-Undefiniert-Fortpflanzung beweisen; sie berechnet keine numerischen Funktionswerte. Unbekannte Funktionssemantik und überschrittene Analysegrenzen liefern keinen Ausschluss.
+
+Ein erfolgloser endlicher Solver-Lauf ist kein Unerreichbarkeitsbeweis. Suchlimits, unbekannte Semantik und Fixture-Probleme bleiben Lücken. Globale Witness-/Counterexample-Ziele bleiben auch dann Pflicht, wenn sie unerreichbar sind. `coverageComplete=true` setzt alle anwendbaren Ziele voraus; `proofVerified=true` verlangt zusätzlich erzeugte und erfolgreich geprüfte Validatorfälle. P02 prüft diesen Ablauf mit unverändertem Constraint einschliesslich des Falls ohne pH-Wert.
+
+### Geordnete Auswertung und Validator-Grenze
+
+Gemäss INTERLIS-Referenzhandbuch, Abschnitt 2.13, wird von links nach rechts ausgewertet:
+AND setzt nur nach TRUE fort, OR nur nach FALSE. Ein undefinierter Operand beendet die
+Auswertung. Insbesondere ergibt `UNDEFINED AND FALSE` keinen FALSE-Wert; entsprechend
+ist `UNDEFINED OR TRUE` kein TRUE-Wert. NOT propagiert die nicht berechenbare Auswertung.
+Die frühere Zuordnung des ersten Falls als Validatorfehler war falsch: Der interne Evaluator
+hatte unzulässig weitergerechnet. Die Regressionen verlangen nun Übereinstimmung sowohl
+beim Auswertungszustand als auch bei der Mandatory-Gültigkeit unter INTERLIS 2.3 und 2.4.
+
+Intern bezeichnet `Undefined` einen fehlenden Wert und `NotComputable` eine fachlich
+abgebrochene Auswertung. DEFINED liefert für einen fehlenden Wert FALSE und propagiert
+eine bereits abgebrochene Auswertung. Die Coverage fasst beide Fälle als UNDEFINED zusammen;
+technische Fehler und nicht unterstützte Funktionen zählen zu keinem dieser Zustände.
+Ein Mandatory Constraint wird nur durch ein ausdrückliches FALSE verletzt.
+
+Implikationen werden verzögert wie `NOT(A) OR B` ausgewertet und von beiden Renderern
+in dieser Schreibweise erzeugt. `IMPLIES` ist kein INTERLIS-Schlüsselwort. Der strukturelle
+Roundtrip vergleicht geordnete Operatorbäume, Pfade, Funktionsidentitäten und Literalwerte;
+er entfernt keine Klammern oder Leerzeichen aus Textliteralen.
+
+Ein separater Fehler bleibt im gepinnten iox-ili 1.24.4: `NOT(A => B)` wird bei
+`A=false, B=false` fälschlich akzeptiert. Native Implikationsknoten bleiben in der aus dem
+Compiler-AST übersetzten IR erhalten und sperren den automatischen Proof vor jeder
+verlustbehafteten Normalisierung mit `VALIDATOR_NATIVE_IMPLICATION_UNSUPPORTED`.
+Dies gilt auch in WHERE-Bedingungen; andere Constraints desselben Modells lösen die
+Sperre nicht aus. Explizite Validator-Tests zeigen weiterhin das reale Ergebnis. Neue
+Authoring-Kandidaten verwenden NOT/OR. Ohne erfolgreichen Proof wird ausschliesslich
+`candidateModelText`, niemals `updatedModelText` freigegeben. Ein Dependency-Upgrade
+ist nicht Teil dieser Absicherung.
+
+Referenzen: [INTERLIS 2.4, Abschnitt 2.13](https://geostandards-ch.github.io/doc_refhb24/),
+[INTERLIS 2.3, Abschnitt 2.13](https://interlis.ch/download/interlis2/ili2-refman_2006-04-13_d.pdf).
+
 # UNIQUE
 
 ## Globaler UNIQUE
@@ -379,6 +423,58 @@ Das Tool verlangt `viewableFqn` **und** `attributePath`, weil echte `REQUIRED IN
 
 Freie EXISTENCE-Snippet-Helper sind nicht Teil der MCP-Oberfläche; für neue skalare Regeln dient das typisierte Authoring.
 
+## Mandatory- und Decision-Table-Proofs in Strukturkontexten
+
+Ein Constraint auf einer konkreten STRUCTURE wird im ursprünglichen Modell geprüft. Der
+Fixture-Resolver bettet die vom Solver belegte Struktur in eine vorhandene identifizierbare
+Besitzerklasse ein. Direkte und verschachtelte Composition-Pfade, BAG/LIST sowie geerbte
+Besitzerattribute werden unterstützt. Die Struktur erhält keine eigene OID; Referenzen auf
+Klassenobjekte bleiben erhalten. Es entstehen keine zusätzlichen Modellklassen und keine
+zusätzliche Authoring-Kompilierung.
+
+Routen werden nach Pfadlänge, Besitzer-FQN und Attributpfad geordnet. Höchstens acht Routen
+mit bis zu acht Composition-Schritten werden betrachtet. Die erste Route, deren gesamte
+Fallmenge gültige Fixtures liefert, wird verwendet. Ein abweichendes Constraint-Ergebnis
+verhindert einen Wechsel auf eine andere Route. Pflichtvorkommen sind auf fünf pro Attribut,
+Strukturinstanzen auf insgesamt 64 pro Fixture begrenzt. Abstrakte Strukturtypen werden
+nicht automatisch durch Untertypen ersetzt; zyklische Einbettungspfade werden abgebrochen.
+
+Die IOM-Objekte werden einmal aufgebaut, rekursiv nach tatsächlichen Kontextinstanzen gezählt
+und anschließend serialisiert. Ein Besitzer ohne Zielstruktur oder mit leerer Ziel-Collection
+beweist keinen Strukturconstraint (`constraintExercised=false`). Explizite leere Collections
+und fehlende Werte werden nicht durch Defaults ersetzt. Fehlende Pflichtwerte und
+Kardinalitätsverletzungen bleiben Fixture-Fremdfehler; sie gelten nicht als erfolgreiches
+Counterexample.
+
+Zusätzliche Resultatfelder:
+
+- `generatedCases[].ownerClassFqn` und `structurePath`: gewählte Einbettung.
+- `verification.cases[].subjectCount`, `constraintExercised`, `fixtureValid`,
+  `fixtureErrors` und `fixturePreparationReasonCode`: auch im typisierten Authoring-Resultat.
+- Die typisierten Felder `expectedValid` und `actualValid` übernehmen ebenfalls die
+  entsprechenden `expectedConstraintValid`-/`actualConstraintValid`-Werte des Rohresultats.
+
+Bekannte Grenzen werden als strukturierte Proof-Resultate gemeldet:
+`STRUCTURE_OWNER_NOT_FOUND`, `STRUCTURE_PATH_UNSUPPORTED`,
+`STRUCTURE_FIXTURE_BUDGET_EXCEEDED`, `STRUCTURE_MATERIALIZATION_FAILED` beziehungsweise
+`FIXTURE_MATERIALIZATION_FAILED`. Ohne verifizierten vollständigen Proof bleibt nur
+`candidateModelText` verfügbar; `updatedModelText` wird nicht freigegeben.
+
+Die P01-Regression verwendet das eingecheckte öffentliche Modell und eine feste typisierte
+Spezifikation. Sie verlangt vollständige Coverage, reale Validator-Prüfung und zusätzliche,
+unabhängig formulierte Grenzfälle für alle 13 Körnungsklassen. Für zwei Ziele des Ton-Zweigs
+reichte die erste numerische Kandidatenliste mit 18 Werten nicht aus: Nach erfolgloser Suche
+folgt deshalb eine Nachsuche mit den bereits abgeleiteten ungekürzten numerischen Kandidaten.
+Beide Suchphasen teilen sich 50.000 Versuche. Enum-, Text- und Collection-Kandidatengrenzen
+sowie die unabhängige Unerreichbarkeitsprüfung bleiben unverändert; Sucherschöpfung ist
+weiterhin kein Unerreichbarkeitsbeweis.
+
+Die P06-Regression verwendet eine separat festgelegte fachlich korrekte Decision Table mit
+expliziten SUM-Präsenzbedingungen. Leere Beziehungen beziehungsweise leere Compositions
+bleiben echte leere Mengen: Hauptgewicht 100 ist im geprüften Summenfall gültig, 99 ungültig.
+Historische Requests werden dadurch nicht geändert oder stillschweigend ergänzt.
+Direkte Identitätsprojektionen in VIEW TOPIC werden durch die gemeinsame View-Proof-Pipeline unterstützt (siehe unten). Die frühere UNDEFINED-Abweichung wurde im Zwischenpaket durch geordnete Auswertung korrigiert; native Validator-Implikationen bleiben eine explizite Proof-Grenze.
+
 ## Direkte STRUCTURE/COMPOSITION-Werte
 
 Für bestehende Constraints kann `generateIliConstraintCases` auch einen bewusst konservativen Strukturumfang beweisen. Unterstützt werden direkte Struktur-/Composition-Werte, wenn unter anderem:
@@ -485,7 +581,7 @@ END;
 
 `OBJECTS OF` bezeichnet in INTERLIS den semantischen Parametertyp für Objektmengen. Der konkrete Objektmengen-Ausdruck, den der unterstützte SET-Proof verwendet, steht im Modell als `ALL` und wird von ili2c als eigener `Objects`-AST-Knoten repräsentiert.
 
-Die interne Object-Set-IR bewahrt zusätzlich Base-/`RESTRICTION`- und Polymorphie-Metadaten auf. Öffentlich typisiert sind `ALL` und ein navigierter Objektpfad (`PATH`). Konkrete Endtypen eines abstrakten Pfadziels werden bis zum harten Routenbudget einzeln und in stabiler FQN-Reihenfolge bewiesen; nicht materialisierbare Base-/Restriction- oder tiefere Routen werden mit einem präzisen Coverage-Grund zurückgehalten.
+Die interne Object-Set-IR bewahrt zusätzlich Base-/`RESTRICTION`- und Polymorphie-Metadaten auf. Öffentlich typisiert sind `ALL` und ein navigierter Objektpfad (`PATH`). Konkrete Klassentypen an Zwischen- und Endpositionen werden bis zum harten Routenbudget einzeln und in stabiler FQN-Reihenfolge bewiesen. Nicht materialisierbare Base-/Restriction-Routen bleiben mit einem präzisen Coverage-Grund zurückgehalten.
 
 ## `objectCount(ALL)`
 
@@ -548,7 +644,7 @@ Diese Populationsaddition gilt für `objectCount(ALL)`. Ein `objectCount(PATH)` 
 
 ## Navigierter Objektpfad und boolescher SET-Ausdruck
 
-Ein `PATH`-Objektset materialisiert Assoziations-, Referenz- oder Kompositionsnavigation aus dem kompilierten Metamodell. Für jede erreichbare Count-Grenze erzeugt der Planner einen eigenen Graphen. Mehrere konkrete polymorphe Endtypen erhalten jeweils eigene Witness-/Counterexample-Fälle und erscheinen als `routeTargetFqn` im typisierten Proof. Mehr als acht Routen oder eine nicht sicher auflösbare tiefere Polymorphie überschreiten bewusst das Proof-Budget und führen zu `PROOF_INCOMPLETE`.
+Ein `PATH`-Objektset materialisiert Rollen, Referenzattribute und konkrete Composition-Zwischenstufen aus dem kompilierten Metamodell. Mehrere mehrwertige Schritte und Klassen ohne skalare Attribute werden unterstützt. Konkrete polymorphe Zwischen- und Endtypen erhalten getrennte Proofs; mehrwertige Schritte zusätzlich gemischte Typen. Gemeinsame Präfixe behalten identische Belegungen. Die Grenzen betragen acht Navigationsschritte, acht konkrete Routenkombinationen und 64 explizite Klassenobjekte plus Beziehungen pro Fixture. Eine Überschreitung ist eine Proof-Lücke, kein Ausschluss.
 
 `BOOLEAN_EXPRESSION` verwendet dieselbe rekursive Expression-IR, Domain-Bindung und Wahr-/Falsch-Coverage wie MANDATORY. Externe Funktionen ohne bekannte ausführbare Semantik führen auch hier zu `EXTERNAL_FUNCTION_SEMANTICS_REQUIRED`.
 
@@ -673,3 +769,78 @@ authorIliUniqueConstraint
 ```
 
 Diese Abläufe vermeiden sowohl unbewiesene Semantik als auch redundante doppelte Validator-Durchläufe.
+
+
+## View-Proofs für direkte Projektionen
+
+Prio 4 unterstützt direkte `PROJECTION OF`-Views mit `ALL OF` in einem `VIEW TOPIC`,
+auch mit Alias, geerbten Basisattributen und mehreren `WHERE`-Klauseln. Mandatory,
+Decision Table, PLAUSIBILITY sowie globale UNIQUE- und SET-Proofs erzeugen echte
+Objekte der konkreten Basisklasse. Der ursprüngliche View-Constraint bleibt das
+Compiler- und Validatorziel; die Pipeline benötigt weiterhin genau zwei
+Authoring-Kompilierungen.
+
+Die Filterauswertung bildet die installierte Validator-Version ab: FALSE und ein
+roher fehlender boolescher Wert schliessen ein Objekt aus. `skipEvaluation` setzt
+hingegen die Filterkette fort. Insbesondere nimmt der Validator bei P08 ein Objekt
+mit fehlendem Status auf, wenn `isEnumSubVal` deshalb abbricht. Das ist ausdrücklich
+geprüftes Laufzeitverhalten, keine Behauptung über eine allgemeine WHERE-Semantik.
+`skippedFilterCount` macht diese Fälle sichtbar. Hierarchische Enum-Filter verwenden
+nur compilerbekannte Werte; unbekannte Funktionssemantik bleibt eine Proof-Grenze.
+
+Filter und Zielbelegungen werden gemeinsam gesucht. Zusätzliche Scope-Fälle prüfen
+TRUE, FALSE und UNDEFINED pro erreichbarer Filterposition; frühere Filter müssen
+passiert werden. Bestehende Schlüsselwerte und Beziehungsidentitäten bleiben dabei
+fest. Ausgeschlossene Populationen ergänzen eine bereits ausgeübte Population.
+Unerreichbare Zustände werden nur nach unabhängiger vollständiger Partitionierung
+ausgeschlossen; Sucherschöpfung bleibt eine Coverage-Lücke.
+
+Die Verifikation zählt die tatsächlichen Basisklassen- und Unterklassenobjekte nach
+Aufbau des Validator-Pools, einschliesslich ergänzter Pflichtbeziehungen. Sie meldet
+`viewFqn`, `baseClassFqn`, `baseSubjectCount`, `subjectCount`, `excludedSubjectCount`
+und `skippedFilterCount`; die geplante und tatsächliche Mitgliederzahl müssen
+übereinstimmen. Andere Constraints werden auch in importierten Modellen deaktiviert,
+Typ-, OID-, Datums-, Referenz- und Kardinalitätsprüfungen bleiben aktiv.
+
+Für leere View-SETs werden ein leerer Datenbasket und ein leerer View-Basket übertragen.
+Ein erfolgreicher Proof mit `subjectCount=0` setzt die protokollierte Ausführung des
+originalen SET-Constraints voraus (`setExecuted=true`). Der Gegenversuch
+`objectCount(ALL)>0` muss auf derselben leeren Fixture eine Zielverletzung melden.
+Bei Mandatory, UNIQUE und PLAUSIBILITY reicht eine Population ohne Mitglieder nicht
+als ausgeübter Constraint.
+
+Die eingecheckten Regressionen verlangen vollständige Proofs für P04, P05, P07, P08 und
+P10. P05 prüft null/einen Startknoten und alle hydraulischen Filteralternativen; zwei
+Verknüpfungen verletzen die Rollenkardinalität und sind Fixture-Fehler. N11 bleibt an der Grenze externer
+Funktionssemantik. Joins, Union, Aggregation, Inspection, verkettete Views,
+berechnete Attribute, abstrakte Basisklassen sowie BASKET/LOCAL-View-Proofs werden
+nicht approximiert. Automatische Filter-Fixtures unterstützen direkte skalare
+Basisattribute; navigierte Filterpfade erhalten eine explizite Grenze.
+
+View-Grenzen verwenden unter anderem `VIEW_PROOF_SHAPE_UNSUPPORTED`,
+`VIEW_FILTER_SEMANTICS_UNSUPPORTED`, `VIEW_SCOPE_UNSOLVED`,
+`VIEW_SCOPE_VERIFICATION_FAILED`, `VIEW_SET_NOT_EXECUTED` und
+`VIEW_FIXTURE_BUDGET_EXCEEDED`. Ohne verifizierten Proof bleibt der Kandidat zur
+Analyse erhalten, während `updatedModelText` nicht freigegeben wird.
+
+
+## Gemeinsame Objektzählung für Mandatory und Decision Table
+
+Die öffentliche `OBJECT_COUNT`-Spezifikation ist auch innerhalb verschachtelter Mandatory-Ausdrücke verwendbar. Decision Table unterstützt im bestehenden Feld `aggregate` zusätzlich `OBJECT_COUNT`:
+
+```json
+{
+  "attribute": "mids->leaves",
+  "aggregate": "OBJECT_COUNT",
+  "operator": ">=",
+  "value": 2
+}
+```
+
+`attribute` bezeichnet hier den Objektpfad, `value` ist numerisch. `defined` und `addAttribute` sind für `OBJECT_COUNT` unzulässig. Die Bedingung wird in die gemeinsame Mandatory-Spezifikation übersetzt; bestehende SUM-Payloads behalten ihre Bedeutung.
+
+Fehlende optionale Verbindungen ergeben null Pfadvorkommen. Nicht auflösbare Referenzen und technische Auswertungsfehler gelten als Fixture-Fehler. Der installierte Validator zählt dasselbe Ziel mehrfach, wenn unterschiedliche Wege dorthin führen. `objectCounts` in jeder Fallverifikation weist daher `plannedCount` (für generierte Fälle), `actualCount`, `distinctTargetCount`, `concreteTypeRoute` und `countingPolicy=PINNED_VALIDATOR_PATH_OCCURRENCES` aus. Das ist ausdrücklich die Zählpolitik des installierten Validators. Endliche zyklische Pfade werden anhand ihrer vorgegebenen Schritte ausgewertet; es gibt keine rekursive Suche ohne Pfadgrenze.
+
+Nach Fixture-Ergänzung werden ursprüngliche kompilierte Zählausdrücke erneut gegen den Validator-Pool geprüft. `OBJECT_PATH_COUNT_MISMATCH` und `OBJECT_PATH_TOPOLOGY_MISMATCH` verhindern einen erfolgreichen Proof. `OBJECT_PATH_CONCRETE_ROUTE_UNAVAILABLE`, `OBJECT_PATH_STEP_BUDGET_EXCEEDED`, `OBJECT_PATH_ROUTE_BUDGET_EXCEEDED` und `OBJECT_PATH_FIXTURE_BUDGET_EXCEEDED` unterscheiden nicht unterstützte Routen und Budgets. Ungültige Zweifachverknüpfungen einer `{0..1}`-Rolle liefern `OBJECT_PATH_CARDINALITY_VIOLATION`; sonstige bekannte XTF-Schreibfehler `FIXTURE_XTF_SERIALIZATION_FAILED`.
+
+Ohne vollständige Coverage und verifizierten Witness sowie Counterexample bleiben `generated=false`, `proofVerified=false` und der Kandidat erhalten. `updatedModelText` wird nicht freigegeben. `elementCount` für Strukturzählungen, polymorphe Strukturtypwahl, neue View-Formen und ein Validator-Upgrade gehören nicht zu dieser Unterstützung.

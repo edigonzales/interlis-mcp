@@ -232,6 +232,10 @@ Der interne Evaluator ist ein Hilfsmittel, nicht die finale Instanz. `generation
 
 Die typisierten Authoring-Tools verwenden dieselbe `IliConstraintSpec`-Hierarchie und den gemeinsamen `ConstraintAuthoringEngine`. Die JSON-Schemas bilden MANDATORY, UNIQUE, EXISTENCE, PLAUSIBILITY und SET als echte, über `kind` diskriminierte `oneOf`-Unionen ab; das gemeinsame Resultat publiziert auch die zwölf zulässigen Statuswerte als geschlossenes Enum. `ConstraintSourceEditService` gruppiert Constraint und abgeleitete Imports in einem source-preserving Patchsatz.
 
+Der Renderer übergibt ein Constraint-Fragment einschliesslich Dokumentation und Metadaten. Anhand des kompilierten Kontexttyps fügt der Quelltexteditor dieses Fragment innerhalb einer View vor deren `END` ein; für Klassen, Strukturen und Assoziationen ergänzt er einen externen `CONSTRAINTS OF`-Block am Topic-Ende. Der Locator berücksichtigt mehrteilige View-Header mit Projektion und `WHERE`-Klauseln sowie den umschliessenden Topic. Einrückung wird nur aus führenden Leerzeichen und Tabs gewonnen, auch bei `VIEW TOPIC` und `CONTRACTED MODEL`.
+
+Die Compilerregressionen `ConstraintViewAuthoringRegressionTest` verwenden die unveränderten öffentlichen v1-Modelle und eingefrorene typisierte Testspezifikationen für P04/P05/P07/P08/P10/N11. Sie prüfen Einfügung und Auflösung im Compiler-AST unabhängig vom nachgelagerten Proof. P05 verlangt zusätzlich einen vollständigen Mandatory-Proof für `objectCount(Knoten_vonRef) == 1`; N11 erreicht nach erfolgreicher Kompilierung weiterhin `EXTERNAL_FUNCTION_SEMANTICS_REQUIRED`.
+
 Der erfolgreiche Ablauf ist:
 
 ```text
@@ -358,3 +362,55 @@ Die E2E-Tests starten das tatsächlich gebaute `interlis-mcp.jar` über STDIO. D
 - produktive DB- oder Deployment-Operationen.
 
 Neue Funktionen sollten diese Grenze respektieren und möglichst vorhandene Compiler-, Review-, Source-Edit- und Proof-Infrastruktur wiederverwenden.
+
+### Geordnete Constraint-Semantik
+
+Die Ausdrucksauswertung beendet AND nach dem ersten nicht wahren und OR nach dem ersten
+nicht falschen Operanden. Fehlende Werte (`Undefined`), fachlich abgebrochene Auswertung
+(`NotComputable`) und technische Fehler bleiben getrennt. Implikationen werden intern
+verzögert ausgewertet und in beiden Sprachversionen als NOT/OR gerendert.
+
+Coverage verwendet für Belegungsmuster eigene `StateCondition`-Prädikate. Solver und
+unabhängige Unerreichbarkeitsanalysen prüfen diese Zustände ohne synthetische DEFINED-Ausdrücke.
+`ConstraintExpressionComparison` vergleicht geordnete Strukturen anstelle bereinigter Texte.
+`ConstraintValidatorCompatibility` erkennt die vom Compiler erhaltenen nativen
+Implikationsknoten vor der Proof-Planung und meldet die bekannte Grenze von iox-ili 1.24.4.
+Diese Schritte verwenden den bestehenden kompilierten Kontext; Authoring bleibt bei zwei
+Kompilierungen. Öffentliche Payloads und Werkzeugnamen ändern sich nicht.
+
+
+### Gemeinsamer View-Kontext
+
+`ViewProofScope` leitet eine direkte Identitätsprojektion ausschliesslich aus dem
+Compiler-AST ab. Die Planungs-IR erhält den Basisklassenkontext; der ursprüngliche
+Constraint und die Compilation bleiben erhalten. Die gemeinsame Modellbindung
+nimmt zusätzlich die Filterreferenzen auf. `ConstraintGoalSolver` kann festgelegte
+Werte sperren, und die unabhängige skalare Unerreichbarkeitsprüfung berücksichtigt
+die geordnete View-Selektion.
+
+`ViewProofFixtures` materialisiert diese Belegungen als übertragbare Basisobjekte
+mit konsistent umbenannten OIDs, Beziehungen und Basket-IDs. Für notwendige abstrakte
+Beziehungsziele wählt sie deterministisch eine konkrete Fixtureklasse; deren gültige
+Materialisierung wird vollständig vom Validator geprüft. Diese Wahl ist keine
+Änderung an fachlichen Zielbelegungen und kein Unerreichbarkeitsbeweis.
+`ViewProofCoverage` ergänzt erreichbare Filterzustände und vergleicht geplante
+Mitgliederzahlen mit der realen Population. Zusätzliche Basisobjekte aus der
+Pflichtwert-Ergänzung dürfen den Nenner oder SET-Zähler nicht unbemerkt verändern.
+
+`ConstraintTestTools` konfiguriert das View-Modell als zusätzliches Validierungsmodell,
+deaktiviert Fremdconstraints im gesamten kompilierten TransferDescription und zählt
+die View-Selektion anhand des gefüllten Validator-Pools. Für leere SET-Populationen
+registriert ein expliziter View-Basket den Constraint. Ein Ausführungsnachweis aus
+dem Validatorprotokoll verhindert einen erfolgreichen Proof durch blosse Abwesenheit
+von Fehlermeldungen. Typisierte Proof-Resultate übernehmen die View-Diagnostik.
+
+
+### Objektzählungen über mehrstufige Pfade
+
+`ConstraintExpression.ObjectCount` trägt einen Objektmengenpfad als eigenes IR-Element. Der strukturelle Roundtrip erhält ihn auch innerhalb verschachtelter boolescher Ausdrücke. `ConstraintModelSynthesizer` bindet jeden Schritt an das kompilierte Rollen-, Referenz- oder Composition-Modell und materialisiert Klassenobjekte direkt, auch ohne skalare Attribute. `NavigationGraphSynthesizer` verwendet diese gemeinsame Implementierung für SET. Decision Table übersetzt `aggregate=OBJECT_COUNT` in die vorhandene typisierte Mandatory-Spezifikation.
+
+`ObjectPathRoutes` ermittelt konkrete Klassenrouten nach Pfadposition, berücksichtigt gemeinsame Präfixe und prüft alle Routen. `ObjectCountTopologyPlanner` ergänzt Solverziele für leere optionale Zwischenstufen, Verzweigungen, gemeinsame Zielidentitäten und gemischte konkrete Typen. Die Graph-Synthese prüft nach allen Belegungen die Zählungen erneut; inverse Rollen und überlappende Pfade dürfen keine Belegung unbemerkt verändern. Pro Solverziel teilen sich erste Suche und numerische Nachsuche weiterhin 50.000 Versuche. Das Modell begründet Kardinalitätsausschlüsse unabhängig von dieser Suche.
+
+Nach Fixture-Ergänzung und Aufbau des echten Validator-Pools wertet `ObjectCountVerification` die ursprünglichen kompilierten Zählausdrücke und ihre Pfadpräfixe aus. `objectCounts` in Rohresultat und typisierter Fallverifikation enthält geplante und tatsächliche Anzahl, unterschiedliche Zielidentitäten, konkrete Typen je Schritt sowie geprüfte Topologiepflichten. Die Zählpolitik `PINNED_VALIDATOR_PATH_OCCURRENCES` bezeichnet ausdrücklich das Verhalten des installierten Validators: zwei Wege zu derselben OID zählen zweimal. Abweichungen sperren den Proof.
+
+Es gelten höchstens acht Navigationsschritte, acht konkrete Routenkombinationen und 64 explizite Klassenobjekte plus Beziehungen pro Fixture. Ergänzte Pflichtbeziehungen und Strukturinstanzen behalten zusätzliche eigene Budgets. Fehlende konkrete Routen, Budgetüberschreitungen, Zählabweichungen und Kardinalitäts-/XTF-Fehler bleiben strukturierte Proof- beziehungsweise Fixture-Grenzen. Kein Solver- oder Fixture-Fehler begründet einen erfolgreichen Ausschluss. Authoring verwendet unverändert genau zwei Kompilierungen.
