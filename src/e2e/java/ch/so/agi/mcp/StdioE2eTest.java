@@ -86,6 +86,31 @@ public class StdioE2eTest {
     }
 
     @Test
+    void initialize_largeToolsList_fullDrain_thenEofShutsDownWithExitCodeZero() throws Exception {
+        initializeSession();
+
+        String toolsResponse = listTools(2);
+        int responseBytes = toolsResponse.getBytes(StandardCharsets.UTF_8).length;
+        assertTrue(responseBytes > 64 * 1024,
+                "tools/list response must remain large enough to exercise stdout pipe backpressure; got "
+                        + responseBytes + " bytes");
+        assertContainsAll(toolsResponse,
+                "\"tools\"",
+                "validateIliModel",
+                "reviewIliConstraint",
+                "authorIliMandatoryConstraint",
+                "generateIliConstraintFromDecisionTable");
+
+        toServer.close();
+        toServer = null;
+
+        assertTrue(proc.waitFor(10, TimeUnit.SECONDS),
+                "MCP server should terminate after initialize, a fully drained tools/list response, and EOF");
+        assertTrue(proc.exitValue() == 0,
+                "MCP server should terminate cleanly after EOF; exit code was " + proc.exitValue());
+    }
+
+    @Test
     void initialize_listTools_and_authorAnnotatedModel() throws Exception {
         initializeSession();
 
