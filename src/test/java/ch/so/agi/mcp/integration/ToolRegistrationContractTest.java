@@ -97,6 +97,26 @@ class ToolRegistrationContractTest {
   }
 
   @Test
+  void orphanStructureReturnsStructuredProofBoundaryThroughPublicMcpHandler() throws Exception {
+    String model = "INTERLIS 2.3; MODEL Orphan (en) AT \"https://example.org\" VERSION \"1\" = "
+        + "TOPIC Data = STRUCTURE S = value : MANDATORY 0 .. 100; END S; END Data; END Orphan.";
+    var response = specsByName().get("authorIliMandatoryConstraint").callHandler().apply(null,
+        new McpSchema.CallToolRequest("authorIliMandatoryConstraint", Map.of(
+            "modelText", model, "contextFqn", "Orphan.Data.S", "spec", Map.of(
+                "kind", "MANDATORY", "name", "Rule", "condition", Map.of(
+                    "kind", "COMPARE", "operator", ">=", "children", List.of(
+                        Map.of("kind", "ATTRIBUTE", "name", "value"),
+                        Map.of("kind", "NUMERIC", "value", 50)))))));
+    assertThat(response.isError()).isNotEqualTo(true);
+    var result = extractStructuredContent(response);
+    assertThat(result).containsEntry("status", "PROOF_INCOMPLETE")
+        .containsEntry("reasonCode", "STRUCTURE_OWNER_NOT_FOUND")
+        .containsEntry("generated", false).containsEntry("proofVerified", false);
+    assertThat(result.get("candidateModelText")).isNotNull();
+    assertThat(result.get("updatedModelText")).isNull();
+  }
+
+  @Test
   void validateIliModelAcceptsMinimalValidModel() throws Exception {
     SyncToolSpecification validateIliModel = specsByName().get("validateIliModel");
 
@@ -258,6 +278,8 @@ class ToolRegistrationContractTest {
     assertThat(schema)
         .contains("beforeDiagnostics", "afterDiagnostics", "sourceEdits", "semanticDiff")
         .contains("afterReview", "constraintProofs", "coverageGaps", "generatedCases")
+        .contains("coverageExcludedCount", "coverageExcludedGoals", "justification", "coveredGoals")
+        .contains("ownerClassFqn", "structurePath", "subjectCount", "constraintExercised", "fixtureValid", "fixturePreparationReasonCode", "fixtureErrors")
         .contains("openQuestions", "CompilerDiagnostic", "startOffset", "constraintFqn")
         .contains(
             "GENERATED",

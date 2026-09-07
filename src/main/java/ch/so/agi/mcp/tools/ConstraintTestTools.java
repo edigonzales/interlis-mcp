@@ -45,6 +45,7 @@ import ch.interlis.iox_j.logging.LogEventFactory;
 import ch.interlis.iox_j.validator.ValidationConfig;
 import ch.so.agi.mcp.service.IliCompilerService;
 import ch.so.agi.mcp.constraint.CompiledConstraintContext;
+import ch.so.agi.mcp.constraint.ViewProofScope;
 import ch.so.agi.mcp.util.McpInputLimits;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -84,6 +85,10 @@ public class ConstraintTestTools {
     public String name;
     public Boolean expectedConstraintValid;
     public List<TestObject> objects;
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    Map<String, Map<String, Integer>> plannedObjectCounts = Map.of();
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    Map<String, Map<String, ch.so.agi.mcp.constraint.ConstraintModelSynthesizer.CountShape>> plannedObjectShapes = Map.of();
     public @Nullable List<TestLink> links;
   }
 
@@ -148,12 +153,13 @@ public class ConstraintTestTools {
       List<TestCase> cases) {
     String targetQName = constraintQName(target);
     String context = target.getContainer() != null ? target.getContainer().getScopedName(null) : "";
-    List<Constraint> allConstraints = collectConstraints(td);
+    List<Constraint> allConstraints = new ArrayList<>();
+    collectConstraints(td, allConstraints);
     List<Map<String, Object>> results = new ArrayList<>();
     int passedCount = 0;
 
     for (int i = 0; i < cases.size(); i++) {
-      TestCase testCase = requireCase(cases.get(i), i);
+      TestCase testCase = requireCase(cases.get(i), i, target);
       Map<String, Object> result = runCase(td, target, targetQName, allConstraints, testCase, i + 1);
       results.add(result);
       if (Boolean.TRUE.equals(result.get("passed"))) {
@@ -190,12 +196,24 @@ public class ConstraintTestTools {
       TestCase testCase,
       int caseIndex) {
     PreparedCase prepared;
+    Map<BasketKey, List<Iom_jObject>> iomObjects;
+    int subjectCount;
+    ViewProofScope viewScope;
     try {
-      prepared = prepareCase(td, target, testCase, caseIndex);
-    } catch (FixturePreparationException ex) {
+      viewScope = ViewProofScope.resolve(td, target);
+      prepared = prepareCase(td, testCase, caseIndex);
+      iomObjects = buildCaseObjects(prepared);
+      if (viewScope != null && target instanceof ch.interlis.ili2c.metamodel.SetConstraint) {
+        if (iomObjects.isEmpty()) iomObjects.put(new BasketKey((Topic)viewScope.base().getContainer(), "view_base_" + caseIndex), new ArrayList<>());
+        iomObjects.put(new BasketKey((Topic)viewScope.view().getContainer(), "view_scope_" + caseIndex), new ArrayList<>());
+      }
+      subjectCount = countSubjects(td, target, prepared, iomObjects);
+    } catch (IllegalArgumentException ex) {
+      String reasonCode = ex instanceof ConstraintFixtureException known
+          ? known.reasonCode() : ex instanceof ViewProofScope.ScopeException scopeError ? scopeError.reasonCode() : "FIXTURE_MATERIALIZATION_FAILED";
       Map<String, Object> fixtureError = Map.of(
           "severity", "ERROR",
-          "code", ex.reasonCode(),
+          "code", reasonCode,
           "message", ex.getMessage());
       Map<String, Object> result = new LinkedHashMap<>();
       result.put("name", testCase.name.trim());
@@ -213,16 +231,16 @@ public class ConstraintTestTools {
       result.put("warningCount", 0);
       result.put("messages", List.of(fixtureError));
       result.put("fixtureErrors", List.of(fixtureError));
-      result.put("fixturePreparationReasonCode", ex.reasonCode());
+      result.put("fixturePreparationReasonCode", reasonCode);
       result.put("reason", ex.getMessage());
       return result;
     }
     Path xtfFile = null;
     try {
       xtfFile = Files.createTempFile("interlis-mcp-constraint-case-", ".xtf");
-      writeCaseXtf(td, prepared, xtfFile);
+      writeCaseXtf(td, iomObjects, xtfFile);
       String xtfText = Files.readString(xtfFile, StandardCharsets.UTF_8);
-      ValidationOutcome validation = validateCase(td, targetQName, allConstraints, xtfFile);
+      ValidationOutcome validation = validateCase(td, target, targetQName, allConstraints, xtfFile, viewScope, iomObjects, testCase.plannedObjectCounts, testCase.plannedObjectShapes);
 
       int targetViolationCount = (int) validation.messages().stream()
           .filter(message -> String.valueOf(message.getOrDefault("message", "")).contains(TARGET_VIOLATION_MARKER))
@@ -234,7 +252,9 @@ public class ConstraintTestTools {
 
       boolean actualConstraintValid = targetViolationCount == 0;
       boolean fixtureValid = fixtureErrors.isEmpty();
-      boolean exercised = prepared.subjectCount() > 0;
+      if (viewScope != null) subjectCount = ((Number)validation.viewDiagnostics().getOrDefault("subjectCount",0)).intValue();
+      boolean exercised = subjectCount > 0 || viewScope != null
+          && target instanceof ch.interlis.ili2c.metamodel.SetConstraint && validation.setExecuted();
       boolean expected = testCase.expectedConstraintValid;
       boolean passed = exercised && fixtureValid && actualConstraintValid == expected;
 
@@ -244,9 +264,19 @@ public class ConstraintTestTools {
       result.put("actualConstraintValid", actualConstraintValid);
       result.put("passed", passed);
       result.put("constraintExercised", exercised);
-      result.put("subjectCount", prepared.subjectCount());
-      result.put("basketCount", prepared.baskets().size());
-      result.put("baskets", basketSummaries(prepared));
+      result.put("subjectCount", subjectCount);
+      if (viewScope != null) {
+        result.putAll(validation.viewDiagnostics());
+        result.put("setExecuted", validation.setExecuted());
+      }
+      result.put("objectCounts", validation.viewDiagnostics().getOrDefault("objectCounts", List.of()));
+      result.put("basketCount", iomObjects.size());
+      var baskets = new ArrayList<>(basketSummaries(prepared));
+      for (var basket : iomObjects.keySet()) if (!prepared.baskets().contains(basket)) {
+        baskets.add(Map.of("topic", basket.topic().getScopedName(), "basketId", basket.basketId(),
+            "objectCount", 0L, "associationObjectCount", 0L));
+      }
+      result.put("baskets", baskets);
       result.put("fixtureValid", fixtureValid);
       result.put("validatorValid", validation.errorCount() == 0);
       result.put("targetViolationCount", targetViolationCount);
@@ -256,15 +286,33 @@ public class ConstraintTestTools {
       result.put("fixtureErrors", fixtureErrors);
       result.put("xtfText", xtfText);
       if (!exercised) {
-        result.put("reason", "The test case contains no instance of the constraint context.");
+        result.put("reason", "The test case contains no exercised instance of the constraint context.");
+        if (viewScope != null) result.put("fixturePreparationReasonCode", target instanceof ch.interlis.ili2c.metamodel.SetConstraint
+            ? "VIEW_SET_NOT_EXECUTED" : "VIEW_SCOPE_NOT_EXERCISED");
       } else if (!fixtureValid) {
         result.put("reason", "The generated fixture has non-target validation errors.");
+        for(var error : fixtureErrors) {
+          String message = String.valueOf(error.getOrDefault("message", ""));
+          for(String code : List.of("OBJECT_PATH_COUNT_MISMATCH", "OBJECT_PATH_TOPOLOGY_MISMATCH", "OBJECT_PATH_VERIFICATION_FAILED"))
+            if(message.contains(code)) result.put("fixturePreparationReasonCode", code);
+        }
       } else if (actualConstraintValid != expected) {
         result.put("reason", "Observed target constraint result differs from expectedConstraintValid.");
       }
       return result;
     } catch (IOException e) {
-      throw new UncheckedIOException("Unable to create or validate constraint test XTF.", e);
+      String code = "FIXTURE_XTF_SERIALIZATION_FAILED";
+      Throwable cause = e;
+      while (cause.getCause() != null) cause = cause.getCause();
+      String reason = cause.getMessage() == null ? e.toString() : cause.getMessage();
+      if (reason.contains("max one reference") || reason.contains("cardinality")) code = "OBJECT_PATH_CARDINALITY_VIOLATION";
+      var result = new LinkedHashMap<String,Object>();
+      result.put("name", testCase.name); result.put("expectedConstraintValid", testCase.expectedConstraintValid);
+      result.put("actualConstraintValid", false); result.put("passed", false);
+      result.put("constraintExercised", false); result.put("subjectCount", subjectCount);
+      result.put("fixtureValid", false); result.put("fixturePreparationReasonCode", code);
+      result.put("fixtureErrors", List.of(Map.of("severity", "ERROR", "code", code, "message", reason)));
+      result.put("reason", reason); return result;
     } finally {
       if (xtfFile != null) {
         try {
@@ -278,9 +326,10 @@ public class ConstraintTestTools {
 
   private PreparedCase prepareCase(
       TransferDescription td,
-      Constraint target,
       TestCase testCase,
       int caseIndex) {
+    if(testCase.objects.size() + (testCase.links == null ? 0 : testCase.links.size()) > 64)
+      throw new ConstraintFixtureException("OBJECT_PATH_FIXTURE_BUDGET_EXCEEDED", "A fixture permits at most 64 explicit class objects and relationships.");
     List<ObjectDraft> objectDrafts = new ArrayList<>();
     Map<String, ObjectDraft> draftsByOid = new LinkedHashMap<>();
 
@@ -377,8 +426,7 @@ public class ConstraintTestTools {
     }
 
     List<BasketKey> baskets = collectBaskets(objects, links);
-    int subjectCount = countSubjects(target, objects, links);
-    return new PreparedCase(objects, links, objectsByOid, objectsByClass, baskets, subjectCount);
+    return new PreparedCase(objects, links, objectsByOid, objectsByClass, baskets);
   }
 
   private void completeMandatoryAssociations(
@@ -467,6 +515,9 @@ public class ConstraintTestTools {
     Domain oidDomain = table.getOid();
     if (usesUuidOid(oidDomain)) {
       return UUID.nameUUIDFromBytes(seed.getBytes(StandardCharsets.UTF_8)).toString();
+    }
+    if (oidDomain != null && oidDomain.getType() instanceof ch.interlis.ili2c.metamodel.TextOIDType) {
+      return String.format("mcp%013d", caseIndex * 1000L + objectIndex);
     }
     return "case" + caseIndex + "_mandatory_" + objectIndex;
   }
@@ -568,11 +619,11 @@ public class ConstraintTestTools {
     }
   }
 
-  private FixturePreparationException fixturePreparationFailure(
+  private ConstraintFixtureException fixturePreparationFailure(
       String reasonCode,
       TestCase testCase,
       String reason) {
-    return new FixturePreparationException(
+    return new ConstraintFixtureException(
         reasonCode,
         "Case '" + testCase.name + "': " + reason);
   }
@@ -757,7 +808,8 @@ public class ConstraintTestTools {
     return result;
   }
 
-  private void writeCaseXtf(TransferDescription td, PreparedCase prepared, Path xtfFile) throws IOException {
+  private Map<BasketKey, List<Iom_jObject>> buildCaseObjects(PreparedCase prepared) {
+    FixtureBudget budget = new FixtureBudget();
     Map<BasketKey, List<Iom_jObject>> objectsByBasket = new LinkedHashMap<>();
     Map<String, Iom_jObject> iomObjectsByOid = new LinkedHashMap<>();
     int objectIndex = 1;
@@ -773,7 +825,7 @@ public class ConstraintTestTools {
           preparedObject.basketId(),
           currentObjectIndex,
           explicitNames,
-          prepared.objectsByClass());
+          prepared.objectsByClass(), prepared.objectsByOid(), budget);
       applyValues(
           object,
           table,
@@ -781,7 +833,7 @@ public class ConstraintTestTools {
           preparedObject.values(),
           currentObjectIndex,
           prepared.objectsByClass(),
-          prepared.objectsByOid());
+          prepared.objectsByOid(), budget);
       applyReferences(object, preparedObject, prepared.objectsByOid());
       Topic topic = topicOf(table);
       BasketKey basket = new BasketKey(topic, preparedObject.basketId());
@@ -807,6 +859,12 @@ public class ConstraintTestTools {
       objectsByBasket.computeIfAbsent(basket, key -> new ArrayList<>()).add(associationObject);
     }
 
+    return objectsByBasket;
+  }
+
+  private void writeCaseXtf(
+      TransferDescription td, Map<BasketKey, List<Iom_jObject>> objectsByBasket,
+      Path xtfFile) throws IOException {
     List<BasketKey> baskets = orderBaskets(objectsByBasket.keySet());
     try (OutputStream outputStream = Files.newOutputStream(xtfFile)) {
       XtfWriter writer = new XtfWriter(outputStream, td);
@@ -871,12 +929,16 @@ public class ConstraintTestTools {
   }
 
   private ValidationOutcome validateCase(
-      TransferDescription td,
+      TransferDescription td, Constraint target,
       String targetQName,
       List<Constraint> allConstraints,
-      Path xtfFile) {
+      Path xtfFile, @Nullable ViewProofScope viewScope,
+      Map<BasketKey,List<Iom_jObject>> objectsByBasket, Map<String,Map<String,Integer>> plannedCounts,
+      Map<String,Map<String,ch.so.agi.mcp.constraint.ConstraintModelSynthesizer.CountShape>> plannedShapes) {
     ValidationConfig config = new ValidationConfig();
     config.setConfigValue(ValidationConfig.PARAMETER, ValidationConfig.ALL_OBJECTS_ACCESSIBLE, ValidationConfig.TRUE);
+    if (viewScope != null) config.setConfigValue(ValidationConfig.PARAMETER, ValidationConfig.ADDITIONAL_MODELS,
+        viewScope.view().getContainer().getContainer().getName());
     for (Constraint constraint : allConstraints) {
       String qName = constraintQName(constraint);
       if (targetQName.equals(qName)) {
@@ -923,6 +985,35 @@ public class ConstraintTestTools {
       }
     }
 
+    Map<String,Object> viewDiagnostics = new LinkedHashMap<>();
+    if (viewScope != null) {
+      viewDiagnostics.putAll(viewScope.diagnostics());
+      int baseCount=0, selected=0, skipped=0;
+      try {
+        for (var basket : objectsByBasket.values()) for (var object : basket) {
+          var type = td.getElement(object.getobjecttag());
+          if (!(type instanceof Table table) || !(table == viewScope.base() || table.isExtending(viewScope.base()))) continue;
+          baseCount++;
+          boolean included=true;
+          for (var iterator=viewScope.view().iterator();iterator.hasNext();) {
+            var element=iterator.next();
+            if (!(element instanceof ch.interlis.ili2c.metamodel.ExpressionSelection selection)) continue;
+            var value=validator.evaluateExpression(null,null,viewScope.view().getScopedName(),object,selection.getCondition(),null);
+            if (value.isNotYetImplemented()) throw new IllegalArgumentException("View filter is not implemented by validator.");
+            if (value.skipEvaluation()) { skipped++; continue; }
+            if (!value.isTrue()) { included=false; break; }
+          }
+          if (included) selected++;
+        }
+      } catch (Exception ex) { logging.addSyntheticError("VIEW_SCOPE_VERIFICATION_FAILED: " + ex.getMessage()); }
+      viewDiagnostics.put("baseSubjectCount",baseCount);
+      viewDiagnostics.put("subjectCount",selected);
+      viewDiagnostics.put("excludedSubjectCount",baseCount-selected);
+      viewDiagnostics.put("skippedFilterCount",skipped);
+    }
+    var counts = ObjectCountVerification.verify(td, target, validator, objectsByBasket.values().stream().flatMap(List::stream).toList(), plannedCounts, plannedShapes, logging::addSyntheticError);
+    viewDiagnostics.put("objectCounts", counts);
+    validator.close();
     List<Map<String, Object>> normalizedMessages = normalizeFixtureDiagnostics(logging.messages(), xtfFile);
     int errors = 0;
     int warnings = 0;
@@ -933,7 +1024,7 @@ public class ConstraintTestTools {
         warnings++;
       }
     }
-    return new ValidationOutcome(normalizedMessages, errors, warnings);
+    return new ValidationOutcome(normalizedMessages, errors, warnings, viewDiagnostics, logging.executedSets.contains(targetQName));
   }
 
   private List<Map<String, Object>> normalizeFixtureDiagnostics(
@@ -970,7 +1061,8 @@ public class ConstraintTestTools {
       String sourceBasketId,
       int objectIndex,
       Set<String> explicitNames,
-      Map<Table, List<PreparedObject>> objectsByClass) {
+      Map<Table, List<PreparedObject>> objectsByClass,
+      Map<String, PreparedObject> objectsByOid, FixtureBudget budget) {
     Iterator<Extendable> attributes = table.getAttributes();
     while (attributes.hasNext()) {
       Extendable extendable = attributes.next();
@@ -989,7 +1081,7 @@ public class ConstraintTestTools {
             type,
             objectIndex,
             occurrence,
-            objectsByClass);
+            objectsByClass, objectsByOid, budget);
       }
     }
   }
@@ -1002,10 +1094,16 @@ public class ConstraintTestTools {
       Type type,
       int objectIndex,
       int occurrence,
-      Map<Table, List<PreparedObject>> objectsByClass) {
+      Map<Table, List<PreparedObject>> objectsByClass,
+      Map<String, PreparedObject> objectsByOid, FixtureBudget budget) {
     String name = attribute.getName();
+    if (type instanceof CompositionType composition) {
+      applyCompositionValue(object, name, composition, sourceBasketId, Map.of(), objectIndex,
+          objectsByClass, objectsByOid, budget);
+      return;
+    }
     if (type instanceof TextType textType) {
-      String value = "txt_" + objectIndex;
+      String value = attribute.isDomainIli1Date() ? "20000101" : "txt_" + objectIndex;
       if (textType.getMaxLength() > 0 && value.length() > textType.getMaxLength()) {
         value = value.substring(0, textType.getMaxLength());
       }
@@ -1086,7 +1184,7 @@ public class ConstraintTestTools {
       Map<String, Object> values,
       int objectIndex,
       Map<Table, List<PreparedObject>> objectsByClass,
-      Map<String, PreparedObject> objectsByOid) {
+      Map<String, PreparedObject> objectsByOid, FixtureBudget budget) {
     for (Map.Entry<String, Object> entry : values.entrySet()) {
       if (entry.getKey() == null || entry.getKey().isBlank() || entry.getValue() == null) {
         continue;
@@ -1105,7 +1203,7 @@ public class ConstraintTestTools {
             entry.getValue(),
             objectIndex,
             objectsByClass,
-            objectsByOid);
+            objectsByOid, budget);
       } else if (type instanceof ReferenceType) {
         applyReferenceValue(object, table, sourceBasketId, name, entry.getValue(), objectsByOid);
       } else if (entry.getValue() instanceof List<?> list) {
@@ -1128,32 +1226,41 @@ public class ConstraintTestTools {
       Object raw,
       int objectIndex,
       Map<Table, List<PreparedObject>> objectsByClass,
-      Map<String, PreparedObject> objectsByOid) {
+      Map<String, PreparedObject> objectsByOid, FixtureBudget budget) {
     List<?> occurrences = raw instanceof List<?> list ? list : List.of(raw);
     Table component = composition.getComponentType();
+    if (!occurrences.isEmpty() && component.isAbstract()) {
+      throw new ConstraintFixtureException("STRUCTURE_PATH_UNSUPPORTED",
+          "No concrete structure type was specified for " + component.getScopedName(null) + ".");
+    }
     for (Object occurrence : occurrences) {
       if (!(occurrence instanceof Map<?, ?> rawValues)) {
         throw new IllegalArgumentException(
             "STRUCTURE assignment for '" + attributeName + "' requires a map or list of maps.");
       }
       Map<String, Object> nestedValues = stringKeyedMap(rawValues, attributeName);
-      Iom_jObject nested = new Iom_jObject(component.getScopedName(null), null);
-      fillMandatoryAttributes(
-          nested,
-          component,
-          sourceBasketId,
-          objectIndex,
-          nestedValues.keySet(),
-          objectsByClass);
-      applyValues(
-          nested,
-          component,
-          sourceBasketId,
-          nestedValues,
-          objectIndex,
-          objectsByClass,
-          objectsByOid);
-      owner.addattrobj(attributeName, nested);
+      budget.enter();
+      try {
+        Iom_jObject nested = new Iom_jObject(component.getScopedName(null), null);
+        fillMandatoryAttributes(
+            nested,
+            component,
+            sourceBasketId,
+            objectIndex,
+            nestedValues.keySet(),
+            objectsByClass, objectsByOid, budget);
+        applyValues(
+            nested,
+            component,
+            sourceBasketId,
+            nestedValues,
+            objectIndex,
+            objectsByClass,
+            objectsByOid, budget);
+        owner.addattrobj(attributeName, nested);
+      } finally {
+        budget.exit();
+      }
     }
   }
 
@@ -1319,7 +1426,7 @@ public class ConstraintTestTools {
       minimum = cardinality.getMinimum() > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) cardinality.getMinimum();
     }
     if (minimum > 5) {
-      throw new IllegalArgumentException("Mandatory multiplicity minimum " + minimum + " is too large for minimal constraint fixtures.");
+      throw new ConstraintFixtureException("STRUCTURE_FIXTURE_BUDGET_EXCEEDED", "Mandatory multiplicity minimum " + minimum + " is too large for minimal constraint fixtures.");
     }
     return minimum;
   }
@@ -1344,18 +1451,48 @@ public class ConstraintTestTools {
     return basketId == null || basketId.isBlank() ? null : basketId.trim();
   }
 
-  private int countSubjects(Constraint target, List<PreparedObject> objects, List<PreparedLink> links) {
+  private int countSubjects(
+      TransferDescription td, Constraint target, PreparedCase prepared,
+      Map<BasketKey, List<Iom_jObject>> objectsByBasket) {
     Element context = target.getContainer();
-    if (context instanceof Table table) {
-      return (int) objects.stream().filter(object -> object.table() == table).count();
-    }
     if (context instanceof AssociationDef association) {
-      return (int) links.stream().filter(link -> link.association() == association).count();
+      return (int) prepared.links().stream()
+          .filter(link -> link.association() == association || link.association().isExtending(association))
+          .count();
     }
-    return 0;
+    if (!(context instanceof Table table)) return 0;
+    return objectsByBasket.values().stream().flatMap(List::stream)
+        .mapToInt(object -> countInstances(td, table, object)).sum();
   }
 
-  private TestCase requireCase(@Nullable TestCase testCase, int index) {
+  private int countInstances(TransferDescription td, Table context, IomObject object) {
+    Element actual = td.getElement(object.getobjecttag());
+    int count = actual instanceof Table table && (table == context || table.isExtending(context)) ? 1 : 0;
+    for (int a = 0; a < object.getattrcount(); a++) {
+      String name = object.getattrname(a);
+      for (int i = 0; i < object.getattrvaluecount(name); i++) {
+        IomObject child = object.getattrobj(name, i);
+        if (child != null) count += countInstances(td, context, child);
+      }
+    }
+    return count;
+  }
+
+  private static final class FixtureBudget {
+    private int structures;
+    private int depth;
+
+    void enter() {
+      if (++structures > 64 || ++depth > 8) {
+        throw new ConstraintFixtureException("STRUCTURE_FIXTURE_BUDGET_EXCEEDED",
+            "Structure fixture exceeds 64 instances or 8 composition levels.");
+      }
+    }
+
+    void exit() { depth--; }
+  }
+
+  private TestCase requireCase(@Nullable TestCase testCase, int index, Constraint target) {
     if (testCase == null) {
       throw new IllegalArgumentException("Constraint test case at index " + index + " must not be null.");
     }
@@ -1365,7 +1502,8 @@ public class ConstraintTestTools {
     if (testCase.expectedConstraintValid == null) {
       throw new IllegalArgumentException("Case '" + testCase.name + "' requires expectedConstraintValid.");
     }
-    if (testCase.objects == null || testCase.objects.isEmpty()) {
+    if (testCase.objects == null || testCase.objects.isEmpty()
+        && !(target instanceof ch.interlis.ili2c.metamodel.SetConstraint && target.getContainer() instanceof ch.interlis.ili2c.metamodel.Projection)) {
       throw new IllegalArgumentException("Case '" + testCase.name + "' requires at least one object.");
     }
     return testCase;
@@ -1449,31 +1587,23 @@ public class ConstraintTestTools {
       List<PreparedLink> links,
       Map<String, PreparedObject> objectsByOid,
       Map<Table, List<PreparedObject>> objectsByClass,
-      List<BasketKey> baskets,
-      int subjectCount) {
+      List<BasketKey> baskets) {
   }
 
-  private record ValidationOutcome(List<Map<String, Object>> messages, int errorCount, int warningCount) {
-  }
-
-  private static final class FixturePreparationException extends IllegalArgumentException {
-    private final String reasonCode;
-
-    private FixturePreparationException(String reasonCode, String message) {
-      super(message);
-      this.reasonCode = reasonCode;
-    }
-
-    private String reasonCode() {
-      return reasonCode;
-    }
+  private record ValidationOutcome(List<Map<String, Object>> messages, int errorCount, int warningCount,
+      Map<String,Object> viewDiagnostics, boolean setExecuted) {
   }
 
   private static final class CollectingIoxLogging implements IoxLogging {
     private final List<Map<String, Object>> messages = new ArrayList<>();
+    private final java.util.Set<String> executedSets = new java.util.HashSet<>();
 
     @Override
     public void addEvent(IoxLogEvent event) {
+      String full = event.getEventMsg();
+      String prefix = "validate set constraint ";
+      if (full != null && full.startsWith(prefix) && full.endsWith("..."))
+        executedSets.add(full.substring(prefix.length(),full.length()-3));
       String severity;
       if (event.getEventKind() == IoxLogEvent.ERROR) {
         severity = "ERROR";

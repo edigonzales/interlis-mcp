@@ -1,0 +1,38 @@
+{
+  "contextFqn": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.BodeneinheitHauptauspraegung_Wald",
+  "constraintName": "GewichtungSumme100_Wald",
+  "rows": [
+    {
+      "name": "with secondary weights",
+      "conditions": [
+        {
+          "attribute": "Nebenauspraegung->Gewichtung",
+          "aggregate": "SUM",
+          "defined": true
+        },
+        {
+          "attribute": "Nebenauspraegung->Gewichtung",
+          "aggregate": "SUM",
+          "addAttribute": "Gewichtung",
+          "operator": "==",
+          "value": 100
+        }
+      ]
+    },
+    {
+      "name": "without secondary weights",
+      "conditions": [
+        {
+          "attribute": "Gewichtung",
+          "operator": "==",
+          "value": 100
+        },
+        {
+          "attribute": "Nebenauspraegung->Gewichtung",
+          "aggregate": "SUM",
+          "defined": false
+        }
+      ]
+    }
+  ]
+}

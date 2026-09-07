@@ -80,6 +80,12 @@ class ConstraintDecisionTableAfuTest {
 
     assertEquals(true, result.generated, String.valueOf(result));
     assertEquals(true, result.proofVerified, String.valueOf(result));
+    var coverage = result.constraintProofs.getFirst();
+    assertEquals(coverage.coverageGoalCount, coverage.coverageSolvedCount);
+    assertEquals(coverage.coverageExcludedGoals.size(), coverage.coverageExcludedCount);
+    assertTrue(coverage.coverageExcludedCount > 0);
+    assertEquals(coverage.coverageSolvedCount,
+        coverage.generatedCases.stream().mapToInt(item -> item.coveredGoals.size()).sum());
 
     String expression = String.valueOf(result.details.get("constraintExpression"));
     assertTrue(expression.contains("DEFINED(Math.sum(\"Nebenauspraegung->Gewichtung\"))"), expression);

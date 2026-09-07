@@ -108,6 +108,28 @@ public final class IliSourceLocator {
         kind + " '" + name + "'");
   }
 
+  /** Resolves a declaration only within its already resolved owning block. */
+  public BlockLocation locateNamedBlock(
+      IliSourceDocument document,
+      BlockKind kind,
+      String name,
+      int approximateLine,
+      BlockLocation owner) {
+    List<BlockLocation> matches = locateNamedBlocks(document, kind, name).stream()
+        .filter(block -> block.declarationSpan().startOffset() >= owner.bodySpan().startOffset()
+            && block.declarationSpan().endOffset() <= owner.bodySpan().endOffset())
+        .toList();
+    if (matches.isEmpty()) {
+      throw new IllegalArgumentException(kind + " '" + name + "' not found within " + owner.name() + ".");
+    }
+    if (matches.size() == 1) return matches.getFirst();
+    if (approximateLine < 1) {
+      throw new IllegalArgumentException(kind + " '" + name + "' is ambiguous within " + owner.name() + ".");
+    }
+    return chooseClosest(matches, approximateLine,
+        block -> block.headerSpan().startLine(), kind + " '" + name + "'");
+  }
+
   public IliSourceSpan locateAttribute(
       IliSourceDocument document,
       BlockLocation container,
@@ -211,8 +233,13 @@ public final class IliSourceLocator {
     for (int i = 0; i < tokens.size(); i++) {
       Token token = tokens.get(i);
       BlockKind openingKind = blockKind(token);
+      // VIEW TOPIC is a topic modifier, not a view named TOPIC.
+      if (openingKind == BlockKind.VIEW && i + 1 < tokens.size()
+          && tokens.get(i + 1).isKeyword("TOPIC")) {
+        continue;
+      }
       if (openingKind != null && i + 1 < tokens.size() && tokens.get(i + 1).kind() == TokenKind.IDENTIFIER) {
-        int equalsTokenIndex = findHeaderEquals(tokens, i + 2);
+        int equalsTokenIndex = findHeaderEquals(tokens, i + 2, openingKind);
         if (equalsTokenIndex >= 0) {
           stack.push(new OpenBlock(openingKind, tokens.get(i + 1).text(), i, equalsTokenIndex));
         }
@@ -268,13 +295,21 @@ public final class IliSourceLocator {
     return match;
   }
 
-  private int findHeaderEquals(List<Token> tokens, int startIndex) {
+  private int findHeaderEquals(List<Token> tokens, int startIndex, BlockKind kind) {
+    int parentheses = 0;
     for (int i = startIndex; i < tokens.size(); i++) {
       Token token = tokens.get(i);
-      if (token.isSymbol("=")) {
+      if (token.isSymbol("(")) parentheses++;
+      if (token.isSymbol(")")) parentheses--;
+      // View selections can contain ==, <= and >= before the standalone body '='.
+      boolean comparison = i > 0 && (tokens.get(i - 1).isSymbol("=")
+          || tokens.get(i - 1).isSymbol("<") || tokens.get(i - 1).isSymbol(">")
+          || tokens.get(i - 1).isSymbol("!"))
+          || i + 1 < tokens.size() && tokens.get(i + 1).isSymbol("=");
+      if (token.isSymbol("=") && parentheses == 0 && !comparison) {
         return i;
       }
-      if (token.isSymbol(";") || token.isKeyword("END")) {
+      if (token.isKeyword("END") || token.isSymbol(";") && kind != BlockKind.VIEW) {
         return -1;
       }
     }

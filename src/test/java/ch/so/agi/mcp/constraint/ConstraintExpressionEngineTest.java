@@ -73,7 +73,7 @@ class ConstraintExpressionEngineTest {
 
     var missingB = ConstraintExpressionEngine.EvaluationContext.of(Map.of("A", 4));
     assertEquals(
-        ConstraintExpressionEngine.Undefined.INSTANCE,
+        ConstraintExpressionEngine.NotComputable.INSTANCE,
         ConstraintExpressionEngine.evaluate(expression, missingB));
     assertTrue(ConstraintExpressionEngine.evaluateConstraint(expression, missingB));
 

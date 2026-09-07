@@ -493,7 +493,7 @@ public final class IliSpecRenderer {
       }
       case IMPLIES -> {
         arity(spec.kind, children, 2, 2);
-        yield "(" + expression(children.get(0), version, currentModel, imports) + " IMPLIES "
+        yield "(NOT(" + expression(children.get(0), version, currentModel, imports) + ") OR "
             + expression(children.get(1), version, currentModel, imports) + ")";
       }
       case COMPARE -> {

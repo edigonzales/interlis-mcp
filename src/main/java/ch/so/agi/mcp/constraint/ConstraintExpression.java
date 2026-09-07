@@ -25,6 +25,7 @@ public sealed interface ConstraintExpression
         ConstraintExpression.TextLiteral,
         ConstraintExpression.Attribute,
         ConstraintExpression.Path,
+        ConstraintExpression.ObjectCount,
         ConstraintExpression.FunctionCall,
         ConstraintExpression.Defined,
         ConstraintExpression.Not,
@@ -99,8 +100,21 @@ public sealed interface ConstraintExpression
     UNKNOWN
   }
 
+  /** An object-valued path, never an arbitrary scalar probe attribute. */
+  record ObjectSetPath(String path) {
+    public ObjectSetPath { requireName(path, "path"); }
+  }
+
+  record ObjectCount(ObjectSetPath objects) implements ConstraintExpression {
+    public ObjectCount { Objects.requireNonNull(objects, "objects"); }
+    public ObjectCount(String path) { this(new ObjectSetPath(path)); }
+    public String key() { return "objectCount(" + objects.path() + ")"; }
+    @Override public Type type() { return new Type(ScalarKind.NUMERIC, false, false); }
+  }
+
   enum ReferenceKind {
     ATTRIBUTE,
+    OBJECT_COUNT,
     PATH
   }
 
@@ -487,6 +501,7 @@ public sealed interface ConstraintExpression
     switch (expression) {
       case Attribute attribute -> sink.add(new Reference(
           attribute.name(), ReferenceKind.ATTRIBUTE, attribute.type()));
+      case ObjectCount count -> sink.add(new Reference(count.key(), ReferenceKind.OBJECT_COUNT, count.type()));
       case Path path -> sink.add(new Reference(path.path(), ReferenceKind.PATH, path.type()));
       case FunctionCall call -> call.arguments().forEach(child -> collectReferences(child, sink));
       case Defined defined -> collectReferences(defined.operand(), sink);
@@ -539,6 +554,7 @@ public sealed interface ConstraintExpression
         case EnumLiteral enumeration -> "#" + enumeration.value();
         case TextLiteral text -> "\"" + escapeText(text.value()) + "\"";
         case Attribute attribute -> attribute.name();
+        case ObjectCount count -> "INTERLIS.objectCount(" + count.objects().path() + ")";
         case Path path -> path.path();
         case FunctionCall call -> renderFunction(call, profile);
         case Defined defined -> "DEFINED(" + render(defined.operand(), profile, 0) + ")";
@@ -554,8 +570,8 @@ public sealed interface ConstraintExpression
             .map(child -> render(child, profile, OR_PRECEDENCE))
             .reduce((left, right) -> left + " OR " + right)
             .orElseThrow();
-        case Implies implies -> render(implies.antecedent(), profile, IMPLIES_PRECEDENCE)
-            + " IMPLIES " + render(implies.consequent(), profile, IMPLIES_PRECEDENCE);
+        case Implies implies -> render(new Or(List.of(new Not(implies.antecedent()),
+            implies.consequent())), profile, 0);
       };
 
       boolean parenthesize = precedence < parentPrecedence
@@ -613,6 +629,7 @@ public sealed interface ConstraintExpression
         case TextLiteral ignored -> ATOMIC_PRECEDENCE;
         case Attribute ignored -> ATOMIC_PRECEDENCE;
         case Path ignored -> ATOMIC_PRECEDENCE;
+        case ObjectCount ignored -> ATOMIC_PRECEDENCE;
         case FunctionCall ignored -> ATOMIC_PRECEDENCE;
       };
     }

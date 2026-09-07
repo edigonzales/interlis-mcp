@@ -23,6 +23,7 @@ import ch.interlis.ili2c.metamodel.PathElAssocRole;
 import ch.interlis.ili2c.metamodel.PathElRefAttr;
 import ch.interlis.ili2c.metamodel.RoleDef;
 import ch.interlis.ili2c.metamodel.TextType;
+import ch.interlis.ili2c.metamodel.EnumTreeValueType;
 import ch.interlis.ili2c.metamodel.Type;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -68,6 +69,7 @@ public final class ConstraintAstTranslator {
   }
 
   private final ConstraintExpression.IliVersion version;
+  private ch.interlis.ili2c.metamodel.Projection viewScope;
 
   private ConstraintAstTranslator(ConstraintExpression.IliVersion version) {
     this.version = Objects.requireNonNull(version, "version");
@@ -114,6 +116,13 @@ public final class ConstraintAstTranslator {
       ConstraintExpression.IliVersion version) {
     Objects.requireNonNull(evaluable, "evaluable");
     return new ConstraintAstTranslator(version).translateEvaluable(evaluable);
+  }
+
+  static ConstraintExpression translateViewFilter(Evaluable expression, ConstraintExpression.IliVersion version,
+      ch.interlis.ili2c.metamodel.Projection view) {
+    var translator = new ConstraintAstTranslator(version);
+    translator.viewScope = view;
+    return translator.translateEvaluable(expression);
   }
 
   private ConstraintExpression translateEvaluable(Evaluable evaluable) {
@@ -234,6 +243,31 @@ public final class ConstraintAstTranslator {
   private ConstraintExpression translateFunctionCall(FunctionCall call) {
     Function function = call.getFunction();
     String functionName = function.getScopedName();
+    if (functionName.equals("INTERLIS.objectCount") && call.getArguments().length == 1
+        && call.getArguments()[0] instanceof ObjectPath path && !path.isAttributePath()) {
+      return new ConstraintExpression.ObjectCount(path.toString());
+    }
+    if (viewScope != null && functionName.equals("INTERLIS.isEnumSubVal")) {
+      var args = call.getArguments();
+      if (args.length != 2 || !(args[0] instanceof ObjectPath path)
+          || !(translateEvaluable(args[1]) instanceof ConstraintExpression.EnumLiteral parent)) {
+        throw new TranslationException("VIEW_FILTER_SEMANTICS_UNSUPPORTED", "isEnumSubVal requires a typed enum path and literal node.");
+      }
+      Type type = Type.findReal(path.getType());
+      List<String> values = type instanceof EnumTreeValueType tree ? tree.getValues()
+          : type instanceof EnumerationType enumeration ? enumeration.getValues() : List.of();
+      var operand = translateObjectPath(path);
+      List<ConstraintExpression> matches = new ArrayList<>();
+      // The pinned runtime compares string prefixes. Enumerate only compiler-valid values.
+      for (String value : values) if (value.startsWith(parent.value())) matches.add(new ConstraintExpression.Comparison(
+          ConstraintExpression.ComparisonOperator.EQ, operand, new ConstraintExpression.EnumLiteral(value)));
+      if (matches.isEmpty()) throw new TranslationException("VIEW_FILTER_SEMANTICS_UNSUPPORTED", "Enum selection has no compiler-valid matching value.");
+      return matches.size() == 1 ? matches.getFirst() : new ConstraintExpression.Or(matches);
+    }
+    if (viewScope != null && StandardFunctionRegistry.findByQualifiedName(version, functionName).isEmpty()) {
+      throw new TranslationException("VIEW_FILTER_SEMANTICS_UNSUPPORTED", "Unknown View filter function: " + functionName);
+    }
+
     StandardFunctionRegistry.StandardFunction standard = StandardFunctionRegistry
         .findByQualifiedName(version, functionName)
         .orElse(null);
@@ -301,6 +335,13 @@ public final class ConstraintAstTranslator {
 
   private ConstraintExpression translateObjectPath(ObjectPath objectPath) {
     PathEl[] elements = objectPath.getPathElements();
+    if (viewScope != null && elements.length > 1 && elements[0] instanceof ch.interlis.ili2c.metamodel.PathElBase base) {
+      if (base.getCurrentViewable() != viewScope || base.getViewable() != viewScope.getSelected().getAliasing()) {
+        throw new TranslationException("VIEW_FILTER_SEMANTICS_UNSUPPORTED", "View alias does not select the projection base.");
+      }
+      return translateObjectPath(new ObjectPath(base.getViewable(), java.util.Arrays.copyOfRange(elements, 1, elements.length)));
+    }
+
     if (elements == null || elements.length == 0 || !objectPath.isAttributePath()) {
       throw new TranslationException(
           "UNSUPPORTED_OBJECT_PATH",
@@ -430,7 +471,7 @@ public final class ConstraintAstTranslator {
             + evaluable.getClass().getName() + ".");
   }
 
-  private static ConstraintExpression.IliVersion iliVersion(Constraint constraint) {
+  static ConstraintExpression.IliVersion iliVersion(Constraint constraint) {
     Element current = constraint;
     while (current != null) {
       if (current instanceof Model model) {

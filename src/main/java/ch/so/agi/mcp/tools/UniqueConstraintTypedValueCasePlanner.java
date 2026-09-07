@@ -2,6 +2,8 @@ package ch.so.agi.mcp.tools;
 
 import ch.interlis.ili2c.metamodel.AbstractClassDef;
 import ch.interlis.ili2c.metamodel.AreaType;
+import ch.interlis.ili2c.metamodel.RoleDef;
+import ch.interlis.ili2c.metamodel.PathElAbstractClassRole;
 import ch.interlis.ili2c.metamodel.AttributeDef;
 import ch.interlis.ili2c.metamodel.AttributeRef;
 import ch.interlis.ili2c.metamodel.PathEl;
@@ -24,10 +26,12 @@ import org.jspecify.annotations.Nullable;
 final class UniqueConstraintTypedValueCasePlanner {
 
   private record Key(
-      AttributeDef attribute,
+      @Nullable AttributeDef attribute, @Nullable RoleDef role,
       TypedValueFixtureFactory.ValuePair pair,
       @Nullable Table referenceTarget,
       boolean externalReference) {
+    String name() { return attribute != null ? attribute.getName() : role.getName(); }
+    boolean mandatory() { return attribute != null ? attribute.getDomainOrDerivedDomain().isMandatoryConsideringAliases() : role.getCardinality().getMinimum() > 0; }
   }
 
   private UniqueConstraintTypedValueCasePlanner() {
@@ -68,6 +72,15 @@ final class UniqueConstraintTypedValueCasePlanner {
         return gap("UNIQUE_TYPED_NAVIGATION_UNSUPPORTED",
             "Navigated reference, structure and geometry UNIQUE keys require NavigationGraphSynthesizer coverage per route.");
       }
+      if (elements[0] instanceof PathElAbstractClassRole rolePath) {
+        RoleDef role = rolePath.getRole();
+        Table target = concreteTarget(role.getDestination());
+        if (target == null || target == root || target.isExtending(root)) return gap("UNIQUE_ROLE_TARGET_UNSUPPORTED", "Role key needs a concrete non-subject target.");
+        keys.add(new Key(null, role, new TypedValueFixtureFactory.ValuePair(
+            new TypedValueFixtureFactory.ReferenceValue("unique_" + role.getName() + "_same"),
+            new TypedValueFixtureFactory.ReferenceValue("unique_" + role.getName() + "_different"), "ROLE"), target, role.isExternal()));
+        continue;
+      }
       AttributeDef attribute = attribute(elements[0]);
       if (attribute == null) {
         return gap("UNIQUE_TYPED_KEY_NOT_ATTRIBUTE",
@@ -102,11 +115,11 @@ final class UniqueConstraintTypedValueCasePlanner {
             new TypedValueFixtureFactory.ReferenceValue("unique_" + attribute.getName() + "_different"),
             "REFERENCE");
       }
-      keys.add(new Key(attribute, pair, target, external));
+      keys.add(new Key(attribute, null, pair, target, external));
     }
 
     Map<String, Object> same = new LinkedHashMap<>();
-    for (Key key : keys) same.put(key.attribute().getName(), key.pair().same());
+    for (Key key : keys) same.put(key.name(), key.pair().same());
     List<ConstraintTestTools.TestObject> dependencies = dependencies(keys, null);
     List<ConstraintTestTools.TestCase> cases = new ArrayList<>();
     List<Map<String, Object>> summaries = new ArrayList<>();
@@ -120,7 +133,7 @@ final class UniqueConstraintTypedValueCasePlanner {
     for (int index = 0; index < keys.size(); index++) {
       Key changedKey = keys.get(index);
       Map<String, Object> changed = new LinkedHashMap<>(same);
-      changed.put(changedKey.attribute().getName(), changedKey.pair().different());
+      changed.put(changedKey.name(), changedKey.pair().different());
       add(cases, summaries,
           "exactly key " + (index + 1) + " differs", true, "WITNESS",
           dependencies,
@@ -128,11 +141,11 @@ final class UniqueConstraintTypedValueCasePlanner {
               object(root, "unique_typed_key_b_" + index, changed, null)),
           Map.of("same", same, "different", changed));
 
-      if (!changedKey.attribute().getDomainOrDerivedDomain().isMandatoryConsideringAliases()) {
+      if (!changedKey.mandatory()) {
         Map<String, Object> undefined = new LinkedHashMap<>(same);
-        undefined.remove(changedKey.attribute().getName());
+        undefined.remove(changedKey.name());
         add(cases, summaries,
-            "undefined typed UNIQUE key component " + changedKey.attribute().getName(),
+            "undefined typed UNIQUE key component " + changedKey.name(),
             true, "WITNESS", dependencies,
             List.of(object(root, "unique_typed_undefined_a_" + index, undefined, null),
                 object(root, "unique_typed_undefined_b_" + index, undefined, null)),
@@ -159,6 +172,24 @@ final class UniqueConstraintTypedValueCasePlanner {
           "reasonCode", "UNIQUE_REFERENCE_CROSS_BASKET_NOT_TRANSFERABLE",
           "reason", "Cross-basket equality for a non-EXTERNAL reference cannot be represented as valid transfer data.",
           "goal", "GLOBAL/BASKET boundary for reference key"));
+    }
+    for (var testCase : cases) {
+      var links = new ArrayList<ConstraintTestTools.TestLink>();
+      for (var object : testCase.objects) {
+        if (!root.getScopedName().equals(object.classFqn)) continue;
+        var values = new LinkedHashMap<>(object.values);
+        for (var key : keys) if (key.role() != null) {
+          Object value = values.remove(key.name());
+          if (value instanceof TypedValueFixtureFactory.ReferenceValue reference) {
+            var link = new ConstraintTestTools.TestLink();
+            link.associationFqn = key.role().getContainer().getScopedName();
+            link.roles = Map.of(key.role().getName(), reference.targetOid(), key.role().getOppEnd().getName(), object.oid);
+            links.add(link);
+          }
+        }
+        object.values = values;
+      }
+      testCase.links = links;
     }
     return new UniqueConstraintCasePlanner.Plan(cases, summaries, gaps);
   }

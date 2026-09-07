@@ -70,7 +70,56 @@ public class ConstraintCaseGenerationTools {
    * No ili2c compilation is performed by this method.
    */
   public Map<String, Object> generateCompiledConstraintCases(CompiledConstraintContext context) {
+    try {
+      var result=generateScopedConstraintCases(context);
+      if (result.get("verification") instanceof Map<?,?> verification && verification.get("viewScopeGoals") instanceof List<?> goals) {
+        var summaries=new ArrayList<Object>((List<?>)result.getOrDefault("generatedCases",List.of()));
+        summaries.addAll(goals); result.put("generatedCases",summaries);
+        int gapCount=((List<?>)verification.get("viewScopeGaps")).size();
+        result.put("coverageGoalCount",((Number)result.getOrDefault("coverageGoalCount",0)).intValue()+goals.size()+gapCount);
+        result.put("coverageSolvedCount",((Number)result.getOrDefault("coverageSolvedCount",0)).intValue()+goals.size());
+        if (gapCount>0) {
+          result.put("coverageComplete",false);
+          result.put("proofIncomplete",true);
+          result.put("reasonCode","VIEW_SCOPE_UNSOLVED");
+          result.put("reason","View filter coverage has unresolved reached-state goals.");
+          var gaps=new ArrayList<Object>((List<?>)result.getOrDefault("coverageUnsolved",List.of()));
+          gaps.addAll((List<?>)verification.get("viewScopeGaps")); result.put("coverageUnsolved",gaps);
+        }
+        var excluded=new ArrayList<Object>((List<?>)result.getOrDefault("coverageExcludedGoals",List.of()));
+        excluded.addAll((List<?>)verification.get("viewScopeExcluded")); result.put("coverageExcludedGoals",excluded);
+        result.put("coverageExcludedCount",excluded.size());
+      }
+      return result;
+    }
+    catch (ch.so.agi.mcp.constraint.ViewProofScope.ScopeException ex) {
+      return unavailable(ex.reasonCode(), ex.getMessage(), context, context.compilation().messages());
+    } catch (IllegalArgumentException ex) {
+      if(ex.getMessage()!=null && ex.getMessage().startsWith("OBJECT_PATH_") && ex.getMessage().contains(":"))
+        return unavailable(ex.getMessage().substring(0,ex.getMessage().indexOf(':')),ex.getMessage(),context,context.compilation().messages());
+      if (!(context.constraint().getContainer() instanceof ch.interlis.ili2c.metamodel.View)) throw ex;
+      return unavailable("VIEW_FIXTURE_MATERIALIZATION_FAILED", ex.getMessage(), context, context.compilation().messages());
+    }
+  }
+
+  private Map<String, Object> generateScopedConstraintCases(CompiledConstraintContext context) {
     Objects.requireNonNull(context, "context");
+    if (ch.so.agi.mcp.constraint.ConstraintValidatorCompatibility.hasNativeImplication(context)) {
+      Map<String, Object> response = unavailable(
+          ch.so.agi.mcp.constraint.ConstraintValidatorCompatibility.NATIVE_IMPLICATION,
+          "The pinned iox-ili 1.24.4 runtime does not reliably evaluate native =>. "
+              + "Automatic proof is unavailable; author implications using NOT(antecedent) OR consequent.",
+          context, context.compilation().messages());
+      response.put("proofIncomplete", true);
+      response.put("coverageComplete", false);
+      return response;
+    }
+    try {
+      var scope = ch.so.agi.mcp.constraint.ViewProofScope.resolve(context.transferDescription(), context.constraint());
+      if (scope != null) context = scope.planningContext(context);
+    } catch (ch.so.agi.mcp.constraint.ViewProofScope.ScopeException ex) {
+      return unavailable(ex.reasonCode(), ex.getMessage(), context, context.compilation().messages());
+    }
     if (context.semantics() instanceof SemanticConstraint.Mandatory mandatory) {
       return generateMandatoryConstraintCases(context, mandatory);
     }
@@ -97,13 +146,27 @@ public class ConstraintCaseGenerationTools {
   private Map<String, Object> generateMandatoryConstraintCases(
       CompiledConstraintContext context,
       SemanticConstraint.Mandatory mandatory) {
+    List<Map<String,String>> routes;
+    try { routes = ch.so.agi.mcp.constraint.ObjectPathRoutes.resolve(context.transferDescription(), mandatory.contextFqn(), mandatory.condition()); }
+    catch (IllegalArgumentException ex) {
+      String code = ex.getMessage().contains(":") ? ex.getMessage().substring(0,ex.getMessage().indexOf(':')) : "OBJECT_PATH_BINDING_UNAVAILABLE";
+      return unavailable(code,ex.getMessage(),context,context.compilation().messages());
+    }
+    var results = routes.stream().map(route -> generateMandatoryRoute(context,mandatory,route)).toList();
+    return ObjectPathProofResults.merge(results, routes);
+  }
+
+  private Map<String,Object> generateMandatoryRoute(CompiledConstraintContext context,
+      SemanticConstraint.Mandatory mandatory, Map<String,String> route) {
     ConstraintExpression expression = mandatory.condition();
     ConstraintModelSynthesizer.ModelBinding binding;
     try {
-      binding = ConstraintModelSynthesizer.bind(
-          context.transferDescription(), mandatory.contextFqn(), expression);
+      binding = ch.so.agi.mcp.constraint.ViewProofScope.bind(
+          context, mandatory.contextFqn(), expression, route);
     } catch (IllegalArgumentException ex) {
-      return unavailable("MODEL_BINDING_UNAVAILABLE", ex.getMessage(), context, context.compilation().messages());
+      String code=ex.getMessage()!=null && ex.getMessage().startsWith("OBJECT_PATH_") && ex.getMessage().contains(":")
+          ? ex.getMessage().substring(0,ex.getMessage().indexOf(':')) : "MODEL_BINDING_UNAVAILABLE";
+      return unavailable(code, ex.getMessage(), context, context.compilation().messages());
     }
 
     ConstraintCoveragePlanner.CoveragePlan coverage = ConstraintCoveragePlanner.solve(expression, binding);
@@ -114,7 +177,9 @@ public class ConstraintCaseGenerationTools {
       String reason = coverage.unsolved().isEmpty()
           ? "No semantic coverage cases could be derived for the constraint."
           : coverage.unsolved().getFirst().reason();
-      return unavailable(reasonCode, reason, context, context.compilation().messages());
+      Map<String, Object> response = unavailable(reasonCode, reason, context, context.compilation().messages());
+      addCoverage(response, coverage, mandatory.version());
+      return response;
     }
 
     GeneratedCases generated;
@@ -124,7 +189,20 @@ public class ConstraintCaseGenerationTools {
       return unavailable("OBJECT_GRAPH_SYNTHESIS_FAILED", ex.getMessage(), context, context.compilation().messages());
     }
 
-    Map<String, Object> verification = verifyUsingCompiledContext(context, generated.cases());
+    var topology = ObjectCountTopologyPlanner.plan(context, expression, binding);
+    var combinedCases = new ArrayList<>(generated.cases()); combinedCases.addAll(topology.cases());
+    var combinedSummaries = new ArrayList<>(generated.summaries()); combinedSummaries.addAll(topology.summaries());
+    generated = new GeneratedCases(combinedCases, combinedSummaries);
+    VerifiedMandatory verifiedCases;
+    try {
+      verifiedCases = verifyMandatoryCases(context, generated);
+    } catch (ConstraintFixtureException ex) {
+      Map<String, Object> response = unavailable(ex.reasonCode(), ex.getMessage(), context, context.compilation().messages());
+      addCoverage(response, coverage, mandatory.version());
+      return response;
+    }
+    generated = verifiedCases.generated();
+    Map<String, Object> verification = verifiedCases.verification();
     boolean verified = Boolean.TRUE.equals(verification.get("allPassed"));
 
     Map<String, Object> response = new LinkedHashMap<>();
@@ -135,18 +213,25 @@ public class ConstraintCaseGenerationTools {
     response.put("constraint", constraintSummary(context));
     response.put("context", contextSummary(context));
     response.put("generatedCases", generated.summaries());
-    response.put("coverageGoalCount", coverage.cases().size() + coverage.unsolved().size());
-    response.put("coverageSolvedCount", coverage.cases().size());
-    response.put("coverageComplete", coverage.unsolved().isEmpty());
-    if (!coverage.unsolved().isEmpty()) {
-      response.put("coverageUnsolved", coverageUnsolved(coverage, mandatory.version()));
+    addCoverage(response, coverage, mandatory.version());
+    if (!topology.summaries().isEmpty() || !topology.gaps().isEmpty() || !topology.excluded().isEmpty()) {
+      response.put("objectPathGoals",topology.summaries()); response.put("objectPathGaps",topology.gaps()); response.put("objectPathExcluded",topology.excluded());
+      response.put("coverageGoalCount", ((Number)response.get("coverageGoalCount")).intValue()+topology.cases().size()+topology.gaps().size());
+      response.put("coverageSolvedCount", ((Number)response.get("coverageSolvedCount")).intValue()+topology.cases().size());
+      var exclusions = new ArrayList<>((List<Map<String,Object>>)response.get("coverageExcludedGoals")); exclusions.addAll(topology.excluded());
+      response.put("coverageExcludedGoals",exclusions); response.put("coverageExcludedCount",exclusions.size());
+      if (!topology.gaps().isEmpty()) {
+        var gaps = new ArrayList<>((List<Map<String,Object>>)response.getOrDefault("coverageUnsolved",List.of())); gaps.addAll(topology.gaps()); response.put("coverageUnsolved",gaps);
+        response.put("coverageComplete",false); response.put("automaticCasesAvailable",false); response.put("generationVerified",false);
+        response.put("reasonCode","OBJECT_PATH_TOPOLOGY_INCOMPLETE"); response.put("reason","Object-path topology obligations remain unresolved.");
+      }
     }
     response.put("verification", verification);
     if (!verified) {
       addVerificationFailure(
           response,
           verification,
-          "GENERATED_CASES_NOT_VERIFIED",
+          verifiedCases.noViableRoute() ? "STRUCTURE_MATERIALIZATION_FAILED" : "GENERATED_CASES_NOT_VERIFIED",
           "Semantic cases were generated, but the real validator did not confirm all expected outcomes.");
     }
     response.put("limitations", limitations());
@@ -377,7 +462,9 @@ public class ConstraintCaseGenerationTools {
     response.put("set", setSummary(set));
     response.put("generatedCases", plan.summaries());
     response.put("coverageGoalCount", plan.goalCount());
-    response.put("coverageSolvedCount", plan.cases().size());
+    response.put("coverageSolvedCount", plan.solvedGoalCount());
+    response.put("coverageExcludedCount", plan.excluded().size());
+    response.put("coverageExcludedGoals", plan.excluded());
     response.put("coverageComplete", plan.complete());
     if (!plan.unsolved().isEmpty()) {
       response.put("coverageUnsolved", plan.unsolved());
@@ -429,10 +516,52 @@ public class ConstraintCaseGenerationTools {
     return Map.copyOf(result);
   }
 
+  private record VerifiedMandatory(
+      GeneratedCases generated, Map<String, Object> verification, boolean noViableRoute) {}
+
+  private VerifiedMandatory verifyMandatoryCases(CompiledConstraintContext context, GeneratedCases generated) {
+    if (!(context.constraint().getContainer() instanceof ch.interlis.ili2c.metamodel.Table table)
+        || table.isIdentifiable()) {
+      return new VerifiedMandatory(generated, verifyUsingCompiledContext(context, generated.cases()), false);
+    }
+    var routes = ConstraintFixtureContextResolver.resolve(context.transferDescription(), table);
+    VerifiedMandatory last = null;
+    ConstraintFixtureException failure = null;
+    for (var route : routes) {
+      GeneratedCases embedded;
+      try {
+        var cases = generated.cases().stream().map(route::embed).toList();
+        var summaries = generated.summaries().stream().map(original -> {
+          Map<String, Object> summary = new LinkedHashMap<>(original);
+          summary.put("ownerClassFqn", route.ownerFqn());
+          summary.put("structurePath", route.path());
+          return summary;
+        }).toList();
+        embedded = new GeneratedCases(cases, summaries);
+      } catch (ConstraintFixtureException ex) {
+        failure = ex;
+        continue;
+      }
+      Map<String, Object> verification = verifyUsingCompiledContext(context, embedded.cases());
+      var results = (List<?>) verification.get("cases");
+      boolean fixtureValid = results.stream().allMatch(item ->
+          item instanceof Map<?, ?> result && Boolean.TRUE.equals(result.get("fixtureValid")));
+      boolean outcomeMismatch = results.stream().anyMatch(item -> item instanceof Map<?, ?> result
+          && Boolean.TRUE.equals(result.get("fixtureValid"))
+          && !Objects.equals(result.get("expectedConstraintValid"), result.get("actualConstraintValid")));
+      last = new VerifiedMandatory(embedded, verification, !fixtureValid);
+      // A different owner must never be used to hide an observed semantic mismatch.
+      if (fixtureValid || outcomeMismatch) return last;
+    }
+    if (last != null) return last;
+    if (failure != null) throw failure;
+    throw new ConstraintFixtureException("STRUCTURE_MATERIALIZATION_FAILED", "No structure fixture route could be materialized.");
+  }
+
   private Map<String, Object> verifyUsingCompiledContext(
       CompiledConstraintContext context,
       List<ConstraintTestTools.TestCase> cases) {
-    return testTools.testCompiledConstraint(context, cases);
+    return ViewProofCoverage.verify(context, cases, testTools);
   }
 
   private GeneratedCases generateCases(
@@ -454,6 +583,10 @@ public class ConstraintCaseGenerationTools {
           "automatic case " + index + " - " + coverageCase.goal().reason(),
           expectedValid,
           graph);
+      var plannedCounts = new LinkedHashMap<String,Integer>();
+      for (var ref : binding.references().values()) if (ref.reference().kind() == ConstraintExpression.ReferenceKind.OBJECT_COUNT)
+        plannedCounts.put(ConstraintModelSynthesizer.countedPath(ref.reference()), new java.math.BigDecimal(assignment.get(ref.reference().name()).toString()).intValueExact());
+      testCase.plannedObjectCounts = Map.of(graph.objects().getFirst().oid(), plannedCounts);
       cases.add(testCase);
 
       Map<String, Object> summary = new LinkedHashMap<>();
@@ -461,6 +594,8 @@ public class ConstraintCaseGenerationTools {
       summary.put("name", testCase.name);
       summary.put("reason", coverageCase.goal().reason());
       summary.put("source", coverageCase.goal().expression().toInterlis(version));
+      summary.put("coveredGoals", coverageCase.coveredGoals().stream()
+          .map(goal -> ConstraintCoveragePlanner.describeGoal(goal, version)).toList());
       summary.put("expectedConstraintValid", expectedValid);
       summary.put("values", summaryAssignment(assignment));
       summary.put("objectCount", graph.objects().size());
@@ -531,14 +666,22 @@ public class ConstraintCaseGenerationTools {
     }
   }
 
+  private void addCoverage(Map<String, Object> response, ConstraintCoveragePlanner.CoveragePlan coverage,
+      ConstraintExpression.IliVersion version) {
+    response.put("coverageGoalCount", ConstraintCoveragePlanner.solvedGoalCount(coverage) + coverage.unsolved().size());
+    response.put("coverageSolvedCount", ConstraintCoveragePlanner.solvedGoalCount(coverage));
+    response.put("coverageExcludedCount", coverage.excluded().size());
+    response.put("coverageExcludedGoals", ConstraintCoveragePlanner.excludedGoals(coverage, version));
+    response.put("coverageComplete", coverage.unsolved().isEmpty());
+    if (!coverage.unsolved().isEmpty()) response.put("coverageUnsolved", coverageUnsolved(coverage, version));
+  }
+
   private List<Map<String, Object>> coverageUnsolved(
       ConstraintCoveragePlanner.CoveragePlan coverage,
       ConstraintExpression.IliVersion version) {
     return coverage.unsolved().stream().map(solution -> {
       Map<String, Object> result = new LinkedHashMap<>();
-      result.put("goal", solution.goal().kind().name());
-      result.put("reason", solution.goal().reason());
-      result.put("expression", solution.goal().expression().toInterlis(version));
+      result.putAll(ConstraintCoveragePlanner.describeGoal(solution.goal(), version));
       result.put("reasonCode", solution.reasonCode());
       result.put("solverReason", solution.reason());
       return result;
@@ -638,6 +781,7 @@ public class ConstraintCaseGenerationTools {
 
   private List<String> limitations() {
     return List.of(
+        "Mandatory and decision-table structure proofs embed the context in an existing concrete owner class; ownerClassFqn and structurePath describe the fixture route. Missing, abstract or excessive routes remain explicit proof boundaries.",
         "Automatic semantic generation covers all five INTERLIS constraint kinds. SET supports OBJECT_COUNT over ALL and a typed navigated object path plus boolean expressions; every unmaterializable route remains explicit coverageUnsolved.",
         "SET preserves ili2c base/RESTRICTION and polymorphy metadata. Geometry-aware SET functions such as INTERLIS.areAreas/areAreas2 remain unsupported unless executable semantics are registered.",
         "SET WHERE and navigated object-set graphs are merged only when cardinalities and all concrete target routes can be synthesized without changing the population silently.",
@@ -650,6 +794,7 @@ public class ConstraintCaseGenerationTools {
         "LOCAL UNIQUE proof currently requires a direct structure/composition prefix and direct scalar member keys. Navigated LOCAL member keys are reported as unsolved rather than approximated.",
         "UNIQUE WHERE uses the finite-domain expression solver. If the predicate cannot be solved both true and false, or the false branch cannot preserve the same key, coverageComplete=false exposes the missing proof goal.",
         "The finite-domain solver is deliberately not complete; coverageComplete=false and coverageUnsolved expose goals that could not be solved.",
+        "Scalar/boolean coverage counts goals independently of deduplicated fixtures; coveredGoals retains their mapping. coverageExcludedGoals contains only independently proven unreachable structural goals; search limits and required witness/counterexample goals are never excused.",
         "automaticCasesAvailable=true is returned only after every generated case passes the real ilivalidator with the expected outcome.");
   }
 

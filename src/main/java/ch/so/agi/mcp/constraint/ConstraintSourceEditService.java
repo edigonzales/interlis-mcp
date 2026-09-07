@@ -4,6 +4,7 @@ import ch.interlis.ili2c.metamodel.Element;
 import ch.interlis.ili2c.metamodel.Model;
 import ch.interlis.ili2c.metamodel.Topic;
 import ch.interlis.ili2c.metamodel.TransferDescription;
+import ch.interlis.ili2c.metamodel.View;
 import ch.interlis.ili2c.metamodel.Viewable;
 import ch.so.agi.mcp.change.IliPatchApplier;
 import ch.so.agi.mcp.change.IliSourceDocument;
@@ -18,26 +19,26 @@ import java.util.Objects;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 
-/** Source-preserving insertion of external CONSTRAINTS OF blocks into the owning topic. */
+/** Inserts constraints inside views or in external CONSTRAINTS OF blocks for other contexts. */
 @Service
 public class ConstraintSourceEditService {
 
   private final IliSourceLocator sourceLocator = new IliSourceLocator();
 
-  public PreparedInsertion insertConstraintBlock(
+  public PreparedInsertion insertConstraint(
       String modelText,
       IliCompilerService.CompilationResult beforeCompilation,
       String contextFqn,
-      String constraintBlock) {
-    return insertConstraintBlock(
-        modelText, beforeCompilation, contextFqn, constraintBlock, Set.of());
+      String constraintText) {
+    return insertConstraint(
+        modelText, beforeCompilation, contextFqn, constraintText, Set.of());
   }
 
-  public PreparedInsertion insertConstraintBlock(
+  public PreparedInsertion insertConstraint(
       String modelText,
       IliCompilerService.CompilationResult beforeCompilation,
       String contextFqn,
-      String constraintBlock,
+      String constraintText,
       Set<String> requiredImports) {
     if (modelText == null || modelText.isBlank()) {
       throw new IllegalArgumentException("modelText is required.");
@@ -49,8 +50,8 @@ public class ConstraintSourceEditService {
     if (contextFqn == null || contextFqn.isBlank()) {
       throw new IllegalArgumentException("contextFqn is required.");
     }
-    if (constraintBlock == null || constraintBlock.isBlank()) {
-      throw new IllegalArgumentException("constraintBlock is required.");
+    if (constraintText == null || constraintText.isBlank()) {
+      throw new IllegalArgumentException("constraintText is required.");
     }
 
     TransferDescription td = beforeCompilation.transferDescription();
@@ -80,20 +81,30 @@ public class ConstraintSourceEditService {
             IliSourceLocator.BlockKind.TOPIC,
             topic.getName());
 
-    int topicLineStart = document.lineStartOffset(topicBlock.headerSpan().startLine());
-    String topicIndent = document.text().substring(topicLineStart, topicBlock.headerSpan().startOffset());
-    String declarationIndent = topicIndent + "  ";
+    boolean inline = context instanceof View;
+    IliSourceLocator.BlockLocation insertionBlock = inline
+        ? sourceLocator.locateNamedBlock(document, IliSourceLocator.BlockKind.VIEW,
+            context.getName(), context.getSourceLine(), topicBlock)
+        : topicBlock;
+    String blockIndent = leadingIndent(document, insertionBlock.headerSpan().startLine());
     String eol = document.lineSeparator();
-    String indentedBlock = indentBlock(constraintBlock, declarationIndent, eol);
-    int insertAt = document.lineStartOffset(topicBlock.endMarkerSpan().startLine());
-    String insertion = indentedBlock + eol + eol;
+    String fragment = inline ? constraintText
+        : "CONSTRAINTS OF " + contextFqn.trim() + " =\n"
+            + indentBlock(constraintText, "  ", "\n") + "\nEND;";
+    String indentedBlock = indentBlock(fragment, blockIndent + "  ", eol);
+    int endLineStart = document.lineStartOffset(insertionBlock.endMarkerSpan().startLine());
+    int endStart = insertionBlock.endMarkerSpan().startOffset();
+    boolean endOnOwnLine = document.text().substring(endLineStart, endStart).isBlank();
+    int insertAt = endOnOwnLine ? endLineStart : endStart;
+    String insertion = (endOnOwnLine ? "" : eol) + indentedBlock + eol
+        + (inline ? "" : eol) + (endOnOwnLine ? "" : blockIndent);
 
     List<IliTextPatch> patches = new ArrayList<>();
     IliTextPatch constraintPatch = IliTextPatch.insert(
         document,
         insertAt,
         insertion,
-        "Insert constraint block for " + contextFqn.trim());
+        "Insert constraint for " + contextFqn.trim());
     patches.add(constraintPatch);
 
     LinkedHashSet<String> missingImports = missingImports(owner, requiredImports);
@@ -103,13 +114,14 @@ public class ConstraintSourceEditService {
               document, IliSourceLocator.BlockKind.MODEL, owner.getName(), owner.getSourceLine())
           : sourceLocator.locateNamedBlock(
               document, IliSourceLocator.BlockKind.MODEL, owner.getName());
-      int importAt = modelBlock.headerSpan().endLine() < document.lineCount()
+      int headerEnd = modelBlock.headerSpan().endOffset();
+      boolean headerOnOwnLine = document.text().substring(headerEnd,
+          document.lineEndOffset(modelBlock.headerSpan().endLine())).isBlank();
+      int importAt = headerOnOwnLine && modelBlock.headerSpan().endLine() < document.lineCount()
           ? document.lineStartOffset(modelBlock.headerSpan().endLine() + 1)
-          : modelBlock.bodySpan().startOffset();
-      int modelLineStart = document.lineStartOffset(modelBlock.headerSpan().startLine());
-      String modelIndent = document.text().substring(
-          modelLineStart, modelBlock.headerSpan().startOffset());
-      StringBuilder importText = new StringBuilder();
+          : headerEnd;
+      String modelIndent = leadingIndent(document, modelBlock.headerSpan().startLine());
+      StringBuilder importText = new StringBuilder(importAt == headerEnd ? eol : "");
       for (String imported : missingImports) {
         importText.append(modelIndent).append("  IMPORTS ").append(imported)
             .append(';').append(eol);
@@ -131,6 +143,13 @@ public class ConstraintSourceEditService {
         patch.replacement(),
         patch.description())).toList();
     return new PreparedInsertion(updatedModelText, sourceEdits);
+  }
+
+  private String leadingIndent(IliSourceDocument document, int line) {
+    String text = document.lineText(line);
+    int end = 0;
+    while (end < text.length() && (text.charAt(end) == ' ' || text.charAt(end) == '\t')) end++;
+    return text.substring(0, end);
   }
 
   private LinkedHashSet<String> missingImports(

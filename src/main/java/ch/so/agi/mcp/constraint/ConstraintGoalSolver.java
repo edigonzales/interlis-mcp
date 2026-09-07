@@ -66,6 +66,8 @@ public final class ConstraintGoalSolver {
     private int attempts;
     private Map<String, Object> solution;
     private String unsupportedSemanticId;
+    private String materializationBoundary;
+    private ConstraintModelSynthesizer.CountShape shape = ConstraintModelSynthesizer.CountShape.ordinary();
   }
 
   private ConstraintGoalSolver() {
@@ -74,19 +76,41 @@ public final class ConstraintGoalSolver {
   public static Solution solve(
       ConstraintExpressionEngine.TestGoal goal,
       ConstraintModelSynthesizer.ModelBinding binding) {
+    return solve(goal, binding, Map.of());
+  }
+
+  /** Existing key and reference assignments are immutable during scoped population search. */
+  public static Solution solve(ConstraintExpressionEngine.TestGoal goal,
+      ConstraintModelSynthesizer.ModelBinding binding, Map<String,Object> fixed) {
+    return solve(goal, binding, fixed, ConstraintModelSynthesizer.CountShape.ordinary());
+  }
+
+  public static Solution solve(ConstraintExpressionEngine.TestGoal goal,
+      ConstraintModelSynthesizer.ModelBinding binding, Map<String,Object> fixed,
+      ConstraintModelSynthesizer.CountShape shape) {
     Objects.requireNonNull(goal, "goal");
     Objects.requireNonNull(binding, "binding");
 
     List<SearchReference> references;
     try {
-      references = searchReferences(goal.expression(), binding);
+      references = locked(searchReferences(goal.expression(), binding), fixed);
     } catch (IllegalArgumentException ex) {
       return new Solution(goal, false, Map.of(), 0,
           "UNSUPPORTED_SOLVER_DOMAIN", ex.getMessage());
     }
 
     SearchState state = new SearchState();
+    state.shape = shape;
     search(goal, binding, references, 0, new LinkedHashMap<>(), state);
+    if (state.solution == null && state.unsupportedSemanticId == null
+        && state.attempts < MAX_ATTEMPTS) {
+      // Refinement uses the same derived values and the same shared attempt budget.
+      // In particular, late numeric boundaries must not disappear behind the fast-path cap.
+      List<SearchReference> expanded = locked(searchReferences(goal.expression(), binding, true), fixed);
+      if (!expanded.equals(references)) {
+        search(goal, binding, expanded, 0, new LinkedHashMap<>(), state);
+      }
+    }
     if (state.solution != null) {
       return new Solution(goal, true, state.solution, state.attempts, "", "");
     }
@@ -100,10 +124,18 @@ public final class ConstraintGoalSolver {
           "No executable solver semantics are available for " + state.unsupportedSemanticId + ".");
     }
     String code = state.attempts >= MAX_ATTEMPTS ? "SOLVER_SEARCH_LIMIT" : "NO_SOLUTION_FOUND";
+    if (state.materializationBoundary != null && state.attempts < MAX_ATTEMPTS)
+      return new Solution(goal,false,Map.of(),state.attempts,state.materializationBoundary,
+          "Candidate graphs exceeded the explicit fixture budget; this is a coverage gap, not an unreachability proof.");
     String reason = state.attempts >= MAX_ATTEMPTS
         ? "The finite-domain solver reached its search limit before finding a model-valid assignment."
         : "No model-valid assignment in the derived finite candidate set satisfies the semantic test goal.";
     return new Solution(goal, false, Map.of(), state.attempts, code, reason);
+  }
+
+  private static List<SearchReference> locked(List<SearchReference> references, Map<String,Object> fixed) {
+    return references.stream().map(r -> fixed.containsKey(r.name())
+        ? new SearchReference(r.name(), List.of(fixed.get(r.name()))) : r).toList();
   }
 
   public static List<Solution> solveAll(
@@ -140,13 +172,15 @@ public final class ConstraintGoalSolver {
 
     state.attempts++;
     try {
-      ConstraintModelSynthesizer.synthesize(binding, assignment, "solver_probe");
+      ConstraintModelSynthesizer.synthesize(binding, assignment, "solver_probe", state.shape);
     } catch (IllegalArgumentException ex) {
+      if(ex.getMessage()!=null && ex.getMessage().startsWith("OBJECT_PATH_") && ex.getMessage().contains("BUDGET_EXCEEDED:"))
+        state.materializationBoundary=ex.getMessage().substring(0,ex.getMessage().indexOf(':'));
       return;
     }
 
     try {
-      if (goalSatisfied(goal, assignment)) {
+      if ((binding.viewScope() == null || binding.viewScope().includes(assignment)) && goalSatisfied(goal, assignment)) {
         state.solution = new LinkedHashMap<>(assignment);
       }
     } catch (ConstraintExpressionEngine.UnsupportedFunctionSemanticsException ex) {
@@ -154,27 +188,37 @@ public final class ConstraintGoalSolver {
     }
   }
 
-  private static boolean goalSatisfied(
+  static boolean goalSatisfied(
       ConstraintExpressionEngine.TestGoal goal,
       Map<String, Object> assignment) {
-    Object value = ConstraintExpressionEngine.evaluate(
-        goal.expression(),
-        ConstraintExpressionEngine.EvaluationContext.of(assignment));
-    return switch (goal.kind()) {
-      case TRUE -> Boolean.TRUE.equals(value);
-      case FALSE -> Boolean.FALSE.equals(value);
-      case DEFINED -> value != ConstraintExpressionEngine.Undefined.INSTANCE;
-      case UNDEFINED -> value == ConstraintExpressionEngine.Undefined.INSTANCE;
-    };
+    var context = ConstraintExpressionEngine.EvaluationContext.of(assignment);
+    if (!goal.conditions().isEmpty()) {
+      return goal.conditions().stream().allMatch(condition -> ConstraintExpressionEngine.matchesState(
+          condition.state(), ConstraintExpressionEngine.evaluate(condition.expression(), context)));
+    }
+    return ConstraintExpressionEngine.matchesState(goal.kind(),
+        ConstraintExpressionEngine.evaluate(goal.expression(), context));
   }
 
   private static List<SearchReference> searchReferences(
       ConstraintExpression expression,
       ConstraintModelSynthesizer.ModelBinding binding) {
+    return searchReferences(expression, binding, false);
+  }
+
+  private static List<SearchReference> searchReferences(
+      ConstraintExpression expression,
+      ConstraintModelSynthesizer.ModelBinding binding,
+      boolean expandNumeric) {
+    if (binding.viewScope() != null) expression = binding.viewScope().footprint(expression);
     List<SearchReference> result = new ArrayList<>();
     for (Map.Entry<String, ConstraintModelSynthesizer.ReferenceBinding> entry
         : binding.references().entrySet()) {
-      List<Object> candidates = candidates(entry.getValue(), expression, binding);
+      var reference = entry.getValue();
+      List<Object> candidates = expandNumeric
+              && reference.reference().type().isScalar(ConstraintExpression.ScalarKind.NUMERIC)
+          ? scalarCandidates(reference, expression, binding, Integer.MAX_VALUE)
+          : candidates(reference, expression, binding);
       if (candidates.isEmpty()) {
         throw new IllegalArgumentException(
             "No finite solver candidates can be derived for reference " + entry.getKey() + ".");
@@ -199,6 +243,14 @@ public final class ConstraintGoalSolver {
       ConstraintModelSynthesizer.ReferenceBinding reference,
       ConstraintExpression expression,
       ConstraintModelSynthesizer.ModelBinding binding) {
+    return scalarCandidates(reference, expression, binding, MAX_CANDIDATES_PER_REFERENCE);
+  }
+
+  private static List<Object> scalarCandidates(
+      ConstraintModelSynthesizer.ReferenceBinding reference,
+      ConstraintExpression expression,
+      ConstraintModelSynthesizer.ModelBinding binding,
+      int limit) {
     CandidateSet candidates = new CandidateSet();
     ConstraintModelSynthesizer.ValueDomain domain = reference.domain();
     switch (domain.kind()) {
@@ -218,10 +270,18 @@ public final class ConstraintGoalSolver {
       default -> throw new IllegalArgumentException(
           "Finite solver does not support scalar kind " + domain.kind() + ".");
     }
-    if (!domain.mandatory() || optionalAssociation(reference)) {
+    boolean mayBeUndefined = reference.reference().kind() != ConstraintExpression.ReferenceKind.OBJECT_COUNT && (!domain.mandatory() || optionalNavigation(reference));
+    if (mayBeUndefined) {
       candidates.add(ConstraintExpressionEngine.Undefined.INSTANCE);
     }
-    return candidates.limit(MAX_CANDIDATES_PER_REFERENCE);
+    List<Object> limited = candidates.limit(limit);
+    if (mayBeUndefined && !limited.contains(ConstraintExpressionEngine.Undefined.INSTANCE)) {
+      // Optionality is a semantic state, not another numeric pivot to discard at the cap.
+      List<Object> withUndefined = new ArrayList<>(limited);
+      withUndefined.set(withUndefined.size() - 1, ConstraintExpressionEngine.Undefined.INSTANCE);
+      return List.copyOf(withUndefined);
+    }
+    return limited;
   }
 
   private static void numericCandidates(
@@ -577,8 +637,9 @@ public final class ConstraintGoalSolver {
     return numerator.divide(denominator, MathContext.DECIMAL128);
   }
 
-  private static boolean optionalAssociation(ConstraintModelSynthesizer.ReferenceBinding reference) {
-    return reference.association() != null && reference.association().minimum() == 0;
+  private static boolean optionalNavigation(ConstraintModelSynthesizer.ReferenceBinding reference) {
+    return reference.navigation().stream().anyMatch(step -> step.minimum() == 0)
+        || reference.association() != null && reference.association().minimum() == 0;
   }
 
   private static List<Object> repeated(Object value, int count) {
@@ -685,6 +746,7 @@ public final class ConstraintGoalSolver {
       }
       case Attribute ignored -> {
       }
+      case ConstraintExpression.ObjectCount ignored -> { }
       case Path ignored -> {
       }
     }

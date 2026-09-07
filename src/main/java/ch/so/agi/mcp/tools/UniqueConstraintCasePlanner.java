@@ -96,8 +96,8 @@ final class UniqueConstraintCasePlanner {
       eligible = unique.preCondition() == null
           ? keyDefined
           : and(List.of(unique.preCondition(), keyDefined));
-      binding = ConstraintModelSynthesizer.bind(
-          context.transferDescription(), unique.contextFqn(), eligible);
+      binding = ch.so.agi.mcp.constraint.ViewProofScope.bind(
+          context, unique.contextFqn(), eligible);
     } catch (IllegalArgumentException ex) {
       unsolved.add(unsolved("UNIQUE_MODEL_BINDING_UNAVAILABLE", ex.getMessage(), "bind UNIQUE key paths"));
       return new Plan(cases, summaries, unsolved);
@@ -243,8 +243,8 @@ final class UniqueConstraintCasePlanner {
     try {
       keyExpressions = unique.elements().stream().map(UniqueConstraintCasePlanner::pathExpression).toList();
       keyDefined = allDefined(keyExpressions);
-      componentBinding = ConstraintModelSynthesizer.bind(
-          context.transferDescription(), componentFqn, keyDefined);
+      componentBinding = ch.so.agi.mcp.constraint.ViewProofScope.bind(
+          context, componentFqn, keyDefined);
     } catch (IllegalArgumentException ex) {
       unsolved.add(unsolved("LOCAL_UNIQUE_KEY_BINDING_UNAVAILABLE", ex.getMessage(), "bind LOCAL unique key"));
       return new Plan(cases, summaries, unsolved);
@@ -384,8 +384,8 @@ final class UniqueConstraintCasePlanner {
 
     ConstraintModelSynthesizer.ModelBinding binding;
     try {
-      binding = ConstraintModelSynthesizer.bind(
-          context.transferDescription(), unique.contextFqn(), unique.preCondition());
+      binding = ch.so.agi.mcp.constraint.ViewProofScope.bind(
+          context, unique.contextFqn(), unique.preCondition());
     } catch (IllegalArgumentException ex) {
       unsolved.add(unsolved(
           "LOCAL_UNIQUE_WHERE_BINDING_UNAVAILABLE",

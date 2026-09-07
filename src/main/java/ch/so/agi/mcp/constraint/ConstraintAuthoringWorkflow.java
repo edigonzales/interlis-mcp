@@ -42,14 +42,14 @@ public final class ConstraintAuthoringWorkflow {
       String modelText,
       IliCompilerService.CompilationResult beforeCompilation,
       String contextFqn,
-      String constraintBlock,
+      String constraintText,
       String constraintFqn,
       String afterTempPrefix) {
     return insertAndResolve(
         modelText,
         beforeCompilation,
         contextFqn,
-        constraintBlock,
+        constraintText,
         constraintFqn,
         afterTempPrefix,
         Set.of());
@@ -59,15 +59,15 @@ public final class ConstraintAuthoringWorkflow {
       String modelText,
       IliCompilerService.CompilationResult beforeCompilation,
       String contextFqn,
-      String constraintBlock,
+      String constraintText,
       String constraintFqn,
       String afterTempPrefix,
       Set<String> requiredImports) {
-    ConstraintSourceEditService.PreparedInsertion insertion = sourceEditService.insertConstraintBlock(
+    ConstraintSourceEditService.PreparedInsertion insertion = sourceEditService.insertConstraint(
         modelText,
         beforeCompilation,
         contextFqn,
-        constraintBlock,
+        constraintText,
         requiredImports);
     ConstraintContextService.Resolution resolution = contextService.compileAndResolve(
         insertion.updatedModelText(),

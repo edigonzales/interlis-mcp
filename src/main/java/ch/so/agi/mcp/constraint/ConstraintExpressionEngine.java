@@ -39,6 +39,22 @@ public final class ConstraintExpressionEngine {
     INSTANCE
   }
 
+  /** A boolean evaluation stopped because an operand had no value; not a technical failure. */
+  public enum NotComputable { INSTANCE }
+
+  public static boolean isUndefined(Object value) {
+    return value == Undefined.INSTANCE || value == NotComputable.INSTANCE;
+  }
+
+  public static boolean matchesState(GoalKind kind, Object value) {
+    return switch (kind) {
+      case TRUE -> Boolean.TRUE.equals(value);
+      case FALSE -> Boolean.FALSE.equals(value);
+      case DEFINED -> !isUndefined(value);
+      case UNDEFINED -> isUndefined(value);
+    };
+  }
+
   /** Desired semantic state for a generated structural test goal. */
   public enum GoalKind {
     TRUE,
@@ -61,8 +77,21 @@ public final class ConstraintExpressionEngine {
     }
   }
 
-  public record TestGoal(GoalKind kind, ConstraintExpression expression, String reason) {
+  /** Meta-level assertion, deliberately distinct from an executable INTERLIS expression. */
+  public record StateCondition(GoalKind state, ConstraintExpression expression) {
+    public StateCondition {
+      Objects.requireNonNull(state, "state");
+      Objects.requireNonNull(expression, "expression");
+    }
+  }
+
+  public record TestGoal(GoalKind kind, ConstraintExpression expression, String reason,
+      List<StateCondition> conditions) {
+    public TestGoal(GoalKind kind, ConstraintExpression expression, String reason) {
+      this(kind, expression, reason, List.of());
+    }
     public TestGoal {
+      conditions = List.copyOf(conditions);
       Objects.requireNonNull(kind, "kind");
       Objects.requireNonNull(expression, "expression");
       if (reason == null || reason.isBlank()) {
@@ -91,10 +120,12 @@ public final class ConstraintExpressionEngine {
   public static boolean evaluateConstraint(
       ConstraintExpression expression,
       EvaluationContext context) {
-    return !Boolean.FALSE.equals(evaluate(expression, context));
+    return !Boolean.FALSE.equals(booleanValue(evaluate(expression, context)));
   }
 
-  /** Evaluates any IR expression and returns a scalar, collection, or {@link Undefined#INSTANCE}. */
+  /** Returns a value, missing value ({@link Undefined}), or stopped evaluation ({@link NotComputable}).
+   * Unsupported semantics and technical errors are exceptions, never successful undefined results.
+   */
   public static Object evaluate(
       ConstraintExpression expression,
       EvaluationContext context) {
@@ -106,15 +137,25 @@ public final class ConstraintExpressionEngine {
       case EnumLiteral literal -> literal.value();
       case TextLiteral literal -> literal.value();
       case Attribute attribute -> context.value(attribute.name());
+      case ConstraintExpression.ObjectCount count -> {
+        Object value = context.value(count.key());
+        if (!(value instanceof BigDecimal number) || number.signum() < 0 || number.stripTrailingZeros().scale() > 0)
+          throw new IllegalArgumentException("Object count requires a materialized non-negative integer: " + count.objects().path());
+        yield number;
+      }
       case Path path -> context.value(path.path());
       case FunctionCall call -> evaluateFunction(call, context);
-      case Defined defined -> evaluate(defined.operand(), context) != Undefined.INSTANCE;
+      case Defined defined -> {
+        Object value = evaluate(defined.operand(), context);
+        yield value == NotComputable.INSTANCE ? value : value != Undefined.INSTANCE;
+      }
       case Not not -> not(evaluate(not.operand(), context));
       case And and -> and(and.operands(), context);
       case Or or -> or(or.operands(), context);
-      case Implies implies -> orValues(
-          not(evaluate(implies.antecedent(), context)),
-          evaluate(implies.consequent(), context));
+      case Implies implies -> {
+        Object left = not(evaluate(implies.antecedent(), context));
+        yield Boolean.FALSE.equals(left) ? booleanValue(evaluate(implies.consequent(), context)) : left;
+      }
       case Comparison comparison -> compare(comparison, context);
     };
   }
@@ -183,6 +224,7 @@ public final class ConstraintExpressionEngine {
       }
       case Attribute ignored -> {
       }
+      case ConstraintExpression.ObjectCount ignored -> { }
       case Path ignored -> {
       }
     }
@@ -192,7 +234,7 @@ public final class ConstraintExpressionEngine {
     List<Object> arguments = call.arguments().stream()
         .map(argument -> evaluate(argument, context))
         .toList();
-    return switch (call.semanticId()) {
+    Object result = switch (call.semanticId()) {
       case "NUMERIC_ADD" -> numericBinary(arguments, BigDecimal::add);
       case "NUMERIC_SUB" -> numericBinary(arguments, BigDecimal::subtract);
       case "NUMERIC_MUL" -> numericBinary(arguments, BigDecimal::multiply);
@@ -252,6 +294,7 @@ public final class ConstraintExpressionEngine {
       case "TEXT_SUBSTRING", "MTEXT_SUBSTRING" -> textSubstring(arguments);
       default -> throw new UnsupportedFunctionSemanticsException(call.semanticId());
     };
+    return arguments.contains(NotComputable.INSTANCE) ? NotComputable.INSTANCE : result;
   }
 
   private enum Aggregate {
@@ -464,10 +507,9 @@ public final class ConstraintExpressionEngine {
 
   private static Object compare(Comparison comparison, EvaluationContext context) {
     Object left = evaluate(comparison.left(), context);
+    if (isUndefined(left)) return NotComputable.INSTANCE;
     Object right = evaluate(comparison.right(), context);
-    if (left == Undefined.INSTANCE || right == Undefined.INSTANCE) {
-      return Undefined.INSTANCE;
-    }
+    if (isUndefined(right)) return NotComputable.INSTANCE;
 
     if (left instanceof Number leftNumber && right instanceof Number rightNumber) {
       int cmp = compareNumbers(leftNumber, rightNumber);
@@ -499,43 +541,29 @@ public final class ConstraintExpressionEngine {
     return number(left).compareTo(number(right));
   }
 
+  private static Object booleanValue(Object value) {
+    if (isUndefined(value)) return NotComputable.INSTANCE;
+    if (value instanceof Boolean) return value;
+    throw new IllegalArgumentException("Expected a boolean evaluation result, got " + value);
+  }
+
   private static Object not(Object value) {
-    return value == Undefined.INSTANCE ? Undefined.INSTANCE : !Boolean.TRUE.equals(value);
+    Object bool = booleanValue(value);
+    return bool == NotComputable.INSTANCE ? bool : !((Boolean) bool);
   }
 
   private static Object and(List<ConstraintExpression> operands, EvaluationContext context) {
-    boolean undefined = false;
     for (ConstraintExpression operand : operands) {
-      Object value = evaluate(operand, context);
-      if (Boolean.FALSE.equals(value)) {
-        return false;
-      }
-      if (value == Undefined.INSTANCE) {
-        undefined = true;
-      } else if (!Boolean.TRUE.equals(value)) {
-        return false;
-      }
+      Object value = booleanValue(evaluate(operand, context));
+      if (!Boolean.TRUE.equals(value)) return value;
     }
-    return undefined ? Undefined.INSTANCE : true;
+    return true;
   }
 
   private static Object or(List<ConstraintExpression> operands, EvaluationContext context) {
-    Object result = false;
     for (ConstraintExpression operand : operands) {
-      result = orValues(result, evaluate(operand, context));
-      if (Boolean.TRUE.equals(result)) {
-        return true;
-      }
-    }
-    return result;
-  }
-
-  private static Object orValues(Object left, Object right) {
-    if (Boolean.TRUE.equals(left) || Boolean.TRUE.equals(right)) {
-      return true;
-    }
-    if (left == Undefined.INSTANCE || right == Undefined.INSTANCE) {
-      return Undefined.INSTANCE;
+      Object value = booleanValue(evaluate(operand, context));
+      if (!Boolean.FALSE.equals(value)) return value;
     }
     return false;
   }

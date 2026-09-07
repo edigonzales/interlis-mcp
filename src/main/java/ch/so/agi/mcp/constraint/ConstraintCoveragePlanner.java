@@ -1,6 +1,8 @@
 package ch.so.agi.mcp.constraint;
 
 import ch.so.agi.mcp.constraint.ConstraintExpression.And;
+import ch.so.agi.mcp.constraint.ConstraintExpressionEngine.StateCondition;
+import ch.so.agi.mcp.constraint.ConstraintExpressionEngine.GoalKind;
 import ch.so.agi.mcp.constraint.ConstraintExpression.Attribute;
 import ch.so.agi.mcp.constraint.ConstraintExpression.BooleanLiteral;
 import ch.so.agi.mcp.constraint.ConstraintExpression.Comparison;
@@ -21,14 +23,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Derives model-aware semantic coverage probes and solves them through {@link ConstraintGoalSolver}.
  *
  * <p>The planner is independent of IR frontends. In addition to scalar boundaries and domain
  * categories it derives direct logical branch patterns, selected standard-function edge cases and
- * aggregate presence/cardinality probes. Unreachable goals remain explicit in {@link
- * CoveragePlan#unsolved()} instead of being guessed away.</p>
+ * aggregate presence/cardinality probes. Proven unreachable structural goals are reported separately;
+ * search exhaustion and required constraint outcomes remain proof-blocking gaps.</p>
  */
 public final class ConstraintCoveragePlanner {
 
@@ -36,11 +39,13 @@ public final class ConstraintCoveragePlanner {
 
   public record CoverageCase(
       ConstraintExpressionEngine.TestGoal goal,
-      ConstraintGoalSolver.Solution solution) {
+      ConstraintGoalSolver.Solution solution,
+      List<ConstraintExpressionEngine.TestGoal> coveredGoals) {
 
     public CoverageCase {
       Objects.requireNonNull(goal, "goal");
       Objects.requireNonNull(solution, "solution");
+      coveredGoals = List.copyOf(coveredGoals);
       if (!solution.solved()) {
         throw new IllegalArgumentException("CoverageCase requires a solved goal.");
       }
@@ -49,12 +54,40 @@ public final class ConstraintCoveragePlanner {
 
   public record CoveragePlan(
       List<CoverageCase> cases,
-      List<ConstraintGoalSolver.Solution> unsolved) {
+      List<ConstraintGoalSolver.Solution> unsolved,
+      List<GoalExclusion> excluded) {
 
     public CoveragePlan {
       cases = cases == null ? List.of() : List.copyOf(cases);
       unsolved = unsolved == null ? List.of() : List.copyOf(unsolved);
+      excluded = List.copyOf(excluded);
     }
+  }
+
+  public record GoalExclusion(ConstraintExpressionEngine.TestGoal goal, String justification) {}
+
+  public static int solvedGoalCount(CoveragePlan plan) {
+    return plan.cases().stream().mapToInt(item -> item.coveredGoals().size()).sum();
+  }
+
+  public static List<Map<String, Object>> excludedGoals(CoveragePlan plan, ConstraintExpression.IliVersion version) {
+    return plan.excluded().stream().map(exclusion -> {
+      Map<String, Object> result = new LinkedHashMap<>(describeGoal(exclusion.goal(), version));
+      result.put("reasonCode", "PROVEN_UNREACHABLE");
+      result.put("justification", exclusion.justification());
+      return result;
+    }).toList();
+  }
+
+  public static Map<String, Object> describeGoal(
+      ConstraintExpressionEngine.TestGoal goal, ConstraintExpression.IliVersion version) {
+    String description = goal.expression().toInterlis(version);
+    if (!goal.conditions().isEmpty()) {
+      description = "STATE CONDITIONS: " + goal.conditions().stream()
+          .map(condition -> condition.state() + "[" + condition.expression().toInterlis(version) + "]")
+          .collect(java.util.stream.Collectors.joining("; "));
+    }
+    return Map.of("goal", goal.kind().name(), "reason", goal.reason(), "expression", description);
   }
 
   private ConstraintCoveragePlanner() {
@@ -75,18 +108,38 @@ public final class ConstraintCoveragePlanner {
 
     List<CoverageCase> cases = new ArrayList<>();
     List<ConstraintGoalSolver.Solution> unsolved = new ArrayList<>();
-    Set<String> assignments = new LinkedHashSet<>();
+    List<GoalExclusion> excluded = new ArrayList<>();
+    Map<String, List<ConstraintGoalSolver.Solution>> assignments = new LinkedHashMap<>();
     for (ConstraintExpressionEngine.TestGoal goal : goals) {
       ConstraintGoalSolver.Solution solution = ConstraintGoalSolver.solve(goal, binding);
       if (!solution.solved()) {
+        GoalExclusion exclusion = exclusionFor(solution, binding);
+        if (exclusion != null) {
+          excluded.add(exclusion);
+          continue;
+        }
         unsolved.add(solution);
         continue;
       }
-      if (assignments.add(assignmentKey(solution.assignment()))) {
-        cases.add(new CoverageCase(goal, solution));
-      }
+      assignments.computeIfAbsent(assignmentKey(solution.assignment()), ignored -> new ArrayList<>()).add(solution);
     }
-    return new CoveragePlan(cases, unsolved);
+    for (List<ConstraintGoalSolver.Solution> solutions : assignments.values()) {
+      var first = solutions.getFirst();
+      cases.add(new CoverageCase(first.goal(), first,
+          solutions.stream().map(ConstraintGoalSolver.Solution::goal).toList()));
+    }
+    return new CoveragePlan(cases, unsolved, excluded);
+  }
+
+  static @Nullable GoalExclusion exclusionFor(ConstraintGoalSolver.Solution solution,
+      ConstraintModelSynthesizer.ModelBinding binding) {
+    var goal = solution.goal();
+    boolean required = goal.reason().equals("constraint witness") || goal.reason().equals("constraint counterexample");
+    // A bounded search or unsupported/failed materialization never justifies an exclusion.
+    if (solution.solved() || required || !solution.reasonCode().equals("NO_SOLUTION_FOUND")) return null;
+    var reachability = ConstraintGoalReachability.analyze(goal, binding);
+    return reachability.status() == ConstraintGoalReachability.Status.PROVEN_UNREACHABLE
+        ? new GoalExclusion(goal, reachability.justification()) : null;
   }
 
   private static void collect(
@@ -94,6 +147,9 @@ public final class ConstraintCoveragePlanner {
       ConstraintModelSynthesizer.ModelBinding binding,
       Set<ConstraintExpressionEngine.TestGoal> goals) {
     switch (expression) {
+      case ConstraintExpression.ObjectCount count -> {
+        for (int value : List.of(0, 1, 2)) addNumericEquality(goals, count, BigDecimal.valueOf(value), "object count " + value + " for " + count.objects().path());
+      }
       case Defined defined -> {
         goals.add(new ConstraintExpressionEngine.TestGoal(
             ConstraintExpressionEngine.GoalKind.DEFINED,
@@ -119,14 +175,22 @@ public final class ConstraintCoveragePlanner {
             ConstraintExpressionEngine.GoalKind.FALSE,
             not.operand(),
             "NOT operand false"));
+        goals.add(new ConstraintExpressionEngine.TestGoal(
+            ConstraintExpressionEngine.GoalKind.UNDEFINED, not.operand(), "NOT operand undefined"));
         collect(not.operand(), binding, goals);
       }
       case And and -> {
-        addAndProbes(and, binding, goals);
+        addAndProbes(and, goals);
+        addDominatingProbes(and.operands(), false, goals);
+        goals.add(new ConstraintExpressionEngine.TestGoal(
+            ConstraintExpressionEngine.GoalKind.UNDEFINED, and, "AND result undefined"));
         and.operands().forEach(operand -> collect(operand, binding, goals));
       }
       case Or or -> {
-        addOrProbes(or, binding, goals);
+        addOrProbes(or, goals);
+        addDominatingProbes(or.operands(), true, goals);
+        goals.add(new ConstraintExpressionEngine.TestGoal(
+            ConstraintExpressionEngine.GoalKind.UNDEFINED, or, "OR result undefined"));
         or.operands().forEach(operand -> collect(operand, binding, goals));
       }
       case Implies implies -> {
@@ -145,50 +209,71 @@ public final class ConstraintCoveragePlanner {
 
   private static void addAndProbes(
       And and,
-      ConstraintModelSynthesizer.ModelBinding binding,
       Set<ConstraintExpressionEngine.TestGoal> goals) {
     List<ConstraintExpression> operands = and.operands();
-    addTruthPatternIfReachable(
-        goals, operands, all(operands.size(), true), binding, "AND all operands true");
+    addTruthPattern(
+        goals, operands, all(operands.size(), true), "AND all operands true");
     for (int index = 0; index < operands.size(); index++) {
       boolean[] truth = all(operands.size(), true);
       truth[index] = false;
-      addTruthPatternIfReachable(
+      addTruthPattern(
           goals,
           operands,
           truth,
-          binding,
           "AND operand " + (index + 1) + " independently false");
     }
   }
 
   private static void addOrProbes(
       Or or,
-      ConstraintModelSynthesizer.ModelBinding binding,
       Set<ConstraintExpressionEngine.TestGoal> goals) {
     List<ConstraintExpression> operands = or.operands();
-    addTruthPatternIfReachable(
-        goals, operands, all(operands.size(), false), binding, "OR all branches false");
+    addTruthPattern(
+        goals, operands, all(operands.size(), false), "OR all branches false");
     for (int index = 0; index < operands.size(); index++) {
       boolean[] truth = all(operands.size(), false);
       truth[index] = true;
-      addTruthPatternIfReachable(
+      addTruthPattern(
           goals,
           operands,
           truth,
-          binding,
           "OR branch " + (index + 1) + " independently true");
     }
   }
 
+  private static void addDominatingProbes(
+      List<ConstraintExpression> operands, boolean or, Set<ConstraintExpressionEngine.TestGoal> goals) {
+    for (int selected = 0; selected < operands.size(); selected++) {
+      List<StateCondition> required = new ArrayList<>();
+      for (int index = 0; index < selected; index++) {
+        required.add(new StateCondition(or ? GoalKind.FALSE : GoalKind.TRUE, operands.get(index)));
+      }
+      required.add(new StateCondition(or ? GoalKind.TRUE : GoalKind.FALSE, operands.get(selected)));
+      goals.add(new ConstraintExpressionEngine.TestGoal(GoalKind.TRUE,
+          or ? new Or(operands) : new And(operands),
+          (or ? "OR branch " : "AND operand ") + (selected + 1)
+              + (or ? " dominates true" : " dominates false"), required));
+    }
+  }
+
   private static void addImpliesProbes(
-      Implies implies,
-      Set<ConstraintExpressionEngine.TestGoal> goals) {
+      Implies implies, Set<ConstraintExpressionEngine.TestGoal> goals) {
     List<ConstraintExpression> operands = List.of(implies.antecedent(), implies.consequent());
     addTruthPattern(goals, operands, new boolean[] {false, false}, "IMPLIES false -> false");
     addTruthPattern(goals, operands, new boolean[] {false, true}, "IMPLIES false -> true");
     addTruthPattern(goals, operands, new boolean[] {true, true}, "IMPLIES true -> true");
     addTruthPattern(goals, operands, new boolean[] {true, false}, "IMPLIES true -> false violation");
+    for (var left : List.of(ConstraintExpressionEngine.GoalKind.TRUE,
+        ConstraintExpressionEngine.GoalKind.FALSE, ConstraintExpressionEngine.GoalKind.UNDEFINED)) {
+      for (var right : List.of(ConstraintExpressionEngine.GoalKind.TRUE,
+          ConstraintExpressionEngine.GoalKind.FALSE, ConstraintExpressionEngine.GoalKind.UNDEFINED)) {
+        if (left != ConstraintExpressionEngine.GoalKind.UNDEFINED && right != ConstraintExpressionEngine.GoalKind.UNDEFINED) continue;
+        goals.add(new ConstraintExpressionEngine.TestGoal(ConstraintExpressionEngine.GoalKind.TRUE,
+            implies, "IMPLIES " + left.name().toLowerCase(java.util.Locale.ROOT) + " -> "
+                + right.name().toLowerCase(java.util.Locale.ROOT),
+            List.of(new StateCondition(left, implies.antecedent()), new StateCondition(right, implies.consequent()))));
+      }
+    }
   }
 
   private static void addTruthPattern(
@@ -196,80 +281,12 @@ public final class ConstraintCoveragePlanner {
       List<ConstraintExpression> operands,
       boolean[] truth,
       String reason) {
-    List<ConstraintExpression> required = new ArrayList<>();
+    List<StateCondition> required = new ArrayList<>();
     for (int index = 0; index < operands.size(); index++) {
-      required.add(truth[index] ? operands.get(index) : new Not(operands.get(index)));
+      required.add(new StateCondition(truth[index] ? GoalKind.TRUE : GoalKind.FALSE, operands.get(index)));
     }
-    goals.add(new ConstraintExpressionEngine.TestGoal(
-        ConstraintExpressionEngine.GoalKind.TRUE,
-        required.size() == 1 ? required.getFirst() : new And(required),
-        reason));
-  }
-
-  private static void addTruthPatternIfReachable(
-      Set<ConstraintExpressionEngine.TestGoal> goals,
-      List<ConstraintExpression> operands,
-      boolean[] truth,
-      ConstraintModelSynthesizer.ModelBinding binding,
-      String reason) {
-    for (int index = 0; index < operands.size(); index++) {
-      if (!truthValuePossible(operands.get(index), truth[index], binding)) return;
-    }
-    for (int index = 0; index < operands.size(); index++) {
-      if (truth[index] || !(operands.get(index) instanceof Defined defined)) continue;
-      Set<ConstraintExpression.Reference> undefinedReferences = defined.operand().references();
-      for (int other = 0; other < operands.size(); other++) {
-        if (other == index || !truth[other]) continue;
-        if (operands.get(other) instanceof Comparison
-            && operands.get(other).references().stream().anyMatch(undefinedReferences::contains)) {
-          return;
-        }
-      }
-    }
-    addTruthPattern(goals, operands, truth, reason);
-  }
-
-  /** Rejects only branches that a direct typed domain proves unreachable. */
-  private static boolean truthValuePossible(
-      ConstraintExpression expression,
-      boolean expected,
-      ConstraintModelSynthesizer.ModelBinding binding) {
-    if (!(expression instanceof Comparison comparison)) return true;
-    ConstraintExpression operand;
-    NumericLiteral literal;
-    ComparisonOperator operator;
-    if (comparison.right() instanceof NumericLiteral right) {
-      operand = comparison.left();
-      literal = right;
-      operator = comparison.operator();
-    } else if (comparison.left() instanceof NumericLiteral left) {
-      operand = comparison.right();
-      literal = left;
-      operator = reverse(comparison.operator());
-    } else {
-      return true;
-    }
-    ConstraintModelSynthesizer.ValueDomain valueDomain = singleReferenceDomain(operand, binding);
-    if (valueDomain == null || valueDomain.numeric() == null) return true;
-    ConstraintModelSynthesizer.NumericDomain domain = valueDomain.numeric();
-    BigDecimal pivot = literal.value();
-    BigDecimal minimum = domain.minimum();
-    BigDecimal maximum = domain.maximum();
-    return switch (operator) {
-      case EQ -> expected ? domain.contains(pivot)
-          : minimum == null || maximum == null || minimum.compareTo(maximum) != 0
-              || minimum.compareTo(pivot) != 0;
-      case NE -> truthValuePossible(
-          new Comparison(ComparisonOperator.EQ, operand, literal), !expected, binding);
-      case LT -> expected ? minimum == null || minimum.compareTo(pivot) < 0
-          : maximum == null || maximum.compareTo(pivot) >= 0;
-      case LE -> expected ? minimum == null || minimum.compareTo(pivot) <= 0
-          : maximum == null || maximum.compareTo(pivot) > 0;
-      case GT -> expected ? maximum == null || maximum.compareTo(pivot) > 0
-          : minimum == null || minimum.compareTo(pivot) <= 0;
-      case GE -> expected ? maximum == null || maximum.compareTo(pivot) >= 0
-          : minimum == null || minimum.compareTo(pivot) < 0;
-    };
+    goals.add(new ConstraintExpressionEngine.TestGoal(GoalKind.TRUE,
+        operands.size() == 1 ? operands.getFirst() : new And(operands), reason, required));
   }
 
   private static boolean[] all(int size, boolean value) {

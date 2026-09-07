@@ -83,6 +83,52 @@ class IliSourceLocatorTest {
     assertThat(clazz.declarationSpan().endOffset()).isLessThan(topic.declarationSpan().endOffset());
   }
 
+  @Test
+  void locatesViewsWithSelectionsWithinTheirOwningViewTopic() {
+    IliSourceDocument document = IliSourceDocument.of("""
+        INTERLIS 2.4;
+        MODEL Demo (de) AT "https://example.org" VERSION "2026-09-07" =
+          VIEW TOPIC A =
+            VIEW Items
+              PROJECTION OF Data.Item;
+              =
+              ALL OF Item;
+            END Items;
+          END A;
+          VIEW TOPIC B =
+            /* VIEW Fake = END Fake; */
+            VIEW Items
+              PROJECTION OF I ~ Data.Item;
+              WHERE I->value == 10;
+              WHERE I->value >= 0 AND I->value <= 20;
+              WHERE I->code != "VIEW Items = END Items;";
+              =
+              ALL OF I;
+              !! END Items;
+            END Items;
+          END B;
+        END Demo.
+        """);
+    assertThat(locator.locateNamedBlocks(document, IliSourceLocator.BlockKind.VIEW, "TOPIC"))
+        .isEmpty();
+    assertThat(locator.locateNamedBlocks(document, IliSourceLocator.BlockKind.VIEW, "Items"))
+        .hasSize(2);
+    IliSourceLocator.BlockLocation topic = locator.locateNamedBlock(
+        document, IliSourceLocator.BlockKind.TOPIC, "B");
+    // Ownership wins even when the approximate source line points into another topic.
+    IliSourceLocator.BlockLocation view = locator.locateNamedBlock(
+        document, IliSourceLocator.BlockKind.VIEW, "Items", 5, topic);
+    assertThat(document.slice(view.headerSpan()))
+        .startsWith("VIEW Items")
+        .contains("WHERE I->value == 10;", "WHERE I->value >= 0 AND I->value <= 20;")
+        .endsWith("\n      =");
+    assertThat(document.slice(view.bodySpan())).startsWith("\n      ALL OF I;");
+    assertThat(document.slice(view.endMarkerSpan())).isEqualTo("END Items;");
+    assertThatThrownBy(() -> locator.locateNamedBlock(
+        document, IliSourceLocator.BlockKind.VIEW, "Missing", 1, topic))
+        .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("within B");
+  }
+
   private String modelWithRepeatedClassNames() {
     return """
         INTERLIS 2.4;

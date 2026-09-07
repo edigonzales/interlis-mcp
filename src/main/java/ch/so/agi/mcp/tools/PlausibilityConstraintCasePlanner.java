@@ -66,8 +66,8 @@ final class PlausibilityConstraintCasePlanner {
     Objects.requireNonNull(context, "context");
     Objects.requireNonNull(plausibility, "plausibility");
 
-    ConstraintModelSynthesizer.ModelBinding binding = ConstraintModelSynthesizer.bind(
-        context.transferDescription(),
+    ConstraintModelSynthesizer.ModelBinding binding = ch.so.agi.mcp.constraint.ViewProofScope.bind(
+        context,
         plausibility.contextFqn(),
         plausibility.condition());
 

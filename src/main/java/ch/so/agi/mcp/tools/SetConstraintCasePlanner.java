@@ -27,19 +27,27 @@ final class SetConstraintCasePlanner {
   record Plan(
       List<ConstraintTestTools.TestCase> cases,
       List<Map<String, Object>> summaries,
-      List<Map<String, Object>> unsolved) {
+      List<Map<String, Object>> unsolved,
+      int solvedGoalCount,
+      List<Map<String, Object>> excluded) {
+
+    Plan(List<ConstraintTestTools.TestCase> cases, List<Map<String, Object>> summaries,
+        List<Map<String, Object>> unsolved) {
+      this(cases, summaries, unsolved, cases.size(), List.of());
+    }
 
     Plan {
       cases = cases == null ? List.of() : List.copyOf(cases);
       summaries = summaries == null ? List.of() : List.copyOf(summaries);
       unsolved = unsolved == null ? List.of() : List.copyOf(unsolved);
+      excluded = List.copyOf(excluded);
       if (cases.size() != summaries.size()) {
         throw new IllegalArgumentException("SET proof cases and summaries must have equal size.");
       }
     }
 
     int goalCount() {
-      return cases.size() + unsolved.size();
+      return solvedGoalCount + unsolved.size();
     }
 
     boolean complete() {
@@ -147,7 +155,7 @@ final class SetConstraintCasePlanner {
 
     int caseIndex = 1;
     for (CountCandidate candidate : branchCandidates(objectCount)) {
-      if (candidate.count() == 0 && where == null) {
+      if (candidate.count() == 0 && where == null && !(context.constraint().getContainer() instanceof ch.interlis.ili2c.metamodel.Projection)) {
         unsolved.add(Map.of(
             "reasonCode", "SET_ZERO_COUNT_FIXTURE_UNAVAILABLE",
             "reason", "A plain-ALL zero-count SET proof has no constraint-context object, so the explicit fixture harness cannot mark the constraint as exercised.",
@@ -184,6 +192,12 @@ final class SetConstraintCasePlanner {
     }
 
     BasketScope scope = basketScope(objectCount, where != null);
+    if (scope == null && context.constraint().getContainer() instanceof ch.interlis.ili2c.metamodel.Projection) {
+      // GLOBAL is the only supported View scope. Exercise the actual combined population
+      // even when GLOBAL and BASKET are algebraically indistinguishable (e.g. count == 0).
+      boolean valid = valid(objectCount, 2);
+      scope = new BasketScope(1, 1, valid, valid);
+    }
     if (scope == null) {
       unsolved.add(Map.of(
           "reasonCode", "SET_BASKET_SCOPE_NOT_DISTINGUISHABLE_WITHIN_LIMIT",
@@ -249,9 +263,16 @@ final class SetConstraintCasePlanner {
       return new Plan(cases, summaries, unsolved);
     }
 
+    var excluded = new ArrayList<Map<String,Object>>();
     int index = 1;
     for (NavigationGraphSynthesizer.Binding binding : bindings) {
       for (CountCandidate candidate : branchCandidates(condition)) {
+        var domain = binding.modelBinding().reference(binding.countKey()).domain().numeric();
+        if (!domain.contains(BigDecimal.valueOf(candidate.count()))) {
+          excluded.add(Map.of("reasonCode","PROVEN_UNREACHABLE","reason",candidate.boundary(),
+              "justification","Compiled path cardinalities exclude count " + candidate.count(), "routeTargetFqn",binding.routeTargetFqn()));
+          continue;
+        }
         try {
           ConstraintModelSynthesizer.ObjectGraph graph = NavigationGraphSynthesizer.synthesize(
               binding, candidate.count(), "set_path_" + index);
@@ -261,6 +282,7 @@ final class SetConstraintCasePlanner {
                   + " target=" + binding.routeTargetFqn(),
               candidate.expectedValid(),
               graph);
+          testCase.plannedObjectCounts = Map.of(graph.objects().getFirst().oid(), Map.of(objects.path().path(), candidate.count()));
           cases.add(testCase);
           Map<String, Object> summary = new LinkedHashMap<>();
           summary.put("name", testCase.name);
@@ -284,12 +306,18 @@ final class SetConstraintCasePlanner {
         }
         index++;
       }
+      var expression = new ConstraintExpression.Comparison(condition.operator(),
+          new ConstraintExpression.ObjectCount(objects.path().path()),new ConstraintExpression.NumericLiteral(condition.threshold()));
+      var topology = ObjectCountTopologyPlanner.plan(context, expression, binding.modelBinding());
+      cases.addAll(topology.cases()); summaries.addAll(topology.summaries()); unsolved.addAll(topology.gaps()); excluded.addAll(topology.excluded());
     }
 
     // A navigated objectCount is evaluated for each context object. Moving independent roots
     // between baskets therefore cannot turn their per-object path counts into one global count;
     // only objectCount(ALL) has a distinct cross-basket population goal.
-    return new Plan(cases, summaries, unsolved);
+    if (cases.stream().noneMatch(c -> Boolean.TRUE.equals(c.expectedConstraintValid))
+        || cases.stream().noneMatch(c -> Boolean.FALSE.equals(c.expectedConstraintValid))) unsolved.add(Map.of("reasonCode","OBJECT_PATH_REQUIRED_OUTCOME_UNAVAILABLE","reason","Witness and counterexample remain obligatory."));
+    return new Plan(cases, summaries, unsolved, cases.size(), excluded);
   }
 
   private static Plan planBooleanExpression(
@@ -308,8 +336,8 @@ final class SetConstraintCasePlanner {
     }
     ConstraintModelSynthesizer.ModelBinding binding;
     try {
-      binding = ConstraintModelSynthesizer.bind(
-          context.transferDescription(), set.contextFqn(), expression);
+      binding = ch.so.agi.mcp.constraint.ViewProofScope.bind(
+          context, set.contextFqn(), expression);
     } catch (IllegalArgumentException ex) {
       unsolved.add(Map.of(
           "reasonCode", "SET_BOOLEAN_BINDING_UNAVAILABLE",
@@ -336,6 +364,8 @@ final class SetConstraintCasePlanner {
       summary.put("purpose", expected ? "WITNESS" : "COUNTEREXAMPLE");
       summary.put("reason", coverageCase.goal().reason());
       summary.put("source", coverageCase.goal().expression().toInterlis(set.version()));
+      summary.put("coveredGoals", coverageCase.coveredGoals().stream()
+          .map(goal -> ConstraintCoveragePlanner.describeGoal(goal, set.version())).toList());
       summary.put("expectedConstraintValid", expected);
       summary.put("values", summaryAssignment(assignment));
       summary.put("objectCount", graph.objects().size());
@@ -350,7 +380,8 @@ final class SetConstraintCasePlanner {
           "goal", solution.goal().reason(),
           "expression", solution.goal().expression().toInterlis(set.version())));
     }
-    return new Plan(cases, summaries, unsolved);
+    return new Plan(cases, summaries, unsolved, ConstraintCoveragePlanner.solvedGoalCount(coverage),
+        ConstraintCoveragePlanner.excludedGoals(coverage, set.version()));
   }
 
   private static ConstraintTestTools.TestCase toTestCase(
@@ -381,8 +412,8 @@ final class SetConstraintCasePlanner {
       CompiledConstraintContext context,
       SemanticConstraint.Set set) {
     ConstraintExpression preCondition = Objects.requireNonNull(set.preCondition());
-    ConstraintModelSynthesizer.ModelBinding binding = ConstraintModelSynthesizer.bind(
-        context.transferDescription(),
+    ConstraintModelSynthesizer.ModelBinding binding = ch.so.agi.mcp.constraint.ViewProofScope.bind(
+        context,
         set.contextFqn(),
         preCondition);
     ConstraintGoalSolver.Solution included = solve(

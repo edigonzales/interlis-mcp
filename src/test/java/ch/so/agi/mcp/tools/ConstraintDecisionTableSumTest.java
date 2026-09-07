@@ -160,7 +160,8 @@ class ConstraintDecisionTableSumTest {
       List<IliAuthoringResult.ProofCase> cases,
       String purpose) {
     return cases.stream()
-        .filter(item -> purpose.equals(item.get("purpose")))
+        .filter(item -> purpose.equals(item.get("purpose"))
+            || item.coveredGoals.stream().anyMatch(goal -> purpose.equals(goal.reason)))
         .findFirst()
         .orElseThrow(() -> new AssertionError("Missing coverage case '" + purpose + "': " + cases));
   }

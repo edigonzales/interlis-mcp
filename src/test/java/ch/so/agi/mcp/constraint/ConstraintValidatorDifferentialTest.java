@@ -236,6 +236,99 @@ class ConstraintValidatorDifferentialTest {
             assignment("nested structure present", true, present)));
   }
 
+  @Test
+  void orderedTruthTablesMatchValidatorValuesAndConstraintValidity() {
+    Object u = ConstraintExpressionEngine.Undefined.INSTANCE;
+    Object[] states = {true, false, u};
+    // Rows and columns are TRUE, FALSE, UNDEFINED. Expectations are independent of the evaluator.
+    Object[][] and = {{true, false, u}, {false, false, false}, {u, u, u}};
+    Object[][] or = {{true, true, true}, {true, false, u}, {u, u, u}};
+    Object[][] implies = {{true, false, u}, {true, true, true}, {u, u, u}};
+    Object[] not = {false, true, u};
+    Object[] defined = {true, true, false};
+    Object[][] notAnd = {{false, true, u}, {true, true, true}, {u, u, u}};
+    Object[][] notOr = {{false, false, false}, {false, true, u}, {u, u, u}};
+    String template = """
+        INTERLIS 2.4;
+        MODEL ThreeValued (en) AT "https://example.org" VERSION "2026-09-07" =
+          TOPIC Data =
+            CLASS Sample =
+              A : BOOLEAN;
+              B : BOOLEAN;
+              !!@ name = "TruthTable"
+              MANDATORY CONSTRAINT %s;
+            END Sample;
+          END Data;
+        END ThreeValued.
+        """;
+    for (String version : List.of("2.3", "2.4")) {
+      for (int operator = 0; operator < 8; operator++) {
+        String syntax = List.of("A AND B", "A OR B", "NOT(A) OR B", "NOT(A)",
+            "NOT(A AND B)", "NOT(A OR B)", "(A AND B) OR NOT(A)", "DEFINED(A)").get(operator);
+        String model = template.formatted(syntax).replace("INTERLIS 2.4", "INTERLIS " + version);
+        var compilation = compilerService.compile(model, null);
+        assertTrue(compilation.valid(), compilation.messages().toString());
+        var expression = ConstraintAstTranslator.translate(constraint(compilation.transferDescription(), "TruthTable")).expression();
+        List<DifferentialAssignment> cases = new ArrayList<>();
+        for (int a = 0; a < 3; a++) {
+          for (int b = 0; b < ((operator == 3 || operator == 7) ? 1 : 3); b++) {
+            Object expected = switch (operator) {
+              case 0 -> and[a][b];
+              case 1 -> or[a][b];
+              case 2, 6 -> implies[a][b];
+              case 4 -> notAnd[a][b];
+              case 5 -> notOr[a][b];
+              case 7 -> defined[a];
+              default -> not[a];
+            };
+            Map<String, Object> values = (operator == 3 || operator == 7) ? Map.of("A", states[a]) : Map.of("A", states[a], "B", states[b]);
+            assertEquals(expected == u ? ConstraintExpressionEngine.NotComputable.INSTANCE : expected,
+                ConstraintExpressionEngine.evaluate(expression,
+                    ConstraintExpressionEngine.EvaluationContext.of(values)), syntax + " " + values);
+            assertRawValidatorState(compilation.transferDescription(),
+                constraint(compilation.transferDescription(), "TruthTable"), values, expected);
+            cases.add(assignment("truth_" + a + "_" + b, !Boolean.FALSE.equals(expected), values));
+          }
+        }
+        var binding = ConstraintModelSynthesizer.bind(compilation.transferDescription(), "ThreeValued.Data.Sample", expression);
+        List<ConstraintTestTools.TestCase> fixtures = new ArrayList<>();
+        for (int i = 0; i < cases.size(); i++) {
+          var item = cases.get(i);
+          fixtures.add(testCase(item.name(), item.expectedConstraintValid(),
+              ConstraintModelSynthesizer.synthesize(binding, item.values(), "truth_" + i)));
+        }
+        var verification = constraintTestTools.testIliConstraint(model, "TruthTable", fixtures);
+        var failures = list(verification.get("cases")).stream()
+            .filter(item -> !Boolean.TRUE.equals(item.get("passed")))
+            .map(item -> String.valueOf(item.get("name"))).toList();
+        assertEquals(List.of(), failures, syntax);
+        assertEquals(true, verification.get("allPassed"), syntax);
+      }
+    }
+  }
+
+  private static void assertRawValidatorState(TransferDescription td, Constraint constraint,
+      Map<String, Object> values, Object expected) {
+    var logging = org.mockito.Mockito.mock(ch.interlis.iox.IoxLogging.class);
+    var validator = new ch.interlis.iox_j.validator.Validator(td,
+        new ch.interlis.iox_j.validator.ValidationConfig(), logging,
+        new ch.interlis.iox_j.logging.LogEventFactory(), new ch.interlis.iox_j.PipelinePool(),
+        new ch.ehi.basics.settings.Settings());
+    var object = new ch.interlis.iom_j.Iom_jObject("ThreeValued.Data.Sample", "sample");
+    values.forEach((name, value) -> {
+      if (value != ConstraintExpressionEngine.Undefined.INSTANCE) object.setattrvalue(name, value.toString());
+    });
+    try {
+      var actual = validator.evaluateExpression(null, "MANDATORY", "ThreeValued.Data.Sample", object,
+          constraint.getCondition(), null);
+      assertEquals(expected == ConstraintExpressionEngine.Undefined.INSTANCE,
+          actual.skipEvaluation() || actual.isUndefined(), values.toString());
+      if (expected instanceof Boolean bool) assertEquals(bool, actual.isTrue(), values.toString());
+    } finally {
+      validator.close();
+    }
+  }
+
   private void assertDifferential(
       String modelText,
       String constraintName,

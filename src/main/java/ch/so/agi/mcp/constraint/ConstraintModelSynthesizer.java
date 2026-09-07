@@ -180,7 +180,7 @@ public final class ConstraintModelSynthesizer {
     public ReferenceBinding {
       Objects.requireNonNull(reference, "reference");
       Objects.requireNonNull(domain, "domain");
-      requireName(attributeName, "attributeName");
+      if (reference.kind() != ConstraintExpression.ReferenceKind.OBJECT_COUNT) requireName(attributeName, "attributeName");
       navigation = navigation == null ? List.of() : List.copyOf(navigation);
     }
 
@@ -217,7 +217,12 @@ public final class ConstraintModelSynthesizer {
 
   public record ModelBinding(
       String contextFqn,
-      Map<String, ReferenceBinding> references) {
+      Map<String, ReferenceBinding> references,
+      @Nullable ViewProofScope viewScope) {
+
+    public ModelBinding(String contextFqn, Map<String, ReferenceBinding> references) {
+      this(contextFqn, references, null);
+    }
 
     public ModelBinding {
       requireName(contextFqn, "contextFqn");
@@ -297,7 +302,7 @@ public final class ConstraintModelSynthesizer {
 
   private static final class MutableObject implements MutableCarrier {
     private final String key;
-    private final String classFqn;
+    private String classFqn;
     private final String oid;
     private final Map<String, Object> values = new LinkedHashMap<>();
     private final Map<String, String> references = new LinkedHashMap<>();
@@ -338,6 +343,13 @@ public final class ConstraintModelSynthesizer {
     }
   }
 
+  /** A bounded topology obligation; absent indices leave the normal cardinality solver unchanged. */
+  public record CountShape(String path, int branchStep, int emptyStep, boolean sharedTargets,
+      Map<Integer,String> mixedTypes) {
+    public CountShape { mixedTypes = Map.copyOf(mixedTypes); }
+    public static CountShape ordinary() { return new CountShape("", -1, -1, false, Map.of()); }
+  }
+
   private static final class GraphBuilder {
     private final String oidPrefix;
     private final MutableObject root;
@@ -345,9 +357,13 @@ public final class ConstraintModelSynthesizer {
     private final List<GraphLink> links = new ArrayList<>();
     private final Map<String, List<MutableCarrier>> children = new LinkedHashMap<>();
     private int objectIndex;
+    private final CountShape shape;
+    private final Map<Integer,MutableObject> sharedTargets = new LinkedHashMap<>();
+    private int structureCount;
 
-    private GraphBuilder(String contextFqn, String oidPrefix) {
+    private GraphBuilder(String contextFqn, String oidPrefix, CountShape shape) {
       this.oidPrefix = oidPrefix;
+      this.shape = shape;
       root = new MutableObject("root", contextFqn, oidPrefix + "_root");
       objects.add(root);
     }
@@ -364,11 +380,16 @@ public final class ConstraintModelSynthesizer {
               "Shared path prefix '" + step.name() + "' requires incompatible target counts "
                   + existing.size() + " and " + count + ".");
         }
+        for (var child : existing) if (child instanceof MutableObject object && !object.classFqn.equals(step.targetClassFqn())
+            && !shape.mixedTypes().containsValue(object.classFqn)) {
+          throw new IllegalArgumentException("OBJECT_PATH_ROUTE_CONFLICT: shared prefix has incompatible concrete types.");
+        }
         return existing;
       }
       validateCount(step, count);
-      List<MutableCarrier> created = new ArrayList<>();
-      for (int i = 0; i < count; i++) {
+      List<MutableCarrier> created = new ArrayList<>(linkedChildren(parent, step));
+      if(created.size()>count) throw new IllegalArgumentException("OBJECT_PATH_CARDINALITY_CONFLICT: existing inverse edges exceed the assigned count.");
+      for (int i = created.size(); i < count; i++) {
         created.add(createChild(parent, step, key + "[" + i + "]"));
       }
       List<MutableCarrier> frozen = List.copyOf(created);
@@ -383,6 +404,37 @@ public final class ConstraintModelSynthesizer {
       return children.get(parent.key() + "/" + step.kind() + ":" + step.name());
     }
 
+    private List<MutableCarrier> linkedChildren(MutableCarrier parent, NavigationBinding step) {
+      if(step.kind()==NavigationKind.COMPOSITION) {
+        var nested=existingChildren(parent,step);return nested==null?List.of():nested;
+      }
+      var result=new ArrayList<MutableCarrier>();
+      if(step.kind()==NavigationKind.ASSOCIATION && parent instanceof MutableObject source) {
+        for(var link:links) if(link.associationFqn().equals(step.association().associationFqn())
+            && source.oid.equals(link.roles().get(step.association().oppositeRoleName()))) {
+          String oid=link.roles().get(step.name());
+          result.add(objects.stream().filter(o->o.oid.equals(oid)).findFirst().orElseThrow());
+        }
+      } else if(step.kind()==NavigationKind.REFERENCE) {
+        Object oid=parent instanceof MutableObject source?source.references.get(step.name()):parent.values().get(step.name());
+        if(oid!=null) result.add(objects.stream().filter(o->o.oid.equals(oid)).findFirst()
+            .orElseThrow(()->new IllegalArgumentException("OBJECT_PATH_REFERENCE_UNRESOLVED: "+oid)));
+      }
+      return result;
+    }
+
+    private int count(List<NavigationBinding> path) {
+      List<MutableCarrier> population=List.of(root);
+      for(var step:path) {
+        var next=new ArrayList<MutableCarrier>();
+        for(var parent:population) {
+          var targets=linkedChildren(parent,step); validateCount(step,targets.size()); next.addAll(targets);
+        }
+        population=next;
+      }
+      return population.size();
+    }
+
     private MutableCarrier createChild(
         MutableCarrier parent,
         NavigationBinding step,
@@ -390,7 +442,10 @@ public final class ConstraintModelSynthesizer {
       return switch (step.kind()) {
         case ASSOCIATION -> createAssociationChild(parent, step, key);
         case REFERENCE -> createReferenceChild(parent, step, key);
-        case COMPOSITION -> new MutableStructure(key);
+        case COMPOSITION -> {
+          if (++structureCount > 64) throw new IllegalArgumentException("OBJECT_PATH_STRUCTURE_BUDGET_EXCEEDED: maximum 64 structure instances.");
+          yield new MutableStructure(key);
+        }
       };
     }
 
@@ -448,6 +503,7 @@ public final class ConstraintModelSynthesizer {
     }
 
     private String nextOid() {
+      if (objects.size() + links.size() >= 64) throw new IllegalArgumentException("OBJECT_PATH_FIXTURE_BUDGET_EXCEEDED: maximum 64 objects and links.");
       objectIndex++;
       return oidPrefix + "_n" + objectIndex;
     }
@@ -499,6 +555,7 @@ public final class ConstraintModelSynthesizer {
     for (ConstraintExpression.Reference reference : expression.references()) {
       ReferenceBinding binding = switch (reference.kind()) {
         case ATTRIBUTE -> bindDirectAttribute(root, reference);
+        case OBJECT_COUNT -> bindObjectCount(td, root, reference, concreteTargetOverrides);
         case PATH -> bindPath(td, root, reference, concreteTargetOverrides);
       };
       ReferenceBinding previous = bindings.putIfAbsent(reference.name(), binding);
@@ -515,6 +572,11 @@ public final class ConstraintModelSynthesizer {
       ModelBinding binding,
       Map<String, Object> assignment,
       String oidPrefix) {
+    return synthesize(binding, assignment, oidPrefix, CountShape.ordinary());
+  }
+
+  public static ObjectGraph synthesize(ModelBinding binding, Map<String,Object> assignment,
+      String oidPrefix, CountShape shape) {
     Objects.requireNonNull(binding, "binding");
     Objects.requireNonNull(assignment, "assignment");
     requireName(oidPrefix, "oidPrefix");
@@ -530,7 +592,7 @@ public final class ConstraintModelSynthesizer {
       }
     }
 
-    GraphBuilder graph = new GraphBuilder(binding.contextFqn(), oidPrefix);
+    GraphBuilder graph = new GraphBuilder(binding.contextFqn(), oidPrefix, shape);
     List<ReferenceBinding> references = new ArrayList<>(binding.references().values());
     references.sort(Comparator
         .comparingInt((ReferenceBinding reference) -> isUndefinedAssignment(
@@ -539,13 +601,122 @@ public final class ConstraintModelSynthesizer {
 
     for (ReferenceBinding reference : references) {
       Object raw = assignment.get(reference.reference().name());
-      if (!reference.navigatedPath()) {
+      if (reference.reference().kind() == ConstraintExpression.ReferenceKind.OBJECT_COUNT) {
+        int count = new BigDecimal(raw.toString()).intValueExact();
+        materializeCount(graph, graph.root, reference.navigation(), 0, count, countedPath(reference.reference()).equals(shape.path()));
+        if (graph.objects.size() + graph.links.size() > 64) throw new IllegalArgumentException("OBJECT_PATH_FIXTURE_BUDGET_EXCEEDED: maximum 64 objects and links.");
+      } else if (!reference.navigatedPath()) {
         applyDirectAttribute(graph.root, reference, raw);
       } else {
         applyPath(graph, reference, raw);
       }
     }
+    for(var reference:references) if(reference.reference().kind()==ConstraintExpression.ReferenceKind.OBJECT_COUNT) {
+      int planned=new BigDecimal(assignment.get(reference.reference().name()).toString()).intValueExact();
+      if(graph.count(reference.navigation())!=planned) throw new IllegalArgumentException("OBJECT_PATH_COUNT_CONFLICT: overlapping or inverse paths changed an assigned count.");
+    }
     return graph.finish();
+  }
+
+  public static String countedPath(ConstraintExpression.Reference reference) {
+    return reference.name().substring("objectCount(".length(), reference.name().length() - 1);
+  }
+
+  private static ReferenceBinding bindObjectCount(TransferDescription td, Viewable<?> root,
+      ConstraintExpression.Reference reference, Map<String,String> overrides) {
+    String path = countedPath(reference);
+    try {
+      ObjectPath parsed = Ili23Parser.parseObjectOrAttributePath(td, root, path);
+      if (!matchesParsedPath(parsed, path) || parsed.isAttributePath()) throw new IllegalArgumentException("OBJECT_PATH_UNSUPPORTED: expected an object-valued path: " + path);
+      var steps = new ArrayList<NavigationBinding>();
+      int stepIndex = 0;
+      var selectedRoute = ObjectPathRoutes.resolve(td, root.getScopedName(), new ConstraintExpression.ObjectCount(path)).getFirst();
+      for (var element : parsed.getPathElements()) {
+        var local = new LinkedHashMap<>(overrides);
+        String selected = overrides.getOrDefault(path + "#" + stepIndex, selectedRoute.get(path + "#" + stepIndex));
+        if (selected != null) local.put(element.getViewable().getScopedName(), selected);
+        steps.add(navigation(td, element, path, local)); stepIndex++;
+      }
+      if (steps.isEmpty() || steps.size() > 8) throw new IllegalArgumentException("OBJECT_PATH_STEP_BUDGET_EXCEEDED: maximum eight navigation steps.");
+      var target = td.getElement(steps.getLast().targetClassFqn());
+      if (!(target instanceof Table table) || !table.isIdentifiable()) throw new IllegalArgumentException("OBJECT_PATH_TARGET_UNSUPPORTED: objectCount requires class objects.");
+      BigDecimal minimum = BigDecimal.ONE;
+      BigDecimal maximum = BigDecimal.ONE;
+      for (var step : steps) {
+        minimum = minimum.multiply(BigDecimal.valueOf(step.minimum()));
+        maximum = maximum == null || step.unbounded() ? null : maximum.multiply(BigDecimal.valueOf(step.maximum()));
+      }
+      return new ReferenceBinding(reference, new ValueDomain(ConstraintExpression.ScalarKind.NUMERIC,
+          new NumericDomain(minimum, maximum, BigDecimal.ONE), List.of(), true), "", null, steps);
+    } catch (IllegalArgumentException ex) { throw ex; }
+    catch (Exception ex) { throw new IllegalArgumentException("OBJECT_PATH_UNSUPPORTED: " + path, ex); }
+  }
+
+  private static void materializeCount(GraphBuilder graph, MutableCarrier parent,
+      List<NavigationBinding> steps, int index, int count, boolean shaped) {
+    if (count < 0 || count > 64) throw new IllegalArgumentException("OBJECT_PATH_FIXTURE_BUDGET_EXCEEDED: count outside fixture budget.");
+    var step = steps.get(index);
+    if (shaped && index == graph.shape.emptyStep()) {
+      if (count != 0) throw new IllegalArgumentException("OBJECT_PATH_TOPOLOGY_CONFLICT: empty step requires zero count.");
+      graph.children(parent, step, 0); return;
+    }
+    if (index == steps.size() - 1) {
+      if (shaped && index == graph.shape.branchStep() && count < 2) throw new IllegalArgumentException("OBJECT_PATH_TOPOLOGY_CONFLICT: branching step needs two targets.");
+      var nodes = graph.children(parent, step, count);
+      if (shaped) applyCountShape(graph, parent, step, nodes, index, true);
+      return;
+    }
+    long suffixMin = 1, suffixMax = 1;
+    for (int i = index + 1; i < steps.size(); i++) {
+      suffixMin = Math.min(65, suffixMin * Math.min(65, steps.get(i).minimum()));
+      suffixMax = Math.min(64, suffixMax * (steps.get(i).unbounded() ? 64 : Math.min(64, steps.get(i).maximum())));
+    }
+    var existing = graph.existingChildren(parent, step);
+    int children = existing != null ? existing.size() : Math.toIntExact(step.minimum());
+    if (existing == null && count > 0) children = Math.max(children, suffixMax == 0 ? 65 : (int)((count + suffixMax - 1) / suffixMax));
+    if (shaped && existing == null) {
+      if (graph.shape.emptyStep() > index) children = Math.max(1, children);
+      if (graph.shape.branchStep() == index) children = Math.max(2, children);
+    }
+    if (children > 64 || count < children * suffixMin || count > children * suffixMax) throw new IllegalArgumentException("OBJECT_PATH_CARDINALITY_UNAVAILABLE: cannot distribute object count across path.");
+    var nodes = graph.children(parent, step, children);
+    if (shaped) applyCountShape(graph, parent, step, nodes, index, false);
+    int remaining = count;
+    for (int i = 0; i < nodes.size(); i++) {
+      int assigned = (int)Math.min(suffixMax, Math.max(suffixMin, (remaining + nodes.size() - i - 1) / (nodes.size() - i)));
+      materializeCount(graph, nodes.get(i), steps, index + 1, assigned, shaped);
+      remaining -= assigned;
+    }
+  }
+
+  private static void applyCountShape(GraphBuilder graph, MutableCarrier parent, NavigationBinding step,
+      List<MutableCarrier> nodes, int index, boolean terminal) {
+    String alternative = graph.shape.mixedTypes().get(index);
+    if (alternative != null && nodes.size() >= 2 && nodes.get(1) instanceof MutableObject object) object.classFqn = alternative;
+    if (!terminal || !graph.shape.sharedTargets() || step.kind() == NavigationKind.COMPOSITION) return;
+    // Sharing applies only after the branching step, at the terminal object step.
+    if (index <= graph.shape.branchStep()) return;
+    for (int i = 0; i < nodes.size(); i++) {
+      if (!(nodes.get(i) instanceof MutableObject object)) continue;
+      MutableObject shared = graph.sharedTargets.putIfAbsent(index * 65 + i, object);
+      if (shared == null || shared == object) continue;
+      if (!object.values.equals(shared.values) || !object.references.equals(shared.references)
+          || !object.classFqn.equals(shared.classFqn)) throw new IllegalArgumentException("OBJECT_PATH_IDENTITY_CONFLICT: incompatible shared object assignments.");
+      // Rewrite only the newly created edge. Existing object identities and values are immutable.
+      for (int linkIndex=0; linkIndex<graph.links.size(); linkIndex++) {
+        var link=graph.links.get(linkIndex);
+        if (link.roles().containsValue(object.oid)) {
+          var roles=new LinkedHashMap<>(link.roles()); roles.replaceAll((role,oid)->oid.equals(object.oid)?shared.oid:oid);
+          graph.links.set(linkIndex,new GraphLink(link.associationFqn(),roles,link.lightweight()));
+        }
+      }
+      if (parent instanceof MutableObject source) source.references.replaceAll((name,oid)->oid.equals(object.oid)?shared.oid:oid);
+      else parent.values().replaceAll((name,value)->object.oid.equals(value)?shared.oid:value);
+      graph.objects.remove(object);
+      var canonical = new ArrayList<>(graph.children.get(parent.key() + "/" + step.kind() + ":" + step.name()));
+      canonical.set(i, shared);
+      graph.children.put(parent.key() + "/" + step.kind() + ":" + step.name(), List.copyOf(canonical));
+    }
   }
 
   private static void applyDirectAttribute(
@@ -569,7 +740,6 @@ public final class ConstraintModelSynthesizer {
       @Nullable Object raw) {
     List<Object> values = normalizePathAssignment(raw, reference);
     List<MutableCarrier> carriers = List.of(graph.root);
-    int multiIndex = multiValuedStepIndex(reference.navigation());
 
     if (values == null) {
       carriers = materializeUndefinedPath(graph, reference, carriers);
@@ -581,12 +751,13 @@ public final class ConstraintModelSynthesizer {
       return;
     }
 
-    for (int stepIndex = 0; stepIndex < reference.navigation().size(); stepIndex++) {
-      NavigationBinding step = reference.navigation().get(stepIndex);
-      int count = stepIndex == multiIndex ? values.size() : 1;
+    String endpointPath=reference.reference().name();
+    String objectPath=endpointPath.substring(0,endpointPath.lastIndexOf("->"));
+    materializeCount(graph,graph.root,reference.navigation(),0,values.size(),objectPath.equals(graph.shape.path()));
+    for (NavigationBinding step : reference.navigation()) {
       List<MutableCarrier> next = new ArrayList<>();
       for (MutableCarrier carrier : carriers) {
-        next.addAll(graph.children(carrier, step, count));
+        next.addAll(graph.linkedChildren(carrier, step));
       }
       carriers = List.copyOf(next);
     }
@@ -598,15 +769,21 @@ public final class ConstraintModelSynthesizer {
                 + " assigned values: " + reference.reference().name());
       }
       for (int i = 0; i < values.size(); i++) {
-        carriers.get(i).values().put(reference.attributeName(), values.get(i));
+        assignValue(carriers.get(i), reference.attributeName(), values.get(i));
       }
     } else {
       if (carriers.size() != 1 || values.size() != 1) {
         throw new IllegalArgumentException(
             "Scalar path must materialize exactly one endpoint: " + reference.reference().name());
       }
-      carriers.getFirst().values().put(reference.attributeName(), values.getFirst());
+      assignValue(carriers.getFirst(), reference.attributeName(), values.getFirst());
     }
+  }
+
+  private static void assignValue(MutableCarrier carrier, String attribute, Object value) {
+    if (carrier.values().containsKey(attribute) && !Objects.equals(carrier.values().get(attribute), value))
+      throw new IllegalArgumentException("OBJECT_PATH_VALUE_CONFLICT: shared target has incompatible scalar assignments.");
+    carrier.values().put(attribute, value);
   }
 
   private static List<MutableCarrier> materializeUndefinedPath(
@@ -668,16 +845,19 @@ public final class ConstraintModelSynthesizer {
 
       List<NavigationBinding> navigation = new ArrayList<>();
       for (int i = 0; i < elements.length - 1; i++) {
+        var localOverrides = new LinkedHashMap<>(concreteTargetOverrides);
+        String prefix = String.join("->", java.util.Arrays.copyOf(reference.name().split("->"),i+1));
+        for(var choice:concreteTargetOverrides.entrySet()) {
+          int separator=choice.getKey().lastIndexOf('#');
+          if(separator<0 || !choice.getKey().substring(separator+1).equals(Integer.toString(i))) continue;
+          String routePrefix=String.join("->",java.util.Arrays.copyOf(choice.getKey().substring(0,separator).split("->"),i+1));
+          if(prefix.equals(routePrefix)) localOverrides.put(elements[i].getViewable().getScopedName(),choice.getValue());
+        }
         navigation.add(navigation(
-            td, elements[i], reference.name(), concreteTargetOverrides));
+            td, elements[i], reference.name(), localOverrides));
       }
       long multiValuedSteps = navigation.stream().filter(NavigationBinding::multiValued).count();
-      if (multiValuedSteps > 1) {
-        throw new IllegalArgumentException(
-            "Object-graph synthesis currently supports at most one multi-valued navigation step: "
-                + reference.name());
-      }
-      boolean collection = multiValuedSteps == 1;
+      boolean collection = multiValuedSteps > 0;
       if (reference.type().collection() != collection) {
         throw new IllegalArgumentException(
             "IR collection/scalar path shape does not match model navigation cardinality: "
@@ -685,6 +865,10 @@ public final class ConstraintModelSynthesizer {
       }
 
       AttributeDef endpoint = endpointRef.getAttr();
+      if(td.getElement(navigation.getLast().targetClassFqn()) instanceof Viewable<?> actualTarget) {
+        var actualAttribute=findAttribute(actualTarget,endpoint.getName());
+        if(actualAttribute!=null)endpoint=actualAttribute;
+      }
       if (Type.findReal(endpoint.getDomainOrDerivedDomain()) instanceof CompositionType
           || Type.findReal(endpoint.getDomainOrDerivedDomain()) instanceof ReferenceType) {
         throw new IllegalArgumentException(
@@ -814,8 +998,9 @@ public final class ConstraintModelSynthesizer {
       Table declared,
       String fullPath,
       Map<String, String> concreteTargetOverrides) {
-    if (!declared.isAbstract()) return declared.getScopedName(null);
-    List<Table> concrete = concreteExtensions(declared);
+    if (!declared.isAbstract() && !concreteTargetOverrides.containsKey(declared.getScopedName())) return declared.getScopedName(null);
+    List<Table> concrete = new ArrayList<>(concreteExtensions(declared));
+    if (!declared.isAbstract()) concrete.add(declared);
     if (concrete.isEmpty()) {
       throw new IllegalArgumentException(
           "Navigation target is abstract and has no concrete subtype: " + fullPath);
@@ -893,9 +1078,13 @@ public final class ConstraintModelSynthesizer {
     if (multi == null && !optional) {
       return actual;
     }
-    long minimum = optional ? 0 : multi != null ? multi.minimum() : 1;
-    long maximum = multi != null ? multi.maximum() : 1;
-    boolean unbounded = multi != null && multi.unbounded();
+    long minimum = 1, maximum = 1;
+    boolean unbounded = false;
+    for(var step:navigation) {
+      minimum=Math.min(65,minimum*Math.min(65,step.minimum()));
+      maximum=Math.min(65,maximum*Math.min(65,step.maximum()));
+      unbounded |= step.unbounded();
+    }
     String target = navigation.isEmpty()
         ? reference.name()
         : navigation.getLast().targetClassFqn();
@@ -908,19 +1097,6 @@ public final class ConstraintModelSynthesizer {
         maximum,
         unbounded,
         actual != null && actual.lightweight());
-  }
-
-  private static int multiValuedStepIndex(List<NavigationBinding> navigation) {
-    int result = -1;
-    for (int i = 0; i < navigation.size(); i++) {
-      if (navigation.get(i).multiValued()) {
-        if (result >= 0) {
-          throw new IllegalArgumentException("More than one multi-valued path step is not supported.");
-        }
-        result = i;
-      }
-    }
-    return result;
   }
 
   private static void validateCount(NavigationBinding step, int count) {
@@ -977,6 +1153,10 @@ public final class ConstraintModelSynthesizer {
       requireKind(expectedKind, ConstraintExpression.ScalarKind.BOOLEAN);
       return new ValueDomain(
           ConstraintExpression.ScalarKind.BOOLEAN, null, List.of("false", "true"), mandatory);
+    }
+    if (real instanceof ch.interlis.ili2c.metamodel.EnumTreeValueType enumeration) {
+      requireKind(expectedKind, ConstraintExpression.ScalarKind.ENUM);
+      return new ValueDomain(ConstraintExpression.ScalarKind.ENUM, null, enumeration.getValues(), mandatory);
     }
     if (real instanceof EnumerationType enumeration) {
       requireKind(expectedKind, ConstraintExpression.ScalarKind.ENUM);

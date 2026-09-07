@@ -1,0 +1,624 @@
+{
+  "contextFqn": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft",
+  "spec": {
+    "kind": "MANDATORY",
+    "name": "Unterboden_Landwirtschaft_Koernungsklasse_Tongehalt",
+    "condition": {
+      "kind": "OR",
+      "children": [
+        {
+          "kind": "AND",
+          "children": [
+            {
+              "kind": "COMPARE",
+              "operator": "==",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Koernungsklasse"
+                },
+                {
+                  "kind": "ENUM",
+                  "value": "sand"
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": ">=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": "<=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "AND",
+          "children": [
+            {
+              "kind": "COMPARE",
+              "operator": "==",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Koernungsklasse"
+                },
+                {
+                  "kind": "ENUM",
+                  "value": "schluffiger_sand"
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": ">=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": "<=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "AND",
+          "children": [
+            {
+              "kind": "COMPARE",
+              "operator": "==",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Koernungsklasse"
+                },
+                {
+                  "kind": "ENUM",
+                  "value": "lehmiger_sand"
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": ">=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 5
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": "<=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 10
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "AND",
+          "children": [
+            {
+              "kind": "COMPARE",
+              "operator": "==",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Koernungsklasse"
+                },
+                {
+                  "kind": "ENUM",
+                  "value": "lehmreicher_sand"
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": ">=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 10
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": "<=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 15
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "AND",
+          "children": [
+            {
+              "kind": "COMPARE",
+              "operator": "==",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Koernungsklasse"
+                },
+                {
+                  "kind": "ENUM",
+                  "value": "sandiger_lehm"
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": ">=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 15
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": "<=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 20
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "AND",
+          "children": [
+            {
+              "kind": "COMPARE",
+              "operator": "==",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Koernungsklasse"
+                },
+                {
+                  "kind": "ENUM",
+                  "value": "lehm"
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": ">=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 20
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": "<=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 30
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "AND",
+          "children": [
+            {
+              "kind": "COMPARE",
+              "operator": "==",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Koernungsklasse"
+                },
+                {
+                  "kind": "ENUM",
+                  "value": "toniger_lehm"
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": ">=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 30
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": "<=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 40
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "AND",
+          "children": [
+            {
+              "kind": "COMPARE",
+              "operator": "==",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Koernungsklasse"
+                },
+                {
+                  "kind": "ENUM",
+                  "value": "lehmiger_ton"
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": ">=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 40
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": "<=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 50
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "AND",
+          "children": [
+            {
+              "kind": "COMPARE",
+              "operator": "==",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Koernungsklasse"
+                },
+                {
+                  "kind": "ENUM",
+                  "value": "ton"
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": ">=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 50
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": "<=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 100
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "AND",
+          "children": [
+            {
+              "kind": "COMPARE",
+              "operator": "==",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Koernungsklasse"
+                },
+                {
+                  "kind": "ENUM",
+                  "value": "sandiger_schluff"
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": ">=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": "<=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 10
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "AND",
+          "children": [
+            {
+              "kind": "COMPARE",
+              "operator": "==",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Koernungsklasse"
+                },
+                {
+                  "kind": "ENUM",
+                  "value": "schluff"
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": ">=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": "<=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 10
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "AND",
+          "children": [
+            {
+              "kind": "COMPARE",
+              "operator": "==",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Koernungsklasse"
+                },
+                {
+                  "kind": "ENUM",
+                  "value": "lehmiger_schluff"
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": ">=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 10
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": "<=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 30
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "AND",
+          "children": [
+            {
+              "kind": "COMPARE",
+              "operator": "==",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Koernungsklasse"
+                },
+                {
+                  "kind": "ENUM",
+                  "value": "toniger_schluff"
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": ">=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 30
+                }
+              ]
+            },
+            {
+              "kind": "COMPARE",
+              "operator": "<=",
+              "children": [
+                {
+                  "kind": "ATTRIBUTE",
+                  "name": "Tongehalt"
+                },
+                {
+                  "kind": "NUMERIC",
+                  "value": 50
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "iliDoc": "Körnungsklasse und Tongehalt des Unterbodens müssen zusammenpassen."
+  }
+}

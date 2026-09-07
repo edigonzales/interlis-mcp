@@ -50,15 +50,14 @@ public final class ConstraintAuthoringEngine {
     String constraintName;
     String version;
     Set<String> imports = new LinkedHashSet<>();
-    String block;
+    String constraintText;
     try {
       context = requireFqn(contextFqn, "contextFqn");
       if (spec == null) throw new IllegalArgumentException("spec is required.");
       constraintName = requireIdent(spec.name, "spec.name");
       version = iliVersion(modelText);
       String modelName = context.substring(0, context.indexOf('.'));
-      block = renderer.renderExternalConstraintBlock(
-          context, spec, version, modelName, imports);
+      constraintText = renderer.renderConstraint(spec, version, modelName, imports).text();
     } catch (IllegalArgumentException ex) {
       return failure("INVALID_SPEC", ex.getMessage(), null, List.of());
     }
@@ -79,7 +78,7 @@ public final class ConstraintAuthoringEngine {
           modelText,
           before,
           context,
-          block,
+          constraintText,
           context + "." + constraintName,
           "ili2c_constraint_authoring_after_",
           imports);
@@ -323,17 +322,7 @@ public final class ConstraintAuthoringEngine {
       ConstraintExpression actual,
       String iliVersion,
       String currentModel) {
-    if (requested == null || actual == null) return requested == null && actual == null;
-    String rendered = renderer.renderExpression(
-        requested, iliVersion, currentModel, new LinkedHashSet<>());
-    return expressionFingerprint(rendered).equals(expressionFingerprint(
-        actual.toInterlis("2.4".equals(iliVersion)
-            ? ConstraintExpression.IliVersion.ILI_24
-            : ConstraintExpression.IliVersion.ILI_23)));
-  }
-
-  private String expressionFingerprint(String expression) {
-    return expression.replaceAll("[\\s()]", "");
+    return ConstraintExpressionComparison.matches(requested, actual);
   }
 
   private String operator(ConstraintExpression.ComparisonOperator operator) {

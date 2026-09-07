@@ -209,8 +209,10 @@ class ConstraintSetCaseGenerationTest {
         .extracting(candidate -> candidate.get("routeTargetFqn"))
         .contains("SetPolymorphicProof.Data.TargetA", "SetPolymorphicProof.Data.TargetB");
     assertThat(generatedCases(result)).filteredOn(candidate ->
-        Boolean.TRUE.equals(candidate.get("expectedConstraintValid")))
+        Boolean.TRUE.equals(candidate.get("expectedConstraintValid")) && "WITNESS".equals(candidate.get("purpose")))
         .hasSize(2);
+    assertThat(generatedCases(result)).anySatisfy(candidate ->
+        assertThat(candidate.get("goal")).isEqualTo("MIXED_TYPES_STEP_0_SetPolymorphicProof.Data.TargetB"));
   }
 
   private ConstraintCaseGenerationTools tools(IliCompilerService compiler) {

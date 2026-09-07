@@ -165,6 +165,8 @@ public class IliAuthoringResult {
     public @Nullable String pattern;
     public @Nullable Integer coverageGoalCount;
     public @Nullable Integer coverageSolvedCount;
+    public @Nullable Integer coverageExcludedCount;
+    public List<CoverageExclusion> coverageExcludedGoals = List.of();
     public @Nullable Boolean coverageComplete;
     public List<CoverageGap> coverageGaps = List.of();
     public List<ProofCase> generatedCases = List.of();
@@ -172,6 +174,22 @@ public class IliAuthoringResult {
     public @Nullable String reasonCode;
     public @Nullable String reason;
     public List<String> limitations = List.of();
+  }
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  public static final class CoverageGoal {
+    public @Nullable String goal;
+    public @Nullable String reason;
+    public @Nullable String expression;
+  }
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  public static final class CoverageExclusion {
+    public @Nullable String goal;
+    public @Nullable String reason;
+    public @Nullable String expression;
+    public @Nullable String reasonCode;
+    public @Nullable String justification;
   }
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -185,6 +203,7 @@ public class IliAuthoringResult {
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public static final class ProofCase {
+    public List<CoverageGoal> coveredGoals = List.of();
     public @Nullable String name;
     public @Nullable String purpose;
     public @Nullable String reason;
@@ -196,6 +215,8 @@ public class IliAuthoringResult {
     public @Nullable Integer associationLinkCount;
     public @Nullable String basketId;
     public @Nullable String routeTargetFqn;
+    public @Nullable String ownerClassFqn;
+    public @Nullable String structurePath;
     public Map<String, Object> values = Map.of();
     public List<Map<String, Object>> objects = List.of();
 
@@ -212,8 +233,11 @@ public class IliAuthoringResult {
         case "associationLinkCount" -> associationLinkCount;
         case "basketId" -> basketId;
         case "routeTargetFqn" -> routeTargetFqn;
+        case "ownerClassFqn" -> ownerClassFqn;
+        case "structurePath" -> structurePath;
         case "values" -> values;
         case "objects" -> objects;
+        case "coveredGoals" -> coveredGoals;
         default -> null;
       };
     }
@@ -235,6 +259,19 @@ public class IliAuthoringResult {
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public static final class ProofCaseVerification {
+    public @Nullable String viewFqn;
+    public @Nullable String baseClassFqn;
+    public List<Map<String,Object>> objectCounts = List.of();
+    public @Nullable Integer plannedSubjectCount;
+    public @Nullable Integer baseSubjectCount;
+    public @Nullable Integer excludedSubjectCount;
+    public @Nullable Integer skippedFilterCount;
+    public @Nullable Boolean setExecuted;
+    public @Nullable Integer subjectCount;
+    public @Nullable Boolean constraintExercised;
+    public @Nullable Boolean fixtureValid;
+    public @Nullable String fixturePreparationReasonCode;
+    public List<Map<String, Object>> fixtureErrors = List.of();
     public @Nullable String name;
     public @Nullable Boolean passed;
     public @Nullable Boolean expectedValid;
@@ -344,6 +381,8 @@ public class IliAuthoringResult {
     result.pattern = nullableString(proof.get("pattern"));
     result.coverageGoalCount = nullableInteger(proof.get("coverageGoalCount"));
     result.coverageSolvedCount = nullableInteger(proof.get("coverageSolvedCount"));
+    result.coverageExcludedCount = nullableInteger(proof.get("coverageExcludedCount"));
+    result.coverageExcludedGoals = coverageExclusions(proof.get("coverageExcludedGoals"));
     result.coverageComplete = bool(proof.get("coverageComplete"));
     result.coverageGaps = coverageGaps(proof.get("coverageUnsolved"));
     result.generatedCases = proofCases(proof.get("generatedCases"));
@@ -451,6 +490,38 @@ public class IliAuthoringResult {
     return List.copyOf(result);
   }
 
+  private static List<CoverageExclusion> coverageExclusions(@Nullable Object value) {
+    if (!(value instanceof List<?> list)) return List.of();
+    List<CoverageExclusion> result = new ArrayList<>();
+    for (Object item : list) {
+      if (!(item instanceof Map<?, ?> raw)) continue;
+      Map<String, Object> map = stringMap(raw);
+      CoverageExclusion exclusion = new CoverageExclusion();
+      exclusion.goal = nullableString(map.get("goal"));
+      exclusion.reason = nullableString(map.get("reason"));
+      exclusion.expression = nullableString(map.get("expression"));
+      exclusion.reasonCode = nullableString(map.get("reasonCode"));
+      exclusion.justification = nullableString(map.get("justification"));
+      result.add(exclusion);
+    }
+    return List.copyOf(result);
+  }
+
+  private static List<CoverageGoal> coveredGoals(@Nullable Object value) {
+    if (!(value instanceof List<?> list)) return List.of();
+    List<CoverageGoal> result = new ArrayList<>();
+    for (Object item : list) {
+      if (!(item instanceof Map<?, ?> raw)) continue;
+      Map<String, Object> map = stringMap(raw);
+      CoverageGoal goal = new CoverageGoal();
+      goal.goal = nullableString(map.get("goal"));
+      goal.reason = nullableString(map.get("reason"));
+      goal.expression = nullableString(map.get("expression"));
+      result.add(goal);
+    }
+    return List.copyOf(result);
+  }
+
   private static List<CoverageGap> coverageGaps(@Nullable Object value) {
     if (!(value instanceof List<?> list)) return List.of();
     List<CoverageGap> result = new ArrayList<>();
@@ -475,6 +546,7 @@ public class IliAuthoringResult {
       if (!(item instanceof Map<?, ?> raw)) continue;
       Map<String, Object> map = stringMap(raw);
       ProofCase proofCase = new ProofCase();
+      proofCase.coveredGoals = coveredGoals(map.get("coveredGoals"));
       proofCase.name = nullableString(map.get("name"));
       proofCase.purpose = nullableString(map.get("purpose"));
       proofCase.reason = nullableString(map.get("reason"));
@@ -486,6 +558,8 @@ public class IliAuthoringResult {
       proofCase.associationLinkCount = nullableInteger(map.get("associationLinkCount"));
       proofCase.basketId = nullableString(map.get("basketId"));
       proofCase.routeTargetFqn = nullableString(map.get("routeTargetFqn"));
+      proofCase.ownerClassFqn = nullableString(map.get("ownerClassFqn"));
+      proofCase.structurePath = nullableString(map.get("structurePath"));
       Map<String, Object> values = mapValue(map.get("values"));
       proofCase.values = values == null ? Map.of() : values;
       proofCase.objects = mapList(map.get("objects"));
@@ -510,8 +584,21 @@ public class IliAuthoringResult {
         ProofCaseVerification checked = new ProofCaseVerification();
         checked.name = nullableString(entry.get("name"));
         checked.passed = bool(entry.get("passed"));
-        checked.expectedValid = bool(entry.get("expectedValid"));
-        checked.actualValid = bool(entry.get("actualValid"));
+        checked.expectedValid = bool(entry.getOrDefault("expectedValid", entry.get("expectedConstraintValid")));
+        checked.actualValid = bool(entry.getOrDefault("actualValid", entry.get("actualConstraintValid")));
+        checked.viewFqn = nullableString(entry.get("viewFqn"));
+        checked.baseClassFqn = nullableString(entry.get("baseClassFqn"));
+        checked.objectCounts = entry.get("objectCounts") instanceof List<?> counts ? counts.stream().filter(Map.class::isInstance).map(countEntry -> stringMap((Map<?, ?>) countEntry)).toList() : List.of();
+        checked.plannedSubjectCount = nullableInteger(entry.get("plannedSubjectCount"));
+        checked.baseSubjectCount = nullableInteger(entry.get("baseSubjectCount"));
+        checked.excludedSubjectCount = nullableInteger(entry.get("excludedSubjectCount"));
+        checked.skippedFilterCount = nullableInteger(entry.get("skippedFilterCount"));
+        checked.setExecuted = bool(entry.get("setExecuted"));
+        checked.subjectCount = nullableInteger(entry.get("subjectCount"));
+        checked.constraintExercised = bool(entry.get("constraintExercised"));
+        checked.fixtureValid = bool(entry.get("fixtureValid"));
+        checked.fixturePreparationReasonCode = nullableString(entry.get("fixturePreparationReasonCode"));
+        checked.fixtureErrors = mapList(entry.get("fixtureErrors"));
         checked.expectedViolationCount = nullableInteger(entry.get("expectedViolationCount"));
         checked.actualViolationCount = nullableInteger(entry.get("actualViolationCount"));
         checked.reason = nullableString(entry.get("reason"));

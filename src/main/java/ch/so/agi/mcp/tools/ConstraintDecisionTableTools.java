@@ -79,9 +79,9 @@ public class ConstraintDecisionTableTools {
   )
   public IliAuthoringResult generateIliConstraintFromDecisionTable(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext ohne den zu erzeugenden Constraint", required = true) String modelText,
-      @McpToolParam(description = "Vollqualifizierter Klassenkontext Model.Topic.Class", required = true) String context,
+      @McpToolParam(description = "Vollqualifizierter Klassen- oder Strukturkontext; Strukturen werden fuer den Proof in eine vorhandene konkrete Besitzerklasse eingebettet", required = true) String context,
       @McpToolParam(description = "Technischer Name des zu erzeugenden Constraints", required = true) String constraintName,
-      @McpToolParam(description = "Erlaubte Entscheidungszeilen. Standardbedingung: attribute, operator, value. Optional aggregate=SUM. Fuer Summenpraesenz: defined=true/false ohne operator/value. Fuer Addition: addAttribute=<direktes NUMERIC-Attribut> zusammen mit aggregate=SUM, operator == und numerischem value.", required = true) List<DecisionRow> rows) {
+      @McpToolParam(description = "Erlaubte Entscheidungszeilen. Standardbedingung: attribute, operator, value. Optional aggregate=SUM oder OBJECT_COUNT (Objektpfad, numerischer Vergleich; kein defined/addAttribute). Fuer Summenpraesenz: defined=true/false ohne operator/value. Fuer Addition: addAttribute=<direktes NUMERIC-Attribut> zusammen mit aggregate=SUM, operator == und numerischem value.", required = true) List<DecisionRow> rows) {
     String normalizedContext;
     String normalizedConstraintName;
     List<NormalizedRow> normalizedRows;
@@ -131,7 +131,7 @@ public class ConstraintDecisionTableTools {
           normalized.put(
               reference,
               summaryAssignmentValue(
-                  proofCase.values.get(reference), aggregateForAttribute(rows, reference)));
+                  proofCase.values.get(aggregateForAttribute(rows, reference) == AggregateKind.OBJECT_COUNT ? "objectCount(" + reference + ")" : reference), aggregateForAttribute(rows, reference)));
         }
         proofCase.values = Map.copyOf(normalized);
       }
@@ -168,6 +168,7 @@ public class ConstraintDecisionTableTools {
             ? null
             : requireIdentifier(condition.addAttribute, "addAttribute");
         Boolean defined = condition.defined;
+        if (aggregate == AggregateKind.OBJECT_COUNT && (defined != null || addAttribute != null)) throw new IllegalArgumentException("OBJECT_COUNT does not accept defined or addAttribute.");
         if (defined != null) {
           if (aggregate != AggregateKind.SUM || addAttribute != null) {
             throw new IllegalArgumentException("defined=true/false is supported only for aggregate=SUM without addAttribute.");
@@ -184,7 +185,7 @@ public class ConstraintDecisionTableTools {
           throw new IllegalArgumentException("Unsupported decision-table operator '" + operator + "'.");
         }
         Literal literal = literalValue(condition.value, name, conditionIndex);
-        if (aggregate == AggregateKind.SUM && literal.kind() != ValueKind.NUMERIC) {
+        if ((aggregate == AggregateKind.SUM || aggregate == AggregateKind.OBJECT_COUNT) && literal.kind() != ValueKind.NUMERIC) {
           throw new IllegalArgumentException("SUM decision conditions require a numeric comparison value.");
         }
         if (addAttribute != null
@@ -237,10 +238,11 @@ public class ConstraintDecisionTableTools {
     if (value == null || value.isBlank()) {
       return AggregateKind.NONE;
     }
+    if ("OBJECT_COUNT".equalsIgnoreCase(value.trim())) return AggregateKind.OBJECT_COUNT;
     if ("SUM".equalsIgnoreCase(value.trim())) {
       return AggregateKind.SUM;
     }
-    throw new IllegalArgumentException("Unsupported decision-table aggregate '" + value + "'. Only SUM is supported.");
+    throw new IllegalArgumentException("Unsupported decision-table aggregate '" + value + "'. SUM and OBJECT_COUNT are supported.");
   }
 
   private Literal literalValue(@Nullable Object value, String rowName, int conditionIndex) {
@@ -293,6 +295,13 @@ public class ConstraintDecisionTableTools {
 
   private IliConstraintSpec.ExpressionSpec expressionSpec(ConstraintExpression expression) {
     return switch (expression) {
+      case ConstraintExpression.ObjectCount count -> {
+        var spec = expression(IliConstraintSpec.ExpressionKind.OBJECT_COUNT, null, null, null, null);
+        var objects = new IliConstraintSpec.PathObjectsSpec();
+        objects.path = count.objects().path();
+        spec.objects = objects;
+        yield spec;
+      }
       case ConstraintExpression.Attribute attribute ->
           expression(IliConstraintSpec.ExpressionKind.ATTRIBUTE, attribute.name(), null, null, null);
       case ConstraintExpression.Path path ->
@@ -390,6 +399,7 @@ public class ConstraintDecisionTableTools {
   }
 
   private ConstraintExpression operandExpression(NormalizedCondition condition) {
+    if (condition.aggregate() == AggregateKind.OBJECT_COUNT) return new ConstraintExpression.ObjectCount(condition.attribute());
     if (condition.aggregate() == AggregateKind.SUM) {
       ConstraintExpression.Path path = new ConstraintExpression.Path(
           condition.attribute(),
@@ -503,8 +513,8 @@ public class ConstraintDecisionTableTools {
       for (NormalizedCondition condition : row.conditions()) {
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("attribute", condition.attribute());
-        if (condition.aggregate() == AggregateKind.SUM) {
-          summary.put("aggregate", "SUM");
+        if (condition.aggregate() != AggregateKind.NONE) {
+          summary.put("aggregate", condition.aggregate().name());
         }
         if (condition.addAttribute() != null) {
           summary.put("addAttribute", condition.addAttribute());
@@ -597,6 +607,7 @@ public class ConstraintDecisionTableTools {
   }
 
   private enum AggregateKind {
+    OBJECT_COUNT,
     NONE,
     SUM
   }
