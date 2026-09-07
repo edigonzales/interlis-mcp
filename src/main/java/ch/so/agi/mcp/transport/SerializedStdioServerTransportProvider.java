@@ -22,6 +22,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+import org.springframework.context.ConfigurableApplicationContext;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
@@ -34,7 +37,8 @@ import reactor.core.publisher.Sinks;
  * A dedicated FIFO queue makes the single-writer requirement explicit while
  * preserving concurrent request handling.</p>
  */
-public final class SerializedStdioServerTransportProvider implements McpServerTransportProvider {
+public final class SerializedStdioServerTransportProvider
+    implements McpServerTransportProvider, ApplicationContextAware {
 
   private static final Logger logger = LoggerFactory.getLogger(
       SerializedStdioServerTransportProvider.class);
@@ -42,6 +46,7 @@ public final class SerializedStdioServerTransportProvider implements McpServerTr
   private final McpJsonMapper jsonMapper;
   private final InputStream inputStream;
   private final OutputStream outputStream;
+  private final boolean shutdownApplicationOnEof;
   private final AtomicBoolean closing = new AtomicBoolean(false);
   private final ExecutorService inboundExecutor = Executors.newSingleThreadExecutor(
       runnable -> new Thread(runnable, "stdio-inbound"));
@@ -50,21 +55,44 @@ public final class SerializedStdioServerTransportProvider implements McpServerTr
   private final BlockingQueue<JSONRPCMessage> outboundQueue = new LinkedBlockingQueue<>();
 
   private volatile McpServerSession session;
+  private volatile ConfigurableApplicationContext applicationContext;
+
+  @Override
+  public void setApplicationContext(ApplicationContext applicationContext) {
+    if (applicationContext instanceof ConfigurableApplicationContext configurableContext) {
+      this.applicationContext = configurableContext;
+    }
+  }
 
   public SerializedStdioServerTransportProvider(McpJsonMapper jsonMapper) {
-    this(jsonMapper, System.in, System.out);
+    this(jsonMapper, System.in, System.out, false);
   }
 
   public SerializedStdioServerTransportProvider(
       McpJsonMapper jsonMapper,
       InputStream inputStream,
       OutputStream outputStream) {
+    this(jsonMapper, inputStream, outputStream, false);
+  }
+
+  public SerializedStdioServerTransportProvider(
+      McpJsonMapper jsonMapper,
+      boolean shutdownApplicationOnEof) {
+    this(jsonMapper, System.in, System.out, shutdownApplicationOnEof);
+  }
+
+  public SerializedStdioServerTransportProvider(
+      McpJsonMapper jsonMapper,
+      InputStream inputStream,
+      OutputStream outputStream,
+      boolean shutdownApplicationOnEof) {
     Assert.notNull(jsonMapper, "The JsonMapper can not be null");
     Assert.notNull(inputStream, "The InputStream can not be null");
     Assert.notNull(outputStream, "The OutputStream can not be null");
     this.jsonMapper = jsonMapper;
     this.inputStream = inputStream;
     this.outputStream = outputStream;
+    this.shutdownApplicationOnEof = shutdownApplicationOnEof;
   }
 
   @Override
@@ -130,6 +158,25 @@ public final class SerializedStdioServerTransportProvider implements McpServerTr
     outboundExecutor.shutdown();
   }
 
+  private void closeApplicationContextAsync() {
+    if (!shutdownApplicationOnEof) {
+      return;
+    }
+    ConfigurableApplicationContext currentContext = applicationContext;
+    if (currentContext == null || !currentContext.isActive()) {
+      return;
+    }
+    Thread shutdownThread = new Thread(() -> {
+      try {
+        currentContext.close();
+      } catch (Exception error) {
+        logger.warn("Error closing Spring application context after STDIO shutdown", error);
+      }
+    }, "stdio-context-shutdown");
+    shutdownThread.setDaemon(true);
+    shutdownThread.start();
+  }
+
   private void failTransport(String message, Throwable error) {
     if (closing.compareAndSet(false, true)) {
       logger.error(message, error);
@@ -138,6 +185,7 @@ public final class SerializedStdioServerTransportProvider implements McpServerTr
         currentSession.close();
       }
       closeExecutors();
+      closeApplicationContextAsync();
     }
   }
 
@@ -221,9 +269,11 @@ public final class SerializedStdioServerTransportProvider implements McpServerTr
             failTransport("Error reading from stdin", error);
           }
         } finally {
-          closing.set(true);
-          inboundSink.tryEmitComplete();
-          outboundExecutor.shutdown();
+          if (closing.compareAndSet(false, true)) {
+            inboundSink.tryEmitComplete();
+            closeExecutors();
+            closeApplicationContextAsync();
+          }
         }
       });
     }

@@ -64,6 +64,11 @@ docker run --rm -i sogis/interlis-mcp:latest
 
 STDIN muss offen bleiben, weil darüber die MCP-Kommunikation läuft.
 
+Wenn der Client beendet wird, schliesst er zuerst seine STDIN-Verbindung. Der
+Standalone-Server erkennt EOF und beendet seinen Spring-Kontext kontrolliert.
+Falls ein Client nach einem Timeout noch läuft, soll er den gestarteten
+Prozessbaum explizit terminieren.
+
 ## MCP-Client konfigurieren
 
 ### Claude Desktop

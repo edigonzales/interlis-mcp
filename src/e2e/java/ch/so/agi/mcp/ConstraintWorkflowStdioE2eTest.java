@@ -65,6 +65,10 @@ class ConstraintWorkflowStdioE2eTest {
       process.waitFor(1, TimeUnit.SECONDS);
       if (process.isAlive()) {
         process.destroy();
+        if (!process.waitFor(2, TimeUnit.SECONDS)) {
+          process.destroyForcibly();
+          process.waitFor(2, TimeUnit.SECONDS);
+        }
       }
     }
   }

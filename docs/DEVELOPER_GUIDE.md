@@ -63,6 +63,12 @@ Für lokale Entwicklung:
 
 Die Anwendung ist kein Webserver. `spring.main.web-application-type=none` deaktiviert den Web-Stack.
 
+Der Standalone-Start beendet den Spring-Kontext, sobald der MCP-Client STDIN
+schliesst oder EOF liefert. Ein Client soll deshalb zuerst seine letzte
+Nachricht vollständig lesen, danach STDIN schliessen und nur bei einem
+Timeout den Prozessbaum explizit terminieren. Ein `java -jar`-Prozess darf
+nicht in einer Pipeline auf implizites Prozessende warten.
+
 ## MCP-Registrierung
 
 Tools, Resources und Prompts werden über Spring-AI-Annotationen registriert.
@@ -101,6 +107,11 @@ interlis.knowledge.max-model-bytes=1048576
 interlis.knowledge.max-search-results=10
 interlis.mcp.model-repositories=
 ```
+
+`interlis.mcp.stdio.shutdown-on-eof` wird beim Standalone-JAR-Start intern auf
+`true` gesetzt. In eingebetteten Spring-Test- oder Anwendungskontexten bleibt
+der Wert standardmässig `false`, damit ein EOF des Test-Streams nicht den
+gesamten Kontext beendet.
 
 `interlis.mcp.model-repositories` konfiguriert die ili2c-/ilivalidator-Repositories einmal pro Server. Öffentliche Tools nehmen keinen Repository-Override pro Aufruf entgegen. Per Environment kann die Property als `INTERLIS_MCP_MODEL_REPOSITORIES` gesetzt werden.
 

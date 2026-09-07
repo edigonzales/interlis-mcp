@@ -8,6 +8,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import tools.jackson.databind.json.JsonMapper;
 
 @Configuration(proxyBeanMethods = false)
@@ -20,7 +21,11 @@ public class StdioTransportConfig {
   @Bean
   @ConditionalOnMissingBean(McpServerTransportProviderBase.class)
   public McpServerTransportProviderBase serializedStdioServerTransport(
-      @Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper) {
-    return new SerializedStdioServerTransportProvider(new JacksonMcpJsonMapper(jsonMapper));
+      @Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper,
+      Environment environment) {
+    boolean shutdownOnEof = environment.getProperty(
+        "interlis.mcp.stdio.shutdown-on-eof", Boolean.class, false);
+    return new SerializedStdioServerTransportProvider(
+        new JacksonMcpJsonMapper(jsonMapper), shutdownOnEof);
   }
 }

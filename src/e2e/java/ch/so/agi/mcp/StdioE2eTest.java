@@ -67,8 +67,22 @@ public class StdioE2eTest {
         }
         if (proc != null) {
             proc.waitFor(1, TimeUnit.SECONDS);
-            if (proc.isAlive()) proc.destroy();
+            if (proc.isAlive()) {
+                proc.destroy();
+                if (!proc.waitFor(2, TimeUnit.SECONDS)) {
+                    proc.destroyForcibly();
+                    proc.waitFor(2, TimeUnit.SECONDS);
+                }
+            }
         }
+    }
+
+    @Test
+    void stdinEofShutsDownServerProcess() throws Exception {
+        toServer.close();
+
+        assertTrue(proc.waitFor(10, TimeUnit.SECONDS),
+                "MCP server should terminate after the STDIO input reaches EOF");
     }
 
     @Test
