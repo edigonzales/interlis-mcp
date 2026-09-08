@@ -4,7 +4,9 @@ Stand 2026-09-08: Die fachlich freigegebene v2 (Revision 2.0.3, Bewertungsrevisi
 
 ## Aktivierung
 
-`suite.json` zeigt auf die unveränderte freigegebene v2. Der bestehende Scheduled Task `interlis-mcp-constraint-benchmark` wird über `automation_update` mit dem bytegleichen Prompt aus `v2/automation-prompt.md` aktualisiert. Modell gpt-5.6-luna, Reasoning xhigh, Zeitplan, Projekt, Status und Benachrichtigungseinstellung bleiben erhalten. Die nachfolgende Kontrolle der gespeicherten Einstellungen und des Prompt-Hashes wird außerhalb der abgeschlossenen Läufe in `activation-v2-20260908.json` beim Scheduled Task archiviert.
+`suite.json` zeigt auf die unveränderte freigegebene v2. Der bestehende Scheduled Task `interlis-mcp-constraint-benchmark` wurde über `automation_update` aktualisiert. Als Toolargument wurde der bytegleiche Prompt aus `v2/automation-prompt.md` übergeben. Die App entfernt beim Speichern genau den abschließenden Zeilenumbruch; der gesamte übrige Text ist identisch. Bytegleichheit der gespeicherten Datei wird deshalb ausdrücklich nicht behauptet. Die eingefrorene Suite und ihre Hashes bleiben unverändert.
+
+Modell gpt-5.6-luna, Reasoning xhigh, Zeitplan, Projekt, Status und Benachrichtigungseinstellung wurden unverändert zurückgelesen. Beide Prompt-Hashes, die genaue Normalisierung und die Einstellungskontrolle sind außerhalb der abgeschlossenen Läufe im [Aktivierungsbeleg](/Users/stefan/.codex/automations/interlis-mcp-constraint-benchmark/activation-v2-20260908.json) archiviert. Diese Speicherung betrifft ausschließlich das Task-Prompt; für eingereichte Modelltexte gilt weiterhin die unveränderte strikte Inhaltsprüfung.
 
 Reguläre Läufe führen jeweils eine Runde beider Messungen aus. Historische v1-Berichte bleiben unverändert; v2 ist eine neue Vergleichsbasis für diese zwölf bekannten Regressionfälle. Technische Handler-Tests sind keine nativen MCP-Scores.
 
