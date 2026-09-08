@@ -489,7 +489,9 @@ def prepare_case(suite,run,cid,lane):
         request=read(suite/'reference'/cid/'request-template.json');request['payload']['modelText']=(suite/'public'/cid/'model.ili').read_text()
         write(d/'request.json',request)
         return {'output':str(d),'request':str(d/'request.json')}
-    temp=run/'isolated-inputs'/uuid.uuid4().hex;temp.mkdir(parents=True)
+    # Each fresh role already has its own output directory. A stable child name
+    # avoids transcribing a second long random token without exposing other cases.
+    temp=d/'input';temp.mkdir()
     for name in ['model.ili','requirement.de.md']:shutil.copyfile(suite/'public'/cid/name,temp/name)
     write(temp/'hashes.json',{p.name:sha(p) for p in temp.iterdir() if p.is_file()})
     recorder=(suite/'native-recorder.js').read_text().replace('{{INPUT}}',str(temp)).replace('{{OUTPUT}}',str(d))

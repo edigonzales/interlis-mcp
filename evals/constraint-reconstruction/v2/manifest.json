@@ -115,7 +115,7 @@
     },
     {
       "path": "evals/constraint-reconstruction/tools/benchmark.py",
-      "sha256": "06eddf893a5acc477fec7c630c547e29bf65ee0062e03fad736a2030227fa373"
+      "sha256": "62a44db14e2ef26cdb4fdf9a94b51a4dbbb26a3c84ceb59fd5a188029d1881bd"
     },
     {
       "path": "evals/constraint-reconstruction/tools/freeze_manifest.py",
@@ -131,7 +131,7 @@
     },
     {
       "path": "evals/constraint-reconstruction/tools/test_benchmark.py",
-      "sha256": "87cdd1b27376c6f8393323a3e0aeb9988e85fc89ad31ea178bd00bd6ad9ae80f"
+      "sha256": "2c9603282bf35d22c179f2aad5d72f35881e80f54741cba672d429696ed07c18"
     },
     {
       "path": "evals/constraint-reconstruction/tools/test_native_recorder.cjs",
@@ -157,7 +157,7 @@
     },
     {
       "path": "automation-prompt.md",
-      "sha256": "0682f71d4d1dcd2845efb8b1fc7604a7d59f8bab64cf5acda23a2b726907cd3c"
+      "sha256": "62b718bad4e02f9bce1dc940ed4b9b02e433581ed9839ca42ec2a47409bf6b81"
     },
     {
       "path": "connector-config.toml",
@@ -592,6 +592,6 @@
       "sha256": "088cf21ee8d7306410a0f1c89f83e88a1333bc73b1a96790824f449df28f5388"
     }
   ],
-  "revision": "2.0.2",
-  "supersedesManifestSha256": "00ead0136717a7256818a2c864767d1d7544ca9d3302a50636a535f9994bee2f"
+  "revision": "2.0.3",
+  "supersedesManifestSha256": "72dcef4df0ca32f70fd0c6867d3c7f762af25d862b37eb1ce9c4d9928e84086b"
 }

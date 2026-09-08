@@ -155,6 +155,25 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(totals['boundary'],{'earned':2,'total':2})
 
 class CallAuditTests(unittest.TestCase):
+    def test_prepared_roles_have_separate_simple_inputs_and_no_oracle(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run=pathlib.Path(temp)
+            b.write(run/'run.json',{'status':'IN_PROGRESS','phase':'READY'})
+            b.write(run/'preflight/smoke.json',{'status':'PASS'})
+            b.write(run/'score/input-qa.json',{'status':'INPUT_VALID'})
+            assignments=[]
+            for cid in ['P01','P02']:
+                result=b.prepare_case(b.BASE/'v2',run,cid,'end-to-end')
+                inputs=pathlib.Path(result['input']);output=pathlib.Path(result['output'])
+                self.assertEqual(inputs,output/'input')
+                self.assertEqual({p.name for p in inputs.iterdir()},{'model.ili','requirement.de.md','hashes.json'})
+                for name,h in b.read(inputs/'hashes.json').items():self.assertEqual(b.sha(inputs/name),h)
+                self.assertEqual((inputs/'model.ili').read_bytes(),(b.BASE/'v2/public'/cid/'model.ili').read_bytes())
+                assignments.append(b.read(output/'assignment.json'))
+            self.assertNotEqual(assignments[0]['inputDirectory'],assignments[1]['inputDirectory'])
+            for own,other in [assignments,assignments[::-1]]:
+                self.assertIn(own['inputDirectory'],own['prompt']);self.assertNotIn(other['inputDirectory'],own['prompt'])
+            with self.assertRaises(b.InvalidEvidence):b.prepare_case(b.BASE/'v2',run,'P01','end-to-end')
     def test_native_recorder_persists_before_call_retries_identically_and_preserves_large_results(self):
         with tempfile.TemporaryDirectory() as temp:
             result=subprocess.run(['node',str(b.BASE/'tools/test_native_recorder.cjs'),temp,str(b.BASE/'v2/native-recorder.js')],capture_output=True,text=True)
