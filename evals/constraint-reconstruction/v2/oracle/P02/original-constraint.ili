@@ -1,0 +1,13 @@
+      !!@ name = "UntertypENachPH_Unterboden_Wald_Neben"
+      !!@ ilivalid.msg = "Unterboden pH: Untertyp_E passt nicht (ist {Untertyp_E})."
+      MANDATORY CONSTRAINT (
+        NOT (DEFINED(Unterboden->Ph))
+        OR (
+             (Unterboden->Ph > 6.7  AND Untertyp_E == #E0)
+          OR (Unterboden->Ph >= 6.2 AND Unterboden->Ph <= 6.7  AND Untertyp_E == #E1)
+          OR (Unterboden->Ph >= 5.1 AND Unterboden->Ph <= 6.1  AND Untertyp_E == #E2)
+          OR (Unterboden->Ph >= 4.3 AND Unterboden->Ph <= 5.0  AND Untertyp_E == #E3)
+          OR (Unterboden->Ph >= 3.3 AND Unterboden->Ph <= 4.2  AND Untertyp_E == #E4)
+          OR (Unterboden->Ph < 3.3  AND Untertyp_E == #E5)
+        )
+      );

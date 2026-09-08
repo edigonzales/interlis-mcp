@@ -1,0 +1,811 @@
+{
+  "valid": true,
+  "ast": {
+    "kind": "MandatoryConstraint",
+    "contextFqn": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft",
+    "condition": {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Koernungsklasse"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "Equality",
+                  "right": {
+                    "kind": "ENUM",
+                    "value": [
+                      "sand"
+                    ]
+                  }
+                },
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Koernungsklasse"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "Equality",
+                  "right": {
+                    "kind": "ENUM",
+                    "value": [
+                      "schluffiger_sand"
+                    ]
+                  }
+                }
+              ],
+              "kind": "OR"
+            },
+            {
+              "children": [
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "GreaterThanOrEqual",
+                  "right": {
+                    "value": "0",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                },
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "LessThanOrEqual",
+                  "right": {
+                    "value": "5",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                }
+              ],
+              "kind": "AND"
+            }
+          ],
+          "kind": "AND"
+        },
+        {
+          "children": [
+            {
+              "left": {
+                "steps": [
+                  {
+                    "target": "",
+                    "kind": "AttributeRef",
+                    "name": "Koernungsklasse"
+                  }
+                ],
+                "kind": "PATH",
+                "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+              },
+              "kind": "Equality",
+              "right": {
+                "kind": "ENUM",
+                "value": [
+                  "lehmiger_sand"
+                ]
+              }
+            },
+            {
+              "children": [
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "GreaterThanOrEqual",
+                  "right": {
+                    "value": "5",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                },
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "LessThanOrEqual",
+                  "right": {
+                    "value": "10",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                }
+              ],
+              "kind": "AND"
+            }
+          ],
+          "kind": "AND"
+        },
+        {
+          "children": [
+            {
+              "left": {
+                "steps": [
+                  {
+                    "target": "",
+                    "kind": "AttributeRef",
+                    "name": "Koernungsklasse"
+                  }
+                ],
+                "kind": "PATH",
+                "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+              },
+              "kind": "Equality",
+              "right": {
+                "kind": "ENUM",
+                "value": [
+                  "lehmreicher_sand"
+                ]
+              }
+            },
+            {
+              "children": [
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "GreaterThanOrEqual",
+                  "right": {
+                    "value": "10",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                },
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "LessThanOrEqual",
+                  "right": {
+                    "value": "15",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                }
+              ],
+              "kind": "AND"
+            }
+          ],
+          "kind": "AND"
+        },
+        {
+          "children": [
+            {
+              "left": {
+                "steps": [
+                  {
+                    "target": "",
+                    "kind": "AttributeRef",
+                    "name": "Koernungsklasse"
+                  }
+                ],
+                "kind": "PATH",
+                "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+              },
+              "kind": "Equality",
+              "right": {
+                "kind": "ENUM",
+                "value": [
+                  "sandiger_lehm"
+                ]
+              }
+            },
+            {
+              "children": [
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "GreaterThanOrEqual",
+                  "right": {
+                    "value": "15",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                },
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "LessThanOrEqual",
+                  "right": {
+                    "value": "20",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                }
+              ],
+              "kind": "AND"
+            }
+          ],
+          "kind": "AND"
+        },
+        {
+          "children": [
+            {
+              "left": {
+                "steps": [
+                  {
+                    "target": "",
+                    "kind": "AttributeRef",
+                    "name": "Koernungsklasse"
+                  }
+                ],
+                "kind": "PATH",
+                "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+              },
+              "kind": "Equality",
+              "right": {
+                "kind": "ENUM",
+                "value": [
+                  "lehm"
+                ]
+              }
+            },
+            {
+              "children": [
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "GreaterThanOrEqual",
+                  "right": {
+                    "value": "20",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                },
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "LessThanOrEqual",
+                  "right": {
+                    "value": "30",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                }
+              ],
+              "kind": "AND"
+            }
+          ],
+          "kind": "AND"
+        },
+        {
+          "children": [
+            {
+              "left": {
+                "steps": [
+                  {
+                    "target": "",
+                    "kind": "AttributeRef",
+                    "name": "Koernungsklasse"
+                  }
+                ],
+                "kind": "PATH",
+                "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+              },
+              "kind": "Equality",
+              "right": {
+                "kind": "ENUM",
+                "value": [
+                  "toniger_lehm"
+                ]
+              }
+            },
+            {
+              "children": [
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "GreaterThanOrEqual",
+                  "right": {
+                    "value": "30",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                },
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "LessThanOrEqual",
+                  "right": {
+                    "value": "40",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                }
+              ],
+              "kind": "AND"
+            }
+          ],
+          "kind": "AND"
+        },
+        {
+          "children": [
+            {
+              "left": {
+                "steps": [
+                  {
+                    "target": "",
+                    "kind": "AttributeRef",
+                    "name": "Koernungsklasse"
+                  }
+                ],
+                "kind": "PATH",
+                "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+              },
+              "kind": "Equality",
+              "right": {
+                "kind": "ENUM",
+                "value": [
+                  "lehmiger_ton"
+                ]
+              }
+            },
+            {
+              "children": [
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "GreaterThanOrEqual",
+                  "right": {
+                    "value": "40",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                },
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "LessThanOrEqual",
+                  "right": {
+                    "value": "50",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                }
+              ],
+              "kind": "AND"
+            }
+          ],
+          "kind": "AND"
+        },
+        {
+          "children": [
+            {
+              "left": {
+                "steps": [
+                  {
+                    "target": "",
+                    "kind": "AttributeRef",
+                    "name": "Koernungsklasse"
+                  }
+                ],
+                "kind": "PATH",
+                "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+              },
+              "kind": "Equality",
+              "right": {
+                "kind": "ENUM",
+                "value": [
+                  "ton"
+                ]
+              }
+            },
+            {
+              "children": [
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "GreaterThanOrEqual",
+                  "right": {
+                    "value": "50",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                },
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "LessThanOrEqual",
+                  "right": {
+                    "value": "100",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                }
+              ],
+              "kind": "AND"
+            }
+          ],
+          "kind": "AND"
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Koernungsklasse"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "Equality",
+                  "right": {
+                    "kind": "ENUM",
+                    "value": [
+                      "sandiger_schluff"
+                    ]
+                  }
+                },
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Koernungsklasse"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "Equality",
+                  "right": {
+                    "kind": "ENUM",
+                    "value": [
+                      "schluff"
+                    ]
+                  }
+                }
+              ],
+              "kind": "OR"
+            },
+            {
+              "children": [
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "GreaterThanOrEqual",
+                  "right": {
+                    "value": "0",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                },
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "LessThanOrEqual",
+                  "right": {
+                    "value": "10",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                }
+              ],
+              "kind": "AND"
+            }
+          ],
+          "kind": "AND"
+        },
+        {
+          "children": [
+            {
+              "left": {
+                "steps": [
+                  {
+                    "target": "",
+                    "kind": "AttributeRef",
+                    "name": "Koernungsklasse"
+                  }
+                ],
+                "kind": "PATH",
+                "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+              },
+              "kind": "Equality",
+              "right": {
+                "kind": "ENUM",
+                "value": [
+                  "lehmiger_schluff"
+                ]
+              }
+            },
+            {
+              "children": [
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "GreaterThanOrEqual",
+                  "right": {
+                    "value": "10",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                },
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "LessThanOrEqual",
+                  "right": {
+                    "value": "30",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                }
+              ],
+              "kind": "AND"
+            }
+          ],
+          "kind": "AND"
+        },
+        {
+          "children": [
+            {
+              "left": {
+                "steps": [
+                  {
+                    "target": "",
+                    "kind": "AttributeRef",
+                    "name": "Koernungsklasse"
+                  }
+                ],
+                "kind": "PATH",
+                "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+              },
+              "kind": "Equality",
+              "right": {
+                "kind": "ENUM",
+                "value": [
+                  "toniger_schluff"
+                ]
+              }
+            },
+            {
+              "children": [
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "GreaterThanOrEqual",
+                  "right": {
+                    "value": "30",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                },
+                {
+                  "left": {
+                    "steps": [
+                      {
+                        "target": "",
+                        "kind": "AttributeRef",
+                        "name": "Tongehalt"
+                      }
+                    ],
+                    "kind": "PATH",
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft"
+                  },
+                  "kind": "LessThanOrEqual",
+                  "right": {
+                    "value": "50",
+                    "kind": "NUMERIC",
+                    "unit": ""
+                  }
+                }
+              ],
+              "kind": "AND"
+            }
+          ],
+          "kind": "AND"
+        }
+      ],
+      "kind": "OR"
+    }
+  },
+  "astComplete": true
+}

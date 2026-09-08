@@ -1,0 +1,125 @@
+{
+  "valid": true,
+  "ast": {
+    "kind": "MandatoryConstraint",
+    "contextFqn": "VSADSSMINI_2020_LV95_Validierung_Drainage_20250311.VSADSSMini_Validierung.v_Leitung",
+    "condition": {
+      "children": [
+        {
+          "operand": {
+            "kind": "Equality",
+            "right": {
+              "value": "Kiesschlitzdrainage",
+              "kind": "TEXT"
+            },
+            "left": {
+              "kind": "PATH",
+              "root": "VSADSSMINI_2020_LV95_Validierung_Drainage_20250311.VSADSSMini_Validierung.v_Leitung",
+              "steps": [
+                {
+                  "kind": "PathElAbstractClassRole",
+                  "name": "RohrprofilRef",
+                  "target": "VSADSSMINI_2020_LV95.VSADSSMini.Rohrprofil"
+                },
+                {
+                  "kind": "AttributeRef",
+                  "name": "Bezeichnung",
+                  "target": ""
+                }
+              ]
+            }
+          },
+          "kind": "NOT"
+        },
+        {
+          "children": [
+            {
+              "kind": "Equality",
+              "right": {
+                "value": [
+                  "SAA",
+                  "andere"
+                ],
+                "kind": "ENUM"
+              },
+              "left": {
+                "kind": "PATH",
+                "root": "VSADSSMINI_2020_LV95_Validierung_Drainage_20250311.VSADSSMini_Validierung.v_Leitung",
+                "steps": [
+                  {
+                    "kind": "AttributeRef",
+                    "name": "FunktionHierarchisch",
+                    "target": ""
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "Equality",
+              "right": {
+                "value": [
+                  "Sickerleitung"
+                ],
+                "kind": "ENUM"
+              },
+              "left": {
+                "kind": "PATH",
+                "root": "VSADSSMINI_2020_LV95_Validierung_Drainage_20250311.VSADSSMini_Validierung.v_Leitung",
+                "steps": [
+                  {
+                    "kind": "AttributeRef",
+                    "name": "FunktionHydraulisch",
+                    "target": ""
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "Equality",
+              "right": {
+                "value": [
+                  "Reinabwasser"
+                ],
+                "kind": "ENUM"
+              },
+              "left": {
+                "kind": "PATH",
+                "root": "VSADSSMINI_2020_LV95_Validierung_Drainage_20250311.VSADSSMini_Validierung.v_Leitung",
+                "steps": [
+                  {
+                    "kind": "AttributeRef",
+                    "name": "Nutzungsart_Ist",
+                    "target": ""
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "Equality",
+              "right": {
+                "value": [
+                  "Spezialprofil"
+                ],
+                "kind": "ENUM"
+              },
+              "left": {
+                "kind": "PATH",
+                "root": "VSADSSMINI_2020_LV95_Validierung_Drainage_20250311.VSADSSMini_Validierung.v_Leitung",
+                "steps": [
+                  {
+                    "kind": "AttributeRef",
+                    "name": "Profiltyp",
+                    "target": ""
+                  }
+                ]
+              }
+            }
+          ],
+          "kind": "AND"
+        }
+      ],
+      "kind": "OR"
+    }
+  },
+  "astComplete": true
+}

@@ -83,7 +83,7 @@ class ConstraintViewAuthoringRegressionTest {
             new ConstraintTestTools(compiler)), review);
     IliAuthoringResult result = new ConstraintAuthoringTools(engine).authorIliMandatoryConstraint(
         source(fixture), fixture.contextFqn(), (IliConstraintSpec.Mandatory) fixture.spec(), null, null);
-    assertThat(compiler.calls).isEqualTo(2);
+    assertThat(compiler.calls).as(new ObjectMapper().writeValueAsString(result)).isEqualTo(2);
     assertThat(result.status).isEqualTo(IliAuthoringResult.Status.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED);
     assertThat(result.candidateModelText).isNotBlank();
     assertThat(result.updatedModelText).isNull();
@@ -112,7 +112,7 @@ class ConstraintViewAuthoringRegressionTest {
       case IliConstraintSpec.Set spec -> new SetConstraintAuthoringTools(engine).authorIliSetConstraint(source(fixture), fixture.contextFqn(), spec, null, null);
       default -> throw new AssertionError("Unexpected fixture kind");
     };
-    assertThat(compiler.calls).isEqualTo(2);
+    assertThat(compiler.calls).as(new ObjectMapper().writeValueAsString(result)).isEqualTo(2);
     assertThat(result.status).as(result.toString()).isEqualTo(IliAuthoringResult.Status.GENERATED);
     assertThat(result.proofVerified).isTrue();
     assertThat(result.constraintProofs.getFirst().coverageComplete).isTrue();

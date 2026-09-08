@@ -1,0 +1,33 @@
+{
+  "valid": true,
+  "ast": {
+    "kind": "MandatoryConstraint",
+    "contextFqn": "VSADSSMINI_2020_LV95_Validierung_Drainage_20250311.VSADSSMini_Validierung.v_Drainageleitung",
+    "condition": {
+      "right": {
+        "unit": "",
+        "value": "1",
+        "kind": "NUMERIC"
+      },
+      "left": {
+        "name": "INTERLIS.objectCount",
+        "arguments": [
+          {
+            "root": "VSADSSMINI_2020_LV95_Validierung_Drainage_20250311.VSADSSMini_Validierung.v_Drainageleitung",
+            "steps": [
+              {
+                "name": "Knoten_vonRef",
+                "target": "VSADSSMINI_2020_LV95.VSADSSMini.Knoten",
+                "kind": "PathElAbstractClassRole"
+              }
+            ],
+            "kind": "PATH"
+          }
+        ],
+        "kind": "FUNCTION"
+      },
+      "kind": "Equality"
+    }
+  },
+  "astComplete": true
+}

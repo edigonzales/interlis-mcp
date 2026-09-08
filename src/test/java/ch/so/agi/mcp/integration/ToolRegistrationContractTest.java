@@ -28,6 +28,20 @@ class ToolRegistrationContractTest {
   List<SyncToolSpecification> toolSpecifications;
 
   @Test
+  void exportVerifiedBenchmarkToolCatalog() throws Exception {
+    Set<String> names = Set.of("validateIliModel", "reviewIliConstraint", "generateIliConstraintCases",
+        "authorIliMandatoryConstraint", "authorIliPlausibilityConstraint", "authorIliExistenceConstraint",
+        "authorIliSetConstraint", "authorIliUniqueConstraint", "generateIliConstraintFromDecisionTable",
+        "listConstraintFunctions", "resolveConstraintPath");
+    var selected = toolSpecifications.stream().filter(s -> names.contains(s.tool().name()))
+        .map(SyncToolSpecification::tool).sorted(java.util.Comparator.comparing(McpSchema.Tool::name)).toList();
+    assertThat(selected).hasSize(names.size());
+    var path = java.nio.file.Path.of("build/benchmark/tool-catalog.json");
+    java.nio.file.Files.createDirectories(path.getParent());
+    java.nio.file.Files.writeString(path, mapper.writeValueAsString(selected));
+  }
+
+  @Test
   void allRegisteredToolsMatchExpectedSchemaContract() {
     Map<String, SyncToolSpecification> specsByName = specsByName();
 

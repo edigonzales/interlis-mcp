@@ -1,0 +1,27 @@
+{
+  "tool": "mcp__interlis_mcp_eval__authorIliMandatoryConstraint",
+  "payload": {
+    "contextFqn": "VSADSSMINI_2020_LV95_Validierung_Drainage_20250311.VSADSSMini_Validierung.v_Drainageleitung",
+    "spec": {
+      "kind": "MANDATORY",
+      "name": "BenchmarkRule",
+      "condition": {
+        "kind": "COMPARE",
+        "operator": "==",
+        "children": [
+          {
+            "kind": "OBJECT_COUNT",
+            "objects": {
+              "kind": "PATH",
+              "path": "Knoten_vonRef"
+            }
+          },
+          {
+            "kind": "NUMERIC",
+            "value": 1
+          }
+        ]
+      }
+    }
+  }
+}

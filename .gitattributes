@@ -1,0 +1,2 @@
+# Benchmark model snapshots retain upstream bytes, including CRLF and whitespace.
+evals/constraint-reconstruction/v2/**/*.ili -text -whitespace

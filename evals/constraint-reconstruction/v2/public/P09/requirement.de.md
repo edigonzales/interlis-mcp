@@ -1,0 +1,3 @@
+# Fachanforderung P09
+
+Jeder definierte Wert von Anlage_Kandidat.ID muss unter den ID-Werten der Klasse Anlage_Attribute mindestens einmal vorkommen. Die Prüfung verbindet keinen Kandidaten mit einer bestimmten Anlage, sondern vergleicht den skalaren Textwert gegen die Menge aller Anlage_Attribute-Objekte im Topic. Ist der Kandidatenwert undefiniert, greift die Anforderung nicht; im vorliegenden Modell ist ID jedoch ein Pflichtwert. Mehrere Zielobjekte mit demselben ID-Wert sind wegen der separaten Eindeutigkeitsregel der Zielklasse nicht vorgesehen; für die Existenzprüfung genügt ein Treffer, ein anderer oder fehlender Zielwert genügt nicht.

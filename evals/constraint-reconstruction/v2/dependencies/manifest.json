@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "files": [
+    {
+      "path": "Base_d-20181005.ili",
+      "sha256": "f92558708c6a2ce3a2747918f84d781dbbcf1ef6965d001b4a4cfe6e9cac650d",
+      "source": "/Users/stefan/.ilicache/405.sia.ch/models/2015/Base_d-20181005.ili"
+    },
+    {
+      "path": "CHBase_Part1_GEOMETRY_V1.ili",
+      "sha256": "f6979b3e349ddb30601a01a6d0e03c5285add8cc63c6f3d99b72101e16a82fbd",
+      "source": "/Users/stefan/.ilicache/models.geo.admin.ch/CH/CHBase_Part1_GEOMETRY_V1.ili"
+    },
+    {
+      "path": "CHBase_Part2_LOCALISATION_V1.ili",
+      "sha256": "dd8e36f02d3f6b12b0f5fd3a7e4b2276cea7bcfecacdd6a489b86ee400f880c7",
+      "source": "/Users/stefan/.ilicache/models.geo.admin.ch/CH/CHBase_Part2_LOCALISATION_V1.ili"
+    },
+    {
+      "path": "CHBase_Part4_ADMINISTRATIVEUNITS_V1.ili",
+      "sha256": "bc097a21f8aef04adecf8603c0547a44003bc4568a18a9d88a464c90f53c8b5f",
+      "source": "/Users/stefan/.ilicache/models.geo.admin.ch/CH/CHBase_Part4_ADMINISTRATIVEUNITS_V1.ili"
+    },
+    {
+      "path": "CoordSys-20151124.ili",
+      "sha256": "8d097d71f82745e4ab07d2ccd1b70ed0c7f3e54e97e7f25855eb4c604fd51fd4",
+      "source": "/Users/stefan/.ilicache/models.interlis.ch/refhb23/CoordSys-20151124.ili"
+    },
+    {
+      "path": "GeoW_FunctionsExt_23.ili",
+      "sha256": "aa0315595d8576b08a6ba3f0ec88dd3b5efae480669bf5518279ef56c2971267",
+      "source": "/Users/stefan/.ilicache/geo.so.ch/models/AGI/GeoW_FunctionsExt_23.ili"
+    },
+    {
+      "path": "INTERLIS_ext.ili",
+      "sha256": "52c8c76c076ed0b9a169816b22c5c56385a2cbfd1bbee67c28b8a856e5505f65",
+      "source": "/Users/stefan/.ilicache/models.interlis.ch/refhb23/INTERLIS_ext.ili"
+    },
+    {
+      "path": "Math.ili",
+      "sha256": "49c3c8dc0a1d822fd6b6884de2c2958eae186a3ec0591f40d76cd94a311e7a73",
+      "source": "/Users/stefan/.ilicache/models.interlis.ch/refhb23/Math.ili"
+    },
+    {
+      "path": "NGK_SO_FunctionsExt_23.ili",
+      "sha256": "9160e23b7d1975d682b524bcc8630a8ce29328632a1eb8e90af1b08f5f3c837e",
+      "source": "/Users/stefan/.ilicache/geo.so.ch/models/AFU/NGK_SO_FunctionsExt_23.ili"
+    },
+    {
+      "path": "SIA405_Base_Abwasser-20201103.ili",
+      "sha256": "473a5de777d40a905c18a49c99bf434a2bfdb06f759366fd349dde9c7eaa66bf",
+      "source": "/Users/stefan/.ilicache/vsa.ch/models/2020/SIA405_Base_Abwasser-20201103.ili"
+    },
+    {
+      "path": "SIA405_Base_Abwasser_1_2_d_LV95-20231018.ili",
+      "sha256": "d368a421e126dd7aba8d4cac27761089469590a4d0fcaed4d47f55241f0a63c6",
+      "source": "/Users/stefan/.ilicache/vsa.ch/models/2020_1/SIA405_Base_Abwasser_1_2_d_LV95-20231018.ili"
+    },
+    {
+      "path": "SO_ARP_Nutzungsplanung_Nachfuehrung_20221118.ili",
+      "sha256": "8dfc9ff57d2898caf768310338d2c324260de4994e65eb2a73c7f88df9780283",
+      "source": "/Users/stefan/.ilicache/geo.so.ch/models/ARP/SO_ARP_Nutzungsplanung_Nachfuehrung_20221118.ili"
+    },
+    {
+      "path": "SO_FunctionsExt.ili",
+      "sha256": "0342d1f12958713d902142057e60a7b14ab3860550652d1d8337e9750cb298b9",
+      "source": "/Users/stefan/.ilicache/geo.so.ch/models/AGI/SO_FunctionsExt.ili"
+    },
+    {
+      "path": "Time-20200219.ili",
+      "sha256": "cfb931287c3b5f542eafc942f0fede0058d169011374162fe98fd03861546ea7",
+      "source": "/Users/stefan/.ilicache/models.interlis.ch/refhb23/Time-20200219.ili"
+    },
+    {
+      "path": "Units-20120220.ili",
+      "sha256": "45a233d3f2a681f2573965fb9ee6a98d279bdadbca94107874a22aa0c733a92d",
+      "source": "/Users/stefan/.ilicache/models.interlis.ch/refhb23/Units-20120220.ili"
+    },
+    {
+      "path": "VSADSSMINI_2020_1_2_d_LV95-20251129.ili",
+      "sha256": "68537468424fb829225e4dd4f11f389609756076e5124702c7a339382729bea9",
+      "source": "/Users/stefan/.ilicache/vsa.ch/models/2020_1/VSADSSMINI_2020_1_2_d_LV95-20251129.ili"
+    },
+    {
+      "path": "VSADSSMINI_2020_2_d_LV95-20251129.ili",
+      "sha256": "77d31e54251a63c68af808265b8096071ad37160a41c22844676dc922ebf728a",
+      "source": "/Users/stefan/.ilicache/vsa.ch/models/2020/VSADSSMINI_2020_2_d_LV95-20251129.ili"
+    }
+  ]
+}

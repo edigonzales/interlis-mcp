@@ -1,0 +1,38 @@
+{
+  "valid": true,
+  "ast": {
+    "kind": "MandatoryConstraint",
+    "contextFqn": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Nebenauspraegung_Landwirtschaft",
+    "condition": {
+      "left": {
+        "steps": [
+          {
+            "target": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.BodeneinheitHauptauspraegung_Landwirtschaft",
+            "kind": "PathElAbstractClassRole",
+            "name": "Bodeneinheit"
+          },
+          {
+            "target": "",
+            "kind": "AttributeRef",
+            "name": "Gewichtung"
+          }
+        ],
+        "kind": "PATH",
+        "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Nebenauspraegung_Landwirtschaft"
+      },
+      "kind": "GreaterThan",
+      "right": {
+        "steps": [
+          {
+            "target": "",
+            "kind": "AttributeRef",
+            "name": "Gewichtung"
+          }
+        ],
+        "kind": "PATH",
+        "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Nebenauspraegung_Landwirtschaft"
+      }
+    }
+  },
+  "astComplete": true
+}

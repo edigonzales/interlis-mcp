@@ -1,0 +1,40 @@
+{
+  "tool": "mcp__interlis_mcp_eval__authorIliPlausibilityConstraint",
+  "payload": {
+    "contextFqn": "VSADSSMINI_2020_1_LV95_Validierung_IPW_S2_20250123.VSADSSMini_Validierung.v_ALR",
+    "spec": {
+      "kind": "PLAUSIBILITY",
+      "name": "BenchmarkRule",
+      "direction": "AT_MOST",
+      "percentage": 50,
+      "condition": {
+        "kind": "AND",
+        "children": [
+          {
+            "kind": "DEFINED",
+            "children": [
+              {
+                "kind": "ATTRIBUTE",
+                "name": "Beseitigung_Ist"
+              }
+            ]
+          },
+          {
+            "kind": "COMPARE",
+            "operator": "==",
+            "children": [
+              {
+                "kind": "ATTRIBUTE",
+                "name": "Beseitigung_Ist"
+              },
+              {
+                "kind": "ENUM",
+                "value": "unbekannt"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

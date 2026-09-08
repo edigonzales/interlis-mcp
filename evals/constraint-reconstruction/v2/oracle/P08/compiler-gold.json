@@ -1,0 +1,43 @@
+{
+  "valid": true,
+  "ast": {
+    "kind": "UniquenessConstraint",
+    "contextFqn": "VSADSSMINI_2020_1_LV95_Validierung_IPW_S2_20250123.VSADSSMini_Validierung.v_Knoten_inBetrieb",
+    "condition": {
+      "kind": "ABSENT"
+    },
+    "local": false,
+    "perBasket": false,
+    "where": {
+      "kind": "ABSENT"
+    },
+    "prefix": {
+      "kind": "ABSENT"
+    },
+    "keys": [
+      {
+        "steps": [
+          {
+            "target": "",
+            "kind": "AttributeRef",
+            "name": "Bezeichnung"
+          }
+        ],
+        "kind": "PATH",
+        "root": "VSADSSMINI_2020_1_LV95_Validierung_IPW_S2_20250123.VSADSSMini_Validierung.v_Knoten_inBetrieb"
+      },
+      {
+        "steps": [
+          {
+            "target": "SIA405_Base_Abwasser_1_LV95.Administration.Organisation",
+            "kind": "PathElAbstractClassRole",
+            "name": "DatenherrRef"
+          }
+        ],
+        "kind": "PATH",
+        "root": "VSADSSMINI_2020_1_LV95_Validierung_IPW_S2_20250123.VSADSSMini_Validierung.v_Knoten_inBetrieb"
+      }
+    ]
+  },
+  "astComplete": true
+}

@@ -1,0 +1,106 @@
+{
+  "valid": true,
+  "ast": {
+    "kind": "MandatoryConstraint",
+    "contextFqn": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.BodeneinheitHauptauspraegung_Wald",
+    "condition": {
+      "kind": "OR",
+      "children": [
+        {
+          "kind": "AND",
+          "children": [
+            {
+              "operand": {
+                "kind": "FUNCTION",
+                "arguments": [
+                  {
+                    "value": "Nebenauspraegung->Gewichtung",
+                    "kind": "TEXT"
+                  }
+                ],
+                "name": "Math.sum"
+              },
+              "kind": "DEFINED"
+            },
+            {
+              "kind": "Equality",
+              "left": {
+                "kind": "FUNCTION",
+                "arguments": [
+                  {
+                    "kind": "FUNCTION",
+                    "arguments": [
+                      {
+                        "value": "Nebenauspraegung->Gewichtung",
+                        "kind": "TEXT"
+                      }
+                    ],
+                    "name": "Math.sum"
+                  },
+                  {
+                    "kind": "PATH",
+                    "steps": [
+                      {
+                        "kind": "AttributeRef",
+                        "target": "",
+                        "name": "Gewichtung"
+                      }
+                    ],
+                    "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.BodeneinheitHauptauspraegung_Wald"
+                  }
+                ],
+                "name": "Math.add"
+              },
+              "right": {
+                "kind": "NUMERIC",
+                "value": "100",
+                "unit": ""
+              }
+            }
+          ]
+        },
+        {
+          "kind": "AND",
+          "children": [
+            {
+              "kind": "Equality",
+              "left": {
+                "kind": "PATH",
+                "steps": [
+                  {
+                    "kind": "AttributeRef",
+                    "target": "",
+                    "name": "Gewichtung"
+                  }
+                ],
+                "root": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.BodeneinheitHauptauspraegung_Wald"
+              },
+              "right": {
+                "kind": "NUMERIC",
+                "value": "100",
+                "unit": ""
+              }
+            },
+            {
+              "operand": {
+                "operand": {
+                  "kind": "FUNCTION",
+                  "arguments": [
+                    {
+                      "value": "Nebenauspraegung->Gewichtung",
+                      "kind": "TEXT"
+                    }
+                  ],
+                  "name": "Math.sum"
+                },
+                "kind": "DEFINED"
+              },
+              "kind": "NOT"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "astComplete": true
+}

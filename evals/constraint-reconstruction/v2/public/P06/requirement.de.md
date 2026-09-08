@@ -1,0 +1,3 @@
+# Fachanforderung P06
+
+Für eine Wald-Hauptausprägung müssen die Gewichte insgesamt 100 ergeben. Gibt es mindestens eine Wald-Nebenausprägung mit Gewichtung, wird deren Summe über die Beziehung Nebenauspraegung plus die Gewichtung der Hauptausprägung gebildet; diese Summe muss genau 100 sein. Gibt es keine solche Nebenausprägung und ist die Nebensumme deshalb undefiniert, ist die Regel genau dann erfüllt, wenn die Hauptgewichtung 100 beträgt. Andere Hauptgewichte ohne definierte Nebensumme sowie jede definierte Nebensumme mit einem Gesamtergebnis ungleich 100 sind ungültig. Die Gewichtungsattribute sind Pflichtwerte im Wertebereich 0 bis 100; die Beziehung zu Nebenausprägungen kann leer sein und höchstens drei Nebenausprägungen umfassen.

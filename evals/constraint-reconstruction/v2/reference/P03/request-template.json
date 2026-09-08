@@ -1,0 +1,24 @@
+{
+  "tool": "mcp__interlis_mcp_eval__authorIliMandatoryConstraint",
+  "payload": {
+    "contextFqn": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Nebenauspraegung_Landwirtschaft",
+    "spec": {
+      "kind": "MANDATORY",
+      "name": "BenchmarkRule",
+      "condition": {
+        "kind": "COMPARE",
+        "operator": ">",
+        "children": [
+          {
+            "kind": "PATH",
+            "name": "Bodeneinheit->Gewichtung"
+          },
+          {
+            "kind": "ATTRIBUTE",
+            "name": "Gewichtung"
+          }
+        ]
+      }
+    }
+  }
+}

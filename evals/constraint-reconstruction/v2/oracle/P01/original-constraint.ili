@@ -1,0 +1,14 @@
+      !!@ name = "CheckKoernungsklasseUbTongehalt_Land"
+      !!@ ilivalid.msg = "Unterboden Landwirtschaft: Ungültige Kombination Koernungsklasse, Tongehalt."  
+      MANDATORY CONSTRAINT (((Koernungsklasse == #sand OR Koernungsklasse == #schluffiger_sand) AND (Tongehalt >= 0.0 AND Tongehalt <= 5.0))
+                          OR (Koernungsklasse == #lehmiger_sand  AND (Tongehalt >= 5.0  AND Tongehalt <= 10.0))
+                          OR (Koernungsklasse == #lehmreicher_sand  AND (Tongehalt >= 10.0 AND Tongehalt <= 15.0))
+                          OR (Koernungsklasse == #sandiger_lehm  AND (Tongehalt >= 15.0 AND Tongehalt <= 20.0))
+                          OR (Koernungsklasse == #lehm  AND (Tongehalt >= 20.0 AND Tongehalt <= 30.0))
+                          OR (Koernungsklasse == #toniger_lehm AND (Tongehalt >= 30.0 AND Tongehalt <= 40.0))
+                          OR (Koernungsklasse == #lehmiger_ton  AND (Tongehalt >= 40.0 AND Tongehalt <= 50.0))
+                          OR (Koernungsklasse == #ton  AND (Tongehalt >= 50.0 AND Tongehalt <= 100.0))
+                          OR ((Koernungsklasse == #sandiger_schluff OR Koernungsklasse == #schluff) AND (Tongehalt >= 0.0 AND Tongehalt <= 10.0))
+                          OR (Koernungsklasse == #lehmiger_schluff AND (Tongehalt >= 10.0 AND Tongehalt <= 30.0))
+                          OR (Koernungsklasse == #toniger_schluff AND (Tongehalt >= 30.0 AND Tongehalt <= 50.0))
+                          );

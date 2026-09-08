@@ -1,0 +1,42 @@
+{
+  "valid": true,
+  "ast": {
+    "kind": "SetConstraint",
+    "contextFqn": "SO_AFU_Naturgefahren_20240515.Befunde.BefundSteinBlockschlag",
+    "condition": {
+      "kind": "FUNCTION",
+      "name": "NGK_SO_FunctionsExt.IsInsideAreaByCode",
+      "arguments": [
+        {
+          "kind": "FUNCTION",
+          "name": "GeoW_FunctionsExt.GetInGroups",
+          "arguments": [
+            {
+              "restrictions": [],
+              "base": "",
+              "kind": "ALL",
+              "context": "SO_AFU_Naturgefahren_20240515.Befunde.BefundSteinBlockschlag"
+            },
+            {
+              "kind": "TEXT",
+              "value": "PQ_Jaehrlichkeit_SteinBlockschlag_R->Prozessquelle_R"
+            }
+          ]
+        },
+        {
+          "kind": "TEXT",
+          "value": "Geometrie"
+        },
+        {
+          "kind": "TEXT",
+          "value": "IWCode"
+        }
+      ]
+    },
+    "perBasket": false,
+    "where": {
+      "kind": "ABSENT"
+    }
+  },
+  "astComplete": true
+}

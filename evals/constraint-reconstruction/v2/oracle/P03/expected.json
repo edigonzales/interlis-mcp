@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 2,
+  "caseId": "P03",
+  "category": "POSITIVE",
+  "corpus": {
+    "repository": "sogis-interlis-repository",
+    "commit": "b94abb0953c8413d4eaaa647fa66fa7d585aa4df",
+    "path": "models/AFU/SO_AFU_Bodeneinheiten_20251210.ili"
+  },
+  "originalConstraintSelector": "HauptHatMehrGewicht_alsNeben_Landwirtschaft",
+  "expectedTypeOrBoundary": "MANDATORY; strict comparison across a mandatory role",
+  "expectedHighLevelTools": [
+    "authorIliMandatoryConstraint"
+  ],
+  "gold": {
+    "contextFqn": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Nebenauspraegung_Landwirtschaft",
+    "astComplete": true,
+    "artifact": "compiler-gold.json"
+  },
+  "astComparison": {
+    "orderedOperands": true,
+    "ignore": [
+      "constraintName",
+      "sourceLine",
+      "pureGrouping"
+    ],
+    "unknownEquivalence": "NOT_PROVEN"
+  },
+  "acceptedBoundaryStatuses": [],
+  "scoring": {
+    "requireCorrectHighLevelTool": true,
+    "requireStatus": "GENERATED",
+    "requireProofVerified": true,
+    "requireCompilingUpdatedModel": true,
+    "requireExactIntendedConstraintOnly": true,
+    "requireNoReleasedUpdatedModel": false,
+    "requireCompilingCandidate": true
+  },
+  "removal": {
+    "sourceStartOffset": 64311,
+    "sourceEndOffset": 64569,
+    "sourceChars": 77097,
+    "publicChars": 76839
+  }
+}

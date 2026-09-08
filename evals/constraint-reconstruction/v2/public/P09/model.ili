@@ -1,0 +1,57 @@
+INTERLIS 2.3;
+
+/** !!
+ * !! Import-Modell für die Publikation der Schiesslärm-Flächen der aktiven
+ * !! Schiessplätze des Kantons Solothurn.
+ * !!------------------------------------------------------------------------------
+ * !! Version    | wer | Aenderung
+ * !!------------------------------------------------------------------------------
+ * !! 2026-02-10 | JEK | Initial erstellt.
+ */
+!!@ technicalContact=mailto:agi@so.ch
+MODEL SO_AFU_Schiesslaerm_20260210 (de)
+AT "http://geo.so.ch/models/AFU/"
+VERSION "2026-02-10"  =
+  IMPORTS GeometryCHLV95_V1;
+
+  DOMAIN
+
+  TOPIC Schiesslaerm =
+
+    /** Umfasst alle Attribute der Schiessanlage, welche jeder Lärmfläche dynamisch hinzugefügt wird. */
+    CLASS Anlage_Attribute =
+      /** Identifikation der Schiessanlage. Die ID setzt sich zusammen aus der AFU-Gemeindenummer
+      und ggf. einem Suffix, sofern mehrere Schiessanlagen innerhalb eines Gemeindegebiets existieren.
+      Beispiel für eine ID mit Suffix: 80.2 */
+      ID : MANDATORY TEXT*50;
+      /** Bezeichnung der Schiessanlage
+       */
+      Bezeichnung : MANDATORY TEXT*255;
+      /** Koordinaten der Schiess-Anlage
+       */
+      Lage : MANDATORY GeometryCHLV95_V1.Coord2;
+      UNIQUE ID;
+    END Anlage_Attribute;
+
+    /** Hilfsklasse. Über diese wird sichergestellt, dass die im GRETL-Job als Parameter
+    übergebene ID in der Klasse Anlage_Attribute definiert ist. */
+    CLASS Anlage_Kandidat =
+      /** Identifikation der Anlage der zu verarbeitenden Schiesslärm-Flächen.
+       */
+      ID : MANDATORY TEXT*50;
+
+
+    END Anlage_Kandidat;
+
+    /** Hilfsklasse. In diese werden die Rohdaten (Schiesslärm-Quadrate) einer Anlage importiert.. */
+    CLASS Schiesslaerm_Import =
+      /** Lärmwert in dB.
+       */
+      Decibel : MANDATORY 0.0 .. 200.0;
+      /** Quadratisches Polygon der Pixelwerte (Von Benutzer aus Raster konvertiert)
+       */
+      Pixel_Quadrat : MANDATORY GeometryCHLV95_V1.Surface;
+    END Schiesslaerm_Import;
+  END Schiesslaerm;
+
+END SO_AFU_Schiesslaerm_20260210.

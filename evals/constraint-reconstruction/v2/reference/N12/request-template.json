@@ -1,0 +1,44 @@
+{
+  "tool": "mcp__interlis_mcp_eval__authorIliSetConstraint",
+  "payload": {
+    "contextFqn": "SO_AFU_Naturgefahren_20240515.Befunde.BefundSteinBlockschlag",
+    "spec": {
+      "kind": "SET",
+      "name": "BenchmarkRule",
+      "scope": "GLOBAL",
+      "condition": {
+        "kind": "BOOLEAN_EXPRESSION",
+        "expression": {
+          "kind": "FUNCTION",
+          "name": "NGK_SO_FunctionsExt.IsInsideAreaByCode",
+          "functionOrigin": "MODEL",
+          "children": [
+            {
+              "kind": "FUNCTION",
+              "name": "GeoW_FunctionsExt.GetInGroups",
+              "functionOrigin": "MODEL",
+              "children": [
+                {
+                  "kind": "PATH",
+                  "name": "ALL"
+                },
+                {
+                  "kind": "TEXT",
+                  "value": "PQ_Jaehrlichkeit_SteinBlockschlag_R->Prozessquelle_R"
+                }
+              ]
+            },
+            {
+              "kind": "TEXT",
+              "value": "Geometrie"
+            },
+            {
+              "kind": "TEXT",
+              "value": "IWCode"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

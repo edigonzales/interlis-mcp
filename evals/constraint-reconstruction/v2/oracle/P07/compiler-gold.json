@@ -1,0 +1,49 @@
+{
+  "valid": true,
+  "ast": {
+    "kind": "PlausibilityConstraint",
+    "contextFqn": "VSADSSMINI_2020_1_LV95_Validierung_IPW_S2_20250123.VSADSSMini_Validierung.v_ALR",
+    "condition": {
+      "children": [
+        {
+          "kind": "DEFINED",
+          "operand": {
+            "steps": [
+              {
+                "target": "",
+                "kind": "AttributeRef",
+                "name": "Beseitigung_Ist"
+              }
+            ],
+            "kind": "PATH",
+            "root": "VSADSSMINI_2020_1_LV95_Validierung_IPW_S2_20250123.VSADSSMini_Validierung.v_ALR"
+          }
+        },
+        {
+          "left": {
+            "steps": [
+              {
+                "target": "",
+                "kind": "AttributeRef",
+                "name": "Beseitigung_Ist"
+              }
+            ],
+            "kind": "PATH",
+            "root": "VSADSSMINI_2020_1_LV95_Validierung_IPW_S2_20250123.VSADSSMini_Validierung.v_ALR"
+          },
+          "kind": "Equality",
+          "right": {
+            "kind": "ENUM",
+            "value": [
+              "unbekannt"
+            ]
+          }
+        }
+      ],
+      "kind": "AND"
+    },
+    "direction": 1,
+    "percentage": 50.0
+  },
+  "astComplete": true
+}

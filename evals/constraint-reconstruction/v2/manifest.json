@@ -1,0 +1,587 @@
+{
+  "schemaVersion": 2,
+  "suiteVersion": "v2",
+  "status": "APPROVED",
+  "scoringVersion": "2.0.0",
+  "corpus": {
+    "repositoryPath": "../sogis-interlis-repository",
+    "commit": "b94abb0953c8413d4eaaa647fa66fa7d585aa4df"
+  },
+  "caseOrder": [
+    "P01",
+    "P02",
+    "P03",
+    "P04",
+    "P05",
+    "P06",
+    "P07",
+    "P08",
+    "P09",
+    "P10",
+    "N11",
+    "N12"
+  ],
+  "cases": [
+    {
+      "id": "P01",
+      "publicModel": "public/P01/model.ili",
+      "requirement": "public/P01/requirement.de.md",
+      "goldConstraint": "oracle/P01/original-constraint.ili",
+      "expected": "oracle/P01/expected.json"
+    },
+    {
+      "id": "P02",
+      "publicModel": "public/P02/model.ili",
+      "requirement": "public/P02/requirement.de.md",
+      "goldConstraint": "oracle/P02/original-constraint.ili",
+      "expected": "oracle/P02/expected.json"
+    },
+    {
+      "id": "P03",
+      "publicModel": "public/P03/model.ili",
+      "requirement": "public/P03/requirement.de.md",
+      "goldConstraint": "oracle/P03/original-constraint.ili",
+      "expected": "oracle/P03/expected.json"
+    },
+    {
+      "id": "P04",
+      "publicModel": "public/P04/model.ili",
+      "requirement": "public/P04/requirement.de.md",
+      "goldConstraint": "oracle/P04/original-constraint.ili",
+      "expected": "oracle/P04/expected.json"
+    },
+    {
+      "id": "P05",
+      "publicModel": "public/P05/model.ili",
+      "requirement": "public/P05/requirement.de.md",
+      "goldConstraint": "oracle/P05/original-constraint.ili",
+      "expected": "oracle/P05/expected.json"
+    },
+    {
+      "id": "P06",
+      "publicModel": "public/P06/model.ili",
+      "requirement": "public/P06/requirement.de.md",
+      "goldConstraint": "oracle/P06/original-constraint.ili",
+      "expected": "oracle/P06/expected.json"
+    },
+    {
+      "id": "P07",
+      "publicModel": "public/P07/model.ili",
+      "requirement": "public/P07/requirement.de.md",
+      "goldConstraint": "oracle/P07/original-constraint.ili",
+      "expected": "oracle/P07/expected.json"
+    },
+    {
+      "id": "P08",
+      "publicModel": "public/P08/model.ili",
+      "requirement": "public/P08/requirement.de.md",
+      "goldConstraint": "oracle/P08/original-constraint.ili",
+      "expected": "oracle/P08/expected.json"
+    },
+    {
+      "id": "P09",
+      "publicModel": "public/P09/model.ili",
+      "requirement": "public/P09/requirement.de.md",
+      "goldConstraint": "oracle/P09/original-constraint.ili",
+      "expected": "oracle/P09/expected.json"
+    },
+    {
+      "id": "P10",
+      "publicModel": "public/P10/model.ili",
+      "requirement": "public/P10/requirement.de.md",
+      "goldConstraint": "oracle/P10/original-constraint.ili",
+      "expected": "oracle/P10/expected.json"
+    },
+    {
+      "id": "N11",
+      "publicModel": "public/N11/model.ili",
+      "requirement": "public/N11/requirement.de.md",
+      "goldConstraint": "oracle/N11/original-constraint.ili",
+      "expected": "oracle/N11/expected.json"
+    },
+    {
+      "id": "N12",
+      "publicModel": "public/N12/model.ili",
+      "requirement": "public/N12/requirement.de.md",
+      "goldConstraint": "oracle/N12/original-constraint.ili",
+      "expected": "oracle/N12/expected.json"
+    }
+  ],
+  "dependencyManifest": "dependencies/manifest.json",
+  "helperArtifacts": [
+    {
+      "path": "evals/constraint-reconstruction/tools/acceptance.py",
+      "sha256": "74eef0949b873021f995b8828b0aa58fe817d8fee6d9ca0211784a60834732e6"
+    },
+    {
+      "path": "evals/constraint-reconstruction/tools/benchmark.py",
+      "sha256": "420bec3698e9d4c71d94dfc1fe18d7abaa8ba87e53b347f55dba11eb3401be4c"
+    },
+    {
+      "path": "evals/constraint-reconstruction/tools/freeze_manifest.py",
+      "sha256": "7afccd9182bff969d2606f51a2fbb7ca6c9bee3559f6c0468c8afc335e829f5f"
+    },
+    {
+      "path": "evals/constraint-reconstruction/tools/launch_eval.py",
+      "sha256": "43974fc4ca09465c4f96c758bf74238e1d4e1c3f4c65229d635ae67d81304fc5"
+    },
+    {
+      "path": "evals/constraint-reconstruction/tools/prepare_v2.py",
+      "sha256": "7598af35dd41c94f32b885a1cfce86459c61d84e54b4b18fb865d7f65dfc28a4"
+    },
+    {
+      "path": "evals/constraint-reconstruction/tools/test_benchmark.py",
+      "sha256": "07ac441eb43dd0f949e78ede2ee371baf66002bf547e0ed8c1faed08b4d21203"
+    },
+    {
+      "path": "src/benchmark/java/ch/so/agi/mcp/benchmark/CompilerEvidence.java",
+      "sha256": "60bf9056d478fb2268230c3deebe9868d8783d13fe8ffc883c603ba95edefb7f"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "DIAGNOSTICS.md",
+      "sha256": "5299b9119ab265af8ef0f77e9e000e376539eb3c188b8826d2ae2ac4c91339a8"
+    },
+    {
+      "path": "REVIEW.md",
+      "sha256": "bc79984e1e19edf7e660d21d22992af7d3774386f40dd7e121ce8d978af8c09d"
+    },
+    {
+      "path": "approval.json",
+      "sha256": "4f03c29fb8339a1229e3280b4933f9411314afafa31778a6016f02a3f9a1a448"
+    },
+    {
+      "path": "automation-prompt.md",
+      "sha256": "37d1ac4cf8d49e092969aa15a97bab12e68543f1f54b39f407fa996c27b1660a"
+    },
+    {
+      "path": "connector-config.toml",
+      "sha256": "7743c5b946f024575d7120ef421ca5b1ce750744c230d4d3addf5d927e2ff28f"
+    },
+    {
+      "path": "dependencies/Base_d-20181005.ili",
+      "sha256": "f92558708c6a2ce3a2747918f84d781dbbcf1ef6965d001b4a4cfe6e9cac650d"
+    },
+    {
+      "path": "dependencies/CHBase_Part1_GEOMETRY_V1.ili",
+      "sha256": "f6979b3e349ddb30601a01a6d0e03c5285add8cc63c6f3d99b72101e16a82fbd"
+    },
+    {
+      "path": "dependencies/CHBase_Part2_LOCALISATION_V1.ili",
+      "sha256": "dd8e36f02d3f6b12b0f5fd3a7e4b2276cea7bcfecacdd6a489b86ee400f880c7"
+    },
+    {
+      "path": "dependencies/CHBase_Part4_ADMINISTRATIVEUNITS_V1.ili",
+      "sha256": "bc097a21f8aef04adecf8603c0547a44003bc4568a18a9d88a464c90f53c8b5f"
+    },
+    {
+      "path": "dependencies/CoordSys-20151124.ili",
+      "sha256": "8d097d71f82745e4ab07d2ccd1b70ed0c7f3e54e97e7f25855eb4c604fd51fd4"
+    },
+    {
+      "path": "dependencies/GeoW_FunctionsExt_23.ili",
+      "sha256": "aa0315595d8576b08a6ba3f0ec88dd3b5efae480669bf5518279ef56c2971267"
+    },
+    {
+      "path": "dependencies/INTERLIS_ext.ili",
+      "sha256": "52c8c76c076ed0b9a169816b22c5c56385a2cbfd1bbee67c28b8a856e5505f65"
+    },
+    {
+      "path": "dependencies/Math.ili",
+      "sha256": "49c3c8dc0a1d822fd6b6884de2c2958eae186a3ec0591f40d76cd94a311e7a73"
+    },
+    {
+      "path": "dependencies/NGK_SO_FunctionsExt_23.ili",
+      "sha256": "9160e23b7d1975d682b524bcc8630a8ce29328632a1eb8e90af1b08f5f3c837e"
+    },
+    {
+      "path": "dependencies/SIA405_Base_Abwasser-20201103.ili",
+      "sha256": "473a5de777d40a905c18a49c99bf434a2bfdb06f759366fd349dde9c7eaa66bf"
+    },
+    {
+      "path": "dependencies/SIA405_Base_Abwasser_1_2_d_LV95-20231018.ili",
+      "sha256": "d368a421e126dd7aba8d4cac27761089469590a4d0fcaed4d47f55241f0a63c6"
+    },
+    {
+      "path": "dependencies/SO_ARP_Nutzungsplanung_Nachfuehrung_20221118.ili",
+      "sha256": "8dfc9ff57d2898caf768310338d2c324260de4994e65eb2a73c7f88df9780283"
+    },
+    {
+      "path": "dependencies/SO_FunctionsExt.ili",
+      "sha256": "0342d1f12958713d902142057e60a7b14ab3860550652d1d8337e9750cb298b9"
+    },
+    {
+      "path": "dependencies/Time-20200219.ili",
+      "sha256": "cfb931287c3b5f542eafc942f0fede0058d169011374162fe98fd03861546ea7"
+    },
+    {
+      "path": "dependencies/Units-20120220.ili",
+      "sha256": "45a233d3f2a681f2573965fb9ee6a98d279bdadbca94107874a22aa0c733a92d"
+    },
+    {
+      "path": "dependencies/VSADSSMINI_2020_1_2_d_LV95-20251129.ili",
+      "sha256": "68537468424fb829225e4dd4f11f389609756076e5124702c7a339382729bea9"
+    },
+    {
+      "path": "dependencies/VSADSSMINI_2020_2_d_LV95-20251129.ili",
+      "sha256": "77d31e54251a63c68af808265b8096071ad37160a41c22844676dc922ebf728a"
+    },
+    {
+      "path": "dependencies/manifest.json",
+      "sha256": "494e7d6a591eec1fcaec125be13c9a64678eec0c77f030a19822c1de44257d74"
+    },
+    {
+      "path": "native-tool-declarations.json",
+      "sha256": "41f75858253745ab4dca273f3c87108df1060fee95a3d37e1e893da229ab4171"
+    },
+    {
+      "path": "oracle/N11/compiler-gold.json",
+      "sha256": "98d3c3317ed581f69d3ac5416804e7fb387364230157c0c38d11b5694abb61f3"
+    },
+    {
+      "path": "oracle/N11/expected.json",
+      "sha256": "afa3fe56e5b74d13c06377e9eea2825c69cc644e0b470c5b76b511100bd35fbf"
+    },
+    {
+      "path": "oracle/N11/gold-model.ili",
+      "sha256": "48d055861220c0347768c67789c43ae26a565645202248aa403dfbb86c0c1558"
+    },
+    {
+      "path": "oracle/N11/original-constraint.ili",
+      "sha256": "1f3f0d6d86627187aa320e22409115ff2485005bd125c96d85f6d2b79818ac13"
+    },
+    {
+      "path": "oracle/N12/compiler-gold.json",
+      "sha256": "dd8f3c567abeae5e0c6dee3530ba6b9bfa63bb6fbdd4acf34d13ceee52d6e62e"
+    },
+    {
+      "path": "oracle/N12/expected.json",
+      "sha256": "ec08fc1fd91aad68f69b1cb0cc7edd69c31d8e493a7653baa65fbb4ae8e8b996"
+    },
+    {
+      "path": "oracle/N12/gold-model.ili",
+      "sha256": "b248abbef594ada624389a59094daea62cddddf5c6130c1874a203726d623b66"
+    },
+    {
+      "path": "oracle/N12/original-constraint.ili",
+      "sha256": "e3effe90e67d701b84ec86c9a92ffe3d345db3477333f6e524b71cb07da663ac"
+    },
+    {
+      "path": "oracle/P01/compiler-gold.json",
+      "sha256": "5bd2f5fe2349cb854d59aa6009f6fec960632760b7875714ed790e8e4f67d958"
+    },
+    {
+      "path": "oracle/P01/expected.json",
+      "sha256": "635760429274ba0d14ad2be5ccc24794d3530f4977fb161697a01d5ff979eaae"
+    },
+    {
+      "path": "oracle/P01/gold-model.ili",
+      "sha256": "e4f1051380f4ef9f38be8975e3d0df2a9875fbecaec578f555db4e0e2128f8bd"
+    },
+    {
+      "path": "oracle/P01/original-constraint.ili",
+      "sha256": "fee23ca2e6f691733cd0dc52ef760ebb1444d8f8bc7ababafdb710365c22e11a"
+    },
+    {
+      "path": "oracle/P02/compiler-gold.json",
+      "sha256": "e2cff188181a27cbe6895a3939491a2111ca78e8189495aa1667d2f34a1744a0"
+    },
+    {
+      "path": "oracle/P02/expected.json",
+      "sha256": "a7271ed08ca4e57f73e4b1926b57a69190e3daf6fb277f8208bf6898675196e8"
+    },
+    {
+      "path": "oracle/P02/gold-model.ili",
+      "sha256": "e4f1051380f4ef9f38be8975e3d0df2a9875fbecaec578f555db4e0e2128f8bd"
+    },
+    {
+      "path": "oracle/P02/original-constraint.ili",
+      "sha256": "3e0a1dae34ed76b55bf1052629ebb1ff1397026267de8312bb1b0a68b7aae93e"
+    },
+    {
+      "path": "oracle/P03/compiler-gold.json",
+      "sha256": "28dff94323e3bc921de09bb9b4f015c3dfcedbf8ffce24fc0759da61c359fa8c"
+    },
+    {
+      "path": "oracle/P03/expected.json",
+      "sha256": "cb2513c93a2173670a3b0e944412d5f5a605f730b569ac63a65c70392b546779"
+    },
+    {
+      "path": "oracle/P03/gold-model.ili",
+      "sha256": "e4f1051380f4ef9f38be8975e3d0df2a9875fbecaec578f555db4e0e2128f8bd"
+    },
+    {
+      "path": "oracle/P03/original-constraint.ili",
+      "sha256": "5b5d41f1f4e54683fda9344dcc5bca5a081e7e2d5f8f5936642b63c0ba1c4a11"
+    },
+    {
+      "path": "oracle/P04/compiler-gold.json",
+      "sha256": "70255a605f3126ed029b8a360d792cb51d78a974cc41d67b72238de069ac742c"
+    },
+    {
+      "path": "oracle/P04/expected.json",
+      "sha256": "8373b53f33176445dc2a5dc3d31cef5798104fb433a4dfcde697f247274d0702"
+    },
+    {
+      "path": "oracle/P04/gold-model.ili",
+      "sha256": "eb00648edf9d917f05af1c64a95ecc74a748c40755f105b5b5e0c44c248b32c2"
+    },
+    {
+      "path": "oracle/P04/original-constraint.ili",
+      "sha256": "5e4ffa29e570f731448eab9774abb52750bd70d6eceebf2d3b37c0b2176fdf47"
+    },
+    {
+      "path": "oracle/P05/compiler-gold.json",
+      "sha256": "37c4f991608be3c65a26ac2bd40512049a1285846e2ebd76935dd2dbf6321184"
+    },
+    {
+      "path": "oracle/P05/expected.json",
+      "sha256": "bd5cd8056add2ad5dda576d231c7c054520faaf3bec55711fc0bff880266db0f"
+    },
+    {
+      "path": "oracle/P05/gold-model.ili",
+      "sha256": "eb00648edf9d917f05af1c64a95ecc74a748c40755f105b5b5e0c44c248b32c2"
+    },
+    {
+      "path": "oracle/P05/original-constraint.ili",
+      "sha256": "b4aabd20c1b6ffc7cbca37850e4da64857c10a34af3c4b1abf1913c51404c7b2"
+    },
+    {
+      "path": "oracle/P06/compiler-gold.json",
+      "sha256": "4e97dab3f343d009659e57f5704dceac3201ec1c1fb4c713d01121fbab324ab7"
+    },
+    {
+      "path": "oracle/P06/expected.json",
+      "sha256": "c9e90836ac787f2ee5f890f4d35facb5059c3dabb757bdcdbe8c95ff98e310db"
+    },
+    {
+      "path": "oracle/P06/gold-model.ili",
+      "sha256": "e4f1051380f4ef9f38be8975e3d0df2a9875fbecaec578f555db4e0e2128f8bd"
+    },
+    {
+      "path": "oracle/P06/original-constraint.ili",
+      "sha256": "88d8adb3b3fbd15031f30ab631e2939266a790ef0a79a589c74667211955833c"
+    },
+    {
+      "path": "oracle/P07/compiler-gold.json",
+      "sha256": "bd4a3d6d21602f69b06bc4915b7fd08be6cf64044791553fb7613671df0d7b56"
+    },
+    {
+      "path": "oracle/P07/expected.json",
+      "sha256": "3ecf4bce7b250a4745ee3f2a18a96ea4dfa391e1f04444c23c066828faeb6318"
+    },
+    {
+      "path": "oracle/P07/gold-model.ili",
+      "sha256": "55a6b6c1fe7e7f474239e19684338aee5d45678802d3be51f5993a6f9d75bb6e"
+    },
+    {
+      "path": "oracle/P07/original-constraint.ili",
+      "sha256": "59b92029f80b6be081ed0105381a6850789b9d21d6b648e4d7b003868db42f37"
+    },
+    {
+      "path": "oracle/P08/compiler-gold.json",
+      "sha256": "cd475b2b9d8826e5a24b73010cabe2558cb414d27d8fa2081c1502e144931ca1"
+    },
+    {
+      "path": "oracle/P08/expected.json",
+      "sha256": "00821b8c1d0d07958fa4d38e65b6edabbca583e0d74f1abaf4126cb3ff61ddb5"
+    },
+    {
+      "path": "oracle/P08/gold-model.ili",
+      "sha256": "55a6b6c1fe7e7f474239e19684338aee5d45678802d3be51f5993a6f9d75bb6e"
+    },
+    {
+      "path": "oracle/P08/original-constraint.ili",
+      "sha256": "467c7a1df2b8ac1077af0911bb4314559d9fe95ef587245b6e9f9a13cfb1f659"
+    },
+    {
+      "path": "oracle/P09/compiler-gold.json",
+      "sha256": "67213f2341acaa463ec1c27a624717879776889f676c5408ee139156af5fcd0e"
+    },
+    {
+      "path": "oracle/P09/expected.json",
+      "sha256": "5f898415f12f3b3aad6c4e6371651d9a2a589c933ebe5188a20787c220fbbb60"
+    },
+    {
+      "path": "oracle/P09/gold-model.ili",
+      "sha256": "d1d21ec5c7c4e60ec22801429a571b81dba19ce4f6772db071e75070e86100e9"
+    },
+    {
+      "path": "oracle/P09/original-constraint.ili",
+      "sha256": "c2ca020824c8ca0889082b618e7bfceca7389282e27a03870840baf187140555"
+    },
+    {
+      "path": "oracle/P10/compiler-gold.json",
+      "sha256": "5df5286974e855f94264e7d2f1bdfacc7909435ecac9f33834d0ef77247b5f4d"
+    },
+    {
+      "path": "oracle/P10/expected.json",
+      "sha256": "64fa97c0fb77984b862ab7378ff8aad3dd56ce814cf0b19926524df78e8a59cc"
+    },
+    {
+      "path": "oracle/P10/gold-model.ili",
+      "sha256": "55a6b6c1fe7e7f474239e19684338aee5d45678802d3be51f5993a6f9d75bb6e"
+    },
+    {
+      "path": "oracle/P10/original-constraint.ili",
+      "sha256": "574f9bccdf11030a234cdabc1f3fd9db8d7490c48703d6a20d98098316b84af0"
+    },
+    {
+      "path": "public/N11/model.ili",
+      "sha256": "364dd3b48f35171d6a235f4b327c089b40f255c8c143072a3784233ee675aa8c"
+    },
+    {
+      "path": "public/N11/requirement.de.md",
+      "sha256": "3e0bdfaff961374c358987ecb433c854f278ec2e2054e23704727d46a1b73c04"
+    },
+    {
+      "path": "public/N12/model.ili",
+      "sha256": "afb3a7a7b84d323cb0f28c1e8b792dd9360209d41229d725fd40b35a303177f8"
+    },
+    {
+      "path": "public/N12/requirement.de.md",
+      "sha256": "84ceb00dc563e1dc5bd154a47c9cca8913878ca4af3afcb322647f09db28dd99"
+    },
+    {
+      "path": "public/P01/model.ili",
+      "sha256": "02a213e92523f94744c05b7bbec4b8752016ff298eaf0c21d4f3a31797dd4ab6"
+    },
+    {
+      "path": "public/P01/requirement.de.md",
+      "sha256": "2805a0b0eb8a9c51f5c188727e5706fdb32547208c5eb574102bc94f630b0102"
+    },
+    {
+      "path": "public/P02/model.ili",
+      "sha256": "ee0efb7fc62654dcdfcf7fc58b630089462ab6cfd12bcd455452a088389d4fbf"
+    },
+    {
+      "path": "public/P02/requirement.de.md",
+      "sha256": "058449760f54d5ad4d6c3cee3dc2efefd8159f63d6e1002fbc4213c5c222ad0b"
+    },
+    {
+      "path": "public/P03/model.ili",
+      "sha256": "f57280c6902491d391177414a29468444b0a11eec7ee07df3a6f0b8f365fd7f1"
+    },
+    {
+      "path": "public/P03/requirement.de.md",
+      "sha256": "7249d419513102bfcee7dcb252941e9156ab289136c6658dd0b66ce00bc6b8b7"
+    },
+    {
+      "path": "public/P04/model.ili",
+      "sha256": "c56350aadc1744a34961c1fdcc486a9534ac19f6b7bbc7dd32437e4ba038c23e"
+    },
+    {
+      "path": "public/P04/requirement.de.md",
+      "sha256": "fa01c15c61fe312143c8041c42c3339f6ba1c26c27771b298d1e7cf816abc9a9"
+    },
+    {
+      "path": "public/P05/model.ili",
+      "sha256": "163abaa99b9118af2c9f1f7bc5ac0ded5ec6226217873a60324508a8cdeac694"
+    },
+    {
+      "path": "public/P05/requirement.de.md",
+      "sha256": "68bcdb9450c57e006e9a988f5cfe9d3536940d869de3e6409eb505fdb0667356"
+    },
+    {
+      "path": "public/P06/model.ili",
+      "sha256": "87c04821451a9e112579f6c3b6f764a0a671f653557419621939a6c139c49c84"
+    },
+    {
+      "path": "public/P06/requirement.de.md",
+      "sha256": "31be1b6c6cc1fde9a87fb294a2c8c6c5b0d3e466154198fa520481193e8db85b"
+    },
+    {
+      "path": "public/P07/model.ili",
+      "sha256": "fe2c9eeef7cd9f1f8b0051c4455588c64853932158fc9e92a06531d8beb8272d"
+    },
+    {
+      "path": "public/P07/requirement.de.md",
+      "sha256": "a84c78312d5ea7d62073c3b9373a2a9cc5f4fdca3772db23e9813be642d0d822"
+    },
+    {
+      "path": "public/P08/model.ili",
+      "sha256": "b78318eccff052d7cb03fec2a83becb25204babe5c70e6cfff0165a3c495f396"
+    },
+    {
+      "path": "public/P08/requirement.de.md",
+      "sha256": "38a19354a111f458fc34e479a23c4bf21ee5d7653c5145aec9473720781c6729"
+    },
+    {
+      "path": "public/P09/model.ili",
+      "sha256": "ec8227e4f41df3fd08ce8f3643c0f0912585a46505f96bd252a3562c5ac4537f"
+    },
+    {
+      "path": "public/P09/requirement.de.md",
+      "sha256": "cf4db4df281d7118223947a6e4dc58002939de7b0d5fdb5b4ffd5d38e8c21a2a"
+    },
+    {
+      "path": "public/P10/model.ili",
+      "sha256": "2dde4a2e848bc0f59686161c05beec27e95c19ad91edb9b462b8bd4a7e7e7a37"
+    },
+    {
+      "path": "public/P10/requirement.de.md",
+      "sha256": "395fb2347cb2f4fe19c598a25999f862737c2b05da7ef34cb69d1da9e67f4d95"
+    },
+    {
+      "path": "reconstructor-prompt.md",
+      "sha256": "fbd26f7b48576136a9ade99e52d1d73a334369b546afe32e8f6b1bf390a7bef1"
+    },
+    {
+      "path": "reference/N11/request-template.json",
+      "sha256": "ad00c26ed2c3f25a876277dcd24448701473f25b023c0732d12d8847803e8db7"
+    },
+    {
+      "path": "reference/N12/request-template.json",
+      "sha256": "c84edb7df0c0681234c2afbf723a2d4e28b6d7b5d1a386ad43f10ae3c75ca3bf"
+    },
+    {
+      "path": "reference/P01/request-template.json",
+      "sha256": "11c94196d3e2cef1e82a8aaa983294d878f70bdc0def798ac0e802d65d3fb1f7"
+    },
+    {
+      "path": "reference/P02/request-template.json",
+      "sha256": "2db8c5b818eff42001dfa0159f0ce3a52071abd1f5c26c4c016ea6744a50ee87"
+    },
+    {
+      "path": "reference/P03/request-template.json",
+      "sha256": "9f127969448f4eeca3df3384d73f0c801109f3f283e47aa3f94584b16a3938dc"
+    },
+    {
+      "path": "reference/P04/request-template.json",
+      "sha256": "f19d207e8c293b4a949548e1d9eab79f7bbbf57d6e3ebf7b4958f0f1b6f252b5"
+    },
+    {
+      "path": "reference/P05/request-template.json",
+      "sha256": "721f7c1b52a27e24b0af61037b4100ba39a474c1c9959cc09d2ac6d48f60f365"
+    },
+    {
+      "path": "reference/P06/request-template.json",
+      "sha256": "9594ba88fb0d40fdb8b616c5d3d3a240e61788ed458bd640874e4aa52e15e9b1"
+    },
+    {
+      "path": "reference/P07/request-template.json",
+      "sha256": "b04f8ac2c47aab665d4615af1af988aeb22c893e095683dd98c745a367f70b1a"
+    },
+    {
+      "path": "reference/P08/request-template.json",
+      "sha256": "552496307506c58789f3b1eb62dddb7818e29ad4c2d123c0adace42109aca3a3"
+    },
+    {
+      "path": "reference/P09/request-template.json",
+      "sha256": "b1b113564bf83e9f4f5a36be669f10d73ddda45693960e7001ff8eb39255f6b1"
+    },
+    {
+      "path": "reference/P10/request-template.json",
+      "sha256": "2ee1a468b1ff93a5cc09ba32f1a67da95cea9ddc67763141463dd2275f789f21"
+    },
+    {
+      "path": "scoring-rules.json",
+      "sha256": "9630324ecbcb5447c0d6aaaf3fb3dac396771d391bd9164972a9b201a179ce09"
+    },
+    {
+      "path": "tool-catalog.json",
+      "sha256": "088cf21ee8d7306410a0f1c89f83e88a1333bc73b1a96790824f449df28f5388"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "tool": "mcp__interlis_mcp_eval__authorIliUniqueConstraint",
+  "payload": {
+    "contextFqn": "VSADSSMINI_2020_1_LV95_Validierung_IPW_S2_20250123.VSADSSMini_Validierung.v_Knoten_inBetrieb",
+    "spec": {
+      "kind": "UNIQUE",
+      "name": "BenchmarkRule",
+      "scope": "GLOBAL",
+      "keyPaths": [
+        "Bezeichnung",
+        "DatenherrRef"
+      ]
+    }
+  }
+}

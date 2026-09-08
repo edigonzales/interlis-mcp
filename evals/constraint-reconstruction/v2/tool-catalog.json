@@ -1,0 +1,5283 @@
+[
+  {
+    "name": "authorIliExistenceConstraint",
+    "title": "authorIliExistenceConstraint",
+    "description": "Erzeugt einen typisierten EXISTENCE CONSTRAINT mit explizitem restrictedPath und vollst\u00e4ndigen REQUIRED-IN-Zielen aus viewableFqn und attributePath. Die Einf\u00fcgung ist source-preserving; Before/After je genau einmal kompiliert; AST->constraint-level-IR sowie NUMERIC-, TEXT-, Struktur-, Referenz- und Geometrie-Fixtures werden mit ilivalidator gepr\u00fcft. Nur ein vollst\u00e4ndig best\u00e4tigter Proof wird freigegeben. Das Tool schreibt keine Datei.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "modelText": {
+          "type": "string",
+          "description": "Vollst\u00e4ndiger INTERLIS-Modelltext vor der Erg\u00e4nzung"
+        },
+        "contextFqn": {
+          "type": "string",
+          "description": "Vollqualifizierter Constraint-Kontext"
+        },
+        "spec": {
+          "type": "object",
+          "properties": {
+            "iliDoc": {
+              "type": "string"
+            },
+            "metaAttributes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "rawValue": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            },
+            "name": {
+              "type": "string"
+            },
+            "requiredIn": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "attributePath": {
+                    "type": "string"
+                  },
+                  "viewableFqn": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "attributePath",
+                  "viewableFqn"
+                ]
+              }
+            },
+            "restrictedPath": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "EXISTENCE"
+            }
+          },
+          "required": [
+            "name",
+            "requiredIn",
+            "restrictedPath",
+            "kind"
+          ],
+          "description": "Typisierte EXISTENCE-Spezifikation"
+        },
+        "modelPurpose": {
+          "type": "string",
+          "enum": [
+            "ANY",
+            "CAPTURE",
+            "PUBLICATION",
+            "VALIDATION",
+            "UNKNOWN"
+          ],
+          "description": "Modellzweck"
+        },
+        "ruleProfile": {
+          "type": "string",
+          "enum": [
+            "CORE",
+            "SO"
+          ],
+          "description": "Regelprofil CORE oder SO"
+        }
+      },
+      "required": [
+        "modelText",
+        "contextFqn",
+        "spec"
+      ]
+    },
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$defs": {
+        "CompilerDiagnostic": {
+          "type": "object",
+          "properties": {
+            "column": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "file": {
+              "type": "string"
+            },
+            "line": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "message": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string"
+            },
+            "sourceExcerpt": {
+              "type": "object",
+              "properties": {
+                "endLine": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "startLine": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "Map_String.Object_": {
+          "type": "object"
+        },
+        "OpenQuestion": {
+          "type": "object",
+          "properties": {
+            "decisionImpact": {
+              "type": "string"
+            },
+            "question": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "question"
+          ]
+        },
+        "ReviewFinding": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "recommendation": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string"
+            },
+            "sourceSection": {
+              "type": "string"
+            },
+            "sourceUrl": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          }
+        },
+        "SemanticChange": {
+          "type": "object",
+          "properties": {
+            "after": {
+              "$ref": "#/$defs/Map_String.Object_"
+            },
+            "before": {
+              "$ref": "#/$defs/Map_String.Object_"
+            },
+            "changedFields": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "kind": {
+              "type": "string"
+            },
+            "mandatory": {
+              "type": "boolean"
+            },
+            "model": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "properties": {
+              "$ref": "#/$defs/Map_String.Object_"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "scopedName": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "changedFields",
+            "properties"
+          ]
+        }
+      },
+      "type": "object",
+      "properties": {
+        "added": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "afterDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CompilerDiagnostic"
+          }
+        },
+        "afterReview": {
+          "type": "object",
+          "properties": {
+            "available": {
+              "type": "boolean"
+            },
+            "compilerValid": {
+              "type": "boolean"
+            },
+            "manualChecks": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ReviewFinding"
+              }
+            },
+            "modelPurpose": {
+              "type": "string"
+            },
+            "openQuestions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/OpenQuestion"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "ruleFindings": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ReviewFinding"
+              }
+            },
+            "ruleProfile": {
+              "type": "string"
+            },
+            "valid": {
+              "type": "boolean"
+            },
+            "validForAutomatedRules": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "manualChecks",
+            "openQuestions",
+            "ruleFindings"
+          ]
+        },
+        "applied": {
+          "type": "boolean"
+        },
+        "beforeDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CompilerDiagnostic"
+          }
+        },
+        "candidateModelText": {
+          "type": "string"
+        },
+        "changed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "compilerDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CompilerDiagnostic"
+          }
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "constraintProofs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "automaticCasesAvailable": {
+                "type": "boolean"
+              },
+              "automaticCasesGenerated": {
+                "type": "boolean"
+              },
+              "constraintFqn": {
+                "type": "string"
+              },
+              "coverageComplete": {
+                "type": "boolean"
+              },
+              "coverageExcludedCount": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "coverageExcludedGoals": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "expression": {
+                      "type": "string"
+                    },
+                    "goal": {
+                      "type": "string"
+                    },
+                    "justification": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "reasonCode": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "coverageGaps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "expression": {
+                      "type": "string"
+                    },
+                    "goal": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "reasonCode": {
+                      "type": "string"
+                    },
+                    "solverReason": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "coverageGoalCount": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "coverageSolvedCount": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "generatedCases": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "associationLinkCount": {
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "basketId": {
+                      "type": "string"
+                    },
+                    "coveredGoals": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "expression": {
+                            "type": "string"
+                          },
+                          "goal": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "expectedConstraintValid": {
+                      "type": "boolean"
+                    },
+                    "expectedValid": {
+                      "type": "boolean"
+                    },
+                    "expectedViolationCount": {
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "objectCount": {
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "objects": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/Map_String.Object_"
+                      }
+                    },
+                    "outcome": {
+                      "type": "string"
+                    },
+                    "ownerClassFqn": {
+                      "type": "string"
+                    },
+                    "purpose": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "routeTargetFqn": {
+                      "type": "string"
+                    },
+                    "structurePath": {
+                      "type": "string"
+                    },
+                    "values": {
+                      "$ref": "#/$defs/Map_String.Object_"
+                    }
+                  },
+                  "required": [
+                    "coveredGoals",
+                    "objects",
+                    "values"
+                  ]
+                }
+              },
+              "generationVerified": {
+                "type": "boolean"
+              },
+              "limitations": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "pattern": {
+                "type": "string"
+              },
+              "proofVerified": {
+                "type": "boolean"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "reasonCode": {
+                "type": "string"
+              },
+              "verification": {
+                "type": "object",
+                "properties": {
+                  "allPassed": {
+                    "type": "boolean"
+                  },
+                  "caseCount": {
+                    "type": "integer",
+                    "format": "int32"
+                  },
+                  "cases": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "actualValid": {
+                          "type": "boolean"
+                        },
+                        "actualViolationCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "baseClassFqn": {
+                          "type": "string"
+                        },
+                        "baseSubjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "constraintExercised": {
+                          "type": "boolean"
+                        },
+                        "excludedSubjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "expectedValid": {
+                          "type": "boolean"
+                        },
+                        "expectedViolationCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "fixtureErrors": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/Map_String.Object_"
+                          }
+                        },
+                        "fixturePreparationReasonCode": {
+                          "type": "string"
+                        },
+                        "fixtureValid": {
+                          "type": "boolean"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "objectCounts": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/Map_String.Object_"
+                          }
+                        },
+                        "passed": {
+                          "type": "boolean"
+                        },
+                        "plannedSubjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "setExecuted": {
+                          "type": "boolean"
+                        },
+                        "skippedFilterCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "subjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "viewFqn": {
+                          "type": "string"
+                        },
+                        "xtfText": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "fixtureErrors",
+                        "objectCounts"
+                      ]
+                    }
+                  },
+                  "passedCount": {
+                    "type": "integer",
+                    "format": "int32"
+                  }
+                },
+                "required": [
+                  "cases"
+                ]
+              }
+            },
+            "required": [
+              "constraintFqn",
+              "coverageExcludedGoals",
+              "coverageGaps",
+              "generatedCases",
+              "limitations",
+              "proofVerified"
+            ]
+          }
+        },
+        "derivedImports": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "details": {
+          "$ref": "#/$defs/Map_String.Object_"
+        },
+        "generated": {
+          "type": "boolean"
+        },
+        "impact": {
+          "type": "string"
+        },
+        "openQuestions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OpenQuestion"
+          }
+        },
+        "potentiallyBreakingChanges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "proofVerified": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "reasonCode": {
+          "type": "string"
+        },
+        "removed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "requiresUserDecision": {
+          "type": "boolean"
+        },
+        "semanticDiff": {
+          "type": "object",
+          "properties": {
+            "added": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            },
+            "astRoundTripVerified": {
+              "type": "boolean"
+            },
+            "changed": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            },
+            "impact": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "modelName": {
+              "type": "string"
+            },
+            "potentiallyBreakingChanges": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            },
+            "removed": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            }
+          },
+          "required": [
+            "added",
+            "changed",
+            "potentiallyBreakingChanges",
+            "removed"
+          ]
+        },
+        "sourceEdits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "after": {
+                "type": "string"
+              },
+              "before": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "endLine": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "endOffset": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "startLine": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "startOffset": {
+                "type": "integer",
+                "format": "int32"
+              }
+            },
+            "required": [
+              "after",
+              "before",
+              "description",
+              "endLine",
+              "endOffset",
+              "startLine",
+              "startOffset"
+            ]
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "GENERATED",
+            "APPLIED",
+            "BREAKING_CHANGE_REQUIRES_CONFIRMATION",
+            "NEEDS_INPUT",
+            "INVALID_SPEC",
+            "BEFORE_MODEL_INVALID",
+            "CANDIDATE_MODEL_INVALID",
+            "AST_ROUND_TRIP_FAILED",
+            "PROOF_INCOMPLETE",
+            "PROOF_FAILED",
+            "EXTERNAL_FUNCTION_SEMANTICS_REQUIRED",
+            "UNEXPECTED_SEMANTIC_CHANGE"
+          ]
+        },
+        "updatedModelText": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "added",
+        "afterDiagnostics",
+        "beforeDiagnostics",
+        "changed",
+        "compilerDiagnostics",
+        "complete",
+        "constraintProofs",
+        "derivedImports",
+        "openQuestions",
+        "potentiallyBreakingChanges",
+        "removed",
+        "requiresUserDecision",
+        "sourceEdits",
+        "status"
+      ]
+    },
+    "annotations": {
+      "title": "",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "authorIliMandatoryConstraint",
+    "title": "authorIliMandatoryConstraint",
+    "description": "Erzeugt einen Mandatory Constraint aus einer rekursiven typisierten semantischen Node-Liste (ATTRIBUTE, PATH, FUNCTION, COMPARE usw.). Die Einf\u00fcgung ist source-preserving; Before und After kompiliert die Pipeline je genau einmal und beweist per AST->IR-Roundtrip, Coverage-Planer, Solver, Object-Graph-Synthese und ilivalidator. Diff und afterReview stammen aus denselben Compilations. Externe Funktionen ohne ausf\u00fchrbare Semantik halten den Kandidaten zur\u00fcck. Das Tool schreibt keine Datei.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$defs": {
+        "ExpressionSpec": {
+          "type": "object",
+          "properties": {
+            "children": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ExpressionSpec"
+              }
+            },
+            "functionOrigin": {
+              "type": "string",
+              "enum": [
+                "STANDARD",
+                "MODEL",
+                "VALIDATOR_EXTENSION"
+              ]
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "ATTRIBUTE",
+                "PATH",
+                "NUMERIC",
+                "BOOLEAN",
+                "ENUM",
+                "TEXT",
+                "MTEXT",
+                "FUNCTION",
+                "DEFINED",
+                "NOT",
+                "AND",
+                "OR",
+                "IMPLIES",
+                "COMPARE",
+                "OBJECT_COUNT"
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "objects": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "ALL"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "const": "PATH"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "kind"
+                  ]
+                }
+              ]
+            },
+            "operator": {
+              "type": "string"
+            },
+            "value": {}
+          },
+          "required": [
+            "kind"
+          ]
+        }
+      },
+      "type": "object",
+      "properties": {
+        "modelText": {
+          "type": "string",
+          "description": "Vollst\u00e4ndiger INTERLIS-Modelltext vor der Erg\u00e4nzung"
+        },
+        "contextFqn": {
+          "type": "string",
+          "description": "Vollqualifizierter Constraint-Kontext"
+        },
+        "spec": {
+          "type": "object",
+          "properties": {
+            "condition": {
+              "$ref": "#/$defs/ExpressionSpec"
+            },
+            "iliDoc": {
+              "type": "string"
+            },
+            "metaAttributes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "rawValue": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            },
+            "name": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "MANDATORY"
+            }
+          },
+          "required": [
+            "condition",
+            "name",
+            "kind"
+          ],
+          "description": "Typisierte MANDATORY-Spezifikation"
+        },
+        "modelPurpose": {
+          "type": "string",
+          "enum": [
+            "ANY",
+            "CAPTURE",
+            "PUBLICATION",
+            "VALIDATION",
+            "UNKNOWN"
+          ],
+          "description": "Modellzweck"
+        },
+        "ruleProfile": {
+          "type": "string",
+          "enum": [
+            "CORE",
+            "SO"
+          ],
+          "description": "Regelprofil CORE oder SO"
+        }
+      },
+      "required": [
+        "modelText",
+        "contextFqn",
+        "spec"
+      ]
+    },
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$defs": {
+        "CompilerDiagnostic": {
+          "type": "object",
+          "properties": {
+            "column": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "file": {
+              "type": "string"
+            },
+            "line": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "message": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string"
+            },
+            "sourceExcerpt": {
+              "type": "object",
+              "properties": {
+                "endLine": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "startLine": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "Map_String.Object_": {
+          "type": "object"
+        },
+        "OpenQuestion": {
+          "type": "object",
+          "properties": {
+            "decisionImpact": {
+              "type": "string"
+            },
+            "question": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "question"
+          ]
+        },
+        "ReviewFinding": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "recommendation": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string"
+            },
+            "sourceSection": {
+              "type": "string"
+            },
+            "sourceUrl": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          }
+        },
+        "SemanticChange": {
+          "type": "object",
+          "properties": {
+            "after": {
+              "$ref": "#/$defs/Map_String.Object_"
+            },
+            "before": {
+              "$ref": "#/$defs/Map_String.Object_"
+            },
+            "changedFields": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "kind": {
+              "type": "string"
+            },
+            "mandatory": {
+              "type": "boolean"
+            },
+            "model": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "properties": {
+              "$ref": "#/$defs/Map_String.Object_"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "scopedName": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "changedFields",
+            "properties"
+          ]
+        }
+      },
+      "type": "object",
+      "properties": {
+        "added": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "afterDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CompilerDiagnostic"
+          }
+        },
+        "afterReview": {
+          "type": "object",
+          "properties": {
+            "available": {
+              "type": "boolean"
+            },
+            "compilerValid": {
+              "type": "boolean"
+            },
+            "manualChecks": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ReviewFinding"
+              }
+            },
+            "modelPurpose": {
+              "type": "string"
+            },
+            "openQuestions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/OpenQuestion"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "ruleFindings": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ReviewFinding"
+              }
+            },
+            "ruleProfile": {
+              "type": "string"
+            },
+            "valid": {
+              "type": "boolean"
+            },
+            "validForAutomatedRules": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "manualChecks",
+            "openQuestions",
+            "ruleFindings"
+          ]
+        },
+        "applied": {
+          "type": "boolean"
+        },
+        "beforeDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CompilerDiagnostic"
+          }
+        },
+        "candidateModelText": {
+          "type": "string"
+        },
+        "changed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "compilerDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CompilerDiagnostic"
+          }
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "constraintProofs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "automaticCasesAvailable": {
+                "type": "boolean"
+              },
+              "automaticCasesGenerated": {
+                "type": "boolean"
+              },
+              "constraintFqn": {
+                "type": "string"
+              },
+              "coverageComplete": {
+                "type": "boolean"
+              },
+              "coverageExcludedCount": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "coverageExcludedGoals": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "expression": {
+                      "type": "string"
+                    },
+                    "goal": {
+                      "type": "string"
+                    },
+                    "justification": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "reasonCode": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "coverageGaps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "expression": {
+                      "type": "string"
+                    },
+                    "goal": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "reasonCode": {
+                      "type": "string"
+                    },
+                    "solverReason": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "coverageGoalCount": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "coverageSolvedCount": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "generatedCases": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "associationLinkCount": {
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "basketId": {
+                      "type": "string"
+                    },
+                    "coveredGoals": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "expression": {
+                            "type": "string"
+                          },
+                          "goal": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "expectedConstraintValid": {
+                      "type": "boolean"
+                    },
+                    "expectedValid": {
+                      "type": "boolean"
+                    },
+                    "expectedViolationCount": {
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "objectCount": {
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "objects": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/Map_String.Object_"
+                      }
+                    },
+                    "outcome": {
+                      "type": "string"
+                    },
+                    "ownerClassFqn": {
+                      "type": "string"
+                    },
+                    "purpose": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "routeTargetFqn": {
+                      "type": "string"
+                    },
+                    "structurePath": {
+                      "type": "string"
+                    },
+                    "values": {
+                      "$ref": "#/$defs/Map_String.Object_"
+                    }
+                  },
+                  "required": [
+                    "coveredGoals",
+                    "objects",
+                    "values"
+                  ]
+                }
+              },
+              "generationVerified": {
+                "type": "boolean"
+              },
+              "limitations": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "pattern": {
+                "type": "string"
+              },
+              "proofVerified": {
+                "type": "boolean"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "reasonCode": {
+                "type": "string"
+              },
+              "verification": {
+                "type": "object",
+                "properties": {
+                  "allPassed": {
+                    "type": "boolean"
+                  },
+                  "caseCount": {
+                    "type": "integer",
+                    "format": "int32"
+                  },
+                  "cases": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "actualValid": {
+                          "type": "boolean"
+                        },
+                        "actualViolationCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "baseClassFqn": {
+                          "type": "string"
+                        },
+                        "baseSubjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "constraintExercised": {
+                          "type": "boolean"
+                        },
+                        "excludedSubjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "expectedValid": {
+                          "type": "boolean"
+                        },
+                        "expectedViolationCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "fixtureErrors": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/Map_String.Object_"
+                          }
+                        },
+                        "fixturePreparationReasonCode": {
+                          "type": "string"
+                        },
+                        "fixtureValid": {
+                          "type": "boolean"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "objectCounts": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/Map_String.Object_"
+                          }
+                        },
+                        "passed": {
+                          "type": "boolean"
+                        },
+                        "plannedSubjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "setExecuted": {
+                          "type": "boolean"
+                        },
+                        "skippedFilterCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "subjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "viewFqn": {
+                          "type": "string"
+                        },
+                        "xtfText": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "fixtureErrors",
+                        "objectCounts"
+                      ]
+                    }
+                  },
+                  "passedCount": {
+                    "type": "integer",
+                    "format": "int32"
+                  }
+                },
+                "required": [
+                  "cases"
+                ]
+              }
+            },
+            "required": [
+              "constraintFqn",
+              "coverageExcludedGoals",
+              "coverageGaps",
+              "generatedCases",
+              "limitations",
+              "proofVerified"
+            ]
+          }
+        },
+        "derivedImports": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "details": {
+          "$ref": "#/$defs/Map_String.Object_"
+        },
+        "generated": {
+          "type": "boolean"
+        },
+        "impact": {
+          "type": "string"
+        },
+        "openQuestions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OpenQuestion"
+          }
+        },
+        "potentiallyBreakingChanges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "proofVerified": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "reasonCode": {
+          "type": "string"
+        },
+        "removed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "requiresUserDecision": {
+          "type": "boolean"
+        },
+        "semanticDiff": {
+          "type": "object",
+          "properties": {
+            "added": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            },
+            "astRoundTripVerified": {
+              "type": "boolean"
+            },
+            "changed": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            },
+            "impact": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "modelName": {
+              "type": "string"
+            },
+            "potentiallyBreakingChanges": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            },
+            "removed": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            }
+          },
+          "required": [
+            "added",
+            "changed",
+            "potentiallyBreakingChanges",
+            "removed"
+          ]
+        },
+        "sourceEdits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "after": {
+                "type": "string"
+              },
+              "before": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "endLine": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "endOffset": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "startLine": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "startOffset": {
+                "type": "integer",
+                "format": "int32"
+              }
+            },
+            "required": [
+              "after",
+              "before",
+              "description",
+              "endLine",
+              "endOffset",
+              "startLine",
+              "startOffset"
+            ]
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "GENERATED",
+            "APPLIED",
+            "BREAKING_CHANGE_REQUIRES_CONFIRMATION",
+            "NEEDS_INPUT",
+            "INVALID_SPEC",
+            "BEFORE_MODEL_INVALID",
+            "CANDIDATE_MODEL_INVALID",
+            "AST_ROUND_TRIP_FAILED",
+            "PROOF_INCOMPLETE",
+            "PROOF_FAILED",
+            "EXTERNAL_FUNCTION_SEMANTICS_REQUIRED",
+            "UNEXPECTED_SEMANTIC_CHANGE"
+          ]
+        },
+        "updatedModelText": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "added",
+        "afterDiagnostics",
+        "beforeDiagnostics",
+        "changed",
+        "compilerDiagnostics",
+        "complete",
+        "constraintProofs",
+        "derivedImports",
+        "openQuestions",
+        "potentiallyBreakingChanges",
+        "removed",
+        "requiresUserDecision",
+        "sourceEdits",
+        "status"
+      ]
+    },
+    "annotations": {
+      "title": "",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "authorIliPlausibilityConstraint",
+    "title": "authorIliPlausibilityConstraint",
+    "description": "Erzeugt einen PLAUSIBILITY Constraint mit direction, percentage und rekursiver typisierter semantischen Node-Liste. Die Einf\u00fcgung ist source-preserving; Before/After je genau einmal kompiliert; der Proof verwendet constraint-level IR, echte Mehrfachobjekt-Populationen an der Prozentgrenze und ilivalidator. Diff und afterReview verwenden dieselben Compilations. Das Tool schreibt keine Datei.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$defs": {
+        "ExpressionSpec": {
+          "type": "object",
+          "properties": {
+            "children": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ExpressionSpec"
+              }
+            },
+            "functionOrigin": {
+              "type": "string",
+              "enum": [
+                "STANDARD",
+                "MODEL",
+                "VALIDATOR_EXTENSION"
+              ]
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "ATTRIBUTE",
+                "PATH",
+                "NUMERIC",
+                "BOOLEAN",
+                "ENUM",
+                "TEXT",
+                "MTEXT",
+                "FUNCTION",
+                "DEFINED",
+                "NOT",
+                "AND",
+                "OR",
+                "IMPLIES",
+                "COMPARE",
+                "OBJECT_COUNT"
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "objects": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "ALL"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "const": "PATH"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "kind"
+                  ]
+                }
+              ]
+            },
+            "operator": {
+              "type": "string"
+            },
+            "value": {}
+          },
+          "required": [
+            "kind"
+          ]
+        }
+      },
+      "type": "object",
+      "properties": {
+        "modelText": {
+          "type": "string",
+          "description": "Vollst\u00e4ndiger INTERLIS-Modelltext vor der Erg\u00e4nzung"
+        },
+        "contextFqn": {
+          "type": "string",
+          "description": "Vollqualifizierter Constraint-Kontext"
+        },
+        "spec": {
+          "type": "object",
+          "properties": {
+            "condition": {
+              "$ref": "#/$defs/ExpressionSpec"
+            },
+            "direction": {
+              "type": "string",
+              "enum": [
+                "AT_LEAST",
+                "AT_MOST"
+              ]
+            },
+            "iliDoc": {
+              "type": "string"
+            },
+            "metaAttributes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "rawValue": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            },
+            "name": {
+              "type": "string"
+            },
+            "percentage": {
+              "type": "number"
+            },
+            "kind": {
+              "const": "PLAUSIBILITY"
+            }
+          },
+          "required": [
+            "condition",
+            "direction",
+            "name",
+            "percentage",
+            "kind"
+          ],
+          "description": "Typisierte PLAUSIBILITY-Spezifikation"
+        },
+        "modelPurpose": {
+          "type": "string",
+          "enum": [
+            "ANY",
+            "CAPTURE",
+            "PUBLICATION",
+            "VALIDATION",
+            "UNKNOWN"
+          ],
+          "description": "Modellzweck"
+        },
+        "ruleProfile": {
+          "type": "string",
+          "enum": [
+            "CORE",
+            "SO"
+          ],
+          "description": "Regelprofil CORE oder SO"
+        }
+      },
+      "required": [
+        "modelText",
+        "contextFqn",
+        "spec"
+      ]
+    },
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$defs": {
+        "CompilerDiagnostic": {
+          "type": "object",
+          "properties": {
+            "column": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "file": {
+              "type": "string"
+            },
+            "line": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "message": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string"
+            },
+            "sourceExcerpt": {
+              "type": "object",
+              "properties": {
+                "endLine": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "startLine": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "Map_String.Object_": {
+          "type": "object"
+        },
+        "OpenQuestion": {
+          "type": "object",
+          "properties": {
+            "decisionImpact": {
+              "type": "string"
+            },
+            "question": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "question"
+          ]
+        },
+        "ReviewFinding": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "recommendation": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string"
+            },
+            "sourceSection": {
+              "type": "string"
+            },
+            "sourceUrl": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          }
+        },
+        "SemanticChange": {
+          "type": "object",
+          "properties": {
+            "after": {
+              "$ref": "#/$defs/Map_String.Object_"
+            },
+            "before": {
+              "$ref": "#/$defs/Map_String.Object_"
+            },
+            "changedFields": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "kind": {
+              "type": "string"
+            },
+            "mandatory": {
+              "type": "boolean"
+            },
+            "model": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "properties": {
+              "$ref": "#/$defs/Map_String.Object_"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "scopedName": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "changedFields",
+            "properties"
+          ]
+        }
+      },
+      "type": "object",
+      "properties": {
+        "added": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "afterDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CompilerDiagnostic"
+          }
+        },
+        "afterReview": {
+          "type": "object",
+          "properties": {
+            "available": {
+              "type": "boolean"
+            },
+            "compilerValid": {
+              "type": "boolean"
+            },
+            "manualChecks": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ReviewFinding"
+              }
+            },
+            "modelPurpose": {
+              "type": "string"
+            },
+            "openQuestions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/OpenQuestion"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "ruleFindings": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ReviewFinding"
+              }
+            },
+            "ruleProfile": {
+              "type": "string"
+            },
+            "valid": {
+              "type": "boolean"
+            },
+            "validForAutomatedRules": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "manualChecks",
+            "openQuestions",
+            "ruleFindings"
+          ]
+        },
+        "applied": {
+          "type": "boolean"
+        },
+        "beforeDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CompilerDiagnostic"
+          }
+        },
+        "candidateModelText": {
+          "type": "string"
+        },
+        "changed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "compilerDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CompilerDiagnostic"
+          }
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "constraintProofs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "automaticCasesAvailable": {
+                "type": "boolean"
+              },
+              "automaticCasesGenerated": {
+                "type": "boolean"
+              },
+              "constraintFqn": {
+                "type": "string"
+              },
+              "coverageComplete": {
+                "type": "boolean"
+              },
+              "coverageExcludedCount": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "coverageExcludedGoals": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "expression": {
+                      "type": "string"
+                    },
+                    "goal": {
+                      "type": "string"
+                    },
+                    "justification": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "reasonCode": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "coverageGaps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "expression": {
+                      "type": "string"
+                    },
+                    "goal": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "reasonCode": {
+                      "type": "string"
+                    },
+                    "solverReason": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "coverageGoalCount": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "coverageSolvedCount": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "generatedCases": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "associationLinkCount": {
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "basketId": {
+                      "type": "string"
+                    },
+                    "coveredGoals": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "expression": {
+                            "type": "string"
+                          },
+                          "goal": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "expectedConstraintValid": {
+                      "type": "boolean"
+                    },
+                    "expectedValid": {
+                      "type": "boolean"
+                    },
+                    "expectedViolationCount": {
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "objectCount": {
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "objects": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/Map_String.Object_"
+                      }
+                    },
+                    "outcome": {
+                      "type": "string"
+                    },
+                    "ownerClassFqn": {
+                      "type": "string"
+                    },
+                    "purpose": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "routeTargetFqn": {
+                      "type": "string"
+                    },
+                    "structurePath": {
+                      "type": "string"
+                    },
+                    "values": {
+                      "$ref": "#/$defs/Map_String.Object_"
+                    }
+                  },
+                  "required": [
+                    "coveredGoals",
+                    "objects",
+                    "values"
+                  ]
+                }
+              },
+              "generationVerified": {
+                "type": "boolean"
+              },
+              "limitations": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "pattern": {
+                "type": "string"
+              },
+              "proofVerified": {
+                "type": "boolean"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "reasonCode": {
+                "type": "string"
+              },
+              "verification": {
+                "type": "object",
+                "properties": {
+                  "allPassed": {
+                    "type": "boolean"
+                  },
+                  "caseCount": {
+                    "type": "integer",
+                    "format": "int32"
+                  },
+                  "cases": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "actualValid": {
+                          "type": "boolean"
+                        },
+                        "actualViolationCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "baseClassFqn": {
+                          "type": "string"
+                        },
+                        "baseSubjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "constraintExercised": {
+                          "type": "boolean"
+                        },
+                        "excludedSubjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "expectedValid": {
+                          "type": "boolean"
+                        },
+                        "expectedViolationCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "fixtureErrors": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/Map_String.Object_"
+                          }
+                        },
+                        "fixturePreparationReasonCode": {
+                          "type": "string"
+                        },
+                        "fixtureValid": {
+                          "type": "boolean"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "objectCounts": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/Map_String.Object_"
+                          }
+                        },
+                        "passed": {
+                          "type": "boolean"
+                        },
+                        "plannedSubjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "setExecuted": {
+                          "type": "boolean"
+                        },
+                        "skippedFilterCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "subjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "viewFqn": {
+                          "type": "string"
+                        },
+                        "xtfText": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "fixtureErrors",
+                        "objectCounts"
+                      ]
+                    }
+                  },
+                  "passedCount": {
+                    "type": "integer",
+                    "format": "int32"
+                  }
+                },
+                "required": [
+                  "cases"
+                ]
+              }
+            },
+            "required": [
+              "constraintFqn",
+              "coverageExcludedGoals",
+              "coverageGaps",
+              "generatedCases",
+              "limitations",
+              "proofVerified"
+            ]
+          }
+        },
+        "derivedImports": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "details": {
+          "$ref": "#/$defs/Map_String.Object_"
+        },
+        "generated": {
+          "type": "boolean"
+        },
+        "impact": {
+          "type": "string"
+        },
+        "openQuestions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OpenQuestion"
+          }
+        },
+        "potentiallyBreakingChanges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "proofVerified": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "reasonCode": {
+          "type": "string"
+        },
+        "removed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "requiresUserDecision": {
+          "type": "boolean"
+        },
+        "semanticDiff": {
+          "type": "object",
+          "properties": {
+            "added": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            },
+            "astRoundTripVerified": {
+              "type": "boolean"
+            },
+            "changed": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            },
+            "impact": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "modelName": {
+              "type": "string"
+            },
+            "potentiallyBreakingChanges": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            },
+            "removed": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            }
+          },
+          "required": [
+            "added",
+            "changed",
+            "potentiallyBreakingChanges",
+            "removed"
+          ]
+        },
+        "sourceEdits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "after": {
+                "type": "string"
+              },
+              "before": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "endLine": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "endOffset": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "startLine": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "startOffset": {
+                "type": "integer",
+                "format": "int32"
+              }
+            },
+            "required": [
+              "after",
+              "before",
+              "description",
+              "endLine",
+              "endOffset",
+              "startLine",
+              "startOffset"
+            ]
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "GENERATED",
+            "APPLIED",
+            "BREAKING_CHANGE_REQUIRES_CONFIRMATION",
+            "NEEDS_INPUT",
+            "INVALID_SPEC",
+            "BEFORE_MODEL_INVALID",
+            "CANDIDATE_MODEL_INVALID",
+            "AST_ROUND_TRIP_FAILED",
+            "PROOF_INCOMPLETE",
+            "PROOF_FAILED",
+            "EXTERNAL_FUNCTION_SEMANTICS_REQUIRED",
+            "UNEXPECTED_SEMANTIC_CHANGE"
+          ]
+        },
+        "updatedModelText": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "added",
+        "afterDiagnostics",
+        "beforeDiagnostics",
+        "changed",
+        "compilerDiagnostics",
+        "complete",
+        "constraintProofs",
+        "derivedImports",
+        "openQuestions",
+        "potentiallyBreakingChanges",
+        "removed",
+        "requiresUserDecision",
+        "sourceEdits",
+        "status"
+      ]
+    },
+    "annotations": {
+      "title": "",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "authorIliSetConstraint",
+    "title": "authorIliSetConstraint",
+    "description": "Erzeugt einen typisierten SET CONSTRAINT mit perBasket/global-vs-Basket-Scope, optionalem where und diskriminierter OBJECT_COUNT- oder BOOLEAN_EXPRESSION-Condition; OBJECT_COUNT unterst\u00fctzt objectCount(ALL) und navigierte Objektmengen. Die Einf\u00fcgung ist source-preserving; Before/After je genau einmal kompiliert; constraint-level SET-IR und ilivalidator \u00fcbernehmen den Proof. Geometry-aware Funktionen werden nur bei implementierter Semantik freigegeben. Diff und afterReview verwenden dieselben Compilations. Das Tool schreibt keine Datei.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$defs": {
+        "AllObjectsSpec": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "ALL"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        "ExpressionSpec": {
+          "type": "object",
+          "properties": {
+            "children": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ExpressionSpec"
+              }
+            },
+            "functionOrigin": {
+              "type": "string",
+              "enum": [
+                "STANDARD",
+                "MODEL",
+                "VALIDATOR_EXTENSION"
+              ]
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "ATTRIBUTE",
+                "PATH",
+                "NUMERIC",
+                "BOOLEAN",
+                "ENUM",
+                "TEXT",
+                "MTEXT",
+                "FUNCTION",
+                "DEFINED",
+                "NOT",
+                "AND",
+                "OR",
+                "IMPLIES",
+                "COMPARE",
+                "OBJECT_COUNT"
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "objects": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/AllObjectsSpec"
+                },
+                {
+                  "$ref": "#/$defs/PathObjectsSpec"
+                }
+              ]
+            },
+            "operator": {
+              "type": "string"
+            },
+            "value": {}
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        "PathObjectsSpec": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "PATH"
+            }
+          },
+          "required": [
+            "path",
+            "kind"
+          ]
+        }
+      },
+      "type": "object",
+      "properties": {
+        "modelText": {
+          "type": "string",
+          "description": "Vollst\u00e4ndiger INTERLIS-Modelltext vor der Erg\u00e4nzung"
+        },
+        "contextFqn": {
+          "type": "string",
+          "description": "Vollqualifizierter Constraint-Kontext"
+        },
+        "spec": {
+          "type": "object",
+          "properties": {
+            "condition": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "objects": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/$defs/AllObjectsSpec"
+                        },
+                        {
+                          "$ref": "#/$defs/PathObjectsSpec"
+                        }
+                      ]
+                    },
+                    "operator": {
+                      "type": "string"
+                    },
+                    "threshold": {
+                      "type": "number"
+                    },
+                    "kind": {
+                      "const": "OBJECT_COUNT"
+                    }
+                  },
+                  "required": [
+                    "objects",
+                    "operator",
+                    "threshold",
+                    "kind"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "expression": {
+                      "$ref": "#/$defs/ExpressionSpec"
+                    },
+                    "kind": {
+                      "const": "BOOLEAN_EXPRESSION"
+                    }
+                  },
+                  "required": [
+                    "expression",
+                    "kind"
+                  ]
+                }
+              ]
+            },
+            "iliDoc": {
+              "type": "string"
+            },
+            "metaAttributes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "rawValue": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            },
+            "name": {
+              "type": "string"
+            },
+            "scope": {
+              "type": "string",
+              "enum": [
+                "GLOBAL",
+                "BASKET"
+              ]
+            },
+            "where": {
+              "$ref": "#/$defs/ExpressionSpec"
+            },
+            "kind": {
+              "const": "SET"
+            }
+          },
+          "required": [
+            "condition",
+            "name",
+            "scope",
+            "kind"
+          ],
+          "description": "Typisierte SET-Spezifikation"
+        },
+        "modelPurpose": {
+          "type": "string",
+          "enum": [
+            "ANY",
+            "CAPTURE",
+            "PUBLICATION",
+            "VALIDATION",
+            "UNKNOWN"
+          ],
+          "description": "Modellzweck"
+        },
+        "ruleProfile": {
+          "type": "string",
+          "enum": [
+            "CORE",
+            "SO"
+          ],
+          "description": "Regelprofil CORE oder SO"
+        }
+      },
+      "required": [
+        "modelText",
+        "contextFqn",
+        "spec"
+      ]
+    },
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$defs": {
+        "CompilerDiagnostic": {
+          "type": "object",
+          "properties": {
+            "column": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "file": {
+              "type": "string"
+            },
+            "line": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "message": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string"
+            },
+            "sourceExcerpt": {
+              "type": "object",
+              "properties": {
+                "endLine": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "startLine": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "Map_String.Object_": {
+          "type": "object"
+        },
+        "OpenQuestion": {
+          "type": "object",
+          "properties": {
+            "decisionImpact": {
+              "type": "string"
+            },
+            "question": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "question"
+          ]
+        },
+        "ReviewFinding": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "recommendation": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string"
+            },
+            "sourceSection": {
+              "type": "string"
+            },
+            "sourceUrl": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          }
+        },
+        "SemanticChange": {
+          "type": "object",
+          "properties": {
+            "after": {
+              "$ref": "#/$defs/Map_String.Object_"
+            },
+            "before": {
+              "$ref": "#/$defs/Map_String.Object_"
+            },
+            "changedFields": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "kind": {
+              "type": "string"
+            },
+            "mandatory": {
+              "type": "boolean"
+            },
+            "model": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "properties": {
+              "$ref": "#/$defs/Map_String.Object_"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "scopedName": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "changedFields",
+            "properties"
+          ]
+        }
+      },
+      "type": "object",
+      "properties": {
+        "added": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "afterDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CompilerDiagnostic"
+          }
+        },
+        "afterReview": {
+          "type": "object",
+          "properties": {
+            "available": {
+              "type": "boolean"
+            },
+            "compilerValid": {
+              "type": "boolean"
+            },
+            "manualChecks": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ReviewFinding"
+              }
+            },
+            "modelPurpose": {
+              "type": "string"
+            },
+            "openQuestions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/OpenQuestion"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "ruleFindings": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ReviewFinding"
+              }
+            },
+            "ruleProfile": {
+              "type": "string"
+            },
+            "valid": {
+              "type": "boolean"
+            },
+            "validForAutomatedRules": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "manualChecks",
+            "openQuestions",
+            "ruleFindings"
+          ]
+        },
+        "applied": {
+          "type": "boolean"
+        },
+        "beforeDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CompilerDiagnostic"
+          }
+        },
+        "candidateModelText": {
+          "type": "string"
+        },
+        "changed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "compilerDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CompilerDiagnostic"
+          }
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "constraintProofs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "automaticCasesAvailable": {
+                "type": "boolean"
+              },
+              "automaticCasesGenerated": {
+                "type": "boolean"
+              },
+              "constraintFqn": {
+                "type": "string"
+              },
+              "coverageComplete": {
+                "type": "boolean"
+              },
+              "coverageExcludedCount": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "coverageExcludedGoals": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "expression": {
+                      "type": "string"
+                    },
+                    "goal": {
+                      "type": "string"
+                    },
+                    "justification": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "reasonCode": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "coverageGaps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "expression": {
+                      "type": "string"
+                    },
+                    "goal": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "reasonCode": {
+                      "type": "string"
+                    },
+                    "solverReason": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "coverageGoalCount": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "coverageSolvedCount": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "generatedCases": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "associationLinkCount": {
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "basketId": {
+                      "type": "string"
+                    },
+                    "coveredGoals": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "expression": {
+                            "type": "string"
+                          },
+                          "goal": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "expectedConstraintValid": {
+                      "type": "boolean"
+                    },
+                    "expectedValid": {
+                      "type": "boolean"
+                    },
+                    "expectedViolationCount": {
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "objectCount": {
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "objects": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/Map_String.Object_"
+                      }
+                    },
+                    "outcome": {
+                      "type": "string"
+                    },
+                    "ownerClassFqn": {
+                      "type": "string"
+                    },
+                    "purpose": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "routeTargetFqn": {
+                      "type": "string"
+                    },
+                    "structurePath": {
+                      "type": "string"
+                    },
+                    "values": {
+                      "$ref": "#/$defs/Map_String.Object_"
+                    }
+                  },
+                  "required": [
+                    "coveredGoals",
+                    "objects",
+                    "values"
+                  ]
+                }
+              },
+              "generationVerified": {
+                "type": "boolean"
+              },
+              "limitations": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "pattern": {
+                "type": "string"
+              },
+              "proofVerified": {
+                "type": "boolean"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "reasonCode": {
+                "type": "string"
+              },
+              "verification": {
+                "type": "object",
+                "properties": {
+                  "allPassed": {
+                    "type": "boolean"
+                  },
+                  "caseCount": {
+                    "type": "integer",
+                    "format": "int32"
+                  },
+                  "cases": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "actualValid": {
+                          "type": "boolean"
+                        },
+                        "actualViolationCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "baseClassFqn": {
+                          "type": "string"
+                        },
+                        "baseSubjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "constraintExercised": {
+                          "type": "boolean"
+                        },
+                        "excludedSubjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "expectedValid": {
+                          "type": "boolean"
+                        },
+                        "expectedViolationCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "fixtureErrors": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/Map_String.Object_"
+                          }
+                        },
+                        "fixturePreparationReasonCode": {
+                          "type": "string"
+                        },
+                        "fixtureValid": {
+                          "type": "boolean"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "objectCounts": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/Map_String.Object_"
+                          }
+                        },
+                        "passed": {
+                          "type": "boolean"
+                        },
+                        "plannedSubjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "setExecuted": {
+                          "type": "boolean"
+                        },
+                        "skippedFilterCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "subjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "viewFqn": {
+                          "type": "string"
+                        },
+                        "xtfText": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "fixtureErrors",
+                        "objectCounts"
+                      ]
+                    }
+                  },
+                  "passedCount": {
+                    "type": "integer",
+                    "format": "int32"
+                  }
+                },
+                "required": [
+                  "cases"
+                ]
+              }
+            },
+            "required": [
+              "constraintFqn",
+              "coverageExcludedGoals",
+              "coverageGaps",
+              "generatedCases",
+              "limitations",
+              "proofVerified"
+            ]
+          }
+        },
+        "derivedImports": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "details": {
+          "$ref": "#/$defs/Map_String.Object_"
+        },
+        "generated": {
+          "type": "boolean"
+        },
+        "impact": {
+          "type": "string"
+        },
+        "openQuestions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OpenQuestion"
+          }
+        },
+        "potentiallyBreakingChanges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "proofVerified": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "reasonCode": {
+          "type": "string"
+        },
+        "removed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "requiresUserDecision": {
+          "type": "boolean"
+        },
+        "semanticDiff": {
+          "type": "object",
+          "properties": {
+            "added": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            },
+            "astRoundTripVerified": {
+              "type": "boolean"
+            },
+            "changed": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            },
+            "impact": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "modelName": {
+              "type": "string"
+            },
+            "potentiallyBreakingChanges": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            },
+            "removed": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            }
+          },
+          "required": [
+            "added",
+            "changed",
+            "potentiallyBreakingChanges",
+            "removed"
+          ]
+        },
+        "sourceEdits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "after": {
+                "type": "string"
+              },
+              "before": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "endLine": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "endOffset": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "startLine": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "startOffset": {
+                "type": "integer",
+                "format": "int32"
+              }
+            },
+            "required": [
+              "after",
+              "before",
+              "description",
+              "endLine",
+              "endOffset",
+              "startLine",
+              "startOffset"
+            ]
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "GENERATED",
+            "APPLIED",
+            "BREAKING_CHANGE_REQUIRES_CONFIRMATION",
+            "NEEDS_INPUT",
+            "INVALID_SPEC",
+            "BEFORE_MODEL_INVALID",
+            "CANDIDATE_MODEL_INVALID",
+            "AST_ROUND_TRIP_FAILED",
+            "PROOF_INCOMPLETE",
+            "PROOF_FAILED",
+            "EXTERNAL_FUNCTION_SEMANTICS_REQUIRED",
+            "UNEXPECTED_SEMANTIC_CHANGE"
+          ]
+        },
+        "updatedModelText": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "added",
+        "afterDiagnostics",
+        "beforeDiagnostics",
+        "changed",
+        "compilerDiagnostics",
+        "complete",
+        "constraintProofs",
+        "derivedImports",
+        "openQuestions",
+        "potentiallyBreakingChanges",
+        "removed",
+        "requiresUserDecision",
+        "sourceEdits",
+        "status"
+      ]
+    },
+    "annotations": {
+      "title": "",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "authorIliUniqueConstraint",
+    "title": "authorIliUniqueConstraint",
+    "description": "Erzeugt einen typisierten UNIQUE Constraint mit GLOBAL-, BASKET- oder LOCAL-Scope, mehreren Schl\u00fcsselpfaden, optionalem WHERE und explizitem LOCAL-Pr\u00e4fix. Proof, AST-Roundtrip, Diff und afterReview verwenden genau einen Before- und einen After-Compile; danach ist kein reviewIliChange erforderlich. Das Tool schreibt keine Datei.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$defs": {
+        "ExpressionSpec": {
+          "type": "object",
+          "properties": {
+            "children": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ExpressionSpec"
+              }
+            },
+            "functionOrigin": {
+              "type": "string",
+              "enum": [
+                "STANDARD",
+                "MODEL",
+                "VALIDATOR_EXTENSION"
+              ]
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "ATTRIBUTE",
+                "PATH",
+                "NUMERIC",
+                "BOOLEAN",
+                "ENUM",
+                "TEXT",
+                "MTEXT",
+                "FUNCTION",
+                "DEFINED",
+                "NOT",
+                "AND",
+                "OR",
+                "IMPLIES",
+                "COMPARE",
+                "OBJECT_COUNT"
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "objects": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "ALL"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "const": "PATH"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "kind"
+                  ]
+                }
+              ]
+            },
+            "operator": {
+              "type": "string"
+            },
+            "value": {}
+          },
+          "required": [
+            "kind"
+          ]
+        }
+      },
+      "type": "object",
+      "properties": {
+        "modelText": {
+          "type": "string",
+          "description": "Vollst\u00e4ndiger INTERLIS-Modelltext vor der Erg\u00e4nzung"
+        },
+        "contextFqn": {
+          "type": "string",
+          "description": "Vollqualifizierter Constraint-Kontext"
+        },
+        "spec": {
+          "type": "object",
+          "properties": {
+            "iliDoc": {
+              "type": "string"
+            },
+            "keyPaths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "localPrefix": {
+              "type": "string"
+            },
+            "metaAttributes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "rawValue": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            },
+            "name": {
+              "type": "string"
+            },
+            "scope": {
+              "type": "string",
+              "enum": [
+                "GLOBAL",
+                "BASKET",
+                "LOCAL"
+              ]
+            },
+            "where": {
+              "$ref": "#/$defs/ExpressionSpec"
+            },
+            "kind": {
+              "const": "UNIQUE"
+            }
+          },
+          "required": [
+            "keyPaths",
+            "name",
+            "scope",
+            "kind"
+          ],
+          "description": "Typisierte UNIQUE-Spezifikation"
+        },
+        "modelPurpose": {
+          "type": "string",
+          "enum": [
+            "ANY",
+            "CAPTURE",
+            "PUBLICATION",
+            "VALIDATION",
+            "UNKNOWN"
+          ],
+          "description": "Modellzweck"
+        },
+        "ruleProfile": {
+          "type": "string",
+          "enum": [
+            "CORE",
+            "SO"
+          ],
+          "description": "Regelprofil CORE oder SO"
+        }
+      },
+      "required": [
+        "modelText",
+        "contextFqn",
+        "spec"
+      ]
+    },
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$defs": {
+        "CompilerDiagnostic": {
+          "type": "object",
+          "properties": {
+            "column": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "file": {
+              "type": "string"
+            },
+            "line": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "message": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string"
+            },
+            "sourceExcerpt": {
+              "type": "object",
+              "properties": {
+                "endLine": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "startLine": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "Map_String.Object_": {
+          "type": "object"
+        },
+        "OpenQuestion": {
+          "type": "object",
+          "properties": {
+            "decisionImpact": {
+              "type": "string"
+            },
+            "question": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "question"
+          ]
+        },
+        "ReviewFinding": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "recommendation": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string"
+            },
+            "sourceSection": {
+              "type": "string"
+            },
+            "sourceUrl": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          }
+        },
+        "SemanticChange": {
+          "type": "object",
+          "properties": {
+            "after": {
+              "$ref": "#/$defs/Map_String.Object_"
+            },
+            "before": {
+              "$ref": "#/$defs/Map_String.Object_"
+            },
+            "changedFields": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "kind": {
+              "type": "string"
+            },
+            "mandatory": {
+              "type": "boolean"
+            },
+            "model": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "properties": {
+              "$ref": "#/$defs/Map_String.Object_"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "scopedName": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "changedFields",
+            "properties"
+          ]
+        }
+      },
+      "type": "object",
+      "properties": {
+        "added": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "afterDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CompilerDiagnostic"
+          }
+        },
+        "afterReview": {
+          "type": "object",
+          "properties": {
+            "available": {
+              "type": "boolean"
+            },
+            "compilerValid": {
+              "type": "boolean"
+            },
+            "manualChecks": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ReviewFinding"
+              }
+            },
+            "modelPurpose": {
+              "type": "string"
+            },
+            "openQuestions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/OpenQuestion"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "ruleFindings": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ReviewFinding"
+              }
+            },
+            "ruleProfile": {
+              "type": "string"
+            },
+            "valid": {
+              "type": "boolean"
+            },
+            "validForAutomatedRules": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "manualChecks",
+            "openQuestions",
+            "ruleFindings"
+          ]
+        },
+        "applied": {
+          "type": "boolean"
+        },
+        "beforeDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CompilerDiagnostic"
+          }
+        },
+        "candidateModelText": {
+          "type": "string"
+        },
+        "changed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "compilerDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CompilerDiagnostic"
+          }
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "constraintProofs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "automaticCasesAvailable": {
+                "type": "boolean"
+              },
+              "automaticCasesGenerated": {
+                "type": "boolean"
+              },
+              "constraintFqn": {
+                "type": "string"
+              },
+              "coverageComplete": {
+                "type": "boolean"
+              },
+              "coverageExcludedCount": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "coverageExcludedGoals": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "expression": {
+                      "type": "string"
+                    },
+                    "goal": {
+                      "type": "string"
+                    },
+                    "justification": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "reasonCode": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "coverageGaps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "expression": {
+                      "type": "string"
+                    },
+                    "goal": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "reasonCode": {
+                      "type": "string"
+                    },
+                    "solverReason": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "coverageGoalCount": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "coverageSolvedCount": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "generatedCases": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "associationLinkCount": {
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "basketId": {
+                      "type": "string"
+                    },
+                    "coveredGoals": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "expression": {
+                            "type": "string"
+                          },
+                          "goal": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "expectedConstraintValid": {
+                      "type": "boolean"
+                    },
+                    "expectedValid": {
+                      "type": "boolean"
+                    },
+                    "expectedViolationCount": {
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "objectCount": {
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "objects": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/Map_String.Object_"
+                      }
+                    },
+                    "outcome": {
+                      "type": "string"
+                    },
+                    "ownerClassFqn": {
+                      "type": "string"
+                    },
+                    "purpose": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "routeTargetFqn": {
+                      "type": "string"
+                    },
+                    "structurePath": {
+                      "type": "string"
+                    },
+                    "values": {
+                      "$ref": "#/$defs/Map_String.Object_"
+                    }
+                  },
+                  "required": [
+                    "coveredGoals",
+                    "objects",
+                    "values"
+                  ]
+                }
+              },
+              "generationVerified": {
+                "type": "boolean"
+              },
+              "limitations": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "pattern": {
+                "type": "string"
+              },
+              "proofVerified": {
+                "type": "boolean"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "reasonCode": {
+                "type": "string"
+              },
+              "verification": {
+                "type": "object",
+                "properties": {
+                  "allPassed": {
+                    "type": "boolean"
+                  },
+                  "caseCount": {
+                    "type": "integer",
+                    "format": "int32"
+                  },
+                  "cases": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "actualValid": {
+                          "type": "boolean"
+                        },
+                        "actualViolationCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "baseClassFqn": {
+                          "type": "string"
+                        },
+                        "baseSubjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "constraintExercised": {
+                          "type": "boolean"
+                        },
+                        "excludedSubjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "expectedValid": {
+                          "type": "boolean"
+                        },
+                        "expectedViolationCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "fixtureErrors": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/Map_String.Object_"
+                          }
+                        },
+                        "fixturePreparationReasonCode": {
+                          "type": "string"
+                        },
+                        "fixtureValid": {
+                          "type": "boolean"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "objectCounts": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/Map_String.Object_"
+                          }
+                        },
+                        "passed": {
+                          "type": "boolean"
+                        },
+                        "plannedSubjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "setExecuted": {
+                          "type": "boolean"
+                        },
+                        "skippedFilterCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "subjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "viewFqn": {
+                          "type": "string"
+                        },
+                        "xtfText": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "fixtureErrors",
+                        "objectCounts"
+                      ]
+                    }
+                  },
+                  "passedCount": {
+                    "type": "integer",
+                    "format": "int32"
+                  }
+                },
+                "required": [
+                  "cases"
+                ]
+              }
+            },
+            "required": [
+              "constraintFqn",
+              "coverageExcludedGoals",
+              "coverageGaps",
+              "generatedCases",
+              "limitations",
+              "proofVerified"
+            ]
+          }
+        },
+        "derivedImports": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "details": {
+          "$ref": "#/$defs/Map_String.Object_"
+        },
+        "generated": {
+          "type": "boolean"
+        },
+        "impact": {
+          "type": "string"
+        },
+        "openQuestions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OpenQuestion"
+          }
+        },
+        "potentiallyBreakingChanges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "proofVerified": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "reasonCode": {
+          "type": "string"
+        },
+        "removed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "requiresUserDecision": {
+          "type": "boolean"
+        },
+        "semanticDiff": {
+          "type": "object",
+          "properties": {
+            "added": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            },
+            "astRoundTripVerified": {
+              "type": "boolean"
+            },
+            "changed": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            },
+            "impact": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "modelName": {
+              "type": "string"
+            },
+            "potentiallyBreakingChanges": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            },
+            "removed": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            }
+          },
+          "required": [
+            "added",
+            "changed",
+            "potentiallyBreakingChanges",
+            "removed"
+          ]
+        },
+        "sourceEdits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "after": {
+                "type": "string"
+              },
+              "before": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "endLine": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "endOffset": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "startLine": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "startOffset": {
+                "type": "integer",
+                "format": "int32"
+              }
+            },
+            "required": [
+              "after",
+              "before",
+              "description",
+              "endLine",
+              "endOffset",
+              "startLine",
+              "startOffset"
+            ]
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "GENERATED",
+            "APPLIED",
+            "BREAKING_CHANGE_REQUIRES_CONFIRMATION",
+            "NEEDS_INPUT",
+            "INVALID_SPEC",
+            "BEFORE_MODEL_INVALID",
+            "CANDIDATE_MODEL_INVALID",
+            "AST_ROUND_TRIP_FAILED",
+            "PROOF_INCOMPLETE",
+            "PROOF_FAILED",
+            "EXTERNAL_FUNCTION_SEMANTICS_REQUIRED",
+            "UNEXPECTED_SEMANTIC_CHANGE"
+          ]
+        },
+        "updatedModelText": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "added",
+        "afterDiagnostics",
+        "beforeDiagnostics",
+        "changed",
+        "compilerDiagnostics",
+        "complete",
+        "constraintProofs",
+        "derivedImports",
+        "openQuestions",
+        "potentiallyBreakingChanges",
+        "removed",
+        "requiresUserDecision",
+        "sourceEdits",
+        "status"
+      ]
+    },
+    "annotations": {
+      "title": "",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "generateIliConstraintCases",
+    "title": "generateIliConstraintCases",
+    "description": "Erzeugt fuer INTERLIS Mandatory-, UNIQUE-, EXISTENCE-, PLAUSIBILITY- und SET-Constraints modellbewusste Witness-, Counterexample-, Boundary- und Scope-Faelle. Verwendet einen einmal kompilierten Constraint-Kontext fuer AST/semantische IR, Solver, Object-Graph-Synthese, TypedValueFixtureFactory, NavigationGraphSynthesizer und Validator-Fixtures. UNIQUE prueft GLOBAL/WHERE/(BASKET)/LOCAL sowie direkte REFERENCE-, STRUCTURE-/COMPOSITION- und Geometrieschl\u00fcssel. EXISTENCE prueft skalare, Struktur-, REFERENCE-, COORD-, Linien-, Flaechen- und Multigeometriewerte; Validatorgrenzen werden mit Safety-Reason-Codes zur\u00fcckgehalten. PLAUSIBILITY erzeugt echte Populationen an der Prozentgrenze. SET unterst\u00fctzt OBJECT_COUNT einschlie\u00dflich objectCount(ALL), navigierte Objektmengen, boolesche Ausdr\u00fccke und Scope-Semantik, soweit alles materialisierbar ist. Alle freigegebenen Faelle sind vom realen ilivalidator best\u00e4tigt.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "modelText": {
+          "type": "string",
+          "description": "Vollstaendiger INTERLIS-2 Modelltext"
+        },
+        "constraint": {
+          "type": "string",
+          "description": "Constraint-Name oder vollqualifizierter Constraint-Name"
+        }
+      },
+      "required": [
+        "modelText",
+        "constraint"
+      ]
+    },
+    "annotations": {
+      "title": "",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "generateIliConstraintFromDecisionTable",
+    "title": "generateIliConstraintFromDecisionTable",
+    "description": "Erzeugt aus einer strukturierten Entscheidungstabelle einen INTERLIS Mandatory Constraint, leitet ueber die gemeinsame semantische IR-/Solver-Pipeline Boundary-/Kategoriefaelle ab und beweist den erzeugten Constraint mit testIliConstraint und dem echten ilivalidator. Diff und afterReview werden aus den vorhandenen Before-/After-Compilations erzeugt; danach ist kein reviewIliChange n\u00f6tig. Unterstuetzt direkte NUMERIC/BOOLEAN/ENUM-Attribute, einen einzelnen hoechstens einwertigen Association-Pfad Rolle->Attribut, SUM auf einem mehrwertigen numerischen Association-Pfad sowie DEFINED/NOT DEFINED und SUM plus direktes NUMERIC-Attribut.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "modelText": {
+          "type": "string",
+          "description": "Vollstaendiger INTERLIS-2 Modelltext ohne den zu erzeugenden Constraint"
+        },
+        "context": {
+          "type": "string",
+          "description": "Vollqualifizierter Klassen- oder Strukturkontext; Strukturen werden fuer den Proof in eine vorhandene konkrete Besitzerklasse eingebettet"
+        },
+        "constraintName": {
+          "type": "string",
+          "description": "Technischer Name des zu erzeugenden Constraints"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "conditions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "addAttribute": {
+                      "type": "string"
+                    },
+                    "aggregate": {
+                      "type": "string"
+                    },
+                    "attribute": {
+                      "type": "string"
+                    },
+                    "defined": {
+                      "type": "boolean"
+                    },
+                    "operator": {
+                      "type": "string"
+                    },
+                    "value": {}
+                  },
+                  "required": [
+                    "attribute"
+                  ]
+                }
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "conditions",
+              "name"
+            ]
+          },
+          "description": "Erlaubte Entscheidungszeilen. Standardbedingung: attribute, operator, value. Optional aggregate=SUM oder OBJECT_COUNT (Objektpfad, numerischer Vergleich; kein defined/addAttribute). Fuer Summenpraesenz: defined=true/false ohne operator/value. Fuer Addition: addAttribute=<direktes NUMERIC-Attribut> zusammen mit aggregate=SUM, operator == und numerischem value."
+        }
+      },
+      "required": [
+        "modelText",
+        "context",
+        "constraintName",
+        "rows"
+      ]
+    },
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$defs": {
+        "CompilerDiagnostic": {
+          "type": "object",
+          "properties": {
+            "column": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "file": {
+              "type": "string"
+            },
+            "line": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "message": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string"
+            },
+            "sourceExcerpt": {
+              "type": "object",
+              "properties": {
+                "endLine": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "startLine": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "Map_String.Object_": {
+          "type": "object"
+        },
+        "OpenQuestion": {
+          "type": "object",
+          "properties": {
+            "decisionImpact": {
+              "type": "string"
+            },
+            "question": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "question"
+          ]
+        },
+        "ReviewFinding": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "recommendation": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string"
+            },
+            "sourceSection": {
+              "type": "string"
+            },
+            "sourceUrl": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          }
+        },
+        "SemanticChange": {
+          "type": "object",
+          "properties": {
+            "after": {
+              "$ref": "#/$defs/Map_String.Object_"
+            },
+            "before": {
+              "$ref": "#/$defs/Map_String.Object_"
+            },
+            "changedFields": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "kind": {
+              "type": "string"
+            },
+            "mandatory": {
+              "type": "boolean"
+            },
+            "model": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "properties": {
+              "$ref": "#/$defs/Map_String.Object_"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "scopedName": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "changedFields",
+            "properties"
+          ]
+        }
+      },
+      "type": "object",
+      "properties": {
+        "added": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "afterDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CompilerDiagnostic"
+          }
+        },
+        "afterReview": {
+          "type": "object",
+          "properties": {
+            "available": {
+              "type": "boolean"
+            },
+            "compilerValid": {
+              "type": "boolean"
+            },
+            "manualChecks": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ReviewFinding"
+              }
+            },
+            "modelPurpose": {
+              "type": "string"
+            },
+            "openQuestions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/OpenQuestion"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "ruleFindings": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ReviewFinding"
+              }
+            },
+            "ruleProfile": {
+              "type": "string"
+            },
+            "valid": {
+              "type": "boolean"
+            },
+            "validForAutomatedRules": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "manualChecks",
+            "openQuestions",
+            "ruleFindings"
+          ]
+        },
+        "applied": {
+          "type": "boolean"
+        },
+        "beforeDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CompilerDiagnostic"
+          }
+        },
+        "candidateModelText": {
+          "type": "string"
+        },
+        "changed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "compilerDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CompilerDiagnostic"
+          }
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "constraintProofs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "automaticCasesAvailable": {
+                "type": "boolean"
+              },
+              "automaticCasesGenerated": {
+                "type": "boolean"
+              },
+              "constraintFqn": {
+                "type": "string"
+              },
+              "coverageComplete": {
+                "type": "boolean"
+              },
+              "coverageExcludedCount": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "coverageExcludedGoals": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "expression": {
+                      "type": "string"
+                    },
+                    "goal": {
+                      "type": "string"
+                    },
+                    "justification": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "reasonCode": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "coverageGaps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "expression": {
+                      "type": "string"
+                    },
+                    "goal": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "reasonCode": {
+                      "type": "string"
+                    },
+                    "solverReason": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "coverageGoalCount": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "coverageSolvedCount": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "generatedCases": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "associationLinkCount": {
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "basketId": {
+                      "type": "string"
+                    },
+                    "coveredGoals": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "expression": {
+                            "type": "string"
+                          },
+                          "goal": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "expectedConstraintValid": {
+                      "type": "boolean"
+                    },
+                    "expectedValid": {
+                      "type": "boolean"
+                    },
+                    "expectedViolationCount": {
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "objectCount": {
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "objects": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/Map_String.Object_"
+                      }
+                    },
+                    "outcome": {
+                      "type": "string"
+                    },
+                    "ownerClassFqn": {
+                      "type": "string"
+                    },
+                    "purpose": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "routeTargetFqn": {
+                      "type": "string"
+                    },
+                    "structurePath": {
+                      "type": "string"
+                    },
+                    "values": {
+                      "$ref": "#/$defs/Map_String.Object_"
+                    }
+                  },
+                  "required": [
+                    "coveredGoals",
+                    "objects",
+                    "values"
+                  ]
+                }
+              },
+              "generationVerified": {
+                "type": "boolean"
+              },
+              "limitations": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "pattern": {
+                "type": "string"
+              },
+              "proofVerified": {
+                "type": "boolean"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "reasonCode": {
+                "type": "string"
+              },
+              "verification": {
+                "type": "object",
+                "properties": {
+                  "allPassed": {
+                    "type": "boolean"
+                  },
+                  "caseCount": {
+                    "type": "integer",
+                    "format": "int32"
+                  },
+                  "cases": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "actualValid": {
+                          "type": "boolean"
+                        },
+                        "actualViolationCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "baseClassFqn": {
+                          "type": "string"
+                        },
+                        "baseSubjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "constraintExercised": {
+                          "type": "boolean"
+                        },
+                        "excludedSubjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "expectedValid": {
+                          "type": "boolean"
+                        },
+                        "expectedViolationCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "fixtureErrors": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/Map_String.Object_"
+                          }
+                        },
+                        "fixturePreparationReasonCode": {
+                          "type": "string"
+                        },
+                        "fixtureValid": {
+                          "type": "boolean"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "objectCounts": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/Map_String.Object_"
+                          }
+                        },
+                        "passed": {
+                          "type": "boolean"
+                        },
+                        "plannedSubjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "setExecuted": {
+                          "type": "boolean"
+                        },
+                        "skippedFilterCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "subjectCount": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "viewFqn": {
+                          "type": "string"
+                        },
+                        "xtfText": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "fixtureErrors",
+                        "objectCounts"
+                      ]
+                    }
+                  },
+                  "passedCount": {
+                    "type": "integer",
+                    "format": "int32"
+                  }
+                },
+                "required": [
+                  "cases"
+                ]
+              }
+            },
+            "required": [
+              "constraintFqn",
+              "coverageExcludedGoals",
+              "coverageGaps",
+              "generatedCases",
+              "limitations",
+              "proofVerified"
+            ]
+          }
+        },
+        "derivedImports": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "details": {
+          "$ref": "#/$defs/Map_String.Object_"
+        },
+        "generated": {
+          "type": "boolean"
+        },
+        "impact": {
+          "type": "string"
+        },
+        "openQuestions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OpenQuestion"
+          }
+        },
+        "potentiallyBreakingChanges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "proofVerified": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "reasonCode": {
+          "type": "string"
+        },
+        "removed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticChange"
+          }
+        },
+        "requiresUserDecision": {
+          "type": "boolean"
+        },
+        "semanticDiff": {
+          "type": "object",
+          "properties": {
+            "added": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            },
+            "astRoundTripVerified": {
+              "type": "boolean"
+            },
+            "changed": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            },
+            "impact": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "modelName": {
+              "type": "string"
+            },
+            "potentiallyBreakingChanges": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            },
+            "removed": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SemanticChange"
+              }
+            }
+          },
+          "required": [
+            "added",
+            "changed",
+            "potentiallyBreakingChanges",
+            "removed"
+          ]
+        },
+        "sourceEdits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "after": {
+                "type": "string"
+              },
+              "before": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "endLine": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "endOffset": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "startLine": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "startOffset": {
+                "type": "integer",
+                "format": "int32"
+              }
+            },
+            "required": [
+              "after",
+              "before",
+              "description",
+              "endLine",
+              "endOffset",
+              "startLine",
+              "startOffset"
+            ]
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "GENERATED",
+            "APPLIED",
+            "BREAKING_CHANGE_REQUIRES_CONFIRMATION",
+            "NEEDS_INPUT",
+            "INVALID_SPEC",
+            "BEFORE_MODEL_INVALID",
+            "CANDIDATE_MODEL_INVALID",
+            "AST_ROUND_TRIP_FAILED",
+            "PROOF_INCOMPLETE",
+            "PROOF_FAILED",
+            "EXTERNAL_FUNCTION_SEMANTICS_REQUIRED",
+            "UNEXPECTED_SEMANTIC_CHANGE"
+          ]
+        },
+        "updatedModelText": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "added",
+        "afterDiagnostics",
+        "beforeDiagnostics",
+        "changed",
+        "compilerDiagnostics",
+        "complete",
+        "constraintProofs",
+        "derivedImports",
+        "openQuestions",
+        "potentiallyBreakingChanges",
+        "removed",
+        "requiresUserDecision",
+        "sourceEdits",
+        "status"
+      ]
+    },
+    "annotations": {
+      "title": "",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "listConstraintFunctions",
+    "title": "listConstraintFunctions",
+    "description": "Listet bekannte Constraint-Funktionen mit Herkunft, stabiler semantischer ID, Parametern und semantischen Parametertypen. Math/Text stammen aus INTERLIS-Funktionsmodellen; Validator-Extensions und Modellfunktionen werden als eigene Herkunftskategorien unterschieden.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "iliVersion": {
+          "type": "string",
+          "description": "INTERLIS Sprachversion (2.3 oder 2.4)"
+        }
+      },
+      "required": []
+    },
+    "annotations": {
+      "title": "",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "resolveConstraintPath",
+    "title": "resolveConstraintPath",
+    "description": "Loest einen String-Objekt-/Attributpfad im Kontext einer Klasse oder Association exakt mit dem ili2c-Ili23Parser auf. Geeignet insbesondere fuer attributePath-Parameter wie Math_V2.sum(\"Rolle->Attribut\"). Gibt Pfadschritte, Kardinalitaeten, Zieltyp und bei Fehlern moegliche Elemente zurueck.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "modelText": {
+          "type": "string",
+          "description": "Vollstaendiger INTERLIS-2 Modelltext"
+        },
+        "context": {
+          "type": "string",
+          "description": "Vollqualifizierter Kontext, z. B. Modell.Topic.Klasse"
+        },
+        "path": {
+          "type": "string",
+          "description": "Objekt-/Attributpfad, z. B. Nebenauspraegung->Gewichtung; aeussere Anfuehrungszeichen sind optional"
+        }
+      },
+      "required": [
+        "modelText",
+        "context",
+        "path"
+      ]
+    },
+    "annotations": {
+      "title": "",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "reviewIliConstraint",
+    "title": "reviewIliConstraint",
+    "description": "Erklaert und prueft einen bestehenden INTERLIS-Constraint aus einem vollstaendigen Modell. Liefert compilerbasierten AST, Kontext, referenzierte Elemente, Funktionen, String-Pfade, Typen und strukturelle Edge Cases. Erzeugt keine Testdaten, Witnesses oder Counterexamples.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "modelText": {
+          "type": "string",
+          "description": "Vollstaendiger INTERLIS-2 Modelltext"
+        },
+        "constraint": {
+          "type": "string",
+          "description": "Constraint-Name oder vollqualifizierter Constraint-Name"
+        }
+      },
+      "required": [
+        "modelText",
+        "constraint"
+      ]
+    },
+    "annotations": {
+      "title": "",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "validateIliModel",
+    "title": "validateIliModel",
+    "description": "Low-Level-Tool fuer reine ili2c-Compilerpruefung und gezielte Syntax-/Compiler-Reparatur. Rueckgabe: {valid:bool, messages:[{severity,file?,line?,message,sourceExcerpt?:{startLine,endLine,text}}]}. Prueft keine Modellierungsregeln und ersetzt keinen vollstaendigen Review; dafuer reviewIliModel.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "modelText": {
+          "type": "string",
+          "description": "INTERLIS-2 Modelltext"
+        }
+      },
+      "required": [
+        "modelText"
+      ]
+    },
+    "annotations": {
+      "title": "",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  }
+]

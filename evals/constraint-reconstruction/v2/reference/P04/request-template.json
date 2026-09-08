@@ -1,0 +1,95 @@
+{
+  "tool": "mcp__interlis_mcp_eval__authorIliMandatoryConstraint",
+  "payload": {
+    "contextFqn": "VSADSSMINI_2020_LV95_Validierung_Drainage_20250311.VSADSSMini_Validierung.v_Leitung",
+    "spec": {
+      "kind": "MANDATORY",
+      "name": "BenchmarkRule",
+      "condition": {
+        "kind": "OR",
+        "children": [
+          {
+            "kind": "NOT",
+            "children": [
+              {
+                "kind": "COMPARE",
+                "operator": "==",
+                "children": [
+                  {
+                    "kind": "PATH",
+                    "name": "RohrprofilRef->Bezeichnung"
+                  },
+                  {
+                    "kind": "TEXT",
+                    "value": "Kiesschlitzdrainage"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "AND",
+            "children": [
+              {
+                "kind": "COMPARE",
+                "operator": "==",
+                "children": [
+                  {
+                    "kind": "PATH",
+                    "name": "FunktionHierarchisch"
+                  },
+                  {
+                    "kind": "ENUM",
+                    "value": "SAA.andere"
+                  }
+                ]
+              },
+              {
+                "kind": "COMPARE",
+                "operator": "==",
+                "children": [
+                  {
+                    "kind": "PATH",
+                    "name": "FunktionHydraulisch"
+                  },
+                  {
+                    "kind": "ENUM",
+                    "value": "Sickerleitung"
+                  }
+                ]
+              },
+              {
+                "kind": "COMPARE",
+                "operator": "==",
+                "children": [
+                  {
+                    "kind": "PATH",
+                    "name": "Nutzungsart_Ist"
+                  },
+                  {
+                    "kind": "ENUM",
+                    "value": "Reinabwasser"
+                  }
+                ]
+              },
+              {
+                "kind": "COMPARE",
+                "operator": "==",
+                "children": [
+                  {
+                    "kind": "PATH",
+                    "name": "Profiltyp"
+                  },
+                  {
+                    "kind": "ENUM",
+                    "value": "Spezialprofil"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

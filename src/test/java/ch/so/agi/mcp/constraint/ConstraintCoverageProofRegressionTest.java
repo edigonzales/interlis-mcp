@@ -34,7 +34,7 @@ class ConstraintCoverageProofRegressionTest {
     IliCompilerService compiler = new IliCompilerService();
     IliAuthoringResult result = new ConstraintAuthoringTools(engine(compiler)).authorIliMandatoryConstraint(
         source, request.contextFqn(), (IliConstraintSpec.Mandatory) request.spec(), null, null);
-    assertThat(result.status).as(result.toString()).isEqualTo(IliAuthoringResult.Status.GENERATED);
+    assertThat(result.status).as(new ObjectMapper().writeValueAsString(result)).isEqualTo(IliAuthoringResult.Status.GENERATED);
     assertThat(result.proofVerified).isTrue();
     var proof = result.constraintProofs.getFirst();
     assertThat(proof.coverageComplete).isTrue();
@@ -78,7 +78,7 @@ class ConstraintCoverageProofRegressionTest {
     var result = new ConstraintAuthoringTools(engine(compiler)).authorIliMandatoryConstraint(
         source, request.contextFqn(), (IliConstraintSpec.Mandatory) request.spec(), null, null);
     assertThat(compiler.calls).isEqualTo(2);
-    assertThat(result.status).as(result.toString()).isEqualTo(IliAuthoringResult.Status.GENERATED);
+    assertThat(result.status).as(new ObjectMapper().writeValueAsString(result)).isEqualTo(IliAuthoringResult.Status.GENERATED);
     assertThat(result.proofVerified).isTrue();
     var proof = result.constraintProofs.getFirst();
     assertThat(proof.coverageComplete).isTrue();

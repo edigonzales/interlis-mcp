@@ -1,0 +1,10 @@
+{
+  "status": "APPROVED",
+  "approvedBy": "USER",
+  "approvedOn": "2026-09-08",
+  "decisions": {
+    "P04": "Originalconstraint und Eingabemodell unverändert erhalten. Die Anforderung beschreibt dessen geordnete INTERLIS-Auswertung; keine zusätzliche DEFINED-Pflicht in die Goldlösung aufnehmen. Separate IPW-Pflichtprüfungen sind nicht Bestandteil des isolierten Benchmarkfalls.",
+    "P05": "Originalconstraint und Eingabemodell unverändert erhalten. Die Benchmark-Anforderung präzisiert null/eins als zulässige Nachweisfälle; mehrere Startknoten verletzen bereits die Rollenkardinalität."
+  },
+  "authorization": "Nach Erklärung beider Fälle: P04 nichts ändern; P05 vorgeschlagene Präzisierung; anschließend ausdrücklicher Auftrag zur Implementierung des Plans."
+}

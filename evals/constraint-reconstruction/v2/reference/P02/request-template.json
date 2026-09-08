@@ -1,0 +1,283 @@
+{
+  "tool": "mcp__interlis_mcp_eval__authorIliMandatoryConstraint",
+  "payload": {
+    "contextFqn": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Nebenauspraegung_Wald",
+    "spec": {
+      "kind": "MANDATORY",
+      "name": "BenchmarkRule",
+      "condition": {
+        "kind": "OR",
+        "children": [
+          {
+            "kind": "NOT",
+            "children": [
+              {
+                "kind": "DEFINED",
+                "children": [
+                  {
+                    "kind": "PATH",
+                    "name": "Unterboden->Ph"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "AND",
+            "children": [
+              {
+                "kind": "COMPARE",
+                "operator": ">",
+                "children": [
+                  {
+                    "kind": "PATH",
+                    "name": "Unterboden->Ph"
+                  },
+                  {
+                    "kind": "NUMERIC",
+                    "value": 6.7
+                  }
+                ]
+              },
+              {
+                "kind": "COMPARE",
+                "operator": "==",
+                "children": [
+                  {
+                    "kind": "ATTRIBUTE",
+                    "name": "Untertyp_E"
+                  },
+                  {
+                    "kind": "ENUM",
+                    "value": "E0"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "AND",
+            "children": [
+              {
+                "kind": "COMPARE",
+                "operator": ">=",
+                "children": [
+                  {
+                    "kind": "PATH",
+                    "name": "Unterboden->Ph"
+                  },
+                  {
+                    "kind": "NUMERIC",
+                    "value": 6.2
+                  }
+                ]
+              },
+              {
+                "kind": "COMPARE",
+                "operator": "<=",
+                "children": [
+                  {
+                    "kind": "PATH",
+                    "name": "Unterboden->Ph"
+                  },
+                  {
+                    "kind": "NUMERIC",
+                    "value": 6.7
+                  }
+                ]
+              },
+              {
+                "kind": "COMPARE",
+                "operator": "==",
+                "children": [
+                  {
+                    "kind": "ATTRIBUTE",
+                    "name": "Untertyp_E"
+                  },
+                  {
+                    "kind": "ENUM",
+                    "value": "E1"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "AND",
+            "children": [
+              {
+                "kind": "COMPARE",
+                "operator": ">=",
+                "children": [
+                  {
+                    "kind": "PATH",
+                    "name": "Unterboden->Ph"
+                  },
+                  {
+                    "kind": "NUMERIC",
+                    "value": 5.1
+                  }
+                ]
+              },
+              {
+                "kind": "COMPARE",
+                "operator": "<=",
+                "children": [
+                  {
+                    "kind": "PATH",
+                    "name": "Unterboden->Ph"
+                  },
+                  {
+                    "kind": "NUMERIC",
+                    "value": 6.1
+                  }
+                ]
+              },
+              {
+                "kind": "COMPARE",
+                "operator": "==",
+                "children": [
+                  {
+                    "kind": "ATTRIBUTE",
+                    "name": "Untertyp_E"
+                  },
+                  {
+                    "kind": "ENUM",
+                    "value": "E2"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "AND",
+            "children": [
+              {
+                "kind": "COMPARE",
+                "operator": ">=",
+                "children": [
+                  {
+                    "kind": "PATH",
+                    "name": "Unterboden->Ph"
+                  },
+                  {
+                    "kind": "NUMERIC",
+                    "value": 4.3
+                  }
+                ]
+              },
+              {
+                "kind": "COMPARE",
+                "operator": "<=",
+                "children": [
+                  {
+                    "kind": "PATH",
+                    "name": "Unterboden->Ph"
+                  },
+                  {
+                    "kind": "NUMERIC",
+                    "value": 5
+                  }
+                ]
+              },
+              {
+                "kind": "COMPARE",
+                "operator": "==",
+                "children": [
+                  {
+                    "kind": "ATTRIBUTE",
+                    "name": "Untertyp_E"
+                  },
+                  {
+                    "kind": "ENUM",
+                    "value": "E3"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "AND",
+            "children": [
+              {
+                "kind": "COMPARE",
+                "operator": ">=",
+                "children": [
+                  {
+                    "kind": "PATH",
+                    "name": "Unterboden->Ph"
+                  },
+                  {
+                    "kind": "NUMERIC",
+                    "value": 3.3
+                  }
+                ]
+              },
+              {
+                "kind": "COMPARE",
+                "operator": "<=",
+                "children": [
+                  {
+                    "kind": "PATH",
+                    "name": "Unterboden->Ph"
+                  },
+                  {
+                    "kind": "NUMERIC",
+                    "value": 4.2
+                  }
+                ]
+              },
+              {
+                "kind": "COMPARE",
+                "operator": "==",
+                "children": [
+                  {
+                    "kind": "ATTRIBUTE",
+                    "name": "Untertyp_E"
+                  },
+                  {
+                    "kind": "ENUM",
+                    "value": "E4"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "AND",
+            "children": [
+              {
+                "kind": "COMPARE",
+                "operator": "<",
+                "children": [
+                  {
+                    "kind": "PATH",
+                    "name": "Unterboden->Ph"
+                  },
+                  {
+                    "kind": "NUMERIC",
+                    "value": 3.3
+                  }
+                ]
+              },
+              {
+                "kind": "COMPARE",
+                "operator": "==",
+                "children": [
+                  {
+                    "kind": "ATTRIBUTE",
+                    "name": "Untertyp_E"
+                  },
+                  {
+                    "kind": "ENUM",
+                    "value": "E5"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "valid": true,
+  "ast": {
+    "kind": "MandatoryConstraint",
+    "contextFqn": "SO_ARP_Nutzungsplanung_Nachfuehrung_20221118_Validierung_20221118.Nutzungsplanung_Validierung.v_Grundnutzung",
+    "condition": {
+      "left": {
+        "arguments": [
+          {
+            "steps": [
+              {
+                "target": "",
+                "name": "Geometrie",
+                "kind": "AttributeRef"
+              }
+            ],
+            "root": "SO_ARP_Nutzungsplanung_Nachfuehrung_20221118_Validierung_20221118.Nutzungsplanung_Validierung.v_Grundnutzung",
+            "kind": "PATH"
+          }
+        ],
+        "name": "SO_FunctionsExt.area",
+        "kind": "FUNCTION"
+      },
+      "right": {
+        "value": "0.01",
+        "unit": "",
+        "kind": "NUMERIC"
+      },
+      "kind": "GreaterThan"
+    }
+  },
+  "astComplete": true
+}

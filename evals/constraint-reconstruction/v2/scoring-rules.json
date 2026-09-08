@@ -1,0 +1,20 @@
+{
+  "scoringVersion": "2.0.0",
+  "lanes": ["end-to-end", "mcp-reference"],
+  "positiveCases": ["P01", "P02", "P03", "P04", "P05", "P06", "P07", "P08", "P09", "P10"],
+  "boundaryCases": ["N11", "N12"],
+  "positiveRequired": ["correctToolChoice", "validToolPayload", "authoringSuccessful", "candidateCompiles", "proofVerified", "astEquivalent", "noCollateralChanges"],
+  "boundaryRequired": ["correctToolChoice", "validToolPayload", "candidateCompiles", "astEquivalent", "noCollateralChanges", "boundaryRecognized"],
+  "boundaryForbidden": ["updatedModelText", "generated=true", "proofVerified=true"],
+  "unknownEquivalence": "INVALID_TOTAL_SCORE",
+  "missingEvidence": "INVALID_TOTAL_SCORE",
+  "invalidInput": "INVALID_TOTAL_SCORE",
+  "operandOrder": "PRESERVE",
+  "normalization": ["constraint name omitted", "source line omitted", "pure parentheses omitted", "same-connective grouping flattened without reordering", "numeric spelling normalized"],
+  "equivalenceProofs": {"P01": "Exhaustive 13 mandatory enum values x 101 mandatory integral numeric values; compiler-domain regression verifies the domain"},
+  "reconstructionAttempts": 1,
+  "transportRetries": 1,
+  "referenceRepair": "FORBIDDEN",
+  "reconstructorModel": "gpt-5.6-luna",
+  "reasoningEffort": "xhigh"
+}

@@ -1,0 +1,25 @@
+# Reviewed replacement for this section only, after v2 approval.
+# Preserve unrelated Codex configuration. A fresh connector process is required.
+[mcp_servers.interlis-mcp-eval]
+command = "/usr/bin/python3"
+args = ["/Users/stefan/sources/interlis-mcp/evals/constraint-reconstruction/tools/launch_eval.py"]
+startup_timeout_sec = 120
+tool_timeout_sec = 300
+required = true
+enabled_tools = ["validateIliModel", "reviewIliConstraint", "generateIliConstraintCases", "authorIliMandatoryConstraint", "authorIliPlausibilityConstraint", "authorIliExistenceConstraint", "authorIliSetConstraint", "authorIliUniqueConstraint", "generateIliConstraintFromDecisionTable", "listConstraintFunctions", "resolveConstraintPath"]
+
+[mcp_servers.interlis-mcp-eval.env]
+JAVA_HOME = "/Users/stefan/.sdkman/candidates/java/current"
+
+[mcp_servers.interlis-mcp-eval.tools.authorIliMandatoryConstraint]
+output_token_limit = 50000
+[mcp_servers.interlis-mcp-eval.tools.authorIliPlausibilityConstraint]
+output_token_limit = 50000
+[mcp_servers.interlis-mcp-eval.tools.authorIliExistenceConstraint]
+output_token_limit = 50000
+[mcp_servers.interlis-mcp-eval.tools.authorIliSetConstraint]
+output_token_limit = 50000
+[mcp_servers.interlis-mcp-eval.tools.authorIliUniqueConstraint]
+output_token_limit = 50000
+[mcp_servers.interlis-mcp-eval.tools.generateIliConstraintFromDecisionTable]
+output_token_limit = 50000

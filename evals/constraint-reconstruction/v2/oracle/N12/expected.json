@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 2,
+  "caseId": "N12",
+  "category": "BOUNDARY",
+  "corpus": {
+    "repository": "sogis-interlis-repository",
+    "commit": "b94abb0953c8413d4eaaa647fa66fa7d585aa4df",
+    "path": "models/AFU/SO_AFU_Naturgefahren_20240515.ili"
+  },
+  "originalConstraintSelector": "CheckBefundSteinBlockschlagKeineUeberragung",
+  "expectedTypeOrBoundary": "BOUNDARY; nested external object-set function semantics",
+  "expectedHighLevelTools": [
+    "authorIliSetConstraint"
+  ],
+  "gold": {
+    "contextFqn": "SO_AFU_Naturgefahren_20240515.Befunde.BefundSteinBlockschlag",
+    "astComplete": true,
+    "artifact": "compiler-gold.json"
+  },
+  "astComparison": {
+    "orderedOperands": true,
+    "ignore": [
+      "constraintName",
+      "sourceLine",
+      "pureGrouping"
+    ],
+    "unknownEquivalence": "NOT_PROVEN"
+  },
+  "acceptedBoundaryStatuses": [
+    "EXTERNAL_FUNCTION_SEMANTICS_REQUIRED",
+    "PROOF_INCOMPLETE"
+  ],
+  "scoring": {
+    "requireCorrectHighLevelTool": true,
+    "requireStatus": null,
+    "requireProofVerified": false,
+    "requireCompilingUpdatedModel": false,
+    "requireExactIntendedConstraintOnly": true,
+    "requireNoReleasedUpdatedModel": true,
+    "requireCompilingCandidate": true
+  },
+  "removal": {
+    "sourceStartOffset": 30966,
+    "sourceEndOffset": 31326,
+    "sourceChars": 64672,
+    "publicChars": 64312
+  }
+}

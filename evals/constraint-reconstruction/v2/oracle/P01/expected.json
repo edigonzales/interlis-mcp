@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 2,
+  "caseId": "P01",
+  "category": "POSITIVE",
+  "corpus": {
+    "repository": "sogis-interlis-repository",
+    "commit": "b94abb0953c8413d4eaaa647fa66fa7d585aa4df",
+    "path": "models/AFU/SO_AFU_Bodeneinheiten_20251210.ili"
+  },
+  "originalConstraintSelector": "CheckKoernungsklasseUbTongehalt_Land",
+  "expectedTypeOrBoundary": "MANDATORY; enum-to-inclusive-numeric-range mapping",
+  "expectedHighLevelTools": [
+    "generateIliConstraintFromDecisionTable",
+    "authorIliMandatoryConstraint"
+  ],
+  "gold": {
+    "contextFqn": "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Landwirtschaft",
+    "astComplete": true,
+    "artifact": "compiler-gold.json"
+  },
+  "astComparison": {
+    "orderedOperands": true,
+    "ignore": [
+      "constraintName",
+      "sourceLine",
+      "pureGrouping"
+    ],
+    "unknownEquivalence": "NOT_PROVEN"
+  },
+  "acceptedBoundaryStatuses": [],
+  "scoring": {
+    "requireCorrectHighLevelTool": true,
+    "requireStatus": "GENERATED",
+    "requireProofVerified": true,
+    "requireCompilingUpdatedModel": true,
+    "requireExactIntendedConstraintOnly": true,
+    "requireNoReleasedUpdatedModel": false,
+    "requireCompilingCandidate": true
+  },
+  "removal": {
+    "sourceStartOffset": 24885,
+    "sourceEndOffset": 26355,
+    "sourceChars": 77097,
+    "publicChars": 75627
+  }
+}

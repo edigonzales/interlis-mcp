@@ -1,0 +1,19 @@
+{
+  "tool": "mcp__interlis_mcp_eval__authorIliSetConstraint",
+  "payload": {
+    "contextFqn": "VSADSSMINI_2020_1_LV95_Validierung_IPW_S2_20250123.VSADSSMini_Validierung.v_Bauwerkskomponente",
+    "spec": {
+      "kind": "SET",
+      "name": "BenchmarkRule",
+      "scope": "GLOBAL",
+      "condition": {
+        "kind": "OBJECT_COUNT",
+        "objects": {
+          "kind": "ALL"
+        },
+        "operator": "==",
+        "threshold": 0
+      }
+    }
+  }
+}
