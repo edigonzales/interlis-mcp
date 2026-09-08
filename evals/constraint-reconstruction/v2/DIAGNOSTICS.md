@@ -1,5 +1,11 @@
 # Technische Diagnose und Grenzen der bisherigen Prüfung
 
+## Native Abnahme der ersten Promptrevision
+
+Nach Neuaufbau der Verbindung bestätigte der native Canary das unveränderliche Build und den Importbestand. Der Lauf `20260908T091847Z-fe4b0aa-d590f4` bestand die Vorprüfung und Input-QA. Sein erster Reconstructor rief jedoch den Canary ohne vorherige Request-Persistenz auf; ein anschließender TextEncoder-Fehler verlor das erste Rohresultat. Der Originalverlauf ist erhalten. Der Lauf wurde als CLIENT_AGENT / INCOMPLETE_FAIL_CLOSED abgebrochen und erhält keinen gültigen Gesamtwert.
+
+Revision 2.0.1 standardisiert deshalb ausschließlich die native Protokollierung: Ein unveränderlicher, fachlich neutraler JavaScript-Recorder wird in den eigenen Ausgabeordner kopiert. Er nutzt weiterhin nur den nativen Codex-Connector, speichert Requests vor Aufrufen, große Rohresultate verlustfrei und Kandidaten unverändert; er verhindert weitere Authoring-Versuche und erlaubt höchstens einen identischen Transport-Retry. Ein Offline-Test mit ausdrücklich simulierten Resultaten prüft Zeitfolge, Retry, Sonderzeichen und große Ergebnisse. Anforderungen, Goldlösungen und Referenz-Payloads sind unverändert. Die ursprüngliche freigegebene Revision bleibt im Git-Commit fe4b0aa und in der abgebrochenen Laufakte nachvollziehbar. Fehlende Belege werden weiterhin nicht nachträglich legitimiert.
+
 ## Drei ursprüngliche Testfehler
 
 Die erste gezielte Ausführung meldete bei P01/P02 `CANDIDATE_MODEL_INVALID` und bei N11 nur eine statt zwei Kompilierungen. Die damaligen Assertions enthielten keine vollständigen Compilerdiagnosen. Nach Ergänzung dieser Diagnosen bestanden sowohl der isolierte Wiederholungslauf als auch dieselbe Kombination aller 16 Tests. Auch die anschließende vollständige Testsuite war grün.

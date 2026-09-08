@@ -115,11 +115,11 @@
     },
     {
       "path": "evals/constraint-reconstruction/tools/benchmark.py",
-      "sha256": "420bec3698e9d4c71d94dfc1fe18d7abaa8ba87e53b347f55dba11eb3401be4c"
+      "sha256": "ca12085885767eab4cd90ad7e87d3d1f67f0df0e2ff3d1329d48f1917dec710a"
     },
     {
       "path": "evals/constraint-reconstruction/tools/freeze_manifest.py",
-      "sha256": "7afccd9182bff969d2606f51a2fbb7ca6c9bee3559f6c0468c8afc335e829f5f"
+      "sha256": "bd12753677f1b3a7211379fb753e3c4700e7354900339cd8cca9121c0119bc6e"
     },
     {
       "path": "evals/constraint-reconstruction/tools/launch_eval.py",
@@ -131,7 +131,11 @@
     },
     {
       "path": "evals/constraint-reconstruction/tools/test_benchmark.py",
-      "sha256": "07ac441eb43dd0f949e78ede2ee371baf66002bf547e0ed8c1faed08b4d21203"
+      "sha256": "1104881a0b2cdde19f03d33e797420b0635730e80f134f6ea54806f0d0daf8c0"
+    },
+    {
+      "path": "evals/constraint-reconstruction/tools/test_native_recorder.cjs",
+      "sha256": "50a9d551958a00ccfdb6087b2ab4060ff8cc634436af240d94c3b305fde6066a"
     },
     {
       "path": "src/benchmark/java/ch/so/agi/mcp/benchmark/CompilerEvidence.java",
@@ -141,7 +145,7 @@
   "artifacts": [
     {
       "path": "DIAGNOSTICS.md",
-      "sha256": "5299b9119ab265af8ef0f77e9e000e376539eb3c188b8826d2ae2ac4c91339a8"
+      "sha256": "3e3bc73531d5840450134f9cf28e601ccfd58987cf5eb70d82b4452d1ccf8091"
     },
     {
       "path": "REVIEW.md",
@@ -153,7 +157,7 @@
     },
     {
       "path": "automation-prompt.md",
-      "sha256": "37d1ac4cf8d49e092969aa15a97bab12e68543f1f54b39f407fa996c27b1660a"
+      "sha256": "0682f71d4d1dcd2845efb8b1fc7604a7d59f8bab64cf5acda23a2b726907cd3c"
     },
     {
       "path": "connector-config.toml",
@@ -230,6 +234,10 @@
     {
       "path": "dependencies/manifest.json",
       "sha256": "494e7d6a591eec1fcaec125be13c9a64678eec0c77f030a19822c1de44257d74"
+    },
+    {
+      "path": "native-recorder.js",
+      "sha256": "81163f2bcbbc9d4dcb0d4be0adb31e241a295cb1ffb4dc59bf1e25a0ffee326e"
     },
     {
       "path": "native-tool-declarations.json",
@@ -525,7 +533,7 @@
     },
     {
       "path": "reconstructor-prompt.md",
-      "sha256": "fbd26f7b48576136a9ade99e52d1d73a334369b546afe32e8f6b1bf390a7bef1"
+      "sha256": "75df3fc95810f16f32409c74302fabad2e1634a191f581bcb4cc82cd52a35447"
     },
     {
       "path": "reference/N11/request-template.json",
@@ -583,5 +591,7 @@
       "path": "tool-catalog.json",
       "sha256": "088cf21ee8d7306410a0f1c89f83e88a1333bc73b1a96790824f449df28f5388"
     }
-  ]
+  ],
+  "revision": "2.0.1",
+  "supersedesManifestSha256": "ed080c32e0884c4c957bb6293333ef403e7ba1c7396a36c1f936fdffb08763b9"
 }

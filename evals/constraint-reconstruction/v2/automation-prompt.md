@@ -24,6 +24,8 @@ Bearbeite P01 bis P10, danach N11 und N12. Bereite jeden Fall einzeln mit `pytho
 
 Archiviere vor dem Start den Auftrag und danach das tatsächliche Startresultat als launch.json mit agentId, forkTurns, model, reasoningEffort und promptSha256. Archiviere den tatsächlichen vollständigen Rollenverlauf unverändert als transcript.jsonl. completion.json des Reconstructors allein ist kein Isolationsbeleg. Der Hauptagent darf zur Archivierung und Prüfung die zugehörigen Codex-Sitzungsdateien lesen; diese werden dem Reconstructor niemals zugänglich gemacht. Kann der Rollenverlauf nicht erhalten werden, ist die Abnahme unvollständig.
 
+prepare-case stellt im eigenen Ausgabeordner einen unveränderlichen native-recorder.js bereit. Er dient ausschließlich der vollständigen nativen Protokollierung und enthält keine fachlichen Hinweise. Verlange seine unveränderte Verwendung entsprechend dem Reconstructor-Prompt.
+
 Warte auf Abschluss jedes Falls. Vor dem nächsten Fall müssen alle Requests vor den Aufrufen und die vollständigen Rohresultate unmittelbar danach erhalten sein. Genau ein Authoring-Versuch ist erlaubt. Ein eindeutig transienter Transportfehler erlaubt einmal denselben nativen Request erneut; keine fachliche Reparatur. Bei fachlichem Fehler bewahre den Fall und fahre fort. Fehlende/trunkierte Artefakte sind CLIENT_AGENT, kein MCP-Authoring-Fehler. Zusätzliche Rückfragen an den Reconstructor dürfen nur fehlende Persistenz betreffen und dürfen weder Lösungshinweise liefern noch einen neuen Authoring-Versuch auslösen.
 
 Messung B: MCP-Referenz

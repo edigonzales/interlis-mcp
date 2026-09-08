@@ -444,6 +444,8 @@ def prepare_case(suite,run,cid,lane):
     temp=run/'isolated-inputs'/uuid.uuid4().hex;temp.mkdir(parents=True)
     for name in ['model.ili','requirement.de.md']:shutil.copyfile(suite/'public'/cid/name,temp/name)
     write(temp/'hashes.json',{p.name:sha(p) for p in temp.iterdir() if p.is_file()})
+    recorder=(suite/'native-recorder.js').read_text().replace('{{INPUT}}',str(temp)).replace('{{OUTPUT}}',str(d))
+    (d/'native-recorder.js').write_text(recorder)
     prompt=(suite/'reconstructor-prompt.md').read_text().replace('{{INPUT}}',str(temp)).replace('{{OUTPUT}}',str(d))
     write(d/'assignment.json',{'caseId':cid,'forkTurns':'none','inputDirectory':str(temp),'outputDirectory':str(d),'prompt':prompt,'promptSha256':hashlib.sha256(prompt.encode()).hexdigest()})
     return {'input':str(temp),'output':str(d),'assignment':str(d/'assignment.json')}

@@ -2,11 +2,11 @@
 
 Stand 2026-09-08: Fachliche Freigabe liegt vor. P04/P05 behalten ihre ursprünglichen Constraints und Eingabemodelle. Die versionierten Anforderungen beschreiben die tatsächliche geordnete Auswertung beziehungsweise die zulässigen Kardinalitätsfälle. Suite, Referenz-Payloads, Gold-ASTs, native Werkzeugdeklarationen und Prüfhelfer werden gemeinsam eingefroren. Technische Handler-Tests sind keine nativen MCP-Scores.
 
-## Aktuelle Verbindungssperre
+## Verbindungsdiagnose und erste Abnahme
 
-Der native `listConstraintFunctions`-Canary lieferte zweimal `Transport closed`, auch mit identischem Retry. Diese Sitzung kann daher keine native Abnahme ausführen. Kein manueller MCP-Server oder Ersatzclient wurde gestartet. Die vollständigen Diagnosebelege liegen unter `/Users/stefan/.codex/automations/interlis-mcp-constraint-benchmark/implementation-20260908/`.
+Der native `listConstraintFunctions`-Canary lieferte zweimal `Transport closed`, auch mit identischem Retry. Nach dem Neustart wurde die Verbindung wiederhergestellt und die Laufzeitidentität nativ bestätigt. Kein manueller MCP-Server oder Ersatzclient wurde gestartet. Die vollständigen Diagnosebelege liegen unter `/Users/stefan/.codex/automations/interlis-mcp-constraint-benchmark/implementation-20260908/`.
 
-Die lokale Konfiguration in `/Users/stefan/.codex/config.toml` startet den Eval-Connector jetzt über den versionierten `tools/launch_eval.py`. Andere Connector-Einstellungen bleiben erhalten. Die alte command/args-Sektion ist unter `config-backups` beim bestehenden Scheduled Task archiviert. Der Launcher hat im Vorbereitungsmodus ein unveränderliches JAR und einen gehashten Importbestand erstellt, aber keinen MCP-Prozess gestartet. Ein Neustart von Codex beziehungsweise Neuaufbau der nativen Connector-Verbindung ist erforderlich. Die Codex-Oberfläche ist für das verfügbare Computer-Use-Werkzeug gesperrt.
+Die lokale Konfiguration in `/Users/stefan/.codex/config.toml` startet den Eval-Connector jetzt über den versionierten `tools/launch_eval.py`. Andere Connector-Einstellungen bleiben erhalten. Die alte command/args-Sektion ist unter `config-backups` beim bestehenden Scheduled Task archiviert. Der Launcher hat im Vorbereitungsmodus ein unveränderliches JAR und einen gehashten Importbestand erstellt, aber keinen MCP-Prozess gestartet. Der erforderliche Neuaufbau der Verbindung ist inzwischen erfolgt. Die Codex-Oberfläche ist für das verfügbare Computer-Use-Werkzeug gesperrt.
 
 ## Fortsetzung nach Neuaufbau der Verbindung
 
@@ -17,3 +17,5 @@ Die lokale Konfiguration in `/Users/stefan/.codex/config.toml` startet den Eval-
 5. Die gespeicherte Automation erneut lesen und Einstellungen sowie Prompt-Hash überprüfen. Akzeptanzbericht verlinken. Reguläre Läufe führen jeweils eine Runde beider Messungen aus. Historische v1-Berichte bleiben unverändert und sind nicht direkt mit v2 vergleichbar.
 
 Keine der drei nativen Abnahmerunden wurde bislang als vollständig oder gewertet ausgegeben. Der Scheduled Task ist noch nicht auf v2 umgestellt.
+
+Der erste Lauf `20260908T091847Z-fe4b0aa-d590f4` wurde wegen fehlender vorab gespeicherter Canary-Requests des ersten Reconstructors ohne Gesamtwert abgebrochen. Revision 2.0.1 ergänzt einen neutralen nativen Recorder; ursprüngliche Revision und Rollenverlauf bleiben erhalten. Die drei vollständigen Abnahmerunden müssen dieselbe neue Revision verwenden.

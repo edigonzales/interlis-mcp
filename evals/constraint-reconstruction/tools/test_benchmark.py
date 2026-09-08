@@ -1,4 +1,4 @@
-import copy, pathlib, tempfile, unittest
+import copy, pathlib, tempfile, unittest, subprocess, json
 import benchmark as b
 
 class ScoringTests(unittest.TestCase):
@@ -101,6 +101,13 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(totals['boundary'],{'earned':2,'total':2})
 
 class CallAuditTests(unittest.TestCase):
+    def test_native_recorder_persists_before_call_retries_identically_and_preserves_large_results(self):
+        with tempfile.TemporaryDirectory() as temp:
+            result=subprocess.run(['node',str(b.BASE/'tools/test_native_recorder.cjs'),temp,str(b.BASE/'v2/native-recorder.js')],capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            evidence=json.loads(result.stdout)
+            self.assertEqual(evidence['status'],'PASS')
+            self.assertEqual(len(b.audit_calls(pathlib.Path(evidence['output']),evidence['identity'])),3)
     def test_preflight_canary_requires_exact_request_and_ordered_timestamps(self):
         with tempfile.TemporaryDirectory() as temp:
             d=pathlib.Path(temp)
