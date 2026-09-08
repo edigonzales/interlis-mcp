@@ -25,6 +25,12 @@ public class IliAuthoringResult {
     UNEXPECTED_SEMANTIC_CHANGE
   }
 
+  /** Request-contract diagnostics; additive to status/reason and compiler diagnostics. */
+  public List<SpecDiagnostic> specDiagnostics = List.of();
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  public record SpecDiagnostic(String code, String path, String message, @Nullable String hint) {}
+
   public Status status;
   public boolean complete;
   public @Nullable Boolean generated;

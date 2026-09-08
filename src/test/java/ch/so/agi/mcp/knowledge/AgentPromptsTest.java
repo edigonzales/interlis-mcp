@@ -9,6 +9,17 @@ class AgentPromptsTest {
   private final AgentPrompts prompts = new AgentPrompts();
 
   @Test
+  void authoringGuidanceIsSharedByPromptAndWorkflowResources() {
+    var resources = new KnowledgeResources(null, null);
+    for (String guidance : java.util.List.of(
+        prompts.authorInterlisConstraint("MANDATORY").toString(),
+        resources.agentWorkflow().toString(), resources.constraintWorkflow().toString())) {
+      assertThat(guidance).contains("Regel42", "#Drainage", "COLLECTION_SUM", "NUMERIC_ADD",
+          "FUNCTION.objects", "threshold", "aggregate=SUM", "specDiagnostics", "JSON-Pointer", "Reihenfolge");
+    }
+  }
+
+  @Test
   void modelingAgentPrefersSemanticChangeAndHighLevelReviewTools() {
     String prompt = prompts.interlisModelingAgent().toString();
 

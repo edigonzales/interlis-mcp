@@ -39,6 +39,7 @@ public final class IliSpecRenderer {
     require(spec != null, "spec is required.");
     String modelName = ident(spec.name, "spec.name");
     String iliVersion = iliVersion(spec.iliVersion);
+    ConstraintSpecContract.modelConstraints(spec);
     String uri = absoluteUri(spec.uri);
     String version = quotedValue(spec.version, "spec.version");
     String language = optionalLanguage(spec.language);
@@ -143,6 +144,7 @@ public final class IliSpecRenderer {
       String currentModel,
       Set<String> imports) {
     require(spec != null, "association is required.");
+    ConstraintSpecContract.constraints(spec.constraints, iliVersion, "/spec/constraints");
     String name = ident(spec.name, "association.name");
     validateExtends(spec.extendsFqn, currentModel, imports, "association.extendsFqn");
     require(spec.roles != null && spec.roles.size() >= 2,
@@ -216,7 +218,8 @@ public final class IliSpecRenderer {
       String currentModel,
       Set<String> imports) {
     require(spec != null, "constraint and kind are required.");
-    String name = ident(spec.name, "constraint.name");
+    ConstraintSpecContract.validate(spec, iliVersion, "/spec");
+    String name = ConstraintSpecContract.technicalName(spec.name, "/spec/name");
     ConstraintExpression.IliVersion version = expressionVersion(iliVersion);
     String annotation = constraintAnnotations(spec, name);
     String statement = switch (spec) {
@@ -251,6 +254,7 @@ public final class IliSpecRenderer {
       String iliVersion,
       String currentModel,
       Set<String> imports) {
+    ConstraintSpecContract.expression(expression, iliVersion, "/spec");
     return expression(
         expression,
         expressionVersion(iliVersion),
@@ -266,6 +270,7 @@ public final class IliSpecRenderer {
       Set<String> imports,
       @Nullable String oidDomainFqn) {
     require(spec != null, keyword.toLowerCase(Locale.ROOT) + " is required.");
+    ConstraintSpecContract.constraints(spec.constraints, iliVersion, "/spec/constraints");
     String name = ident(spec.name, keyword.toLowerCase(Locale.ROOT) + ".name");
     validateExtends(spec.extendsFqn, currentModel, imports,
         keyword.toLowerCase(Locale.ROOT) + ".extendsFqn");
@@ -469,7 +474,7 @@ public final class IliSpecRenderer {
       }
       case ENUM -> {
         arity(spec.kind, children, 0, 0);
-        String value = semanticPath(String.valueOf(spec.value), "ENUM.value");
+        String value = EnumLiteralValue.normalize(spec.value, "/spec/value");
         yield "#" + value;
       }
       case TEXT, MTEXT -> {
@@ -528,9 +533,8 @@ public final class IliSpecRenderer {
     }
     String semanticId = functionName;
     StandardFunctionRegistry.StandardFunction function =
-        StandardFunctionRegistry.findBySemanticId(semanticId)
-            .orElseThrow(() -> new IllegalArgumentException(
-                "Unknown standard function semanticId: " + semanticId));
+        ConstraintSpecContract.standardFunction(semanticId,
+            version == ConstraintExpression.IliVersion.ILI_24 ? "2.4" : "2.3", "/spec/name");
     require(children.size() == function.parameters().size(),
         "FUNCTION " + semanticId + " expects " + function.parameters().size()
             + " children, got " + children.size() + ".");

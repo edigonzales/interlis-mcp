@@ -158,6 +158,30 @@ class ConstraintWorkflowStdioE2eTest {
         "AtLeastTwoHigh");
   }
 
+  @Test
+  void authoringContractGuidanceAndDiagnosticsSurviveStdio() throws Exception {
+    initializeSession();
+    send("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}");
+    String catalog=waitForResponseWithId(2,15_000);
+    assertNotNull(catalog);
+    assertContainsAll(catalog,"COLLECTION_SUM","Regel42","specDiagnostics","oneOf","threshold");
+    String arguments="""
+        {"modelText":"INTERLIS 2.3;","contextFqn":"Demo.Data.Item","spec":{"kind":"MANDATORY",
+        "name":"Rule","condition":{"kind":"FUNCTION","name":"Math.sum","functionOrigin":"STANDARD","children":[]}}}
+        """.replace("\n", "");
+    String response=callTool(3,"authorIliMandatoryConstraint",arguments);
+    assertFalse(response.contains("\"isError\":true"),response);
+    var mapper=new tools.jackson.databind.ObjectMapper();
+    var envelope=mapper.readTree(response).get("result");
+    var result=envelope.get("structuredContent");
+    if (result==null) result=mapper.readTree(envelope.get("content").get(0).get("text").asText());
+    assertTrue(result.get("status").asText().equals("INVALID_SPEC"),response);
+    var diagnostic=result.get("specDiagnostics").get(0);
+    assertTrue(diagnostic.get("code").asText().equals("UNKNOWN_STANDARD_FUNCTION"),response);
+    assertTrue(diagnostic.get("path").asText().equals("/spec/condition/name"),response);
+    assertTrue(diagnostic.get("hint").asText().contains("COLLECTION_SUM"),response);
+  }
+
   private void initializeSession() throws Exception {
     send("{"
         + "\"jsonrpc\":\"2.0\","

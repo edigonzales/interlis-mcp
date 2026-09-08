@@ -42,6 +42,46 @@ class ToolRegistrationContractTest {
   }
 
   @Test
+  @SuppressWarnings("unchecked")
+  void expressionSchemasExposeUsableKindSpecificContractsAndDiagnosticFields() throws Exception {
+    var tool = specsByName().get("authorIliMandatoryConstraint").tool();
+    var defs = (Map<String,Object>) tool.inputSchema().get("$defs");
+    var expression = (Map<String,Object>) defs.get("ExpressionSpec");
+    var alternatives = (List<Map<String,Object>>) expression.get("oneOf");
+    assertThat(alternatives).hasSize(15);
+    var byKind = alternatives.stream().collect(Collectors.toMap(
+        a -> ((Map<?,?>)((Map<?,?>)a.get("properties")).get("kind")).get("const").toString(), a -> a));
+    var function = (Map<String,Object>) byKind.get("FUNCTION").get("properties");
+    assertThat(function).containsKeys("name","functionOrigin","children").doesNotContainKeys("objects","value","operator");
+    assertThat(byKind.get("FUNCTION").get("additionalProperties")).isEqualTo(false);
+    assertThat(byKind.get("FUNCTION").get("required").toString()).contains("name","functionOrigin");
+    var count = (Map<String,Object>) byKind.get("OBJECT_COUNT").get("properties");
+    assertThat(count).containsKey("objects").doesNotContainKeys("operator","threshold","value");
+    var compare = (Map<String,Object>) byKind.get("COMPARE").get("properties");
+    assertThat((Map<String,Object>)compare.get("children")).containsEntry("minItems",2).containsEntry("maxItems",2);
+    var children=(Map<String,Object>)function.get("children");
+    assertThat((Map<String,Object>)children.get("items")).containsEntry("$ref","#/$defs/ExpressionSpec");
+    var enumValue = (Map<String,Object>)((Map<String,Object>)byKind.get("ENUM").get("properties")).get("value");
+    assertThat("#Drainage".matches(enumValue.get("pattern").toString())).isTrue();
+    assertThat("##Drainage".matches(enumValue.get("pattern").toString())).isFalse();
+    assertThat(mapper.writeValueAsString(tool.inputSchema())).contains("Regel42","COLLECTION_SUM","NUMERIC_ADD","threshold");
+    assertThat(mapper.writeValueAsString(tool.outputSchema())).contains("specDiagnostics","code","path","message","hint");
+  }
+
+  @Test
+  void nativeHandlerReturnsStructuredContractErrors() throws Exception {
+    var tool = specsByName().get("authorIliMandatoryConstraint");
+    Map<String,Object> expression = Map.of("kind","FUNCTION","name","Math.sum","functionOrigin","STANDARD","children",List.of());
+    var response=tool.callHandler().apply(null,new McpSchema.CallToolRequest(tool.tool().name(),Map.of(
+        "modelText","INTERLIS 2.3;","contextFqn","Demo.Data.Item","spec",Map.of("kind","MANDATORY","name","Rule","condition",expression))));
+    assertThat(response.isError()).isFalse();
+    Map<String,Object> result=extractStructuredContent(response);
+    assertThat(result).containsEntry("status","INVALID_SPEC").containsEntry("reasonCode","INVALID_SPEC");
+    assertThat(mapper.writeValueAsString(result.get("specDiagnostics"))).contains("UNKNOWN_STANDARD_FUNCTION","/spec/condition/name","COLLECTION_SUM","functionOrigin=STANDARD");
+    assertThat(result.get("updatedModelText")).isNull();
+  }
+
+  @Test
   void allRegisteredToolsMatchExpectedSchemaContract() {
     Map<String, SyncToolSpecification> specsByName = specsByName();
 

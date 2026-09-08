@@ -5,6 +5,7 @@ import ch.so.agi.mcp.analysis.ModelPurpose;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
 import ch.so.agi.mcp.model.IliAuthoringResult;
+import ch.so.agi.mcp.model.SpecValidationException;
 import ch.so.agi.mcp.model.IliConstraintSpec;
 import ch.so.agi.mcp.model.IliModelSpec;
 import ch.so.agi.mcp.model.IliSpecRenderer;
@@ -61,7 +62,8 @@ public final class IliModelAuthoringTools {
     try {
       rendered = renderer.renderModel(spec);
     } catch (IllegalArgumentException ex) {
-      return failure("INVALID_SPEC", ex.getMessage(), null, List.of());
+      return SpecValidationException.attach(
+          failure("INVALID_SPEC", ex.getMessage(), null, List.of()), ex);
     }
 
     IliCompilerService.CompilationResult compilation = compilerService.compile(

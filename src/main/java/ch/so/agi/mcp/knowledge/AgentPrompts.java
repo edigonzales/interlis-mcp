@@ -176,7 +176,8 @@ public class AgentPrompts {
         Freie Mandatory-/Existence-/Set-Snippet-Tools sind nicht Teil der MCP-Oberfläche. Wenn das typisierte Authoring den
         Fall nicht ausdrücken kann, bearbeite den Modelltext gezielt, behaupte keinen Ersatzbeweis und schliesse mit den
         passenden Review- und Proof-Tools ab. Fragmentbasierte Constraint-Authoring-Tools sind nicht öffentlich.
-        """.formatted(blankFallback(constraintKind, "UNKNOWN")));
+        """.formatted(blankFallback(constraintKind, "UNKNOWN"))
+        + ch.so.agi.mcp.model.ConstraintAuthoringGuidance.WORKFLOW);
   }
 
   private GetPromptResult prompt(String description, String text) {

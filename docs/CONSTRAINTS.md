@@ -79,6 +79,89 @@ Der Proof bezieht sich auf **diesen Constraint**. Die Authoring-Tools liefern zu
 
 Die gemeinsamen Authoring-Resultate verwenden ein geschlossenes Status-Enum mit `GENERATED`, `APPLIED`, `BREAKING_CHANGE_REQUIRES_CONFIRMATION`, `NEEDS_INPUT`, `INVALID_SPEC`, `BEFORE_MODEL_INVALID`, `CANDIDATE_MODEL_INVALID`, `AST_ROUND_TRIP_FAILED`, `PROOF_INCOMPLETE`, `PROOF_FAILED`, `EXTERNAL_FUNCTION_SEMANTICS_REQUIRED` und `UNEXPECTED_SEMANTIC_CHANGE`. `updatedModelText` erscheint nur bei `GENERATED` beziehungsweise `APPLIED`; jeder kompilierbare, aber nicht freigegebene Stand erscheint ausschliesslich als `candidateModelText`.
 
+## Eingabevertrag und frühe Diagnosen
+
+Alle Constraint-Authoring-Tools prüfen die rekursiven Ausdrucksknoten vor dem Rendern.
+Die gleichen Regeln gelten für Constraints in Modell- und Änderungswerkzeugen.
+Die nativen Schemas zeigen pro `kind` die erlaubten Felder und Kinderzahlen; die Java-DTOs,
+Toolnamen und Top-Level-Parameter bleiben bestehen.
+
+- `spec.name` beziehungsweise `constraintName` ist ein technischer Name gemäß
+  `[A-Za-z][A-Za-z0-9_]*`. Für eine fachliche Nummer `42` kann der Server `Regel42`
+  vorschlagen; er benennt den Constraint nicht automatisch um.
+- `ENUM.value` akzeptiert einen String mit oder ohne genau ein führendes `#`, beispielsweise
+  `Drainage`, `#Drainage` oder `Gruppe.Drainage`. Äußere Leerzeichen werden entfernt.
+  Nullwerte, leere Werte, wiederholte `#` und Assoziationspfeile sind unzulässig.
+  Renderer, Entscheidungstabelle und AST-Vergleich verwenden dieselbe kanonische Schreibweise.
+  Request-Objekte sowie TEXT-/MTEXT-Werte bleiben unverändert.
+- STANDARD-Funktionen verwenden eine `semanticId` aus `listConstraintFunctions` als `name`:
+  `COLLECTION_SUM` und `NUMERIC_ADD`, nicht `Math.sum` und `Math.add`.
+  Ein zur INTERLIS-Version passender qualifizierter Name erhält einen konkreten Hinweis aus
+  dem Funktionsregister; die Kennung wird nicht automatisch ersetzt und die Herkunft nicht
+  auf MODEL geändert. Externe Funktionen benötigen weiterhin ihre echte Signatur und bleiben
+  ohne ausführbare Semantik eine Proof-Grenze.
+- Funktionsargumente stehen geordnet in `children`. `objects` ist kein FUNCTION-Feld.
+  Blätter haben keine Kinder, DEFINED/NOT eines, COMPARE/IMPLIES zwei und AND/OR mindestens eines.
+- `OBJECT_COUNT` als **Ausdruck** liefert eine Zahl und verwendet ausschließlich `objects`.
+  Ein Vergleich ist ein umgebender COMPARE-Knoten:
+
+```json
+{
+  "kind": "COMPARE",
+  "operator": "==",
+  "children": [
+    { "kind": "OBJECT_COUNT", "objects": { "kind": "ALL" } },
+    { "kind": "NUMERIC", "value": 1 }
+  ]
+}
+```
+
+Die separate **SET-Condition** OBJECT_COUNT verwendet dagegen `objects`, `operator` und
+`threshold`. Ein `value` an ihrer Stelle ist kein Vergleichsgrenzwert. In Entscheidungstabellen
+bleibt OBJECT_COUNT ein `aggregate` mit numerischem `value`.
+`defined=true/false` bezeichnet dort ausschließlich SUM-Präsenz und erfordert `aggregate=SUM`
+ohne `operator`, `value` oder `addAttribute`; direkte DEFINED-Ausdrücke gehören ins typisierte Authoring.
+
+Bisher ignorierte, nichtleere Felder wie `FUNCTION.objects` oder `OBJECT_COUNT.operator/value`
+werden nun abgewiesen. Das ist eine bewusste Verschärfung für fehlerhafte Payloads, damit daraus
+kein irreführender Compilerfehler entsteht. Reguläre gültige Payloads behalten ihre Bedeutung;
+Enum-Werte mit einem führenden `#` werden im typisierten Authoring zusätzlich akzeptiert.
+
+`IliAuthoringResult` enthält additiv `specDiagnostics`. Der erste Vertragsfehler wird deterministisch
+mit einem RFC-6901-JSON-Pointer gemeldet, auch innerhalb eingebetteter Modell- oder Batch-Constraints:
+
+```json
+{
+  "status": "INVALID_SPEC",
+  "reasonCode": "INVALID_SPEC",
+  "complete": false,
+  "generated": false,
+  "proofVerified": false,
+  "specDiagnostics": [{
+    "code": "INVALID_FIELD",
+    "path": "/spec/condition/objects",
+    "message": "objects is not allowed for FUNCTION.",
+    "hint": "FUNCTION arguments belong in the ordered children list."
+  }]
+}
+```
+
+Codes: `MISSING_FIELD`, `INVALID_FIELD`, `INVALID_LITERAL`, `INVALID_IDENTIFIER`,
+`INVALID_ARITY` und `UNKNOWN_STANDARD_FUNCTION`. `reason` bleibt als lesbare Kurzmeldung erhalten;
+`specDiagnostics` ist bei Ergebnissen ohne solche Fehler leer. Direktes Constraint-Authoring
+kompiliert bei diesen Formfehlern kein Modell und liefert keinen Kandidaten. Der Batch-Workflow
+kann bereits das unveränderte Eingabemodell kompiliert haben. Fehler, die der Client oder die native
+Schema-Prüfung vor dem Handler erkennt, bleiben Schema-/Transportfehler.
+
+### Benchmark-Kompatibilität
+
+Diese Erweiterung verändert native Tooldeklarationen und Schemas. Die eingefrorene Benchmark-v2,
+ihr aktiver Zeiger, Scheduled Task und historische Ergebnisse werden nicht angepasst. Vor einem
+weiteren gewerteten Lauf gegen diesen Server ist eine neue geprüfte Benchmark-Revision erforderlich.
+Die bestehende Katalogprüfung muss die Abweichung weiterhin erkennen und den Lauf sperren.
+Technische Regressionstests ersetzen keine native Abnahme; ein besserer End-to-End-Score ist damit
+noch nicht nachgewiesen.
+
 ## Gemeinsame technische Pipeline
 
 Vereinfacht:

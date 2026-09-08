@@ -4,6 +4,8 @@ import ch.so.agi.mcp.analysis.ModelChangeReviewService;
 import ch.so.agi.mcp.analysis.ModelPurpose;
 import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
 import ch.so.agi.mcp.model.IliAuthoringResult;
+import ch.so.agi.mcp.model.SpecValidationException;
+import ch.so.agi.mcp.model.ConstraintSpecContract;
 import ch.so.agi.mcp.model.IliConstraintSpec;
 import ch.so.agi.mcp.model.IliSpecRenderer;
 import ch.so.agi.mcp.service.IliCompilerService;
@@ -53,13 +55,14 @@ public final class ConstraintAuthoringEngine {
     String constraintText;
     try {
       context = requireFqn(contextFqn, "contextFqn");
-      if (spec == null) throw new IllegalArgumentException("spec is required.");
-      constraintName = requireIdent(spec.name, "spec.name");
+      if (spec == null) throw new SpecValidationException("MISSING_FIELD", "/spec", "spec is required.", null);
+      constraintName = ConstraintSpecContract.technicalName(spec.name, "/spec/name");
       version = iliVersion(modelText);
       String modelName = context.substring(0, context.indexOf('.'));
       constraintText = renderer.renderConstraint(spec, version, modelName, imports).text();
     } catch (IllegalArgumentException ex) {
-      return failure("INVALID_SPEC", ex.getMessage(), null, List.of());
+      return SpecValidationException.attach(
+          failure("INVALID_SPEC", ex.getMessage(), null, List.of()), ex);
     }
 
     IliCompilerService.CompilationResult before = workflow.compileBefore(

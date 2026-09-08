@@ -15,6 +15,8 @@ import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
 import ch.so.agi.mcp.model.AttributeLineRequest;
 import ch.so.agi.mcp.model.IliAuthoringResult;
+import ch.so.agi.mcp.model.SpecValidationException;
+import ch.so.agi.mcp.model.ConstraintSpecContract;
 import ch.so.agi.mcp.model.IliConstraintSpec;
 import ch.so.agi.mcp.model.IliModelSpec;
 import ch.so.agi.mcp.model.IliSpecRenderer;
@@ -107,10 +109,30 @@ public final class IliModelChangesService {
           ModelPurpose.normalize(modelPurpose),
           ModelingRuleProfile.normalize(ruleProfile));
     } catch (IllegalArgumentException ex) {
-      IliAuthoringResult result = failure("INVALID_SPEC", ex.getMessage());
+      IliAuthoringResult result = SpecValidationException.attach(failure("INVALID_SPEC", ex.getMessage()), ex);
       result.beforeDiagnostics = IliAuthoringResult.diagnostics(before.messages());
       result.compilerDiagnostics = IliAuthoringResult.diagnostics(before.messages());
       return result;
+    }
+  }
+
+  private void validateConstraintPayload(IliModelChangeRequest change, String version, String path) {
+    switch (change.requireOperation()) {
+      case ADD_TOPIC -> ConstraintSpecContract.topicConstraints(change.getAddTopic().topic, version, path + "/addTopic/topic");
+      case ADD_CLASS -> {
+        var clazz = change.getAddClass().clazz;
+        if (clazz != null) ConstraintSpecContract.constraints(clazz.constraints, version, path + "/addClass/clazz/constraints");
+      }
+      case ADD_STRUCTURE -> {
+        var structure = change.getAddStructure().structure;
+        if (structure != null) ConstraintSpecContract.constraints(structure.constraints, version, path + "/addStructure/structure/constraints");
+      }
+      case ADD_ASSOCIATION -> {
+        var association = change.getAddAssociation().association;
+        if (association != null) ConstraintSpecContract.constraints(association.constraints, version, path + "/addAssociation/association/constraints");
+      }
+      case ADD_CONSTRAINT -> ConstraintSpecContract.validate(change.getAddConstraint().constraint, version, path + "/addConstraint/constraint");
+      default -> { }
     }
   }
 
@@ -134,6 +156,7 @@ public final class IliModelChangesService {
     LinkedHashSet<String> derivedImports = new LinkedHashSet<>();
 
     for (int index = 0; index < changes.size(); index++) {
+      validateConstraintPayload(changes.get(index), iliVersion, "/request/changes/" + index);
       prepareOperation(
           changes.get(index), index, td, localModel, document, iliVersion, modelName,
           replacements, insertions, expected, derivedImports);

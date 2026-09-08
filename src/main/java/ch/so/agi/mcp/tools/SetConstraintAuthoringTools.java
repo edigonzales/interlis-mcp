@@ -26,7 +26,7 @@ public final class SetConstraintAuthoringTools {
   public IliAuthoringResult authorIliSetConstraint(
       @McpToolParam(description = "Vollständiger INTERLIS-Modelltext vor der Ergänzung", required = true) String modelText,
       @McpToolParam(description = "Vollqualifizierter Constraint-Kontext", required = true) String contextFqn,
-      @McpToolParam(description = "Typisierte SET-Spezifikation", required = true) IliConstraintSpec.Set spec,
+      @McpToolParam(description = "Typisierte SET-Spezifikation" + " " + ch.so.agi.mcp.model.ConstraintAuthoringGuidance.INPUT, required = true) IliConstraintSpec.Set spec,
       @McpToolParam(description = "Modellzweck", required = false) @Nullable ModelPurpose modelPurpose,
       @McpToolParam(description = "Regelprofil CORE oder SO", required = false) @Nullable ModelingRuleProfile ruleProfile) {
     return engine.author(modelText, contextFqn, spec, modelPurpose, ruleProfile);

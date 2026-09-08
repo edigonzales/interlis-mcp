@@ -30,6 +30,7 @@ public class McpDiscriminatorSchemaConfig {
           }
           McpSchema.Tool tool = specification.tool();
           Map<String, Object> normalizedInput = normalize(tool.inputSchema());
+          ConstraintSpecSchema.enrich(normalizedInput);
           Map<String, Object> normalizedOutput = normalize(tool.outputSchema());
           McpSchema.Tool normalizedTool = new McpSchema.Tool(
               tool.name(), tool.title(), tool.description(), normalizedInput, normalizedOutput,

@@ -2,10 +2,11 @@ package ch.so.agi.mcp.constraint;
 
 import ch.so.agi.mcp.constraint.ConstraintExpression.*;
 import ch.so.agi.mcp.model.IliConstraintSpec;
+import ch.so.agi.mcp.model.EnumLiteralValue;
 import java.math.BigDecimal;
 import java.util.List;
 
-/** Ordered structural comparison; never removes characters from literal values. */
+/** Ordered structural comparison; only enum surface prefixes are canonicalized, never text. */
 final class ConstraintExpressionComparison {
   private record Node(String kind, Object value, List<Node> children) {}
 
@@ -40,7 +41,7 @@ final class ConstraintExpressionComparison {
       case ATTRIBUTE, PATH -> leaf("REFERENCE", spec.name.trim());
       case NUMERIC -> leaf("NUMERIC", new BigDecimal(String.valueOf(spec.value)).stripTrailingZeros());
       case BOOLEAN -> leaf("BOOLEAN", spec.value);
-      case ENUM -> enumeration(String.valueOf(spec.value));
+      case ENUM -> enumeration(EnumLiteralValue.normalize(spec.value, "/spec/value"));
       case TEXT, MTEXT -> leaf("TEXT", String.valueOf(spec.value));
       case DEFINED, NOT, AND, OR -> branch(spec.kind.name(), children);
       case IMPLIES -> implication(children.get(0), children.get(1));

@@ -9,6 +9,9 @@ import ch.so.agi.mcp.constraint.StandardFunctionRegistry;
 import ch.so.agi.mcp.knowledge.KnowledgeRuleLoader;
 import ch.so.agi.mcp.knowledge.ModelingRuleTools;
 import ch.so.agi.mcp.model.IliAuthoringResult;
+import ch.so.agi.mcp.model.SpecValidationException;
+import ch.so.agi.mcp.model.EnumLiteralValue;
+import ch.so.agi.mcp.model.ConstraintSpecContract;
 import ch.so.agi.mcp.model.IliConstraintSpec;
 import ch.so.agi.mcp.model.IliSpecRenderer;
 import java.math.BigDecimal;
@@ -32,7 +35,6 @@ public class ConstraintDecisionTableTools {
 
   private static final Set<String> OPERATORS = Set.of("==", "!=", "<", "<=", ">", ">=");
   private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z][A-Za-z0-9_]*");
-  private static final Pattern ENUM_VALUE = Pattern.compile("[A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z][A-Za-z0-9_]*)*");
   private static final Pattern INTERLIS_VERSION = Pattern.compile("(?m)^\\s*INTERLIS\\s+(2\\.3|2\\.4)\\s*;");
 
   private final ConstraintAuthoringEngine authoringEngine;
@@ -80,15 +82,15 @@ public class ConstraintDecisionTableTools {
   public IliAuthoringResult generateIliConstraintFromDecisionTable(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext ohne den zu erzeugenden Constraint", required = true) String modelText,
       @McpToolParam(description = "Vollqualifizierter Klassen- oder Strukturkontext; Strukturen werden fuer den Proof in eine vorhandene konkrete Besitzerklasse eingebettet", required = true) String context,
-      @McpToolParam(description = "Technischer Name des zu erzeugenden Constraints", required = true) String constraintName,
-      @McpToolParam(description = "Erlaubte Entscheidungszeilen. Standardbedingung: attribute, operator, value. Optional aggregate=SUM oder OBJECT_COUNT (Objektpfad, numerischer Vergleich; kein defined/addAttribute). Fuer Summenpraesenz: defined=true/false ohne operator/value. Fuer Addition: addAttribute=<direktes NUMERIC-Attribut> zusammen mit aggregate=SUM, operator == und numerischem value.", required = true) List<DecisionRow> rows) {
+      @McpToolParam(description = ch.so.agi.mcp.model.ConstraintAuthoringGuidance.NAME, required = true) String constraintName,
+      @McpToolParam(description = "Erlaubte Entscheidungszeilen. Standardbedingung: attribute, operator, value. Optional aggregate=SUM oder OBJECT_COUNT (Objektpfad, numerischer Vergleich; kein defined/addAttribute). Fuer Summenpraesenz: aggregate=SUM ist bei defined=true/false erforderlich, ohne operator/value/addAttribute; direkte DEFINED-Attribute gehoeren ins typisierte Authoring. Enum-Strings erlauben genau ein optionales fuehrendes #. Fuer Addition: addAttribute=<direktes NUMERIC-Attribut> zusammen mit aggregate=SUM, operator == und numerischem value.", required = true) List<DecisionRow> rows) {
     String normalizedContext;
     String normalizedConstraintName;
     List<NormalizedRow> normalizedRows;
     ConstraintExpression semanticExpression;
     try {
       normalizedContext = requireContext(context);
-      normalizedConstraintName = requireIdentifier(constraintName, "constraintName");
+      normalizedConstraintName = ConstraintSpecContract.technicalName(constraintName, "/constraintName");
       normalizedRows = normalizeRows(rows);
       semanticExpression = decisionTableExpression(normalizedRows);
     } catch (IllegalArgumentException ex) {
@@ -99,7 +101,7 @@ public class ConstraintDecisionTableTools {
       failure.complete = false;
       failure.generated = false;
       failure.proofVerified = false;
-      return failure;
+      return SpecValidationException.attach(failure, ex);
     }
 
     IliConstraintSpec.Mandatory spec = new IliConstraintSpec.Mandatory();
@@ -171,7 +173,9 @@ public class ConstraintDecisionTableTools {
         if (aggregate == AggregateKind.OBJECT_COUNT && (defined != null || addAttribute != null)) throw new IllegalArgumentException("OBJECT_COUNT does not accept defined or addAttribute.");
         if (defined != null) {
           if (aggregate != AggregateKind.SUM || addAttribute != null) {
-            throw new IllegalArgumentException("defined=true/false is supported only for aggregate=SUM without addAttribute.");
+            throw new SpecValidationException("INVALID_FIELD", "/rows/" + rowIndex + "/conditions/" + conditionIndex + "/defined",
+                "defined=true/false is supported only for aggregate=SUM without addAttribute.",
+                "For SUM presence, provide aggregate=SUM and defined=true/false without operator/value. Direct attribute DEFINED belongs in typed authoring.");
           }
           if ((condition.operator != null && !condition.operator.isBlank()) || condition.value != null) {
             throw new IllegalArgumentException("A defined=true/false condition must not provide operator or value.");
@@ -184,7 +188,7 @@ public class ConstraintDecisionTableTools {
         if (!OPERATORS.contains(operator)) {
           throw new IllegalArgumentException("Unsupported decision-table operator '" + operator + "'.");
         }
-        Literal literal = literalValue(condition.value, name, conditionIndex);
+        Literal literal = literalValue(condition.value, name, rowIndex, conditionIndex);
         if ((aggregate == AggregateKind.SUM || aggregate == AggregateKind.OBJECT_COUNT) && literal.kind() != ValueKind.NUMERIC) {
           throw new IllegalArgumentException("SUM decision conditions require a numeric comparison value.");
         }
@@ -245,7 +249,7 @@ public class ConstraintDecisionTableTools {
     throw new IllegalArgumentException("Unsupported decision-table aggregate '" + value + "'. SUM and OBJECT_COUNT are supported.");
   }
 
-  private Literal literalValue(@Nullable Object value, String rowName, int conditionIndex) {
+  private Literal literalValue(@Nullable Object value, String rowName, int rowIndex, int conditionIndex) {
     if (value == null) {
       throw new IllegalArgumentException(
           "Decision row '" + rowName + "' condition " + conditionIndex + " requires a value.");
@@ -262,14 +266,7 @@ public class ConstraintDecisionTableTools {
         return new Literal(ValueKind.NUMERIC, new BigDecimal(normalized));
       } catch (NumberFormatException ignore) {
       }
-      if (normalized.startsWith("#")) {
-        normalized = normalized.substring(1);
-      }
-      if (!ENUM_VALUE.matcher(normalized).matches()) {
-        throw new IllegalArgumentException(
-            "Decision row '" + rowName + "' condition " + conditionIndex
-                + " value is neither numeric, boolean nor an enum value: " + value);
-      }
+      normalized = EnumLiteralValue.normalize(text, "/rows/" + rowIndex + "/conditions/" + conditionIndex + "/value");
       return new Literal(ValueKind.ENUM, normalized);
     }
     throw new IllegalArgumentException(

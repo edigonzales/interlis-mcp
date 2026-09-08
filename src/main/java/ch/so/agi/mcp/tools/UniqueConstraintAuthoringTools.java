@@ -26,7 +26,7 @@ public final class UniqueConstraintAuthoringTools {
   public IliAuthoringResult authorIliUniqueConstraint(
       @McpToolParam(description = "Vollständiger INTERLIS-Modelltext vor der Ergänzung", required = true) String modelText,
       @McpToolParam(description = "Vollqualifizierter Constraint-Kontext", required = true) String contextFqn,
-      @McpToolParam(description = "Typisierte UNIQUE-Spezifikation", required = true) IliConstraintSpec.Unique spec,
+      @McpToolParam(description = "Typisierte UNIQUE-Spezifikation" + " " + ch.so.agi.mcp.model.ConstraintAuthoringGuidance.INPUT, required = true) IliConstraintSpec.Unique spec,
       @McpToolParam(description = "Modellzweck", required = false) @Nullable ModelPurpose modelPurpose,
       @McpToolParam(description = "Regelprofil CORE oder SO", required = false) @Nullable ModelingRuleProfile ruleProfile) {
     return engine.author(modelText, contextFqn, spec, modelPurpose, ruleProfile);

@@ -27,7 +27,7 @@ public final class ConstraintAuthoringTools {
   public IliAuthoringResult authorIliMandatoryConstraint(
       @McpToolParam(description = "Vollständiger INTERLIS-Modelltext vor der Ergänzung", required = true) String modelText,
       @McpToolParam(description = "Vollqualifizierter Constraint-Kontext", required = true) String contextFqn,
-      @McpToolParam(description = "Typisierte MANDATORY-Spezifikation", required = true) IliConstraintSpec.Mandatory spec,
+      @McpToolParam(description = "Typisierte MANDATORY-Spezifikation" + " " + ch.so.agi.mcp.model.ConstraintAuthoringGuidance.INPUT, required = true) IliConstraintSpec.Mandatory spec,
       @McpToolParam(description = "Modellzweck", required = false) @Nullable ModelPurpose modelPurpose,
       @McpToolParam(description = "Regelprofil CORE oder SO", required = false) @Nullable ModelingRuleProfile ruleProfile) {
     return engine.author(modelText, contextFqn, spec, modelPurpose, ruleProfile);
@@ -41,7 +41,7 @@ public final class ConstraintAuthoringTools {
   public IliAuthoringResult authorIliPlausibilityConstraint(
       @McpToolParam(description = "Vollständiger INTERLIS-Modelltext vor der Ergänzung", required = true) String modelText,
       @McpToolParam(description = "Vollqualifizierter Constraint-Kontext", required = true) String contextFqn,
-      @McpToolParam(description = "Typisierte PLAUSIBILITY-Spezifikation", required = true) IliConstraintSpec.Plausibility spec,
+      @McpToolParam(description = "Typisierte PLAUSIBILITY-Spezifikation" + " " + ch.so.agi.mcp.model.ConstraintAuthoringGuidance.INPUT, required = true) IliConstraintSpec.Plausibility spec,
       @McpToolParam(description = "Modellzweck", required = false) @Nullable ModelPurpose modelPurpose,
       @McpToolParam(description = "Regelprofil CORE oder SO", required = false) @Nullable ModelingRuleProfile ruleProfile) {
     return engine.author(modelText, contextFqn, spec, modelPurpose, ruleProfile);

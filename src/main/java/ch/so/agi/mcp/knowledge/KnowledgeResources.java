@@ -66,7 +66,7 @@ public class KnowledgeResources {
         12. Wenn ein bereits gepruefter Nachher-Stand erneut geaendert wird, pruefe den neuen Stand wieder mit dem passenden High-Level-Tool.
         13. Ein neues Modell nur aus `authorIliModel.updatedModelText` bei `complete=true` uebernehmen.
         14. Geometrien ausschliesslich mit `GeometryTypeSpec` und expliziter Fachsemantik beschreiben.
-        """);
+        """ + ch.so.agi.mcp.model.ConstraintAuthoringGuidance.WORKFLOW);
   }
 
   @McpResource(
@@ -170,7 +170,7 @@ public class KnowledgeResources {
         - PLAUSIBILITY wird mit echten Populationen bewiesen.
         - SET unterstuetzt `ALL` und navigierte Objektmengen, boolesche Ausdruecke, optionales WHERE und GLOBAL/BASKET, soweit alle Routen materialisierbar sind.
         - Jedes Authoring-Tool liefert auch das Modell-Level-`afterReview` aus seinen vorhandenen Compilations.
-        """);
+        """ + ch.so.agi.mcp.model.ConstraintAuthoringGuidance.WORKFLOW);
   }
 
   @McpResource(
