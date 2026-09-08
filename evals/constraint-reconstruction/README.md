@@ -4,11 +4,12 @@ Dieses Verzeichnis enthält die versionierten, menschenlesbaren Eingaben und Ora
 
 ## Aufbau
 
-- `v1/public/<Fall>/requirement.de.md`: deutsche Fachanforderung ohne Constraint-Syntax oder Goldnamen
-- `v1/public/<Fall>/model.ili`: vollständiges, kompilierbares Modell ohne den Ziel-Constraint
-- `v1/oracle/<Fall>/original-constraint.ili`: entfernter Gold-Constraint
-- `v1/oracle/<Fall>/expected.json`: Kontext, Constraint-Art, Werkzeugerwartung und Gold-AST
-- `v1/manifest.json`: Fallreihenfolge, Corpus-Commit und SHA-256-Hashes
+- `suite.json`: aktive Suite, aktuell v2 (Revision 2.0.3)
+- `v2/public/<Fall>/requirement.de.md`: deutsche Fachanforderung ohne Constraint-Syntax oder Goldnamen
+- `v2/public/<Fall>/model.ili`: vollständiges, kompilierbares Modell ohne den Ziel-Constraint
+- `v2/oracle/<Fall>/`: entfernter Gold-Constraint und vollständige Compiler-Goldartefakte
+- `v2/manifest.json`: Fallreihenfolge, Corpus-Commit, Referenz-Payloads und SHA-256-Hashes
+- `v1/`: unveränderte historische Suite
 
 ## Freigabe
 
@@ -20,9 +21,9 @@ Eine freigegebene Version wird nicht still geändert. Inhaltliche Änderungen er
 
 Der Codex-Task liest nur eine freigegebene und unveränderte Suite. Er kopiert den öffentlichen Teil in ein temporäres Verzeichnis, führt Rekonstruktion und Bewertung isoliert aus und archiviert die Resultate außerhalb des Repositorys. Ein Benchmark-Lauf verändert dieses Verzeichnis nicht.
 
-## v2: freigegeben, native Abnahme ausstehend
+## v2: freigegeben und nativ abgenommen
 
-[v2/REVIEW.md](v2/REVIEW.md) dokumentiert die fachliche Freigabe vom 8. September 2026. Die ursprünglichen Constraints von P04/P05 bleiben unverändert. Bis zu drei vollständigen nativen Abnahmerunden bleibt v1 aktiv. Die neuen Dateien verändern historische Ergebnisse nicht. [ROLLOUT.md](ROLLOUT.md) enthält den konkreten Stand und die noch notwendigen Schritte.
+[v2/REVIEW.md](v2/REVIEW.md) dokumentiert die fachliche Freigabe vom 8. September 2026. Die ursprünglichen Constraints von P04/P05 bleiben unverändert. Drei vollständige native Runden wurden maschinell akzeptiert; `suite.json` aktiviert v2. [ACCEPTANCE-v2.md](ACCEPTANCE-v2.md) enthält alle Ergebnisse und Abbrüche, [ROLLOUT.md](ROLLOUT.md) dokumentiert die Umstellung. Historische Ergebnisse bleiben unverändert und sind nicht direkt mit v2 vergleichbar.
 
 v2 trennt freie Rekonstruktion durch einen frischen Agenten pro Fall von festen MCP-Referenz-Payloads. Gold-ASTs und Modelländerungen werden durch `src/benchmark/.../CompilerEvidence.java` direkt anhand des festgelegten ili2c-Modells geprüft, unabhängig von Authoring und MCP-Review. Erhaltene alternative Formen werden nur bei belegter Äquivalenz gewertet. Unvollständige Belege sperren den Gesamtscore.
 
@@ -36,4 +37,4 @@ Werkzeuge unter `tools/`:
 - `launch_eval.py`: ausschließlich für den Codex-Connector; baut und startet ein nach Inhalt adressiertes JAR mit geprüftem lokalem Abhängigkeitssnapshot. Spricht selbst kein MCP.
 - `acceptance.py`: prüft drei vollständige native Läufe, stabile MCP-Referenzergebnisse und hält die gesamte End-to-End-Streuung fest.
 
-Das neue Automation-Prompt liegt versioniert in `v2/automation-prompt.md`. v2 und die Prüfhelfer werden nach fachlicher Freigabe gemeinsam versioniert. Die lokale Connector-Konfiguration verwendet jetzt `python3 /Users/stefan/sources/interlis-mcp/evals/constraint-reconstruction/tools/launch_eval.py`; JAVA_HOME und die elf erlaubten Werkzeuge bleiben bestehen. Ein neuer Connector-Prozess ist erforderlich: eine bereits laufende Verbindung darf nicht als neues Build ausgegeben werden. Nach drei erfolgreichen Abnahmerunden werden `suite.json` und der vorhandene Scheduled Task umgestellt; Modell, Reasoning und Zeitplan bleiben erhalten.
+Das Automation-Prompt liegt eingefroren in `v2/automation-prompt.md`. v2 und die Prüfhelfer sind gemeinsam versioniert. Die lokale Connector-Konfiguration verwendet `python3 /Users/stefan/sources/interlis-mcp/evals/constraint-reconstruction/tools/launch_eval.py`; JAVA_HOME und die elf erlaubten Werkzeuge bleiben bestehen. Die native Laufzeitidentität wurde in allen drei Runden bestätigt. Eine bereits laufende Verbindung darf nicht als neues Build ausgegeben werden. Der bestehende Scheduled Task verwendet eine Runde beider Messungen mit gpt-5.6-luna, Reasoning xhigh und unverändertem Zeitplan.

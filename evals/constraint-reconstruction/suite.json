@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "activeVersion": "v1",
-  "manifest": "v1/manifest.json",
+  "activeVersion": "v2",
+  "manifest": "v2/manifest.json",
   "runnableStatuses": [
     "APPROVED"
   ]
