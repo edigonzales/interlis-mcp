@@ -19,6 +19,7 @@ Die fachliche Besprechung bestätigte für P04 ausdrücklich: keine Änderung de
 - Feste, separat bewertete MCP-Requests; keine Übernahme eines fehlerhaften historischen Requests als Goldstandard.
 - Unabhängige vollständige Compiler-ASTs einschließlich Objektmengen und Existenz-Zielklassen.
 - AND/OR bleiben geordnet; keine pauschale Kommutativität. P01 erlaubt alternativ einen vollständigen Nachweis über 13 Körnungsklassen und alle 101 zulässigen ganzzahligen Tongehalte.
+- Revision 2.0.2 ergänzt einen expliziten lokalen Äquivalenznachweis: Eine reine Permutation unveränderter AND-/OR-Operanden ist zulässig, wenn jeder betroffene Operand nachweislich total boolesch ist. Numerische Vergleiche verlangen direkte Pflichtattribute aus dem unabhängigen Compiler-Modell; SUM-Werte, optionale Attribute und Referenzpfade werden nie als total vorausgesetzt. Der Nachweis enthält die betroffenen AST-Pfade und Compiler-Fakten. Fehlende Belege bleiben `null`/`NOT_PROVEN` und sperren den Gesamtscore.
 - Lokale, gehashte Importmodelle und eine nachweisbare Laufzeitidentität.
 - Ein Compilerfehler erhält niemals einen Punkt für korrekt erkannte externe Semantik.
 

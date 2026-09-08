@@ -11,7 +11,7 @@ manifest={'schemaVersion':2,'suiteVersion':'v2','status':'DRAFT','scoringVersion
           'caseOrder':CASES,'cases':original['cases'],'dependencyManifest':'dependencies/manifest.json',
           'helperArtifacts':[{'path':str(p.relative_to(ROOT)),'sha256':sha(p)} for p in helpers],
           'artifacts':[{'path':str(p.relative_to(suite)),'sha256':sha(p)} for p in sorted(suite.rglob('*')) if p.is_file() and p!=path and p.name!='.DS_Store']}
-for key in ['revision','supersedesManifestSha256']:
+for key in ['revision','scoringVersion','supersedesManifestSha256']:
     if key in previous:manifest[key]=previous[key]
 write(path,manifest)
 print('DRAFT manifest refreshed; approval and activeVersion unchanged')

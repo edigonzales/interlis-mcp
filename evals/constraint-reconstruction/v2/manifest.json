@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "suiteVersion": "v2",
   "status": "APPROVED",
-  "scoringVersion": "2.0.0",
+  "scoringVersion": "2.0.1",
   "corpus": {
     "repositoryPath": "../sogis-interlis-repository",
     "commit": "b94abb0953c8413d4eaaa647fa66fa7d585aa4df"
@@ -115,11 +115,11 @@
     },
     {
       "path": "evals/constraint-reconstruction/tools/benchmark.py",
-      "sha256": "ca12085885767eab4cd90ad7e87d3d1f67f0df0e2ff3d1329d48f1917dec710a"
+      "sha256": "06eddf893a5acc477fec7c630c547e29bf65ee0062e03fad736a2030227fa373"
     },
     {
       "path": "evals/constraint-reconstruction/tools/freeze_manifest.py",
-      "sha256": "bd12753677f1b3a7211379fb753e3c4700e7354900339cd8cca9121c0119bc6e"
+      "sha256": "6a475f4173a7edde57b3ccd4d61e9ebff4e609f0e567fcc9f87ca57f5d9513be"
     },
     {
       "path": "evals/constraint-reconstruction/tools/launch_eval.py",
@@ -131,7 +131,7 @@
     },
     {
       "path": "evals/constraint-reconstruction/tools/test_benchmark.py",
-      "sha256": "1104881a0b2cdde19f03d33e797420b0635730e80f134f6ea54806f0d0daf8c0"
+      "sha256": "87cdd1b27376c6f8393323a3e0aeb9988e85fc89ad31ea178bd00bd6ad9ae80f"
     },
     {
       "path": "evals/constraint-reconstruction/tools/test_native_recorder.cjs",
@@ -139,7 +139,7 @@
     },
     {
       "path": "src/benchmark/java/ch/so/agi/mcp/benchmark/CompilerEvidence.java",
-      "sha256": "60bf9056d478fb2268230c3deebe9868d8783d13fe8ffc883c603ba95edefb7f"
+      "sha256": "3aabd1c046bf5b7724dd14e90200d9ba47b212733cd822277efe529e39e6e86f"
     }
   ],
   "artifacts": [
@@ -149,7 +149,7 @@
     },
     {
       "path": "REVIEW.md",
-      "sha256": "bc79984e1e19edf7e660d21d22992af7d3774386f40dd7e121ce8d978af8c09d"
+      "sha256": "7ac992ffb6ff65cdbdca477cce35908a1d31b860a08fcee2c9ef169619c06a99"
     },
     {
       "path": "approval.json",
@@ -585,13 +585,13 @@
     },
     {
       "path": "scoring-rules.json",
-      "sha256": "9630324ecbcb5447c0d6aaaf3fb3dac396771d391bd9164972a9b201a179ce09"
+      "sha256": "70dc4ad1cb22feeb4b84f95edf271de200c6ef6db731a118886a4d4da190d944"
     },
     {
       "path": "tool-catalog.json",
       "sha256": "088cf21ee8d7306410a0f1c89f83e88a1333bc73b1a96790824f449df28f5388"
     }
   ],
-  "revision": "2.0.1",
-  "supersedesManifestSha256": "ed080c32e0884c4c957bb6293333ef403e7ba1c7396a36c1f936fdffb08763b9"
+  "revision": "2.0.2",
+  "supersedesManifestSha256": "00ead0136717a7256818a2c864767d1d7544ca9d3302a50636a535f9994bee2f"
 }

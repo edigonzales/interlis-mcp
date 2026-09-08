@@ -18,7 +18,7 @@ class ScoringTests(unittest.TestCase):
         args=self.fixture();ast=args[4]['ast'];consequence=ast['condition']['children'][1]
         consequence['children'].reverse()
         score=b.score(*args)
-        self.assertEqual(score['score'],0);self.assertFalse(score['astEquivalent']);self.assertFalse(score['evaluationComplete'])
+        self.assertEqual(score['score'],0);self.assertIsNone(score['astEquivalent']);self.assertFalse(score['evaluationComplete'])
     def test_changed_literal_fails_exhaustive_proof(self):
         args=self.fixture('P01')
         def change(node):
@@ -45,6 +45,60 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(first['children'][0]['kind'],'DEFINED')
         first['children'].pop(0);args[4]['ast']=candidate
         score=b.score(*args);self.assertEqual(score['score'],0);self.assertFalse(score['evaluationComplete'])
+    def sum_permutation(self):
+        args=self.fixture('P06');ast=copy.deepcopy(args[6]['ast'])
+        ast['condition']['children'][1]['children'].reverse();args[4]['ast']=ast
+        path=copy.deepcopy(args[6]['ast']['condition']['children'][1]['children'][0]['left'])
+        args[4]['pathFacts']=[{'path':path,'numeric':True,'mandatory':True}]
+        return args
+    def test_total_sum_fallback_permutation_has_explicit_compiler_backed_proof(self):
+        args=self.sum_permutation();result=b.score(*args)
+        self.assertEqual(result['score'],1);self.assertTrue(result['evaluationComplete'])
+        proof=result['equivalenceEvidence'];self.assertEqual(proof['method'],'TOTAL_BOOLEAN_PERMUTATION')
+        self.assertEqual(proof['compilerPathFacts'],args[4]['pathFacts'])
+        self.assertEqual(len(proof['rewrites']),1)
+    def test_optional_missing_or_wrong_compiler_fact_cannot_prove_permutation(self):
+        for mutation in ['optional','absent','wrong-root','wrong-path']:
+            args=self.sum_permutation();facts=args[4]['pathFacts']
+            if mutation=='optional':facts[0]['mandatory']=False
+            elif mutation=='absent':facts.clear()
+            elif mutation=='wrong-root':facts[0]['path']['root']='Wrong.Topic.Class'
+            else:facts[0]['path']['steps'][0]['name']='WrongAttribute'
+            result=b.score(*args)
+            self.assertEqual(result['score'],0,mutation);self.assertIsNone(result['astEquivalent'])
+            self.assertFalse(result['evaluationComplete'])
+    def test_partial_sum_comparison_cannot_be_reordered(self):
+        args=self.sum_permutation();args[4]['ast']['condition']['children'][0]['children'].reverse()
+        result=b.score(*args);self.assertEqual(result['score'],0);self.assertIsNone(result['astEquivalent'])
+        self.assertFalse(result['evaluationComplete'])
+    def test_total_permutation_does_not_hide_a_changed_literal(self):
+        args=self.sum_permutation();args[4]['ast']['condition']['children'][1]['children'][1]['right']['value']='99'
+        result=b.score(*args);self.assertEqual(result['score'],0);self.assertIsNone(result['astEquivalent'])
+    def test_ordered_boolean_theorem_exhausts_total_truth_table_but_not_partial(self):
+        import itertools
+        def ordered(values,op):
+            for v in values:
+                if v is None:return None
+                if op=='AND' and v is False:return False
+                if op=='OR' and v is True:return True
+            return op=='AND'
+        for size in range(1,5):
+            for values in itertools.product([False,True],repeat=size):
+                for permutation in itertools.permutations(values):
+                    for op in ['AND','OR']:self.assertEqual(ordered(values,op),ordered(permutation,op))
+        self.assertNotEqual(ordered([None,False],'AND'),ordered([False,None],'AND'))
+        self.assertNotEqual(ordered([None,True],'OR'),ordered([True,None],'OR'))
+    def test_compiler_distinguishes_optional_and_mandatory_numeric_path(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=pathlib.Path(temp)
+            for mandatory in [False,True]:
+                model='INTERLIS 2.3; MODEL Facts (en) AT "https://example.test" VERSION "1" = TOPIC T = CLASS C = n : '+('MANDATORY ' if mandatory else '')+'0 .. 100; %s END C; END T; END Facts.'
+                before=root/'before.ili';after=root/'after.ili'
+                before.write_text(model%'');after.write_text(model%'MANDATORY CONSTRAINT n == 100;')
+                evidence=b.compiler('compare',before,after,self.suite/'dependencies')
+                self.assertTrue(evidence['candidateCompiles'],evidence)
+                self.assertEqual(evidence['pathFacts'][0]['mandatory'],mandatory)
+                self.assertEqual(evidence['pathFacts'][0]['path']['root'],'Facts.T.C')
     def test_wrong_payload_is_client_error_only_in_end_to_end(self):
         args=self.fixture();args[1]='end-to-end';args[2]['payload']['spec']['kind']='UNIQUE'
         score=b.score(*args);self.assertEqual(score['score'],0);self.assertEqual(score['responsibility'],'CLIENT_AGENT')

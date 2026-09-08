@@ -1,5 +1,5 @@
 {
-  "scoringVersion": "2.0.0",
+  "scoringVersion": "2.0.1",
   "lanes": ["end-to-end", "mcp-reference"],
   "positiveCases": ["P01", "P02", "P03", "P04", "P05", "P06", "P07", "P08", "P09", "P10"],
   "boundaryCases": ["N11", "N12"],
@@ -11,7 +11,11 @@
   "invalidInput": "INVALID_TOTAL_SCORE",
   "operandOrder": "PRESERVE",
   "normalization": ["constraint name omitted", "source line omitted", "pure parentheses omitted", "same-connective grouping flattened without reordering", "numeric spelling normalized"],
-  "equivalenceProofs": {"P01": "Exhaustive 13 mandatory enum values x 101 mandatory integral numeric values; compiler-domain regression verifies the domain"},
+  "equivalenceProofs": {
+    "P01": "Exhaustive 13 mandatory enum values x 101 mandatory integral numeric values; compiler-domain regression verifies the domain",
+    "totalBooleanPermutation": "Only unchanged operands may be permuted locally. Every operand must be total Boolean, with direct mandatory numeric path facts obtained from the independent compiler. Partial SUM comparisons, optional and traversed numeric paths are excluded. Record the exact rewrite locations and facts."
+  },
+  "unknownAstEquivalentValue": null,
   "reconstructionAttempts": 1,
   "transportRetries": 1,
   "referenceRepair": "FORBIDDEN",

@@ -141,6 +141,7 @@ public final class CompilerEvidence {
       Constraint selected = all.get(selector);
       if (selected == null) throw new IllegalArgumentException("Oracle constraint not found: " + selector);
       out.put("ast", ast(selected)); out.put("astComplete", true);
+      out.put("pathFacts", pathFacts(selected.getCondition()));
     }
     return out;
   }
@@ -170,7 +171,10 @@ public final class CompilerEvidence {
       target = newAnonymous.getFirst();
     }
     out.put("addedConstraints", List.of(target.getScopedName()));
-    try { out.put("ast", ast(target)); out.put("astComplete", true); }
+    try {
+      out.put("ast", ast(target)); out.put("astComplete", true);
+      out.put("pathFacts", pathFacts(target.getCondition()));
+    }
     catch (IllegalArgumentException e) { out.put("astComplete", false); out.put("astError", e.getMessage()); }
     target.getContainer().remove(target);
     for (Model model : before.td().getModelsFromLastFile()) normalizeAnonymousIndices(model);
@@ -185,6 +189,42 @@ public final class CompilerEvidence {
 
   private static boolean explicitName(Constraint c) {
     return c.hasCustomName() || c.getMetaValue("name") != null;
+  }
+
+  /** Compiler-derived facts only for direct scalar numeric attributes; no role traversal assumptions. */
+  private static List<Map<String, Object>> pathFacts(Evaluable value) {
+    var facts = new ArrayList<Map<String, Object>>();
+    collectPathFacts(value, facts);
+    return facts.stream().distinct().toList();
+  }
+
+  private static void collectPathFacts(Evaluable value, List<Map<String, Object>> facts) {
+    if (value == null) return;
+    if (value instanceof ObjectPath p) {
+      var steps = p.getPathElements();
+      if (steps.length == 1 && steps[0] instanceof AttributeRef a
+          && a.getAttr().getDomainResolvingAliases() instanceof NumericType) {
+        Type declared = a.getAttr().getDomain();
+        facts.add(Map.of("path", expression(p), "numeric", true, "mandatory",
+            declared != null && (declared.isMandatory() || declared.isMandatoryConsideringAliases())));
+      }
+    } else if (value instanceof Expression.Subexpression e) collectPathFacts(e.getSubexpression(), facts);
+    else if (value instanceof Expression.Conjunction e) {
+      for (var child : e.getConjoined()) collectPathFacts(child, facts);
+    } else if (value instanceof Expression.Disjunction e) {
+      for (var child : e.getDisjoined()) collectPathFacts(child, facts);
+    } else if (value instanceof Expression.Negation e) collectPathFacts(e.getNegated(), facts);
+    else if (value instanceof Expression.DefinedCheck e) collectPathFacts(e.getArgument(), facts);
+    else if (value instanceof FunctionCall f) {
+      for (var child : f.getArguments()) collectPathFacts(child, facts);
+    } else if (value instanceof Expression) {
+      try {
+        collectPathFacts((Evaluable) value.getClass().getMethod("getLeft").invoke(value), facts);
+        collectPathFacts((Evaluable) value.getClass().getMethod("getRight").invoke(value), facts);
+      } catch (ReflectiveOperationException ignored) {
+        // No fact is safer than inferring totality for unsupported expression nodes.
+      }
+    }
   }
 
   private static String anonymousSignature(TransferDescription td, Constraint c) {

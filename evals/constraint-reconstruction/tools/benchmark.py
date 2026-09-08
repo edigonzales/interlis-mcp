@@ -225,17 +225,65 @@ def normalize_ast(node):
         out['children']=children
     return out
 
-def equivalent(cid, candidate, gold):
+def total_boolean_rewrite(candidate, gold, facts):
+    """Prove only permutations of total boolean operands, preserving every other AST node.
+
+    Defined checks are total; comparisons are total only for numeric literals and
+    direct numeric attributes proven mandatory by the independent compiler.
+    Function results (including SUM), traversed paths and optional attributes are
+    never assumed total. No propositional abstraction of partial operands is used.
+    """
+    used=[];rewrites=[]
+    def total_number(n):
+        if n.get('kind')=='NUMERIC':return not n.get('unit')
+        for fact in facts:
+            if fact.get('numeric') is True and fact.get('mandatory') is True and fact.get('path')==n:
+                if fact not in used:used.append(fact)
+                return True
+        return False
+    def total_bool(n):
+        kind=n.get('kind')
+        if kind=='DEFINED':
+            operand=n.get('operand',{})
+            # The only function covered here is the pinned SUM built-in; external
+            # functions and other unsupported expressions cannot acquire a theorem.
+            return operand.get('kind')=='PATH' or (operand.get('kind')=='FUNCTION' and operand.get('name')=='Math.sum'
+                and len(operand.get('arguments',[]))==1 and operand['arguments'][0].get('kind')=='TEXT')
+        if kind=='NOT':return total_bool(n['operand'])
+        if kind in ['Equality','Inequality','GreaterThan','GreaterThanOrEqual','LessThan','LessThanOrEqual']:
+            return total_number(n['left']) and total_number(n['right'])
+        if kind in ['AND','OR']:return all(total_bool(c) for c in n['children'])
+        return kind=='ENUM' and n.get('value') in [['true'],['false']]
+    def same(a,b,path):
+        if a==b:return True
+        if isinstance(a,dict) and isinstance(b,dict) and set(a)==set(b):
+            if a.get('kind')==b.get('kind') and a.get('kind') in ['AND','OR']:
+                ac=a['children'];bc=b['children']
+                if len(ac)==len(bc) and sorted(map(digest,ac))==sorted(map(digest,bc)) and all(total_bool(c) for c in ac):
+                    rewrites.append({'path':path,'operator':a['kind'],'operands':len(ac),
+                                     'theorem':'Permutation of total Boolean operands preserves ordered evaluation result.'})
+                    return True
+            return all(same(a[k],b[k],path+'.'+k) for k in a)
+        if isinstance(a,list) and isinstance(b,list) and len(a)==len(b):
+            return all(same(x,y,path+'.'+str(i)) for i,(x,y) in enumerate(zip(a,b)))
+        return False
+    if same(candidate,gold,'ast') and rewrites:
+        return {'method':'TOTAL_BOOLEAN_PERMUTATION','rewrites':rewrites,'compilerPathFacts':used}
+    return None
+
+def equivalent(cid, candidate, gold, facts=()):
     candidate=normalize_ast(candidate);gold=normalize_ast(gold)
     if candidate==gold:return True,{'method':'ORDERED_COMPILER_AST'}
     if candidate.get('kind')!=gold.get('kind') or candidate.get('contextFqn')!=gold.get('contextFqn'):
         return False,{'method':'WRONG_CONSTRAINT_KIND_OR_CONTEXT'}
     if candidate.get('kind')=='ExistenceConstraint' and [p.get('root') for p in candidate.get('requiredIn',[])]!=[p.get('root') for p in gold.get('requiredIn',[])]:
         return False,{'method':'WRONG_EXISTENCE_TARGET'}
+    theorem=total_boolean_rewrite(candidate,gold,facts)
+    if theorem:return True,theorem
     # P01 is a finite total enum x integer domain. Exhaustive evaluation is a proof,
     # not a sample. All other alternate forms remain NOT_PROVEN until versioned evidence exists.
     if cid!='P01' or {k:v for k,v in candidate.items() if k!='condition'}!={k:v for k,v in gold.items() if k!='condition'}:
-        return False,{'method':'NOT_PROVEN'}
+        return None,{'method':'NOT_PROVEN'}
     textures=['sand','schluffiger_sand','lehmiger_sand','lehmreicher_sand','sandiger_lehm','lehm','toniger_lehm','lehmiger_ton','ton','sandiger_schluff','schluff','lehmiger_schluff','toniger_schluff']
     def evaluate(n,env):
         k=n['kind']
@@ -259,7 +307,7 @@ def equivalent(cid, candidate, gold):
             for value in range(101):
                 env={'Koernungsklasse':texture,'Tongehalt':value}
                 if evaluate(candidate['condition'],env)!=evaluate(gold['condition'],env):return False,{'method':'EXHAUSTIVE_P01','counterexample':env}
-    except (KeyError,TypeError,InvalidEvidence):return False,{'method':'NOT_PROVEN'}
+    except (KeyError,TypeError,InvalidEvidence):return None,{'method':'NOT_PROVEN'}
     return True,{'method':'EXHAUSTIVE_P01','assignments':1313,'domain':'13 mandatory enum values x integer 0..100; verified against pinned model'}
 
 def score(cid, lane, request, raw, evidence, expected, gold, catalog):
@@ -272,7 +320,7 @@ def score(cid, lane, request, raw, evidence, expected, gold, catalog):
         require(all(k in result for k in ['status','generated','complete','proofVerified']),'Incomplete authoring result')
     valid=not errors;choice=tool in expected['expectedHighLevelTools']
     ast_ok=None;proof=None;collateral=None;compiles=evidence.get('candidateCompiles')
-    if evidence.get('astComplete') is True:ast_ok,proof=equivalent(cid,evidence['ast'],gold['ast'])
+    if evidence.get('astComplete') is True:ast_ok,proof=equivalent(cid,evidence['ast'],gold['ast'],evidence.get('pathFacts',[]))
     if 'noCollateralChanges' in evidence:collateral=evidence['noCollateralChanges'] and evidence.get('sourcePreserved') is True
     verified=result.get('proofVerified') is True
     if verified:
