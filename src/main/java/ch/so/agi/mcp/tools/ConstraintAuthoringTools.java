@@ -23,7 +23,7 @@ public final class ConstraintAuthoringTools {
 
   @McpTool(
       name = "authorIliMandatoryConstraint",
-      description = "Erzeugt einen Mandatory Constraint aus einer rekursiven typisierten semantischen Node-Liste (ATTRIBUTE, PATH, FUNCTION, COMPARE usw.). Die Einfügung ist source-preserving; Before und After kompiliert die Pipeline je genau einmal und beweist per AST->IR-Roundtrip, Coverage-Planer, Solver, Object-Graph-Synthese und ilivalidator. Diff und afterReview stammen aus denselben Compilations. Externe Funktionen ohne ausführbare Semantik halten den Kandidaten zurück. Das Tool schreibt keine Datei.",
+      description = ch.so.agi.mcp.model.ConstraintAuthoringGuidance.MANDATORY_INPUT + " Erzeugt einen Mandatory Constraint aus einer rekursiven typisierten semantischen Node-Liste (ATTRIBUTE, PATH, FUNCTION, COMPARE usw.). Die Einfügung ist source-preserving; Before und After kompiliert die Pipeline je genau einmal und beweist per AST->IR-Roundtrip, Coverage-Planer, Solver, Object-Graph-Synthese und ilivalidator. Diff und afterReview stammen aus denselben Compilations. Externe Funktionen ohne ausführbare Semantik halten den Kandidaten zurück. Das Tool schreibt keine Datei.",
       generateOutputSchema = true,
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true))
   public IliAuthoringResult authorIliMandatoryConstraint(

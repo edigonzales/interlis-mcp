@@ -25,6 +25,8 @@ public final class ConstraintWorkflowGuidance {
       4. Ergebnisse anhand bestehender Felder behandeln:
          INVALID_SPEC: mit specDiagnostics genau das betroffene Feld einmal korrigieren,
          ohne Fachsemantik zu ändern; strengere Versuchslimits gelten.
+         Vorgelagerte MCP-Schemafehler sind kein Serverstatus INVALID_SPEC und dürfen weder
+         im Protokoll noch in der Bewertung so umetikettiert werden; sie erweitern das Versuchslimit nicht.
          NEEDS_INPUT/offene Fachfragen: fehlende Entscheidung einholen.
          Compilerfehler: konkrete Diagnose bearbeiten, keinen unveränderten Aufruf wiederholen.
          PROOF_INCOMPLETE/PROOF_FAILED: Grenze berichten, Kandidaten nicht freigeben.
@@ -40,6 +42,12 @@ public final class ConstraintWorkflowGuidance {
       7. explanation und entscheidende Fälle zeigen; PARTIAL/UNAVAILABLE sowie
          CONTRADICTION_PROVEN und andere relevante Interaktionsgrenzen sichtbar berichten.
          constraintInteractions bleiben advisory; technische Statuswerte und Freigaben unverändert.
+         Bei requiresUserDecision=true die konkrete Frage und den Umgang damit in der
+         Abschlussantwort nennen. Ist eine allgemeine Frage anhand des vorhandenen Auftrags
+         für die konkrete Änderung unerheblich, diese Beurteilung dort begründen; das Flag
+         bleibt unverändert. Kein Modellzweck wird erfunden, keine pauschale Ausnahme erteilt.
+         Tatsächlich offene Fachentscheide verhindern weiterhin das Schreiben; Proofs ersetzen
+         diese Beurteilung nicht.
 
       Einzeltests isolieren den Constraint; AGENT_DERIVED ist keine unabhängige Fachabnahme,
       businessAcceptance bleibt NOT_RUN. Der Server erzwingt die Schreibregel nicht bei fremden

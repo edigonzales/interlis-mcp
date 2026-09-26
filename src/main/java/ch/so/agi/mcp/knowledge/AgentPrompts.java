@@ -154,7 +154,7 @@ public class AgentPrompts {
         Erzeuge oder ergänze einen INTERLIS-Constraint vom Typ `%s`, ohne fachliche Semantik zu erfinden.
 
         Tool-Hierarchie für neue Constraints:
-        - MANDATORY: `authorIliMandatoryConstraint` mit rekursiver typisierter `condition`.
+        - MANDATORY: `authorIliMandatoryConstraint`; Eingabevertrag und Beispiel stehen unten.
         - UNIQUE: `authorIliUniqueConstraint` mit GLOBAL/BASKET/LOCAL, expliziten Schlüsselpfaden, optionalem WHERE und LOCAL-Präfix.
         - EXISTENCE: `authorIliExistenceConstraint` mit explizitem `restrictedPath` und jedem REQUIRED-IN-Ziel als
           `viewableFqn` + `attributePath`.

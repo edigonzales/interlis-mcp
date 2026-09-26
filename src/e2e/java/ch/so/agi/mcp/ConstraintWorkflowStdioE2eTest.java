@@ -183,6 +183,51 @@ class ConstraintWorkflowStdioE2eTest {
   }
 
   @Test
+  void publishedMandatoryExampleAndExpectedDefinednessSurviveStdio() throws Exception {
+    initializeSession();
+    var mapper = new tools.jackson.databind.ObjectMapper();
+    send("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}");
+    var catalog = mapper.readTree(waitForResponseWithId(2, 15_000)).get("result").get("tools");
+    String example = ch.so.agi.mcp.model.ConstraintAuthoringGuidance.MANDATORY_SPEC_EXAMPLE;
+    boolean found = false;
+    for (var tool : catalog) {
+      if (tool.get("name").asText().equals("authorIliMandatoryConstraint")) {
+        assertContainsAll(tool.get("description").asText(), "spec.condition", "children", example);
+        found = true;
+      }
+    }
+    assertTrue(found);
+    String prompt = getPrompt(3, "author-interlis-constraint", "{\"constraintKind\":\"MANDATORY\"}");
+    assertContainsAll(mapper.readTree(prompt).toString(), "requiresUserDecision=true", "Abschlussantwort");
+    String source = "INTERLIS 2.4; MODEL Example (en) AT \"https://example.org\" VERSION \"1\" = "
+        + "TOPIC Data = CLASS Item = value : 0..10; END Item; END Data; END Example.";
+    var cases = java.util.List.of(
+        java.util.Map.of("name", "missing", "expectedConstraintValid", false, "objects", java.util.List.of(
+            java.util.Map.of("classFqn", "Example.Data.Item", "oid", "i", "values", java.util.Map.of()))),
+        java.util.Map.of("name", "present", "expectedConstraintValid", true, "objects", java.util.List.of(
+            java.util.Map.of("classFqn", "Example.Data.Item", "oid", "i", "values", java.util.Map.of("value", 4)))));
+    var authorEnvelope = mapper.readTree(callTool(4, "authorIliMandatoryConstraint", mapper.writeValueAsString(
+        java.util.Map.of("modelText", source, "contextFqn", "Example.Data.Item", "spec", mapper.readTree(example),
+            "includeSuccessfulTestXtf", false)))).get("result");
+    var author = authorEnvelope.get("structuredContent");
+    if (author == null) author = mapper.readTree(authorEnvelope.get("content").get(0).get("text").asText());
+    assertTrue(author.get("status").asText().equals("GENERATED"));
+    assertTrue(author.get("requiresUserDecision").asBoolean());
+    var testEnvelope = mapper.readTree(callTool(5, "testIliConstraint", mapper.writeValueAsString(java.util.Map.of(
+        "modelText", author.get("updatedModelText").asText(), "constraint", "Example.Data.Item.ValueRequired",
+        "cases", cases, "includeSuccessfulTestXtf", false)))).get("result");
+    var tested = testEnvelope.get("structuredContent");
+    if (tested == null) tested = mapper.readTree(testEnvelope.get("content").get(0).get("text").asText());
+    assertTrue(tested.get("allPassed").asBoolean());
+    assertTrue(tested.get("modelHashes").get("model").asText().equals(author.get("modelHashes").get("after").asText()));
+    assertTrue(author.get("modelHashes").get("before").asText().equals(ch.so.agi.mcp.model.ModelHashes.sha256(source)));
+    for (var testCase : tested.get("cases")) {
+      assertTrue(testCase.get("fixtureValid").asBoolean());
+      assertTrue(testCase.get("constraintExercised").asBoolean());
+    }
+  }
+
+  @Test
   void proseContextAuthoringAndIndependentExpectationsRoundTrip() throws Exception {
     initializeSession();
     var mapper = new tools.jackson.databind.ObjectMapper();

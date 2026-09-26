@@ -547,3 +547,23 @@ ausgeübter Fälle mit gültiger Fixture und ausdrücklich null Warnungen entfal
 so verkürzt werden. Alle Erwartungen, Diagnosen, Coverage und Freigaben bleiben erhalten.
 Ohne Parameter oder mit `true` bleibt die vollständige Ausgabe erhalten; der normale
 Agentenablauf verwendet `false`. Ein erneuter Aufruf mit `true` dient nur konkreter Diagnose.
+
+### Sichtbarer Mandatory-Eingabevertrag und Freigabehinweise
+
+`authorIliMandatoryConstraint` beschreibt `spec.condition` und geordnete `children`
+bereits in seiner Toolbeschreibung. Das dortige allgemeine `DEFINED`-Beispiel stammt
+wie das Beispiel im Authoring-Prompt aus `ConstraintAuthoringGuidance`; es setzt ein
+vorhandenes Attribut `value` voraus. Das rekursive Eingabeschema bleibt verbindlich,
+auch wenn ein Connector die Argumente lediglich als `unknown` darstellt.
+
+Eine vorgelagerte MCP-Schemavalidierung kann einen Aufruf ablehnen, bevor der Handler
+läuft. Diese Diagnose ist kein reguläres Ergebnis mit `status=INVALID_SPEC` und darf
+weder im Protokoll noch in der Bewertung so bezeichnet werden. Sie erweitert das
+bestehende Reparaturlimit nicht; `expression` ist kein Alias für `spec.condition`.
+
+Bei `requiresUserDecision=true` nennt der Agent die konkrete Frage und seinen Umgang
+damit in der Abschlussantwort. Tatsächlich offene Fachentscheide verhindern das
+Schreiben. Beurteilt er eine allgemeine Frage anhand des vorhandenen Auftrags als
+für die konkrete Änderung unerheblich, muss er dies sichtbar begründen. Das Flag
+bleibt unverändert; weder ein erfundener Modellzweck noch erfolgreiche Proofs ersetzen
+diese Beurteilung. Es gibt keine pauschale Ausnahme für Modellzweckfragen.

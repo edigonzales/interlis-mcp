@@ -69,6 +69,34 @@ class ToolRegistrationContractTest {
   }
 
   @Test
+  @SuppressWarnings("unchecked")
+  void publishedMandatoryExampleExecutesAndRequiresCondition() throws Exception {
+    var tool = specsByName().get("authorIliMandatoryConstraint");
+    String example = ch.so.agi.mcp.model.ConstraintAuthoringGuidance.MANDATORY_SPEC_EXAMPLE;
+    assertThat(tool.tool().description()).contains("spec.condition", "children", example);
+    Map<String, Object> spec = mapper.readValue(example, Map.class);
+    var properties = schemaProperties(tool.tool().inputSchema());
+    var specSchema = (Map<String, Object>) properties.get("spec");
+    assertThat((List<String>) specSchema.get("required")).contains("condition");
+    assertThat((Map<String, Object>) specSchema.get("properties")).doesNotContainKey("expression");
+    var invalidSpec = new LinkedHashMap<>(spec);
+    invalidSpec.put("expression", invalidSpec.remove("condition"));
+    assertThat(invalidSpec.keySet().containsAll((List<String>) specSchema.get("required"))).isFalse();
+
+    String model = "INTERLIS 2.4; MODEL Example (en) AT \"https://example.org\" VERSION \"1\" = "
+        + "TOPIC Data = CLASS Item = value : 0..10; END Item; END Data; END Example.";
+    var response = tool.callHandler().apply(null, new McpSchema.CallToolRequest(tool.tool().name(),
+        Map.of("modelText", model, "contextFqn", "Example.Data.Item", "spec", spec,
+            "includeSuccessfulTestXtf", false)));
+    assertThat(response.isError()).isFalse();
+    var result = extractStructuredContent(response);
+    assertThat(result).containsEntry("status", "GENERATED").containsEntry("proofVerified", true)
+        .containsEntry("requiresUserDecision", true);
+    assertThat(result.get("updatedModelText").toString()).contains("DEFINED(value)");
+    assertThat(mapper.writeValueAsString(result.get("openQuestions"))).contains("intended model purpose");
+  }
+
+  @Test
   void nativeHandlerReturnsStructuredContractErrors() throws Exception {
     var tool = specsByName().get("authorIliMandatoryConstraint");
     Map<String,Object> expression = Map.of("kind","FUNCTION","name","Math.sum","functionOrigin","STANDARD","children",List.of());
