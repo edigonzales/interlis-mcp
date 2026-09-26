@@ -103,3 +103,13 @@ Die Tests decken nicht nur einzelne Java-Komponenten ab. Contract-, Golden-Scena
 ## Lizenz
 
 [MIT](LICENSE)
+
+### Constraints aus Prosa
+
+Der Agent bereitet mit `analyzeIliModel(..., contextFqn)` den Modellkontext vor und hält fachliche
+Erwartungen vor dem Authoring fest. Diese werden zusätzlich zum automatischen Proof mit
+`testIliConstraint` geprüft, bevor der Agent das Modell schreibt. `expectationSource` kennzeichnet
+die angegebene Herkunft, `explanation` beschreibt die kompilierte Regel. `modelHashes` bindet
+Prüfungen an den genauen Modelltext; `includeSuccessfulTestXtf=false` verkürzt erfolgreiche
+Testausgaben ohne Verlust von Diagnosen. Details und Grenzen stehen
+im [Benutzerhandbuch](docs/USER_GUIDE.md#constraints-aus-prosa-mit-fachlichen-erwartungen).

@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "P01",
+      "mode": "AUTHORING",
+      "inputs": {
+        "model.ili": "8de08ebce115148fdd56255e25354a3fcab5285a0e7f7d69a3aa624c3903c21c",
+        "requirement.de.md": "54002ca0f3bd6f5726a321cf44d2bc7df4ce17eef05c6026ec2955399e88e524"
+      }
+    },
+    {
+      "id": "P02",
+      "mode": "AUTHORING",
+      "inputs": {
+        "model.ili": "8de08ebce115148fdd56255e25354a3fcab5285a0e7f7d69a3aa624c3903c21c",
+        "requirement.de.md": "846babf1453427b8d312be4739b65d9e57535994a83b00ffa4ec8e91c8f8cd98"
+      }
+    },
+    {
+      "id": "P03",
+      "mode": "AUTHORING",
+      "inputs": {
+        "model.ili": "8de08ebce115148fdd56255e25354a3fcab5285a0e7f7d69a3aa624c3903c21c",
+        "requirement.de.md": "d9de7de20661041093c59bf6f19d223a81974f560d7395992d495b9f1135891b"
+      }
+    },
+    {
+      "id": "P04",
+      "mode": "AUTHORING",
+      "inputs": {
+        "model.ili": "8de08ebce115148fdd56255e25354a3fcab5285a0e7f7d69a3aa624c3903c21c",
+        "requirement.de.md": "0f9cf9beeb6358bc1349bc4351430c919f8d2c6299e37310192e66debe0fef04"
+      }
+    },
+    {
+      "id": "Q01",
+      "mode": "CLARIFICATION",
+      "inputs": {
+        "model.ili": "8de08ebce115148fdd56255e25354a3fcab5285a0e7f7d69a3aa624c3903c21c",
+        "requirement.de.md": "d3ade7e8fae6065948b316ba5691d62872d83b48a1fd3d3abda4c072a9c07e27"
+      }
+    },
+    {
+      "id": "Q02",
+      "mode": "CLARIFICATION",
+      "inputs": {
+        "model.ili": "8de08ebce115148fdd56255e25354a3fcab5285a0e7f7d69a3aa624c3903c21c",
+        "requirement.de.md": "d9ba55569ad4583f5fe539e00c23f6e89e6e183e488e2a95388bcab00a3c4136"
+      }
+    },
+    {
+      "id": "Q03",
+      "mode": "CLARIFICATION",
+      "inputs": {
+        "model.ili": "8de08ebce115148fdd56255e25354a3fcab5285a0e7f7d69a3aa624c3903c21c",
+        "requirement.de.md": "ed4d22dae984a1893382a422602f88f851fc4a5a88c940e84eeb82022a21e8a3"
+      }
+    },
+    {
+      "id": "P05",
+      "mode": "AUTHORING",
+      "inputs": {
+        "model.ili": "8de08ebce115148fdd56255e25354a3fcab5285a0e7f7d69a3aa624c3903c21c",
+        "requirement.de.md": "0c329822aec2a648b61d482a382efc87b690c7e0f7210e90dfad86ae0bf2a06e"
+      }
+    },
+    {
+      "id": "R01",
+      "mode": "AUTHORING",
+      "inputs": {
+        "model.ili": "8de08ebce115148fdd56255e25354a3fcab5285a0e7f7d69a3aa624c3903c21c",
+        "requirement.de.md": "176b0da547866e881173c9f024aa1665a97c3107a1d8dd4920a64cd1b9dc73bb"
+      }
+    }
+  ]
+}

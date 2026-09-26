@@ -1,0 +1,10 @@
+INTERLIS 2.4;
+MODEL ProseWorkflow (en) AT "https://example.org" VERSION "1" =
+  TOPIC Data =
+    CLASS Person =
+      age : 0..100;
+      state : (active, inactive);
+      code : TEXT*20;
+    END Person;
+  END Data;
+END ProseWorkflow.

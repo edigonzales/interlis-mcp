@@ -26,7 +26,7 @@ class ConstraintWorkflowGuidanceTest {
       }
       McpTool annotation = method.getAnnotation(McpTool.class);
       if (annotation == null) {
-        throw new AssertionError("Missing @McpTool on UniqueConstraintAuthoringTools." + methodName);
+        continue;
       }
       return annotation.description();
     }

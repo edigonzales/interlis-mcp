@@ -1,5 +1,7 @@
 package ch.so.agi.mcp.tools;
 
+import ch.so.agi.mcp.model.ModelHashes;
+import ch.so.agi.mcp.model.TestXtfOutput;
 import ch.so.agi.mcp.analysis.ModelPurpose;
 import ch.so.agi.mcp.constraint.ConstraintAuthoringEngine;
 import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
@@ -28,7 +30,13 @@ public final class UniqueConstraintAuthoringTools {
       @McpToolParam(description = "Vollqualifizierter Constraint-Kontext", required = true) String contextFqn,
       @McpToolParam(description = "Typisierte UNIQUE-Spezifikation" + " " + ch.so.agi.mcp.model.ConstraintAuthoringGuidance.INPUT, required = true) IliConstraintSpec.Unique spec,
       @McpToolParam(description = "Modellzweck", required = false) @Nullable ModelPurpose modelPurpose,
-      @McpToolParam(description = "Regelprofil CORE oder SO", required = false) @Nullable ModelingRuleProfile ruleProfile) {
-    return engine.author(modelText, contextFqn, spec, modelPurpose, ruleProfile);
+      @McpToolParam(description = "Regelprofil CORE oder SO", required = false) @Nullable ModelingRuleProfile ruleProfile,
+      @McpToolParam(description = TestXtfOutput.PARAMETER, required = false) @org.jspecify.annotations.Nullable Boolean includeSuccessfulTestXtf) {
+    return TestXtfOutput.prepare(ModelHashes.attach(engine.author(modelText, contextFqn, spec, modelPurpose, ruleProfile), modelText), includeSuccessfulTestXtf);
   }
+
+  public IliAuthoringResult authorIliUniqueConstraint(String modelText, String contextFqn, IliConstraintSpec.Unique spec, @Nullable ModelPurpose modelPurpose, @Nullable ModelingRuleProfile ruleProfile) {
+    return authorIliUniqueConstraint(modelText, contextFqn, spec, modelPurpose, ruleProfile, null);
+  }
+
 }

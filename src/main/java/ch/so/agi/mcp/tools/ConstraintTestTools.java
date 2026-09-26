@@ -1,5 +1,7 @@
 package ch.so.agi.mcp.tools;
 
+import ch.so.agi.mcp.model.ModelHashes;
+import ch.so.agi.mcp.model.TestXtfOutput;
 import ch.ehi.basics.settings.Settings;
 import ch.interlis.ili2c.metamodel.AbstractClassDef;
 import ch.interlis.ili2c.metamodel.AbstractCoordType;
@@ -81,7 +83,10 @@ public class ConstraintTestTools {
     this.compilerService = compilerService;
   }
 
+  public enum ExpectationSource { USER_PROVIDED, USER_CONFIRMED, AGENT_DERIVED, UNSPECIFIED }
+
   public static class TestCase {
+    public @Nullable ExpectationSource expectationSource = ExpectationSource.UNSPECIFIED;
     public String name;
     public Boolean expectedConstraintValid;
     public List<TestObject> objects;
@@ -114,7 +119,16 @@ public class ConstraintTestTools {
   public Map<String, Object> testIliConstraint(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,
       @McpToolParam(description = "Constraint-Name oder vollqualifizierter Constraint-Name", required = true) String constraint,
-      @McpToolParam(description = "Explizite Testfaelle. Jeder Fall enthaelt name, expectedConstraintValid, objects und optional links. Object basketId ist optional; ohne Angabe wird wie bisher ein impliziter Basket pro Topic verwendet. Object values sind skalare Werte, Listen skalarer Werte oder verschachtelte Maps/Listen fuer STRUCTURE-Attribute; references und link roles enthalten Ziel-OIDs. Heavyweight Association links koennen optional basketId setzen.", required = true) List<TestCase> cases) {
+      @McpToolParam(description = "expectationSource ist optional: USER_PROVIDED, USER_CONFIRMED, AGENT_DERIVED oder UNSPECIFIED (Standard); Herkunft wird nicht verifiziert. Explizite Testfaelle. Jeder Fall enthaelt name, expectedConstraintValid, objects und optional links. Object basketId ist optional; ohne Angabe wird wie bisher ein impliziter Basket pro Topic verwendet. Object values sind skalare Werte, Listen skalarer Werte oder verschachtelte Maps/Listen fuer STRUCTURE-Attribute; references und link roles enthalten Ziel-OIDs. Heavyweight Association links koennen optional basketId setzen.", required = true) List<TestCase> cases,
+      @McpToolParam(description = TestXtfOutput.PARAMETER, required = false) @org.jspecify.annotations.Nullable Boolean includeSuccessfulTestXtf) {
+    return TestXtfOutput.prepare(ModelHashes.attach(testIliConstraintFull(modelText, constraint, cases), ModelHashes.model(modelText)), includeSuccessfulTestXtf);
+  }
+
+  public Map<String, Object> testIliConstraint(String modelText, String constraint, List<TestCase> cases) {
+    return testIliConstraint(modelText, constraint, cases, null);
+  }
+
+  private Map<String, Object> testIliConstraintFull(String modelText, String constraint, List<TestCase> cases) {
     McpInputLimits.requireConstraintCases(cases);
 
     IliCompilerService.CompilationResult compilation =
@@ -128,6 +142,15 @@ public class ConstraintTestTools {
           "passedCount", 0,
           "allPassed", false,
           "automaticCasesGenerated", false));
+      response.put("cases", cases.stream().map(c -> {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("name", c == null ? null : c.name);
+        item.put("expectationSource", c == null || c.expectationSource == null ? ExpectationSource.UNSPECIFIED : c.expectationSource);
+        item.put("tested", false);
+        item.put("passed", false);
+        item.put("reasonCode", "MODEL_INVALID");
+        return item;
+      }).toList());
       response.put("evidence", ch.so.agi.mcp.model.EvidenceSummary.explicit(false, response, compilation.messages()));
       return response;
     }
@@ -165,6 +188,7 @@ public class ConstraintTestTools {
     for (int i = 0; i < cases.size(); i++) {
       TestCase testCase = requireCase(cases.get(i), i, target);
       Map<String, Object> result = runCase(td, target, targetQName, allConstraints, testCase, i + 1);
+      result.put("expectationSource", testCase.expectationSource == null ? ExpectationSource.UNSPECIFIED : testCase.expectationSource);
       results.add(result);
       if (Boolean.TRUE.equals(result.get("passed"))) {
         passedCount++;
@@ -311,7 +335,8 @@ public class ConstraintTestTools {
       String reason = cause.getMessage() == null ? e.toString() : cause.getMessage();
       if (reason.contains("max one reference") || reason.contains("cardinality")) code = "OBJECT_PATH_CARDINALITY_VIOLATION";
       var result = new LinkedHashMap<String,Object>();
-      result.put("name", testCase.name); result.put("expectedConstraintValid", testCase.expectedConstraintValid);
+      result.put("name", testCase.name);
+      result.put("expectedConstraintValid", testCase.expectedConstraintValid);
       result.put("actualConstraintValid", false); result.put("passed", false);
       result.put("constraintExercised", false); result.put("subjectCount", subjectCount);
       result.put("fixtureValid", false); result.put("fixturePreparationReasonCode", code);

@@ -111,6 +111,18 @@ class ToolRegistrationContractTest {
   }
 
   @Test
+  void proseWorkflowFieldsAreNativeAndSourceIsOptional() throws Exception {
+    var declarations = specsByName();
+    String testSchema = mapper.writeValueAsString(declarations.get("testIliConstraint").tool().inputSchema());
+    assertThat(testSchema).contains("expectationSource", "USER_PROVIDED", "USER_CONFIRMED", "AGENT_DERIVED", "UNSPECIFIED");
+    var schema = mapper.readTree(testSchema);
+    var cases = schema.get("properties").get("cases").get("items");
+    assertThat(cases.get("required").toString()).doesNotContain("expectationSource");
+    assertThat(mapper.writeValueAsString(declarations.get("authorIliMandatoryConstraint").tool().outputSchema()))
+        .contains("explanation", "PARTIAL", "UNAVAILABLE", "modelHashes", "omittedSuccessfulTestXtfCount");
+  }
+
+  @Test
   void publicToolSurfaceStaysSmallEnoughForAgentContext() throws Exception {
     assertThat(toolSpecifications).hasSize(27);
     for (SyncToolSpecification specification : toolSpecifications) {
@@ -423,6 +435,7 @@ class ToolRegistrationContractTest {
         .contains("ExistDemo.Data.TargetA : code")
         .contains("OR ExistDemo.Data.TargetB : code");
     assertThat(structured.get("constraintProofs")).asList().hasSize(1);
+    assertThat(mapper.writeValueAsString(structured.get("constraintProofs"))).contains("explanation", "description", "constraintFqn");
   }
 
   @Test
@@ -506,6 +519,7 @@ class ToolRegistrationContractTest {
         .contains("SET CONSTRAINT WHERE (value >= 5):")
         .contains("INTERLIS.objectCount(ALL) >= 2;");
     assertThat(structured.get("constraintProofs")).asList().hasSize(1);
+    assertThat(mapper.writeValueAsString(structured.get("constraintProofs"))).contains("explanation", "description", "constraintFqn");
   }
 
   private Map<String, SyncToolSpecification> specsByName() {
@@ -558,21 +572,21 @@ class ToolRegistrationContractTest {
     Map<String, SchemaExpectation> expectations = new LinkedHashMap<>();
 
     expectations.put("formatIliModel", schema(Set.of("modelText"), Set.of()));
-    expectations.put("analyzeIliModel", schema(Set.of("modelText"), Set.of("modelPurpose")));
+    expectations.put("analyzeIliModel", schema(Set.of("modelText"), Set.of("modelPurpose", "contextFqn")));
     expectations.put("checkModelingRules", schema(Set.of("modelText"), Set.of("modelPurpose", "ruleIds", "profile")));
     expectations.put("reviewIliModel", schema(Set.of("modelText"), Set.of("modelPurpose", "ruleProfile")));
     expectations.put("reviewIliChange", schema(Set.of("beforeModelText", "afterModelText"), Set.of("modelPurpose", "ruleProfile")));
-    expectations.put("authorIliModel", schema(Set.of("spec"), Set.of("modelPurpose", "ruleProfile")));
-    expectations.put("applyIliModelChanges", schema(Set.of("modelText", "request"), Set.of("modelPurpose", "ruleProfile")));
+    expectations.put("authorIliModel", schema(Set.of("spec"), Set.of("modelPurpose", "ruleProfile", "includeSuccessfulTestXtf")));
+    expectations.put("applyIliModelChanges", schema(Set.of("modelText", "request"), Set.of("modelPurpose", "ruleProfile", "includeSuccessfulTestXtf")));
     expectations.put("reviewIliConstraint", schema(Set.of("modelText", "constraint"), Set.of()));
-    expectations.put("generateIliConstraintCases", schema(Set.of("modelText", "constraint"), Set.of()));
-    expectations.put("generateIliConstraintFromDecisionTable", schema(Set.of("modelText", "context", "constraintName", "rows"), Set.of()));
+    expectations.put("generateIliConstraintCases", schema(Set.of("modelText", "constraint"), Set.of("includeSuccessfulTestXtf")));
+    expectations.put("generateIliConstraintFromDecisionTable", schema(Set.of("modelText", "context", "constraintName", "rows"), Set.of("includeSuccessfulTestXtf")));
     expectations.put("authorIliMandatoryConstraint", constraintAuthoringSchema());
     expectations.put("authorIliPlausibilityConstraint", constraintAuthoringSchema());
     expectations.put("authorIliExistenceConstraint", constraintAuthoringSchema());
     expectations.put("authorIliSetConstraint", constraintAuthoringSchema());
     expectations.put("authorIliUniqueConstraint", constraintAuthoringSchema());
-    expectations.put("testIliConstraint", schema(Set.of("modelText", "constraint", "cases"), Set.of()));
+    expectations.put("testIliConstraint", schema(Set.of("modelText", "constraint", "cases"), Set.of("includeSuccessfulTestXtf")));
     expectations.put("findSimilarModels", schema(Set.of(), Set.of("query", "modelText", "modelPurpose", "limit")));
     expectations.put("indexConfiguredModels", schema(Set.of(), Set.of()));
     expectations.put("readModelExample", schema(Set.of("path"), Set.of()));
@@ -595,7 +609,7 @@ class ToolRegistrationContractTest {
   private static SchemaExpectation constraintAuthoringSchema() {
     return schema(
         Set.of("modelText", "contextFqn", "spec"),
-        Set.of("modelPurpose", "ruleProfile"));
+        Set.of("modelPurpose", "ruleProfile", "includeSuccessfulTestXtf"));
   }
 
   private record SchemaExpectation(Set<String> required, Set<String> optional) {

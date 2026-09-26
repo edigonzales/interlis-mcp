@@ -408,3 +408,74 @@ Fachliche Akzeptanz und die Herkunft expliziter Erwartungen werden nicht behaupt
 Die eingefrorenen Benchmark-Suiten und Referenzanforderungen wurden nicht verändert;
 ein neuer freier Agentenbenchmark über einen nativen Connector wurde nicht ausgeführt.
 Die obigen technischen Testzahlen sind keine Agentenerfolgsquote.
+
+## Prosa-Authoring-Workflow
+
+`analyzeIliModel` besitzt den optionalen Parameter `contextFqn`. Der klassische Aufruf bleibt
+unverändert; die gezielte Variante liefert begrenzte Listen und `authoringContext` mit
+`AVAILABLE`/`UNAVAILABLE` und strukturierten Fehlercodes. Vererbung wird compilerbasiert aufgelöst,
+Beziehungsziele werden nur eine Ebene tief mit skalaren Attributen beschrieben.
+
+`ConstraintAnalysisService.reviewCompiled` und `ConstraintKnowledgeTools.resolveCompiledPath`
+verwenden den vorhandenen `TransferDescription`. Auch String-Pfade in Funktionen verursachen
+bei eingebetteten Erklärungen keine zusätzlichen Kompilierungen. Der automatische Proof
+transportiert die Erklärung zum gemeinsamen `ConstraintProof`-Ergebnis. Nicht auflösbare
+Proof-Kontexte bekommen `UNAVAILABLE`; Compiler-, Proof- und Freigabestatus bleiben unverändert.
+
+Der native Vertrag behält 27 Tools und das Limit von 50.000 Bytes je Tooldeklaration.
+`expectationSource` ist eine optionale Herkunftsangabe des Aufrufers, kein Sicherheitsnachweis.
+Die strengere Schreibregel lebt im Agentenworkflow, nicht in serverseitigen Freigabefeldern.
+
+Die zusätzliche Suite unter `evals/constraint-authoring-workflow` und ihr Offline-Prüfer werden
+mit `check` geprüft. Ihre unabhängigen Referenzfälle werden gegen den echten Validator getestet.
+Ein freier nativer Agentenlauf ist mangels Connector ausstehend; synthetische Prüfer-Tests oder
+Java-/STDIO-Tests dürfen nicht als Agentenerfolgsquote ausgegeben werden.
+
+### Technische Abnahme vom 26. September 2026
+
+Mit Java 21.0.10 wurde `./gradlew check e2eTest --console=plain` erfolgreich ausgeführt:
+554 Java-Tests, 20 STDIO-E2E-Tests, 32 bestehende Benchmark-/Recorder-Tests und 6 neue
+Workflow-Prüfertests; keine Fehler oder übersprungenen Java-/E2E-Tests. Native Verträge für
+27 Tools, Deklarationen unter 50.000 Bytes und bestehende Compileranzahlen bestehen.
+`git diff --check` ist sauber; eingefrorene Rekonstruktions-Suiten und Automation bleiben
+unverändert. Diese technische Abnahme enthält keinen freien Agentenlauf.
+
+## Schlanke Ausgabegrenzen für Agenten
+
+`ModelHashes` berechnet SHA-256 des unveränderten UTF-8-Texts und ergänzt die jeweiligen
+öffentlichen Ergebnisse. Die bestehenden frühen Rückgaben bleiben im vollständigen
+Implementierungspfad; die öffentliche Grenze ergänzt auch dort die zutreffenden Hashes.
+Java-Kompatibilitätsüberladungen delegieren mit unverändertem Standardumfang.
+
+`TestXtfOutput` kennt nur die öffentlichen `cases`, `verification.cases` und typisierten
+`constraintProofs[].verification.cases`. Es gibt keinen rekursiven Feldfilter. Die Map-Projektion
+kopiert nur betroffene Ausgabecontainer; die typisierte Projektion bearbeitet das frisch erzeugte
+öffentliche DTO. Interne Validatorergebnisse, Evidence und Freigabeentscheidungen bleiben
+unberührt. Die Projektion benötigt keine Compiler- oder Validatoraufrufe.
+
+Es entstehen keine Tools, Aktionszustände, Caches, Sitzungen oder Detailabruf-Mechanismen.
+Bei fehlendem `warningCount` wird konservativ kein XTF entfernt. Die Standards bleiben
+kompatibel; `omittedSuccessfulTestXtfCount` erscheint nur bei tatsächlichen Auslassungen.
+
+`SlimAgentOutputTest` misst serialisierte Antworten derselben vollständig geprüften Fixtures
+vor und nach der Projektion und schreibt `build/reports/slim-response-sizes.txt`.
+Diese Bytes sind keine Tokenmessung und belegen keine höhere Agentenerfolgsquote.
+
+### Abnahme der schlanken Ausgabe vom 26. September 2026
+
+Unter Java 21.0.10 besteht `./gradlew check e2eTest --console=plain`: 559 Java-Tests,
+20 STDIO-E2E-Tests und 38 Python-Prüfertests (32 bestehende, 6 Workflow-Prüfertests).
+Keine Java-/E2E-Fehler oder übersprungenen Tests; `git diff --check` ist sauber.
+27 Tools, Schema-Grössenlimits und Compileranzahl-Verträge bleiben erhalten.
+
+Gemessen an denselben vollständig geprüften Constraint-Fixtures, jeweils inklusive Modellhash:
+
+| Fixture | Vollständiges JSON | Reduziertes JSON | Ersparnis | Entfernte XTF-Texte |
+| --- | ---: | ---: | ---: | ---: |
+| `age >= 18` | 9.136 Bytes | 7.866 Bytes | 13,9 % | 2 |
+| `age > 18 AND age < 90` | 14.609 Bytes | 11.410 Bytes | 21,9 % | 5 |
+
+Die Projektion selbst führt keine Kompilierung oder Validierung aus. Diese Fixture-Messung
+ist keine allgemeine Grössengarantie und keine Agentenerfolgsquote. Ein freier nativer
+Agentenlauf bleibt mangels Connector ausstehend; bestehende eingefrorene Suiten und Automation
+wurden nicht verändert.

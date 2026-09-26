@@ -1,0 +1,10 @@
+{
+  "id": "Q02",
+  "requiredQuestions": [
+    "uniqueness_scope",
+    "missing_value_policy"
+  ],
+  "rules": [],
+  "expectations": [],
+  "referenceConstraints": {}
+}

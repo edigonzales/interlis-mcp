@@ -1,5 +1,6 @@
 package ch.so.agi.mcp.analysis;
 
+import ch.so.agi.mcp.model.ModelHashes;
 import ch.ehi.basics.settings.Settings;
 import ch.interlis.ili2c.generator.Interlis2Generator;
 import ch.interlis.ili2c.metamodel.AbstractCoordType;
@@ -65,11 +66,136 @@ public class ModelAnalysisTools {
   )
   public Map<String, Object> analyzeIliModel(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
-      @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false) @Nullable ModelPurpose modelPurpose
+      @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false) @Nullable ModelPurpose modelPurpose,
+      @McpToolParam(description = "Optionaler exakter FQN einer Klasse, Struktur, Association oder View; liefert gezielten Authoring-Kontext", required = false) @Nullable String contextFqn
   ) {
+    return ModelHashes.attach(analyzeIliModelFull(modelText, modelPurpose, contextFqn), ModelHashes.model(modelText));
+  }
+
+  private Map<String, Object> analyzeIliModelFull(String modelText, @Nullable ModelPurpose modelPurpose, @Nullable String contextFqn) {
     IliCompilerService.CompilationResult compilation = compilerService.compile(modelText, null, "ili2c_analysis_");
+    if (contextFqn != null) return scopedResponse(compilation, modelText, ModelPurpose.normalize(modelPurpose), contextFqn.trim());
     AnalysisData data = analyzeCompiled(compilation.transferDescription(), modelText);
     return toResponse(compilation.valid(), compilation.messages(), data, ModelPurpose.normalize(modelPurpose));
+  }
+
+  public Map<String, Object> analyzeIliModel(String modelText, @Nullable ModelPurpose modelPurpose) {
+    return analyzeIliModel(modelText, modelPurpose, null);
+  }
+
+  private Map<String, Object> scopedResponse(IliCompilerService.CompilationResult compilation,
+      String modelText, ModelPurpose purpose, String fqn) {
+    AnalysisData selected = new AnalysisData();
+    selected.iliVersion = parseIliVersion(modelText);
+    Map<String, Object> context = new LinkedHashMap<>();
+    context.put("contextFqn", fqn);
+    TransferDescription td = compilation.transferDescription();
+    Element element = td == null ? null : td.getElement(fqn);
+    if (!compilation.valid() || !(element instanceof ch.interlis.ili2c.metamodel.Viewable<?> root)) {
+      context.put("status", "UNAVAILABLE");
+      context.put("diagnostics", List.of(Map.of("code", !compilation.valid() ? "MODEL_INVALID"
+          : element == null ? "CONTEXT_NOT_FOUND" : "CONTEXT_NOT_VIEWABLE", "message", "Kein analysierbarer Kontext: " + fqn)));
+    } else {
+      context.put("status", "AVAILABLE");
+      context.put("element", elementMap(root, root.getClass().getSimpleName()));
+      var attributes = effectiveAttributes(root, td);
+      context.put("attributes", attributes); selected.attributes.addAll(attributes);
+      var constraints = new ArrayList<Map<String, Object>>();
+      var seen = new LinkedHashSet<String>();
+      for (ch.interlis.ili2c.metamodel.Viewable<?> current = root; current != null;
+          current = current.getExtending() instanceof ch.interlis.ili2c.metamodel.Viewable<?> parent ? parent : null) {
+        var items = current.iterator();
+        while (items.hasNext()) if (items.next() instanceof Constraint constraint && seen.add(constraint.getScopedName())) {
+          var entry = constraintMap(constraint, td); origin(entry, constraint, root); constraints.add(entry);
+        }
+      }
+      sortElements(constraints); context.put("constraints", constraints); selected.constraints.addAll(constraints);
+      var roles = new java.util.TreeMap<String, RoleDef>();
+      var elements = root.getAttributesAndRoles();
+      while (elements.hasNext()) if (elements.next() instanceof RoleDef role) roles.put(role.getScopedName(), role);
+      if (root instanceof ch.interlis.ili2c.metamodel.AbstractClassDef<?> clazz) {
+        var opposites = clazz.getOpposideRoles();
+        while (opposites.hasNext()) { var role = opposites.next(); roles.put(role.getScopedName(), role); }
+      }
+      var roleEntries = new ArrayList<Map<String, Object>>();
+      var targets = new java.util.TreeMap<String, ch.interlis.ili2c.metamodel.Viewable<?>>();
+      for (RoleDef role : roles.values()) {
+        var entry = roleMap(role); origin(entry, role, root); roleEntries.add(entry);
+        var references = role.iteratorReference();
+        while (references.hasNext()) {
+          var target = references.next().getReferred();
+          if (target != null) targets.put(target.getScopedName(), target);
+        }
+      }
+      var attrIterator = root.getAttributes();
+      while (attrIterator.hasNext()) if (attrIterator.next() instanceof AttributeDef attribute) {
+        Type type = attribute.getDomainResolvingAliases();
+        if (type instanceof ReferenceType ref && ref.getReferred() != null) targets.put(ref.getReferred().getScopedName(), ref.getReferred());
+      }
+      context.put("roles", roleEntries);
+      var targetEntries = new ArrayList<Map<String, Object>>();
+      for (var target : targets.values()) targetEntries.add(Map.of("contextFqn", target.getScopedName(),
+          "attributes", effectiveAttributes(target, td).stream().filter(a -> Boolean.TRUE.equals(a.get("scalar"))).toList()));
+      context.put("relationshipTargets", targetEntries);
+      context.put("limitations", List.of("Nur direkte Beziehungsziele; weiterführende Pfade mit resolveConstraintPath prüfen.",
+          "Keine automatische Zuordnung von Prosa zu Modellelementen."));
+      if (root instanceof Table table) (table.isIdentifiable() ? selected.classes : selected.structures).add(classMap(table, table.isIdentifiable() ? "CLASS" : "STRUCTURE"));
+      else if (root instanceof AssociationDef association) selected.associations.add(associationMap(association));
+      else if (root instanceof View view) selected.views.add(viewMap(view, td));
+    }
+    var response = new LinkedHashMap<>(toResponse(compilation.valid(), compilation.messages(), selected, purpose));
+    response.put("authoringContext", context);
+    return response;
+  }
+
+  private List<Map<String, Object>> effectiveAttributes(ch.interlis.ili2c.metamodel.Viewable<?> root, TransferDescription td) {
+    var effective = new java.util.TreeMap<String, AttributeDef>();
+    var iterator = root.getAttributes();
+    while (iterator.hasNext()) if (iterator.next() instanceof AttributeDef attribute) effective.put(attribute.getName(), attribute);
+    // Explicitly prefer declarations nearest to the selected context over overridden ancestors.
+    for (ch.interlis.ili2c.metamodel.Viewable<?> current = root; current != null;
+        current = current.getExtending() instanceof ch.interlis.ili2c.metamodel.Viewable<?> parent ? parent : null) {
+      var declared = current.getDefinedAttributes();
+      while (declared.hasNext()) { var attribute = declared.next();
+        var chosen = root.findAttribute(attribute.getName());
+        if (chosen != null) effective.put(attribute.getName(), chosen);
+      }
+    }
+    var result = new ArrayList<Map<String, Object>>();
+    for (AttributeDef attribute : effective.values()) {
+      var entry = attributeMap(attribute, td); origin(entry, attribute, root);
+      Type type = attribute.getDomainResolvingAliases();
+      entry.put("resolvedType", typeText(type));
+      entry.put("scalar", type instanceof NumericType || type instanceof TextType || type instanceof EnumerationType);
+      var aliases = new ArrayList<String>();
+      Type declared = attribute.getDomain();
+      while (declared instanceof TypeAlias alias && alias.getAliasing() != null && !aliases.contains(alias.getAliasing().getScopedName())) {
+        aliases.add(alias.getAliasing().getScopedName()); declared = alias.getAliasing().getType();
+      }
+      entry.put("domainAliases", aliases);
+      if (type instanceof NumericType numeric) {
+        if (numeric.getMinimum() != null) { entry.put("minimum", numeric.getMinimum().toString()); entry.put("precision", numeric.getMinimum().getAccuracy()); }
+        if (numeric.getMaximum() != null) entry.put("maximum", numeric.getMaximum().toString());
+        if (numeric.getUnit() != null) entry.put("unit", numeric.getUnit().getScopedName());
+      }
+      if (type instanceof EnumerationType enumeration) entry.put("enumValues", enumeration.getValues());
+      result.add(entry);
+    }
+    sortElements(result); return result;
+  }
+
+  private void origin(Map<String, Object> entry, Element element, ch.interlis.ili2c.metamodel.Viewable<?> root) {
+    entry.put("declaringContext", element.getContainer().getScopedName());
+    boolean inherited = false;
+    for (var parent = root.getExtending(); parent != null; parent = parent instanceof ch.interlis.ili2c.metamodel.Viewable<?> viewable ? viewable.getExtending() : null)
+      if (parent == element.getContainer() || element instanceof RoleDef role
+          && parent instanceof ch.interlis.ili2c.metamodel.AbstractClassDef<?> parentClass
+          && parentClass.findOpposideRole(role.getName()) == role) inherited = true;
+    entry.put("inherited", inherited);
+  }
+
+  private void sortElements(List<Map<String, Object>> elements) {
+    elements.sort(java.util.Comparator.comparing(e -> String.valueOf(e.get("scopedName"))));
   }
 
   public AnalysisData analyzeCompiled(@Nullable TransferDescription td, String modelText) {

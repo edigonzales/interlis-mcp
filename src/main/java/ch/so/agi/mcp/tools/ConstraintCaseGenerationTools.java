@@ -1,5 +1,7 @@
 package ch.so.agi.mcp.tools;
 
+import ch.so.agi.mcp.model.ModelHashes;
+import ch.so.agi.mcp.model.TestXtfOutput;
 import ch.interlis.ili2c.generator.Interlis2Generator;
 import ch.interlis.ili2c.metamodel.ExistenceConstraint;
 import ch.interlis.ili2c.metamodel.AttributeRef;
@@ -49,7 +51,16 @@ public class ConstraintCaseGenerationTools {
   )
   public Map<String, Object> generateIliConstraintCases(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,
-      @McpToolParam(description = "Constraint-Name oder vollqualifizierter Constraint-Name", required = true) String constraint) {
+      @McpToolParam(description = "Constraint-Name oder vollqualifizierter Constraint-Name", required = true) String constraint,
+      @McpToolParam(description = TestXtfOutput.PARAMETER, required = false) @org.jspecify.annotations.Nullable Boolean includeSuccessfulTestXtf) {
+    return TestXtfOutput.prepare(ModelHashes.attach(generateIliConstraintCasesFull(modelText, constraint), ModelHashes.model(modelText)), includeSuccessfulTestXtf);
+  }
+
+  public Map<String, Object> generateIliConstraintCases(String modelText, String constraint) {
+    return generateIliConstraintCases(modelText, constraint, null);
+  }
+
+  private Map<String, Object> generateIliConstraintCasesFull(String modelText, String constraint) {
     ConstraintContextService.Resolution resolution = contextService.compileAndResolve(
         modelText,
         constraint,
@@ -70,7 +81,10 @@ public class ConstraintCaseGenerationTools {
    * No ili2c compilation is performed by this method.
    */
   public Map<String, Object> generateCompiledConstraintCases(CompiledConstraintContext context) {
-    return ch.so.agi.mcp.model.EvidenceSummary.generated(generateCompiledCases(context), true, context.compilation().messages());
+    Map<String, Object> result = new LinkedHashMap<>(generateCompiledCases(context));
+    result.put("explanation", new ch.so.agi.mcp.constraint.ConstraintAnalysisService()
+        .reviewCompiled(context.transferDescription(), context.constraintFqn()).get("explanation"));
+    return ch.so.agi.mcp.model.EvidenceSummary.generated(result, true, context.compilation().messages());
   }
 
   private Map<String, Object> generateCompiledCases(CompiledConstraintContext context) {

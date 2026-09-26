@@ -1,0 +1,40 @@
+{
+  "id": "P02",
+  "requiredQuestions": [],
+  "rules": [
+    "age"
+  ],
+  "expectations": [
+    {
+      "id": "age18",
+      "values": {
+        "age": 18
+      },
+      "expectedValid": false,
+      "expectedRules": {
+        "age": false
+      }
+    },
+    {
+      "id": "age19",
+      "values": {
+        "age": 19
+      },
+      "expectedValid": true,
+      "expectedRules": {
+        "age": true
+      }
+    },
+    {
+      "id": "missing",
+      "values": {},
+      "expectedValid": false,
+      "expectedRules": {
+        "age": false
+      }
+    }
+  ],
+  "referenceConstraints": {
+    "age": "DEFINED(age) AND age > 18"
+  }
+}

@@ -32,7 +32,7 @@ public class AgentPrompts {
 
         MCP-Ausfallvertrag:
         - Erforderliche, voneinander abhängige MCP-Aufrufe einzeln und nacheinander ausführen; jedes Resultat vor dem nächsten Aufruf prüfen.
-        - Bei Fehler, Timeout oder unbrauchbarem Resultat den Modellierungsworkflow sofort stoppen.
+        - Bei Fehler, Timeout oder unbrauchbarem Resultat stoppen; ausgenommen ist die unten beschriebene einmalige Reparatur eines diagnostizierten INVALID_SPEC.
         - Höchstens einmal wiederholen, wenn ein transienter Fehler plausibel ist; vor einem erfolgreichen Retry keine `.ili`-Datei schreiben oder ändern.
         - Fehlgeschlagenes Tool, Argumente und exakte Fehlermeldung berichten.
         - Keine INTERLIS-Syntax als Ersatz für eine nicht verfügbare MCP-Fähigkeit erfinden.
@@ -40,7 +40,7 @@ public class AgentPrompts {
 
         Sicherheitsgates für neue Modelle:
         - `authorIliModel` mit explizitem Namen, URI, Modellversion und INTERLIS-Version verwenden.
-        - Nur ein vollständiges Resultat mit `status=GENERATED`, `complete=true` und `updatedModelText` freigeben.
+        - `status=GENERATED`, `complete=true` und `updatedModelText` sind notwendige technische Bedingungen; vor Schreiben gilt zusätzlich der gemeinsame Prosa-Workflow.
         - `candidateModelText`, `NEEDS_INPUT` oder ein fehlgeschlagener Constraint-Proof dürfen nicht geschrieben werden.
 
         Geometrie:
@@ -63,8 +63,8 @@ public class AgentPrompts {
           `authorIliMandatoryConstraint`, `authorIliUniqueConstraint`, `authorIliExistenceConstraint`,
           `authorIliPlausibilityConstraint` oder `authorIliSetConstraint`.
         - `proofVerified=true` eines Authoring-Tools bzw. `generationVerified=true` von `generateIliConstraintCases` ist das
-          technische Proof-Gate für genau diesen Constraint. Führe für denselben unveränderten Constraint nicht nochmals
-          routinemässig `testIliConstraint` oder `validateXtf` aus.
+          technische Proof-Gate für genau diesen Constraint. Wiederhole automatisch abgeleitete Fälle nicht nochmals
+          routinemässig mit `testIliConstraint` oder `validateXtf`. Vorab festgelegte Fachfälle sind bei Prosa-Authoring zusätzlich erforderlich.
         - Erfolgreiches Constraint-Authoring enthält bereits semantischen Diff und `afterReview`; kein redundantes
           `reviewIliChange` für denselben unveränderten Nachher-Stand.
         - Für noch nicht unterstützte sonstige Änderungen: bearbeite den Modelltext gezielt und verwende danach `reviewIliChange`
@@ -128,8 +128,7 @@ public class AgentPrompts {
            `afterDiagnostics` und `afterReview` das Abschlussgate; führe für denselben unveränderten Stand kein weiteres
            `reviewIliChange` oder `reviewIliModel` aus.
         4. Wenn die Änderung ein neuer Constraint ist, verwende das höchste passende Constraint-Authoring-Tool. Bei
-           `proofVerified=true` ist kein zusätzlicher `testIliConstraint`-/`validateXtf`-Durchlauf für denselben Constraint
-           erforderlich. Das Authoring liefert bereits Diff und `afterReview`; kein zusätzliches `reviewIliChange` für denselben Stand.
+           `proofVerified=true` ist keine Wiederholung automatisch abgeleiteter Tests erforderlich. Fachliche Erwartungsfälle sind zusätzlich mit `testIliConstraint` zu prüfen. Das Authoring liefert bereits Diff und `afterReview`; kein zusätzliches `reviewIliChange` für denselben Stand.
         5. Wenn die Änderung sonst noch nicht unterstützt wird, mache nur die geforderte Erweiterung im Modelltext und vergleiche
            Vorher und Nachher mit `reviewIliChange`. Beachte `potentiallyBreakingChanges` und `impact`.
         6. Liefere den neuen Modelltext, die semantische Änderung, Compiler-/Regelbefunde und offene fachliche Entscheide.
@@ -168,8 +167,8 @@ public class AgentPrompts {
            geliefert wird, berichte diese Grenze und erfinde keinen Ersatzbeweis.
         2. Bei einem bereits vorhandenen Constraint verwende `generateIliConstraintCases`; für den unterstützten
            Umfang muss `generationVerified=true` sein. Das Tool deckt MANDATORY, UNIQUE, EXISTENCE, PLAUSIBILITY und SET ab.
-        3. `reviewIliConstraint` dient zur Erklärung und AST-Diagnose, `testIliConstraint` für explizit vom Nutzer vorgegebene
-           Testfälle. Beide sind kein routinemässiger Zusatz zu einem bereits verifizierten automatischen Proof.
+        3. `reviewIliConstraint` dient zur Erklärung und AST-Diagnose, `testIliConstraint` für zuvor aus der Anforderung festgehaltene
+           Erwartungsfälle. Erwartungsfälle sind bei Prosa-Authoring zusätzlich erforderlich; automatisch abgeleitete Tests nicht wiederholen.
         4. Die Constraint-Authoring-Tools liefern zusätzlich semantischen Diff und `afterReview` aus ihren vorhandenen
            Compilations; für denselben Nachher-Stand ist kein weiteres Modell-Level-Review nötig.
 
@@ -181,7 +180,7 @@ public class AgentPrompts {
   }
 
   private GetPromptResult prompt(String description, String text) {
-    return new GetPromptResult(description, List.of(new PromptMessage(Role.USER, new TextContent(text + ResultEvidenceGuidance.TEXT))));
+    return new GetPromptResult(description, List.of(new PromptMessage(Role.USER, new TextContent(text + ResultEvidenceGuidance.TEXT + ConstraintWorkflowGuidance.TEXT))));
   }
 
   private String blankFallback(@Nullable String value, String fallback) {

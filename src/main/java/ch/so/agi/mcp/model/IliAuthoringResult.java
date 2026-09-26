@@ -32,6 +32,9 @@ public class IliAuthoringResult {
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public record SpecDiagnostic(String code, String path, String message, @Nullable String hint) {}
 
+  public @Nullable ModelHashes modelHashes;
+  public @Nullable Integer omittedSuccessfulTestXtfCount;
+
   public EvidenceSummary evidence = EvidenceSummary.empty();
   @com.fasterxml.jackson.annotation.JsonIgnore
   public EvidenceSummary.@Nullable Check compilerEvidence;
@@ -177,6 +180,7 @@ public class IliAuthoringResult {
   public static final class ConstraintProof {
     public String constraintFqn;
     public boolean proofVerified;
+    public ch.so.agi.mcp.constraint.@Nullable ConstraintExplanation explanation;
     public @Nullable Boolean automaticCasesAvailable;
     public @Nullable Boolean automaticCasesGenerated;
     public @Nullable Boolean generationVerified;
@@ -396,7 +400,11 @@ public class IliAuthoringResult {
     ConstraintProof result = new ConstraintProof();
     result.constraintFqn = constraintFqn;
     result.proofVerified = proofVerified;
-    if (proof == null) return result;
+    if (proof == null) {
+      result.explanation = ch.so.agi.mcp.constraint.ConstraintExplanation.unavailable(constraintFqn);
+      return result;
+    }
+    result.explanation = (ch.so.agi.mcp.constraint.ConstraintExplanation) proof.get("explanation");
     result.automaticCasesAvailable = bool(proof.get("automaticCasesAvailable"));
     result.automaticCasesGenerated = bool(proof.get("automaticCasesGenerated"));
     result.generationVerified = bool(proof.get("generationVerified"));

@@ -1,0 +1,40 @@
+{
+  "id": "P04",
+  "requiredQuestions": [],
+  "rules": [
+    "age"
+  ],
+  "expectations": [
+    {
+      "id": "age17",
+      "values": {
+        "age": 17
+      },
+      "expectedValid": false,
+      "expectedRules": {
+        "age": false
+      }
+    },
+    {
+      "id": "age18",
+      "values": {
+        "age": 18
+      },
+      "expectedValid": true,
+      "expectedRules": {
+        "age": true
+      }
+    },
+    {
+      "id": "missing",
+      "values": {},
+      "expectedValid": true,
+      "expectedRules": {
+        "age": true
+      }
+    }
+  ],
+  "referenceConstraints": {
+    "age": "age >= 18"
+  }
+}

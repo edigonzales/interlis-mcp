@@ -493,3 +493,57 @@ regulär abgelehnten Transfer. Ohne erzeugte Daten ist die Validierung `NOT_RUN`
 Untersuchung erhalten; seine Validierungsdiagnosen sind von Generierungsdiagnosen getrennt.
 Die Prüfung deckt nur den konkreten Transfer ab, nicht ausgelassene Klassen oder unausgeübte Regeln.
 Für denselben unveränderten Transfer ist keine zweite routinemässige `validateXtf`-Runde nötig.
+
+## Constraints aus Prosa mit fachlichen Erwartungen
+
+Der Agent hält zuerst Anforderung, Modellbezug und entscheidende Erwartungsfälle fest. Mit
+`analyzeIliModel(modelText, contextFqn=...)` erhält er dafür einen begrenzten `authoringContext`:
+Attribute und Domains, Optionalität, Enum-Werte, numerische Grenzen, Vererbung, Rollen und
+vorhandene Regeln. Ohne `contextFqn` bleibt die vollständige Analyse unverändert. Es erfolgt
+keine automatische Zuordnung fachlicher Begriffe zu Modellelementen.
+
+Eindeutige Anforderungen werden direkt bearbeitet. Nur fachlich wirksame Unklarheiten erfordern
+Rückfragen: etwa fehlende Werte, eine leere Beziehung oder der Bereich einer Eindeutigkeit.
+„Wenn A, dann B“ erlaubt keine automatisch ergänzte Umkehrung.
+
+Vor dem Schreiben prüft der Agent die zuvor festgelegten Fälle mit `testIliConstraint` gegen
+exakt den vom Authoring zurückgegebenen Modellstand. `expectationSource` kennzeichnet die
+Herkunftsangabe: `USER_PROVIDED`, `USER_CONFIRMED`, `AGENT_DERIVED` oder standardmässig
+`UNSPECIFIED`. Der Server verifiziert diese Herkunft nicht. Auch vom Agenten aus der Anforderung
+abgeleitete Fälle sind keine unabhängige Fachabnahme; `businessAcceptance` bleibt `NOT_RUN`.
+
+Beispiel: „mindestens 18, Alter erforderlich“ verlangt die Fälle 17 unzulässig, 18 zulässig,
+19 zulässig und fehlendes Alter unzulässig. Ein automatischer Proof für `age > 18` ersetzt diese
+Erwartungen nicht. Fehlgeschlagene oder nicht ausführbare notwendige Tests, ungültige Fixtures
+und offene Fachentscheide verhindern das Schreiben im Agentenablauf. Diese Regel ändert keine
+MCP-Statuswerte und kann vom Server gegenüber anderen Clients nicht erzwungen werden.
+
+`explanation` in Constraint-Reviews und den `constraintProofs` beschreibt die tatsächlich
+kompilierte Regel. `COMPLETE` bedeutet vollständige Unterstützung durch den Erklärer,
+`PARTIAL` nennt Erklärungslücken und `UNAVAILABLE` bezeichnet eine fehlende Erklärung.
+Keiner dieser Werte bestätigt fachliche Akzeptanz. Nicht vollständig unterstützte Funktionen
+oder Views werden ausdrücklich begrenzt erklärt. Widerspruchsbefunde aus `constraintInteractions`
+bleiben advisory und müssen sichtbar berichtet werden. Einzeltests isolieren den ausgewählten
+Constraint; sie belegen keine vollständige Modellkonsistenz.
+
+### Modellstand und Antwortumfang
+
+`modelHashes` bindet Ergebnisse an den exakten übergebenen UTF-8-Modelltext (SHA-256, ohne
+Normalisierung). Einzelanalysen und Constraint-Tests liefern `model`, Änderungsreviews
+`before`/`after`; Authoring liefert je nach vorhandenem Text `before`, `after` und `candidate`.
+Neue Modelle haben keinen `before`-Hash. Ein Hash auf einem Fehlerergebnis identifiziert nur
+den Text und bestätigt keine erfolgreiche Prüfung. Importe und Validatorumgebung sind nicht
+Bestandteil dieses Hashes.
+
+Vor dem Schreiben muss `modelHashes.model` der Fachtests mit `modelHashes.after` des Authorings
+übereinstimmen. Vor dem Überschreiben liest der Agent die Ausgangsdatei erneut und vergleicht
+sie mit `before`. Bei Änderung setzt er auf dem aktuellen Stand neu an. Das ist keine atomare
+Dateisperre und keine automatische Zusammenführung.
+
+Für Authoring, Entscheidungstabellen, Fallgenerierung und explizite Tests kann der Agent
+`includeSuccessfulTestXtf=false` setzen. Ausschliesslich XTF-Texte bestandener, tatsächlich
+ausgeübter Fälle mit gültiger Fixture und ausdrücklich null Warnungen entfallen.
+`omittedSuccessfulTestXtfCount` nennt dann deren Anzahl. Auch bestandene negative Fälle können
+so verkürzt werden. Alle Erwartungen, Diagnosen, Coverage und Freigaben bleiben erhalten.
+Ohne Parameter oder mit `true` bleibt die vollständige Ausgabe erhalten; der normale
+Agentenablauf verwendet `false`. Ein erneuter Aufruf mit `true` dient nur konkreter Diagnose.

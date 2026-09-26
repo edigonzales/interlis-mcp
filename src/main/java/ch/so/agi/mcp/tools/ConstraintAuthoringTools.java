@@ -1,5 +1,7 @@
 package ch.so.agi.mcp.tools;
 
+import ch.so.agi.mcp.model.ModelHashes;
+import ch.so.agi.mcp.model.TestXtfOutput;
 import ch.so.agi.mcp.analysis.ModelPurpose;
 import ch.so.agi.mcp.constraint.ConstraintAuthoringEngine;
 import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
@@ -29,9 +31,15 @@ public final class ConstraintAuthoringTools {
       @McpToolParam(description = "Vollqualifizierter Constraint-Kontext", required = true) String contextFqn,
       @McpToolParam(description = "Typisierte MANDATORY-Spezifikation" + " " + ch.so.agi.mcp.model.ConstraintAuthoringGuidance.INPUT, required = true) IliConstraintSpec.Mandatory spec,
       @McpToolParam(description = "Modellzweck", required = false) @Nullable ModelPurpose modelPurpose,
-      @McpToolParam(description = "Regelprofil CORE oder SO", required = false) @Nullable ModelingRuleProfile ruleProfile) {
-    return engine.author(modelText, contextFqn, spec, modelPurpose, ruleProfile);
+      @McpToolParam(description = "Regelprofil CORE oder SO", required = false) @Nullable ModelingRuleProfile ruleProfile,
+      @McpToolParam(description = TestXtfOutput.PARAMETER, required = false) @org.jspecify.annotations.Nullable Boolean includeSuccessfulTestXtf) {
+    return TestXtfOutput.prepare(ModelHashes.attach(engine.author(modelText, contextFqn, spec, modelPurpose, ruleProfile), modelText), includeSuccessfulTestXtf);
   }
+
+  public IliAuthoringResult authorIliMandatoryConstraint(String modelText, String contextFqn, IliConstraintSpec.Mandatory spec, @Nullable ModelPurpose modelPurpose, @Nullable ModelingRuleProfile ruleProfile) {
+    return authorIliMandatoryConstraint(modelText, contextFqn, spec, modelPurpose, ruleProfile, null);
+  }
+
 
   @McpTool(
       name = "authorIliPlausibilityConstraint",
@@ -43,7 +51,13 @@ public final class ConstraintAuthoringTools {
       @McpToolParam(description = "Vollqualifizierter Constraint-Kontext", required = true) String contextFqn,
       @McpToolParam(description = "Typisierte PLAUSIBILITY-Spezifikation" + " " + ch.so.agi.mcp.model.ConstraintAuthoringGuidance.INPUT, required = true) IliConstraintSpec.Plausibility spec,
       @McpToolParam(description = "Modellzweck", required = false) @Nullable ModelPurpose modelPurpose,
-      @McpToolParam(description = "Regelprofil CORE oder SO", required = false) @Nullable ModelingRuleProfile ruleProfile) {
-    return engine.author(modelText, contextFqn, spec, modelPurpose, ruleProfile);
+      @McpToolParam(description = "Regelprofil CORE oder SO", required = false) @Nullable ModelingRuleProfile ruleProfile,
+      @McpToolParam(description = TestXtfOutput.PARAMETER, required = false) @org.jspecify.annotations.Nullable Boolean includeSuccessfulTestXtf) {
+    return TestXtfOutput.prepare(ModelHashes.attach(engine.author(modelText, contextFqn, spec, modelPurpose, ruleProfile), modelText), includeSuccessfulTestXtf);
   }
+
+  public IliAuthoringResult authorIliPlausibilityConstraint(String modelText, String contextFqn, IliConstraintSpec.Plausibility spec, @Nullable ModelPurpose modelPurpose, @Nullable ModelingRuleProfile ruleProfile) {
+    return authorIliPlausibilityConstraint(modelText, contextFqn, spec, modelPurpose, ruleProfile, null);
+  }
+
 }

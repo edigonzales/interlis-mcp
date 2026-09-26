@@ -59,7 +59,13 @@ class ConstraintReviewToolsTest {
       END SO_AFU_Bodeneinheiten_20251210.
       """;
 
-  private final IliCompilerService compilerService = new IliCompilerService();
+  private static class CountingCompiler extends IliCompilerService {
+    int calls;
+    @Override public CompilationResult compile(String text, String repositories, String prefix) {
+      calls++; return super.compile(text, repositories, prefix);
+    }
+  }
+  private final CountingCompiler compilerService = new CountingCompiler();
   private final ConstraintKnowledgeTools knowledgeTools = new ConstraintKnowledgeTools(compilerService);
   private final ConstraintReviewTools tools = new ConstraintReviewTools(compilerService, knowledgeTools);
 
@@ -69,6 +75,9 @@ class ConstraintReviewToolsTest {
         AFU_GOLDEN_MODEL,
         "GewichtungSumme100_Wald");
 
+    assertEquals(1, compilerService.calls);
+    assertEquals(ch.so.agi.mcp.constraint.ConstraintExplanation.Status.PARTIAL,
+        ((ch.so.agi.mcp.constraint.ConstraintExplanation)result.get("explanation")).status());
     assertEquals(true, result.get("valid"));
     assertEquals(true, result.get("compilerValid"));
     assertEquals("OK", result.get("reviewStatus"));

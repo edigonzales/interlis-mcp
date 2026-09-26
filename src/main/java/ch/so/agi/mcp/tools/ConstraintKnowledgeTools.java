@@ -55,6 +55,10 @@ public class ConstraintKnowledgeTools {
   )
   public Map<String, Object> listConstraintFunctions(
       @McpToolParam(description = "INTERLIS Sprachversion (2.3 oder 2.4)", required = false) @Nullable String iliVersion) {
+    return describeFunctions(iliVersion);
+  }
+
+  public static Map<String, Object> describeFunctions(@Nullable String iliVersion) {
     IliVersion version = normalizeIliVersion(iliVersion);
     List<Map<String, Object>> functions = new ArrayList<>();
     appendStandardFunctions(functions, StandardFunctionRegistry.functions(Family.MATH), version);
@@ -87,6 +91,10 @@ public class ConstraintKnowledgeTools {
       @McpToolParam(description = "Vollqualifizierter Kontext, z. B. Modell.Topic.Klasse", required = true) String context,
       @McpToolParam(description = "Objekt-/Attributpfad, z. B. Nebenauspraegung->Gewichtung; aeussere Anfuehrungszeichen sind optional", required = true) String path) {
     TransferDescription td = compilerService.compileOrThrow(modelText, null, "constraint_path");
+    return resolveCompiledPath(td, context, path);
+  }
+
+  public static Map<String, Object> resolveCompiledPath(TransferDescription td, String context, String path) {
     Element contextElement = td.getElement(context.trim());
     if (!(contextElement instanceof Viewable<?> root)) {
       throw new IllegalArgumentException("Context is not a class, structure, association or other viewable: " + context);
@@ -126,7 +134,7 @@ public class ConstraintKnowledgeTools {
     }
   }
 
-  private void appendStandardFunctions(
+  private static void appendStandardFunctions(
       List<Map<String, Object>> target,
       List<StandardFunction> functions,
       IliVersion version) {
@@ -154,11 +162,11 @@ public class ConstraintKnowledgeTools {
     }
   }
 
-  private Map<String, Object> languageConstruct(String name, String description) {
+  private static Map<String, Object> languageConstruct(String name, String description) {
     return Map.of("name", name, "origin", "LANGUAGE", "description", description);
   }
 
-  private List<Map<String, Object>> describeSteps(PathEl[] pathElements) {
+  private static List<Map<String, Object>> describeSteps(PathEl[] pathElements) {
     List<Map<String, Object>> steps = new ArrayList<>();
     for (int i = 0; i < pathElements.length; i++) {
       PathEl pathElement = pathElements[i];
@@ -200,7 +208,7 @@ public class ConstraintKnowledgeTools {
     return steps;
   }
 
-  private void describeRole(Map<String, Object> step, RoleDef role) {
+  private static void describeRole(Map<String, Object> step, RoleDef role) {
     step.put("name", role.getName());
     step.put("kind", "ROLE");
     if (role.getDestination() != null) {
@@ -209,7 +217,7 @@ public class ConstraintKnowledgeTools {
     addCardinality(step, role.getCardinality());
   }
 
-  private void addCardinality(Map<String, Object> step, @Nullable Cardinality cardinality) {
+  private static void addCardinality(Map<String, Object> step, @Nullable Cardinality cardinality) {
     if (cardinality == null) {
       step.put("collection", false);
       return;
@@ -220,7 +228,7 @@ public class ConstraintKnowledgeTools {
     step.put("collection", cardinality.getMaximum() > 1);
   }
 
-  private Map<String, Object> describeType(@Nullable Type type) {
+  private static Map<String, Object> describeType(@Nullable Type type) {
     if (type == null) {
       return Map.of("kind", "UNKNOWN");
     }
@@ -249,7 +257,7 @@ public class ConstraintKnowledgeTools {
     return result;
   }
 
-  private InvalidPathDiagnostic diagnoseInvalidPath(TransferDescription td, Viewable<?> root, String path) {
+  private static InvalidPathDiagnostic diagnoseInvalidPath(TransferDescription td, Viewable<?> root, String path) {
     String[] segments = path.split("->", -1);
     Viewable<?> current = root;
     for (int i = 0; i < segments.length; i++) {
@@ -273,7 +281,7 @@ public class ConstraintKnowledgeTools {
     return new InvalidPathDiagnostic("", -1, candidates(current));
   }
 
-  private boolean matchesParsedPath(ObjectPath objectPath, String path) {
+  private static boolean matchesParsedPath(ObjectPath objectPath, String path) {
     if (objectPath == null || objectPath.isDirty()) {
       return false;
     }
@@ -291,7 +299,7 @@ public class ConstraintKnowledgeTools {
     return true;
   }
 
-  private List<Map<String, Object>> candidates(Viewable<?> viewable) {
+  private static List<Map<String, Object>> candidates(Viewable<?> viewable) {
     List<Map<String, Object>> candidates = new ArrayList<>();
     Iterator<Element> iterator = viewable.getAttributesAndRoles();
     while (iterator.hasNext()) {
@@ -306,7 +314,7 @@ public class ConstraintKnowledgeTools {
     return candidates;
   }
 
-  private String normalizePath(String path) {
+  private static String normalizePath(String path) {
     if (path == null || path.isBlank()) {
       throw new IllegalArgumentException("Path is required.");
     }
@@ -317,7 +325,7 @@ public class ConstraintKnowledgeTools {
     return normalized;
   }
 
-  private IliVersion normalizeIliVersion(@Nullable String iliVersion) {
+  private static IliVersion normalizeIliVersion(@Nullable String iliVersion) {
     String version = iliVersion == null || iliVersion.isBlank() ? "2.4" : iliVersion.trim();
     return switch (version) {
       case "2.3" -> IliVersion.ILI_23;

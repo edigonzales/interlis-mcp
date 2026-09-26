@@ -91,6 +91,7 @@ dependencyManagement {
 tasks.named('test') {
     inputs.dir('evals/constraint-reconstruction/v1/public')
     inputs.dir('evals/constraint-reconstruction/v2')
+    inputs.dir('evals/constraint-authoring-workflow')
     useJUnitPlatform() {
         excludeTags 'e2e'
     }
@@ -132,3 +133,10 @@ tasks.register('e2eTest', Test) {
         includeTags 'e2e'
     }
 }
+
+tasks.register('constraintWorkflowCheck', Exec) {
+    description = 'Checks the separate prose-authoring workflow evidence scorer.'
+    group = 'verification'
+    commandLine 'python3', '-m', 'unittest', 'discover', '-s', 'evals/constraint-authoring-workflow/tools', '-p', 'test_score.py', '-v'
+}
+tasks.named('check') { dependsOn tasks.named('constraintWorkflowCheck') }

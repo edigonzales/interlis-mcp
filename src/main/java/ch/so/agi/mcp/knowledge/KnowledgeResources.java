@@ -44,7 +44,7 @@ public class KnowledgeResources {
         MCP-Sicherheitsvertrag:
         - Erforderliche und voneinander abhaengige MCP-Aufrufe einzeln und nacheinander ausfuehren.
         - Jedes Resultat vor dem naechsten Aufruf pruefen.
-        - Bei Fehler, Timeout oder unbrauchbarem Resultat sofort stoppen und Tool, Argumente sowie exakte Fehlermeldung berichten.
+        - Bei Fehler, Timeout oder unbrauchbarem Resultat stoppen und Tool, Argumente sowie exakte Fehlermeldung berichten; einmalige diagnostizierte INVALID_SPEC-Reparatur gemäss Prosa-Workflow ausgenommen.
         - Hoechstens einmal bei plausibel transientem Fehler wiederholen.
         - Vor einem erfolgreichen Retry keine `.ili`-Datei schreiben oder aendern.
         - Keine INTERLIS-Syntax erfinden; die typisierten High-Level-Tools verwenden.
@@ -111,8 +111,8 @@ public class KnowledgeResources {
         - Safety-Grenzen nicht approximieren. `REFERENCE_EQUALITY_VALIDATOR_FAILURE`, `GEOMETRY_EQUALITY_VALIDATOR_FAILURE`
           oder ein Polymorphie-Budget-Gap bedeuten, dass kein automatischer Ersatzbeweis behauptet wird; materialisierbare
           konkrete SET-Endtypen werden dagegen als getrennte `routeTargetFqn`-Coverage-Faelle bewiesen.
-        - `testIliConstraint` ist fuer explizit vorgegebene Testfaelle. Nach einem bereits verifizierten automatischen Proof
-          nicht routinemaessig nochmals denselben Constraint damit pruefen.
+        - `testIliConstraint` prüft vor dem Authoring festgehaltene Fachfälle zusätzlich zum automatischen Proof.
+          Automatisch aus dem Constraint abgeleitete Fälle nicht routinemässig wiederholen.
         - Constraint-Authoring liefert Proof, Diff und `afterReview` gemeinsam; kein redundantes `reviewIliChange`.
 
         ## Pfade und Funktionen
@@ -147,7 +147,7 @@ public class KnowledgeResources {
         Trenne drei Ebenen:
 
         1. Constraint verstehen: `reviewIliConstraint` fuer AST, Pfade, Typen und technische Erklaerung.
-        2. Constraint beweisen: `generateIliConstraintCases` fuer automatisch erzeugte Faelle und `generationVerified=true` als Gate; `testIliConstraint` nur fuer explizit vorgegebene Testfaelle.
+        2. Constraint beweisen: `generateIliConstraintCases` fuer automatisch erzeugte Faelle und `generationVerified=true` als Gate; `testIliConstraint` fuer vor dem Authoring festgehaltene fachliche Erwartungsfaelle.
         3. Modellaenderung abschliessen: Authoring-Resultat mit Proof, Diff und `afterReview` gemeinsam pruefen.
 
         ## Neue Constraints
@@ -186,7 +186,7 @@ public class KnowledgeResources {
 
   private ReadResourceResult markdown(String uri, String markdown) {
     if (uri.endsWith("/agent-workflow") || uri.endsWith("/tool-guide") || uri.endsWith("/constraint-workflow")) {
-      markdown += ResultEvidenceGuidance.TEXT;
+      markdown += ResultEvidenceGuidance.TEXT + ConstraintWorkflowGuidance.TEXT;
     }
     return new ReadResourceResult(List.of(new TextResourceContents(uri, "text/markdown", markdown)));
   }

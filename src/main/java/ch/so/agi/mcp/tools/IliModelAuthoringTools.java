@@ -1,5 +1,7 @@
 package ch.so.agi.mcp.tools;
 
+import ch.so.agi.mcp.model.ModelHashes;
+import ch.so.agi.mcp.model.TestXtfOutput;
 import ch.so.agi.mcp.analysis.ModelChangeReviewService;
 import ch.so.agi.mcp.analysis.ModelPurpose;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
@@ -44,7 +46,7 @@ public final class IliModelAuthoringTools {
 
   @McpTool(
       name = "authorIliModel",
-      description = "Erzeugt aus einer vollständigen typisierten IliModelSpec ein vollständiges INTERLIS-2-Modell. Name, URI, Modellversion und INTERLIS-Version sind explizit erforderlich; fehlende Fachsemantik wird nicht erfunden. Unterstützt Units, Domains, Topics, Klassen, Strukturen, Assoziationen, Attribute, strikte Geometrien sowie UNIQUE, MANDATORY, EXISTENCE, PLAUSIBILITY und SET. Das fertige Modell wird genau einmal mit ili2c kompiliert; AST-Generierung, alle Constraint-Proofs und afterReview verwenden diesen kompilierten Kontext weiter. Das Tool schreibt keine Datei.",
+      description = ch.so.agi.mcp.knowledge.ConstraintWorkflowGuidance.TOOL + " Erzeugt aus einer vollständigen typisierten IliModelSpec ein vollständiges INTERLIS-2-Modell. Name, URI, Modellversion und INTERLIS-Version sind explizit erforderlich; fehlende Fachsemantik wird nicht erfunden. Unterstützt Units, Domains, Topics, Klassen, Strukturen, Assoziationen, Attribute, strikte Geometrien sowie UNIQUE, MANDATORY, EXISTENCE, PLAUSIBILITY und SET. Das fertige Modell wird genau einmal mit ili2c kompiliert; AST-Generierung, alle Constraint-Proofs und afterReview verwenden diesen kompilierten Kontext weiter. Das Tool schreibt keine Datei.",
       generateOutputSchema = true,
       annotations = @McpTool.McpAnnotations(
           readOnlyHint = true,
@@ -57,7 +59,16 @@ public final class IliModelAuthoringTools {
       @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false)
       @Nullable ModelPurpose modelPurpose,
       @McpToolParam(description = "Regelprofil: CORE oder SO (Default CORE)", required = false)
-      @Nullable ModelingRuleProfile ruleProfile) {
+      @Nullable ModelingRuleProfile ruleProfile,
+      @McpToolParam(description = TestXtfOutput.PARAMETER, required = false) @org.jspecify.annotations.Nullable Boolean includeSuccessfulTestXtf) {
+    return TestXtfOutput.prepare(ModelHashes.attach(authorIliModelFull(spec, modelPurpose, ruleProfile), null), includeSuccessfulTestXtf);
+  }
+
+  public IliAuthoringResult authorIliModel(IliModelSpec spec, @Nullable ModelPurpose modelPurpose, @Nullable ModelingRuleProfile ruleProfile) {
+    return authorIliModel(spec, modelPurpose, ruleProfile, null);
+  }
+
+  private IliAuthoringResult authorIliModelFull(IliModelSpec spec, @Nullable ModelPurpose modelPurpose, @Nullable ModelingRuleProfile ruleProfile) {
     IliSpecRenderer.RenderedModel rendered;
     try {
       rendered = renderer.renderModel(spec);

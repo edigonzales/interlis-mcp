@@ -1,0 +1,50 @@
+{
+  "id": "R01",
+  "requiredQuestions": [],
+  "rules": [
+    "age"
+  ],
+  "expectations": [
+    {
+      "id": "age17",
+      "values": {
+        "age": 17
+      },
+      "expectedValid": false,
+      "expectedRules": {
+        "age": false
+      }
+    },
+    {
+      "id": "age18",
+      "values": {
+        "age": 18
+      },
+      "expectedValid": true,
+      "expectedRules": {
+        "age": true
+      }
+    },
+    {
+      "id": "missing",
+      "values": {},
+      "expectedValid": false,
+      "expectedRules": {
+        "age": false
+      }
+    }
+  ],
+  "injectedDiagnostic": {
+    "status": "INVALID_SPEC",
+    "specDiagnostics": [
+      {
+        "code": "INVALID_IDENTIFIER",
+        "path": "/spec/name",
+        "hint": "Use the requested technical name Adult."
+      }
+    ]
+  },
+  "referenceConstraints": {
+    "age": "DEFINED(age) AND age >= 18"
+  }
+}

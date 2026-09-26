@@ -1,0 +1,52 @@
+{
+  "id": "P03",
+  "requiredQuestions": [],
+  "rules": [
+    "conditional_code"
+  ],
+  "expectations": [
+    {
+      "id": "inactiveMissing",
+      "values": {
+        "state": "inactive"
+      },
+      "expectedValid": false,
+      "expectedRules": {
+        "conditional_code": false
+      }
+    },
+    {
+      "id": "inactiveCode",
+      "values": {
+        "state": "inactive",
+        "code": "X"
+      },
+      "expectedValid": true,
+      "expectedRules": {
+        "conditional_code": true
+      }
+    },
+    {
+      "id": "activeCode",
+      "values": {
+        "state": "active",
+        "code": "X"
+      },
+      "expectedValid": true,
+      "expectedRules": {
+        "conditional_code": true
+      }
+    },
+    {
+      "id": "missing",
+      "values": {},
+      "expectedValid": true,
+      "expectedRules": {
+        "conditional_code": true
+      }
+    }
+  ],
+  "referenceConstraints": {
+    "conditional_code": "NOT (DEFINED(state)) OR state != #inactive OR DEFINED(code)"
+  }
+}

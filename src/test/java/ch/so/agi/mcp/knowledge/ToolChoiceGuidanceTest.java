@@ -159,7 +159,7 @@ class ToolChoiceGuidanceTest {
       }
       McpTool annotation = method.getAnnotation(McpTool.class);
       if (annotation == null) {
-        throw new AssertionError("Missing @McpTool on " + type.getSimpleName() + "." + methodName);
+        continue; // Compatibility overloads are not public MCP tools.
       }
       return annotation.description();
     }

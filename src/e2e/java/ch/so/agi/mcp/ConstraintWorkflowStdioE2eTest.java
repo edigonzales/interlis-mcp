@@ -182,6 +182,38 @@ class ConstraintWorkflowStdioE2eTest {
     assertTrue(diagnostic.get("hint").asText().contains("COLLECTION_SUM"),response);
   }
 
+  @Test
+  void proseContextAuthoringAndIndependentExpectationsRoundTrip() throws Exception {
+    initializeSession();
+    var mapper = new tools.jackson.databind.ObjectMapper();
+    String source = "INTERLIS 2.4; MODEL Prose (en) AT \"https://example.org\" VERSION \"1\" = TOPIC Data = CLASS Person = age : MANDATORY 0..100; END Person; END Data; END Prose.";
+    String context = callTool(2, "analyzeIliModel", mapper.writeValueAsString(java.util.Map.of("modelText", source, "contextFqn", "Prose.Data.Person")));
+    assertContainsAll(context, "authoringContext", "AVAILABLE", "minimum", "maximum", "modelHashes");
+    String payload = "{\"modelText\":" + jsonString(source) + ",\"contextFqn\":\"Prose.Data.Person\",\"spec\":{\"kind\":\"MANDATORY\",\"name\":\"Adult\",\"condition\":{\"kind\":\"COMPARE\",\"operator\":\">=\",\"children\":[{\"kind\":\"ATTRIBUTE\",\"name\":\"age\"},{\"kind\":\"NUMERIC\",\"value\":18}]}}}";
+    payload = payload.substring(0, payload.length()-1) + ",\"includeSuccessfulTestXtf\":false}";
+    String authoring = callTool(3, "authorIliMandatoryConstraint", payload);
+    var envelope = mapper.readTree(authoring).get("result");
+    var result = envelope.get("structuredContent");
+    if (result == null) result = mapper.readTree(envelope.get("content").get(0).get("text").asText());
+    assertTrue(result.get("status").asText().equals("GENERATED"), authoring);
+    assertTrue(result.get("constraintProofs").get(0).get("explanation").get("description").asText().contains("mindestens 18"), authoring);
+    assertTrue(result.get("modelHashes").get("before").asText().equals(ch.so.agi.mcp.model.ModelHashes.sha256(source)), authoring);
+    assertTrue(result.get("omittedSuccessfulTestXtfCount").asInt() > 0, authoring);
+    var cases = new java.util.ArrayList<java.util.Map<String,Object>>();
+    for (int age : new int[]{17,18,19}) cases.add(java.util.Map.of("name", "age" + age,
+        "expectationSource", "USER_PROVIDED", "expectedConstraintValid", age >= 18,
+        "objects", java.util.List.of(java.util.Map.of("classFqn", "Prose.Data.Person", "oid", "p", "values", java.util.Map.of("age", age)))));
+    String tested = callTool(4, "testIliConstraint", mapper.writeValueAsString(java.util.Map.of("modelText", result.get("updatedModelText").asText(), "constraint", "Prose.Data.Person.Adult", "cases", cases, "includeSuccessfulTestXtf", false)));
+    assertContainsAll(tested, "USER_PROVIDED", "CALLER_SUPPLIED_EXPECTATIONS", "allPassed");
+    var testEnvelope = mapper.readTree(tested).get("result");
+    var testResult = testEnvelope.get("structuredContent");
+    if (testResult == null) testResult = mapper.readTree(testEnvelope.get("content").get(0).get("text").asText());
+    assertTrue(testResult.get("allPassed").asBoolean(), tested);
+    assertTrue(testResult.get("modelHashes").get("model").asText().equals(result.get("modelHashes").get("after").asText()), tested);
+    assertTrue(testResult.get("omittedSuccessfulTestXtfCount").asInt() == 3, tested);
+    assertFalse(testResult.get("cases").get(0).has("xtfText"), tested);
+  }
+
   private void initializeSession() throws Exception {
     send("{"
         + "\"jsonrpc\":\"2.0\","

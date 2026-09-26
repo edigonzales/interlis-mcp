@@ -1,0 +1,9 @@
+{
+  "id": "Q03",
+  "requiredQuestions": [
+    "undefined_condition_policy"
+  ],
+  "rules": [],
+  "expectations": [],
+  "referenceConstraints": {}
+}

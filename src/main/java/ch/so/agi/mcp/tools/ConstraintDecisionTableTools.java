@@ -1,5 +1,7 @@
 package ch.so.agi.mcp.tools;
 
+import ch.so.agi.mcp.model.ModelHashes;
+import ch.so.agi.mcp.model.TestXtfOutput;
 import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.analysis.ModelChangeReviewService;
 import ch.so.agi.mcp.constraint.ConstraintAuthoringEngine;
@@ -75,7 +77,7 @@ public class ConstraintDecisionTableTools {
 
   @McpTool(
       name = "generateIliConstraintFromDecisionTable",
-      description = "Erzeugt aus einer strukturierten Entscheidungstabelle einen INTERLIS Mandatory Constraint, leitet ueber die gemeinsame semantische IR-/Solver-Pipeline Boundary-/Kategoriefaelle ab und beweist den erzeugten Constraint mit testIliConstraint und dem echten ilivalidator. Diff und afterReview werden aus den vorhandenen Before-/After-Compilations erzeugt; danach ist kein reviewIliChange nötig. Unterstuetzt direkte NUMERIC/BOOLEAN/ENUM-Attribute, einen einzelnen hoechstens einwertigen Association-Pfad Rolle->Attribut, SUM auf einem mehrwertigen numerischen Association-Pfad sowie DEFINED/NOT DEFINED und SUM plus direktes NUMERIC-Attribut.",
+      description = ch.so.agi.mcp.knowledge.ConstraintWorkflowGuidance.TOOL + " Erzeugt aus einer strukturierten Entscheidungstabelle einen INTERLIS Mandatory Constraint, leitet ueber die gemeinsame semantische IR-/Solver-Pipeline Boundary-/Kategoriefaelle ab und beweist den erzeugten Constraint mit testIliConstraint und dem echten ilivalidator. Diff und afterReview werden aus den vorhandenen Before-/After-Compilations erzeugt; danach ist kein reviewIliChange nötig. Unterstuetzt direkte NUMERIC/BOOLEAN/ENUM-Attribute, einen einzelnen hoechstens einwertigen Association-Pfad Rolle->Attribut, SUM auf einem mehrwertigen numerischen Association-Pfad sowie DEFINED/NOT DEFINED und SUM plus direktes NUMERIC-Attribut.",
       generateOutputSchema = true,
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
@@ -83,7 +85,16 @@ public class ConstraintDecisionTableTools {
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext ohne den zu erzeugenden Constraint", required = true) String modelText,
       @McpToolParam(description = "Vollqualifizierter Klassen- oder Strukturkontext; Strukturen werden fuer den Proof in eine vorhandene konkrete Besitzerklasse eingebettet", required = true) String context,
       @McpToolParam(description = ch.so.agi.mcp.model.ConstraintAuthoringGuidance.NAME, required = true) String constraintName,
-      @McpToolParam(description = "Erlaubte Entscheidungszeilen. Standardbedingung: attribute, operator, value. Optional aggregate=SUM oder OBJECT_COUNT (Objektpfad, numerischer Vergleich; kein defined/addAttribute). Fuer Summenpraesenz: aggregate=SUM ist bei defined=true/false erforderlich, ohne operator/value/addAttribute; direkte DEFINED-Attribute gehoeren ins typisierte Authoring. Enum-Strings erlauben genau ein optionales fuehrendes #. Fuer Addition: addAttribute=<direktes NUMERIC-Attribut> zusammen mit aggregate=SUM, operator == und numerischem value.", required = true) List<DecisionRow> rows) {
+      @McpToolParam(description = "Erlaubte Entscheidungszeilen. Standardbedingung: attribute, operator, value. Optional aggregate=SUM oder OBJECT_COUNT (Objektpfad, numerischer Vergleich; kein defined/addAttribute). Fuer Summenpraesenz: aggregate=SUM ist bei defined=true/false erforderlich, ohne operator/value/addAttribute; direkte DEFINED-Attribute gehoeren ins typisierte Authoring. Enum-Strings erlauben genau ein optionales fuehrendes #. Fuer Addition: addAttribute=<direktes NUMERIC-Attribut> zusammen mit aggregate=SUM, operator == und numerischem value.", required = true) List<DecisionRow> rows,
+      @McpToolParam(description = TestXtfOutput.PARAMETER, required = false) @org.jspecify.annotations.Nullable Boolean includeSuccessfulTestXtf) {
+    return TestXtfOutput.prepare(ModelHashes.attach(generateIliConstraintFromDecisionTableFull(modelText, context, constraintName, rows), modelText), includeSuccessfulTestXtf);
+  }
+
+  public IliAuthoringResult generateIliConstraintFromDecisionTable(String modelText, String context, String constraintName, List<DecisionRow> rows) {
+    return generateIliConstraintFromDecisionTable(modelText, context, constraintName, rows, null);
+  }
+
+  private IliAuthoringResult generateIliConstraintFromDecisionTableFull(String modelText, String context, String constraintName, List<DecisionRow> rows) {
     String normalizedContext;
     String normalizedConstraintName;
     List<NormalizedRow> normalizedRows;

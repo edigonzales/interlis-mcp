@@ -1,5 +1,6 @@
 package ch.so.agi.mcp.analysis;
 
+import ch.so.agi.mcp.model.ModelHashes;
 import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
 import ch.so.agi.mcp.knowledge.ModelingRuleTools;
 import ch.so.agi.mcp.service.IliCompilerService;
@@ -42,6 +43,10 @@ public class ModelChangeTools {
       @McpToolParam(description = "Modellzweck fuer das Review des After-Modells: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false) @Nullable ModelPurpose modelPurpose,
       @McpToolParam(description = "Regelprofil fuer das Review des After-Modells: CORE oder SO (Default CORE)", required = false) @Nullable ModelingRuleProfile ruleProfile
   ) {
+    return ModelHashes.attach(reviewIliChangeFull(beforeModelText, afterModelText, modelPurpose, ruleProfile), ModelHashes.change(beforeModelText, afterModelText));
+  }
+
+  private Map<String, Object> reviewIliChangeFull(String beforeModelText, String afterModelText, @Nullable ModelPurpose modelPurpose, @Nullable ModelingRuleProfile ruleProfile) {
     ModelPurpose purpose = ModelPurpose.normalize(modelPurpose);
     ModelingRuleProfile profile = ModelingRuleProfile.normalize(ruleProfile);
 

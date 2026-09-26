@@ -1,5 +1,6 @@
 package ch.so.agi.mcp.knowledge;
 
+import ch.so.agi.mcp.model.ModelHashes;
 import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.interlis.ili2c.metamodel.TransferDescription;
 import ch.so.agi.mcp.analysis.ModelPurpose;
@@ -77,6 +78,10 @@ public class ModelingRuleTools {
       @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false) @Nullable ModelPurpose modelPurpose,
       @McpToolParam(description = "Regelprofil: CORE oder SO (Default CORE)", required = false) @Nullable ModelingRuleProfile ruleProfile
   ) {
+    return ModelHashes.attach(reviewIliModelFull(modelText, modelPurpose, ruleProfile), ModelHashes.model(modelText));
+  }
+
+  private Map<String, Object> reviewIliModelFull(String modelText, @Nullable ModelPurpose modelPurpose, @Nullable ModelingRuleProfile ruleProfile) {
     ModelPurpose purpose = ModelPurpose.normalize(modelPurpose);
     ModelingRuleProfile profile = ModelingRuleProfile.normalize(ruleProfile);
 
