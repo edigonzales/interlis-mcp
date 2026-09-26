@@ -181,7 +181,7 @@ public class AgentPrompts {
   }
 
   private GetPromptResult prompt(String description, String text) {
-    return new GetPromptResult(description, List.of(new PromptMessage(Role.USER, new TextContent(text))));
+    return new GetPromptResult(description, List.of(new PromptMessage(Role.USER, new TextContent(text + ResultEvidenceGuidance.TEXT))));
   }
 
   private String blankFallback(@Nullable String value, String fallback) {

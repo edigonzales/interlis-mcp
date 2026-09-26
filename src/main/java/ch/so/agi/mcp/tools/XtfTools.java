@@ -19,7 +19,7 @@ public class XtfTools {
 
   @McpTool(
       name = "generateExampleXtf",
-      description = "Erzeugt aus einem INTERLIS-Modell ein deterministisches Minimal-XTF. Rückgabe: {generated,xtfText?,messages,basketCount,objectCount,objectsByClass,skippedClasses}. Das Tool schreibt keine Datei.",
+      description = "Erzeugt aus einem INTERLIS-Modell ein deterministisches Minimal-XTF. Validiert das erzeugte XTF einmal gegen die Modellregeln. generated bezeichnet nur die Erzeugung; validation beschreibt VALID, INVALID, ERROR oder NOT_RUN. Keine zweite routinemaessige validateXtf-Runde fuer dasselbe XTF. Rückgabe: {generated,xtfText?,messages,basketCount,objectCount,objectsByClass,skippedClasses,validation}. Das Tool schreibt keine Datei.",
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> generateExampleXtf(
@@ -38,6 +38,7 @@ public class XtfTools {
     response.put("objectCount", result.objectCount());
     response.put("objectsByClass", result.objectsByClass());
     response.put("skippedClasses", result.skippedClasses());
+    response.put("validation", result.validation());
     return response;
   }
 

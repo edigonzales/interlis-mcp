@@ -186,7 +186,7 @@ public final class IliModelAuthoringTools {
         result.reason = "The final review requires an explicit user decision.";
       }
     }
-    return result;
+    return result.withEvidence("ALL_DECLARED_CONSTRAINTS");
   }
 
   private List<String> constraintFqns(IliModelSpec spec) {
@@ -283,6 +283,6 @@ public final class IliModelAuthoringTools {
     result.compilerDiagnostics = IliAuthoringResult.diagnostics(diagnostics);
     result.afterDiagnostics = IliAuthoringResult.diagnostics(diagnostics);
     result.derivedImports = derivedImports;
-    return result;
+    return result.withEvidence("ALL_DECLARED_CONSTRAINTS");
   }
 }

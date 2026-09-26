@@ -145,7 +145,7 @@ public class StdioE2eTest {
 
         String createResp = callTool(3, "authorIliModel", argsJson);
         assertSuccessfulToolResponse(
-                createResp, "authorIliModel", "GENERATED", "INTERLIS 2.4", "MODEL DemoModel (de)", "!!@ title=", "Demo");
+                createResp, "authorIliModel", "GENERATED", "INTERLIS 2.4", "MODEL DemoModel (de)", "!!@ title=", "Demo", "evidence", "NOT_APPLICABLE", "businessAcceptance", "constraintInteractions");
     }
 
     @Test
@@ -177,7 +177,7 @@ public class StdioE2eTest {
                 "APPLIED",
                 "ziel",
                 "REFERENCE TO",
-                "Demo.Topic.Target");
+                "Demo.Topic.Target", "evidence", "ADDED_CONSTRAINTS", "constraintInteractions");
     }
 
     @Test
@@ -243,6 +243,8 @@ public class StdioE2eTest {
                 "\\\"objectCount\\\":1",
                 "\\\"objectsByClass\\\"",
                 "\\\"skippedClasses\\\"");
+
+        assertContainsAll(generateResponse, "validation", "VALID", "MODEL_RULES_FOR_TRANSFERRED_DATA");
 
         String validateArgsJson = "{"
                 + "\"modelText\":" + jsonString(modelText) + ","

@@ -377,3 +377,34 @@ Bei jeder Änderung an einer öffentlichen Fähigkeit prüfen:
 - Müssen MCP-Prompt/Resource und deren Tests angepasst werden?
 
 Codebeschreibung, maschinenwirksamer Agentenvertrag und menschliche Dokumentation sollen dieselbe Wahrheit ausdrücken.
+
+## Abnahme der ergänzenden Ergebnisnachweise (26. September 2026)
+
+Der Arbeitsstand mit `evidence`, automatischer XTF-Beispielvalidierung und
+`constraintInteractions` wurde unter Java 21 mit `./gradlew check e2eTest` geprüft:
+
+| Prüfung | Ergebnis |
+| --- | --- |
+| Java-Tests einschliesslich Schema-, Handler- und Differentialtests | 544 bestanden, keine ausgelassen |
+| STDIO-E2E gegen das gebaute JAR | 19 bestanden, keine ausgelassen |
+| Python-Benchmark-Prüfer und Recorder | 32 bestanden |
+| `git diff --check` | Keine Whitespace-Fehler |
+
+Die Regressionen prüfen insbesondere unabhängige Altersgrenzen (17/18/19), getrennte
+Mandatory-Auswertung bei UNDEFINED, numerische Präzision, Enum-Widersprüche, nicht
+unterstützte Regeln, das echte 50.000-Zustände-Budget sowie den unveränderten
+Ein-/Zwei-Compile-Vertrag. Ein zusätzlicher Befund darf weder die bestehende Freigabe
+noch `requiresUserDecision` verändern. Die MCP-Oberfläche bleibt bei 27 Tools mit
+unveränderten Eingabeparametern; die vorhandenen Schema-Grössenlimits werden eingehalten.
+
+Bei Constraint-Tests zählt `evidence.constraintTests.errorCount` fehlgeschlagene Testerwartungen,
+nicht die erwarteten Validatorverletzungen erfolgreicher negativer Testfälle.
+Warnungen der ausgeführten Fälle werden separat zusammengezählt.
+
+Die skalare Analyse ist kein vollständiger Erfüllbarkeitstest für Objektgraphen.
+Ein validierter Beispieltransfer prüft nur die tatsächlich übertragenen Daten.
+Fachliche Akzeptanz und die Herkunft expliziter Erwartungen werden nicht behauptet.
+
+Die eingefrorenen Benchmark-Suiten und Referenzanforderungen wurden nicht verändert;
+ein neuer freier Agentenbenchmark über einen nativen Connector wurde nicht ausgeführt.
+Die obigen technischen Testzahlen sind keine Agentenerfolgsquote.

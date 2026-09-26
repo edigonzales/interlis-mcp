@@ -927,3 +927,22 @@ Fehlende optionale Verbindungen ergeben null Pfadvorkommen. Nicht auflösbare Re
 Nach Fixture-Ergänzung werden ursprüngliche kompilierte Zählausdrücke erneut gegen den Validator-Pool geprüft. `OBJECT_PATH_COUNT_MISMATCH` und `OBJECT_PATH_TOPOLOGY_MISMATCH` verhindern einen erfolgreichen Proof. `OBJECT_PATH_CONCRETE_ROUTE_UNAVAILABLE`, `OBJECT_PATH_STEP_BUDGET_EXCEEDED`, `OBJECT_PATH_ROUTE_BUDGET_EXCEEDED` und `OBJECT_PATH_FIXTURE_BUDGET_EXCEEDED` unterscheiden nicht unterstützte Routen und Budgets. Ungültige Zweifachverknüpfungen einer `{0..1}`-Rolle liefern `OBJECT_PATH_CARDINALITY_VIOLATION`; sonstige bekannte XTF-Schreibfehler `FIXTURE_XTF_SERIALIZATION_FAILED`.
 
 Ohne vollständige Coverage und verifizierten Witness sowie Counterexample bleiben `generated=false`, `proofVerified=false` und der Kandidat erhalten. `updatedModelText` wird nicht freigegeben. `elementCount` für Strukturzählungen, polymorphe Strukturtypwahl, neue View-Formen und ein Validator-Upgrade gehören nicht zu dieser Unterstützung.
+
+## Ergänzende Nachweise und Constraint-Zusammenspiel
+
+`evidence` unterscheidet automatisch aus dem Constraint abgeleitete Tests von expliziten
+`CALLER_SUPPLIED_EXPECTATIONS`. Beide belegen nur ihren angegebenen Umfang; `businessAcceptance`
+bleibt `NOT_RUN`. Fachliche Grenzfälle können über das vorhandene `testIliConstraint` unabhängig
+vom automatischen Proof vorgegeben werden.
+
+Reviews und eingebettete `afterReview`-Ergebnisse enthalten `constraintInteractions`. Die gemeinsame
+skalare Partitionierung mit der Erreichbarkeitsprüfung berücksichtigt Domains, Präzision und
+optionale Werte. Sie untersucht direkte skalare Mandatory-Regeln konkreter Klassen ohne
+Klassenvererbung. Jede Regel wird separat mit der bestehenden Validator-Semantik ausgewertet;
+eine Verkettung aller Regeln zu einem geordneten AND wäre bei UNDEFINED falsch.
+
+`CONTRADICTION_PROVEN` erfordert vollständige Partitionierung der unterstützten Regeln.
+`SCALAR_ASSIGNMENT_FOUND` bestätigt nur eine skalare Belegung. Nicht unterstützte Regeln werden
+explizit aufgeführt; nach dem gemeinsamen Budget von 50.000 Zuständen bleibt das Ergebnis `UNKNOWN`.
+Diese Ergänzung verändert keine bestehenden Authoring-Gates. Details und Grenzen beschreibt das
+[Benutzerhandbuch](USER_GUIDE.md#prüfnachweise-und-ihre-grenzen).

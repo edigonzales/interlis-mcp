@@ -185,6 +185,9 @@ public class KnowledgeResources {
   }
 
   private ReadResourceResult markdown(String uri, String markdown) {
+    if (uri.endsWith("/agent-workflow") || uri.endsWith("/tool-guide") || uri.endsWith("/constraint-workflow")) {
+      markdown += ResultEvidenceGuidance.TEXT;
+    }
     return new ReadResourceResult(List.of(new TextResourceContents(uri, "text/markdown", markdown)));
   }
 }

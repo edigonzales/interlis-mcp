@@ -40,7 +40,7 @@ public class ModelChangeReviewService {
       return notComparableResponse(
           beforeCompilation,
           afterCompilation,
-          unavailableAfterReview(purpose, profile));
+          unavailableAfterReview(purpose, profile, afterCompilation.messages()));
     }
 
     ModelAnalysisTools.AnalysisData after =
@@ -48,7 +48,7 @@ public class ModelChangeReviewService {
     Map<String, Object> afterAnalysis =
         analysisTools.toResponse(true, afterCompilation.messages(), after, purpose);
     Map<String, Object> afterReview =
-        ruleTools.reviewAnalyzedModel(afterModelText, purpose, profile, afterAnalysis);
+        ruleTools.reviewAnalyzedModel(afterModelText, purpose, profile, afterAnalysis, afterCompilation.transferDescription());
 
     if (!beforeCompilation.valid()) {
       return notComparableResponse(beforeCompilation, afterCompilation, afterReview);
@@ -94,6 +94,9 @@ public class ModelChangeReviewService {
         Map.entry("potentiallyBreakingChanges", potentiallyBreaking),
         Map.entry("impact", impact),
         Map.entry("afterReview", afterReview),
+        Map.entry("evidence", ch.so.agi.mcp.model.EvidenceSummary.changeReview(
+            beforeCompilation.valid(), beforeCompilation.messages(), afterCompilation.valid(), afterCompilation.messages(),
+            (ch.so.agi.mcp.model.EvidenceSummary) afterReview.get("evidence"))),
         Map.entry("summary", summary(added.size(), removed.size(), changed.size(), potentiallyBreaking.size())),
         Map.entry("limitations", limitations()));
   }
@@ -108,6 +111,8 @@ public class ModelChangeReviewService {
     if (!compilation.valid() || compilation.transferDescription() == null) {
       return Map.of(
           "available", false,
+          "constraintInteractions", ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis.analyze(null),
+          "evidence", ch.so.agi.mcp.model.EvidenceSummary.review(false, compilation.messages(), List.of(), profile.name()),
           "modelPurpose", purpose.name(),
           "ruleProfile", profile.name(),
           "reason", "The authored model must compile before it can be reviewed.");
@@ -116,7 +121,7 @@ public class ModelChangeReviewService {
         compilation.transferDescription(), modelText);
     Map<String, Object> response = analysisTools.toResponse(
         true, compilation.messages(), analysis, purpose);
-    return ruleTools.reviewAnalyzedModel(modelText, purpose, profile, response);
+    return ruleTools.reviewAnalyzedModel(modelText, purpose, profile, response, compilation.transferDescription());
   }
 
   private Map<String, Object> notComparableResponse(
@@ -136,13 +141,18 @@ public class ModelChangeReviewService {
         Map.entry("potentiallyBreakingChanges", List.of()),
         Map.entry("impact", "UNKNOWN"),
         Map.entry("afterReview", afterReview),
+        Map.entry("evidence", ch.so.agi.mcp.model.EvidenceSummary.changeReview(
+            beforeCompilation.valid(), beforeCompilation.messages(), afterCompilation.valid(), afterCompilation.messages(),
+            (ch.so.agi.mcp.model.EvidenceSummary) afterReview.get("evidence"))),
         Map.entry("summary", summary(0, 0, 0, 0)),
         Map.entry("limitations", limitations()));
   }
 
-  private Map<String, Object> unavailableAfterReview(ModelPurpose purpose, ModelingRuleProfile profile) {
+  private Map<String, Object> unavailableAfterReview(ModelPurpose purpose, ModelingRuleProfile profile, List<?> diagnostics) {
     return Map.of(
         "available", false,
+          "constraintInteractions", ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis.analyze(null),
+        "evidence", ch.so.agi.mcp.model.EvidenceSummary.review(false, diagnostics, List.of(), profile.name()),
         "modelPurpose", purpose.name(),
         "ruleProfile", profile.name(),
         "reason", "The after model must compile before modeling rules can be reviewed.");

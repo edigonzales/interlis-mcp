@@ -414,3 +414,16 @@ von Fehlermeldungen. Typisierte Proof-Resultate übernehmen die View-Diagnostik.
 Nach Fixture-Ergänzung und Aufbau des echten Validator-Pools wertet `ObjectCountVerification` die ursprünglichen kompilierten Zählausdrücke und ihre Pfadpräfixe aus. `objectCounts` in Rohresultat und typisierter Fallverifikation enthält geplante und tatsächliche Anzahl, unterschiedliche Zielidentitäten, konkrete Typen je Schritt sowie geprüfte Topologiepflichten. Die Zählpolitik `PINNED_VALIDATOR_PATH_OCCURRENCES` bezeichnet ausdrücklich das Verhalten des installierten Validators: zwei Wege zu derselben OID zählen zweimal. Abweichungen sperren den Proof.
 
 Es gelten höchstens acht Navigationsschritte, acht konkrete Routenkombinationen und 64 explizite Klassenobjekte plus Beziehungen pro Fixture. Ergänzte Pflichtbeziehungen und Strukturinstanzen behalten zusätzliche eigene Budgets. Fehlende konkrete Routen, Budgetüberschreitungen, Zählabweichungen und Kardinalitäts-/XTF-Fehler bleiben strukturierte Proof- beziehungsweise Fixture-Grenzen. Kein Solver- oder Fixture-Fehler begründet einen erfolgreichen Ausschluss. Authoring verwendet unverändert genau zwei Kompilierungen.
+
+
+## Ergänzende Ergebnisnachweise
+
+`EvidenceSummary` bereitet vorhandene Resultate typisiert auf, ohne Freigabefelder zu verändern.
+Modellreviews und ihre eingebetteten Varianten verwenden `ConstraintInteractionAnalysis` mit
+dem vorhandenen Compiler-AST. `ScalarTruthPartitions` enthält die unverändert wiederverwendete
+Partitionierung der Erreichbarkeitsprüfung. Getrennte Mandatory-Auswertung verhindert, dass
+UNDEFINED eine andere Regel verdeckt. Das gemeinsame Review-Budget beträgt 50.000 Zustände.
+
+Die XTF-Erzeugung führt den vorhandenen vollständigen XTF-Validierungspfad einmal aus und hält
+Erzeugungs- und Validierungsdiagnosen getrennt. Das betrifft ausschliesslich erzeugte Beispiele;
+die bisherigen Ein-/Zwei-Compile-Verträge von Reviews und Authoring bleiben erhalten.

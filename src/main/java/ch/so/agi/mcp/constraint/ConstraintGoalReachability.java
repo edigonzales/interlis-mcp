@@ -2,11 +2,9 @@ package ch.so.agi.mcp.constraint;
 
 import ch.so.agi.mcp.constraint.ConstraintExpression.*;
 import ch.so.agi.mcp.constraint.ConstraintExpressionEngine.TestGoal;
-import ch.so.agi.mcp.constraint.ConstraintExpressionEngine.Undefined;
 import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer.ModelBinding;
 import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer.ReferenceBinding;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -37,7 +35,7 @@ public final class ConstraintGoalReachability {
       footprint = binding.viewScope().footprint(footprint);
     }
     Set<BigDecimal> pivots = new LinkedHashSet<>();
-    collectPivots(footprint, pivots);
+    ScalarTruthPartitions.collectPivots(footprint, pivots);
     List<Domain> domains = new ArrayList<>();
     long states = 1;
     for (Reference reference : footprint.references().stream()
@@ -46,7 +44,7 @@ public final class ConstraintGoalReachability {
       if (bound == null || !bound.reference().type().equals(reference.type())) {
         return unknown("Missing or inconsistent model domain for " + reference.name() + ".");
       }
-      List<Object> values = representatives(bound, pivots);
+      List<Object> values = ScalarTruthPartitions.representatives(bound, pivots);
       if (values == null || values.isEmpty()) return ConstraintDefinednessReachability.analyze(goal, binding);
       if (states > MAX_STATES / values.size()) return unknown("Predicate partition exceeds 50000 states.");
       states *= values.size();
@@ -66,7 +64,7 @@ public final class ConstraintGoalReachability {
 
   private static Result unknown(String reason) { return new Result(Status.UNKNOWN, reason); }
 
-  private static boolean supported(ConstraintExpression expression) {
+  static boolean supported(ConstraintExpression expression) {
     return switch (expression) {
       case ObjectCount ignored -> true;
       case Attribute attribute -> scalar(attribute.type());
@@ -100,58 +98,6 @@ public final class ConstraintGoalReachability {
 
   private static boolean isLiteral(ConstraintExpression expression) {
     return expression instanceof NumericLiteral || expression instanceof BooleanLiteral || expression instanceof EnumLiteral;
-  }
-
-  private static void collectPivots(ConstraintExpression expression, Set<BigDecimal> result) {
-    switch (expression) {
-      case NumericLiteral literal -> result.add(literal.value());
-      case Comparison comparison -> { collectPivots(comparison.left(), result); collectPivots(comparison.right(), result); }
-      case Defined defined -> collectPivots(defined.operand(), result);
-      case Not not -> collectPivots(not.operand(), result);
-      case And and -> and.operands().forEach(operand -> collectPivots(operand, result));
-      case Or or -> or.operands().forEach(operand -> collectPivots(operand, result));
-      case Implies implies -> { collectPivots(implies.antecedent(), result); collectPivots(implies.consequent(), result); }
-      default -> { }
-    }
-  }
-
-  private static List<Object> representatives(ReferenceBinding bound, Set<BigDecimal> pivots) {
-    if ((bound.reference().kind() != ReferenceKind.OBJECT_COUNT && bound.navigation().stream().anyMatch(ConstraintModelSynthesizer.NavigationBinding::multiValued))) return null;
-    Set<Object> values = new LinkedHashSet<>();
-    switch (bound.domain().kind()) {
-      case BOOLEAN -> { values.add(false); values.add(true); }
-      case ENUM -> {
-        if (bound.domain().values().isEmpty()) return null;
-        values.addAll(bound.domain().values());
-      }
-      case NUMERIC -> {
-        var domain = bound.domain().numeric();
-        if (domain == null || domain.minimum() == null
-            || domain.maximum() == null && bound.reference().kind() != ReferenceKind.OBJECT_COUNT
-            || !Double.isFinite(domain.minimum().doubleValue())
-            || domain.maximum() != null && !Double.isFinite(domain.maximum().doubleValue())) return null;
-        // NumericDomain.contains uses the declared precision (scale), not a pivot sampling cap.
-        int scale = domain.step().scale();
-        BigDecimal quantum = BigDecimal.ONE.scaleByPowerOfTen(-scale);
-        Set<BigDecimal> cuts = new LinkedHashSet<>(pivots);
-        cuts.add(domain.minimum());
-        // For an unbounded count, the point above the greatest predicate pivot represents
-        // the entire final interval. This is a truth partition, not a fixture/search limit.
-        if(domain.maximum()!=null)cuts.add(domain.maximum());
-        for (BigDecimal cut : cuts) {
-          BigDecimal floor = cut.setScale(scale, RoundingMode.FLOOR);
-          BigDecimal ceil = cut.setScale(scale, RoundingMode.CEILING);
-          for (BigDecimal value : List.of(floor.subtract(quantum), floor, ceil, ceil.add(quantum))) {
-            if (domain.contains(value)) values.add(value);
-          }
-        }
-      }
-      default -> { return null; }
-    }
-    if (!bound.domain().mandatory() || (bound.reference().kind() != ReferenceKind.OBJECT_COUNT && bound.navigation().stream().anyMatch(step -> step.minimum() == 0))) {
-      values.add(Undefined.INSTANCE);
-    }
-    return List.copyOf(values);
   }
 
   private static boolean satisfiable(TestGoal goal, List<Domain> domains, int index, Map<String, Object> assignment, ViewProofScope scope) {

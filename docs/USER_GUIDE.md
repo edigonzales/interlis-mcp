@@ -429,3 +429,67 @@ Technische Fehler und fachliche Unsicherheiten sind unterschiedliche Dinge:
 - [Agentische Arbeitsabläufe](AGENT_WORKFLOWS.md)
 - [Constraints](CONSTRAINTS.md)
 - [Architektur](ARCHITECTURE.md)
+
+## Prüfnachweise und ihre Grenzen
+
+Modellreviews, Änderungsreviews, High-Level-Authoring und Constraint-Tests enthalten
+zusätzlich `evidence`. Bestehende Statuswerte und Freigabebedingungen bleiben unverändert.
+Insbesondere verändern die neuen Befunde weder `updatedModelText` noch `requiresUserDecision`.
+
+| Teil | Aussage |
+| --- | --- |
+| `compiler` | Tatsächliches ili2c-Ergebnis; beim Änderungsreview für beide Modellstände. |
+| `modelingRules` | Automatisierte Regeln des gewählten Profils; manuelle Checks bleiben offen. |
+| `constraintTests` | Automatisch abgeleitete Fälle oder explizit übergebene Erwartungen. |
+| `constraintInteractions` | Begrenzte gemeinsame Untersuchung skalarer Mandatory-Regeln. |
+| `businessAcceptance` | `NOT_RUN`: Übereinstimmung mit einer unabhängigen Fachquelle ist nicht geprüft. |
+
+Jeder Teil enthält `status`, `scope`, `basis`, `checkedCount`, `errorCount`,
+`warningCount` und `reasonCodes`. Statuswerte sind `PASSED`, `FAILED`, `HAS_WARNINGS`,
+`INCOMPLETE`, `NOT_RUN` und `NOT_APPLICABLE`. Warnungen der Modellierungskonventionen
+erscheinen als `HAS_WARNINGS`, auch wenn das historische `validForAutomatedRules=false` ist.
+`checkedCount` zählt je nach Prüfumfang Modellstände, automatisierte Regeln, automatisch
+getestete Constraints, explizite Testfälle oder untersuchte Constraint-Kontexte.
+
+`proofVerified=true` bei einer Modellerzeugung ohne Constraints bleibt aus Kompatibilitätsgründen
+möglich; `evidence.constraintTests.status=NOT_APPLICABLE` macht deutlich, dass keine
+Constraint-Tests nötig waren. Ein Modellreview führt keine solchen Tests aus und meldet
+`NOT_RUN`. Auch erfolgreiche endliche Tests beweisen keine allgemeine fachliche Richtigkeit.
+
+### Unabhängige Erwartungen
+
+Automatische Tests werden aus dem bereits formulierten Constraint abgeleitet. Ein versehentliches
+`Alter > 18` kann deshalb seine technischen Tests bestehen. Für die Fachanforderung „mindestens
+18“ sind getrennt vorgegebene Erwartungen nötig: 17 ungültig, 18 gültig, 19 gültig. Diese werden
+über `testIliConstraint` geprüft; der Fall 18 deckt den Fehler auf. `CALLER_SUPPLIED_EXPECTATIONS`
+kennzeichnet solche Fälle, ohne ihre fachliche Herkunft zu bestätigen.
+
+### Gemeinsame skalare Regeln
+
+`constraintInteractions` steht im Modellreview sowie in `afterReview`. Unterstützt sind konkrete
+Klassen ohne Klassenvererbung, direkte numerische/Boolean-/Enum-Attribute, Literalvergleiche,
+`DEFINED`, `NOT` und geordnete `AND`/`OR`. Andere Kontexte, Constraint-Arten, Pfade und Funktionen
+stehen mit Gründen in `unsupported`. Die Analyse verwendet den bereits kompilierten Modellstand.
+
+Pro Kontext gibt es `CONTRADICTION_PROVEN`, `SCALAR_ASSIGNMENT_FOUND`, `UNKNOWN` oder
+`NOT_APPLICABLE`. Attribute mit fehlenden Werten werden separat in `undefinedAttributes`
+angegeben. Jede Mandatory-Regel wird einzeln ausgewertet: Eine undefinierte erste Regel darf eine
+Verletzung einer zweiten nicht verdecken. Nach maximal 50.000 untersuchten Zuständen über den
+gesamten Review liefert eine nicht abgeschlossene Suche `UNKNOWN`.
+
+Ein Widerspruch in einer unterstützten Teilmenge bleibt relevant, auch wenn andere Regeln nicht
+untersucht werden können. Eine erfüllbare Teilmenge beweist dagegen keine Gesamtkonsistenz.
+Eine skalare Belegung ist kein validierter Objektgraph. Widersprüchliche Klassenregeln können
+Objekte ausschliessen, während ein leerer Transfer weiterhin gültig ist.
+
+### Validierung generierter Beispiele
+
+`generateExampleXtf` validiert jeden erzeugten Transfer einmal und liefert zusätzlich `validation`:
+`status` (`VALID`, `INVALID`, `ERROR`, `NOT_RUN`), nullable `valid`, `errorCount`, `warningCount`,
+`messages`, `scope` und `limitation`. `ERROR` bedeutet einen technischen Abbruch, `INVALID` einen
+regulär abgelehnten Transfer. Ohne erzeugte Daten ist die Validierung `NOT_RUN`.
+
+`generated=true` bedeutet weiterhin nur, dass XTF erzeugt wurde. Auch ungültiges XTF bleibt zur
+Untersuchung erhalten; seine Validierungsdiagnosen sind von Generierungsdiagnosen getrennt.
+Die Prüfung deckt nur den konkreten Transfer ab, nicht ausgelassene Klassen oder unausgeübte Regeln.
+Für denselben unveränderten Transfer ist keine zweite routinemässige `validateXtf`-Runde nötig.

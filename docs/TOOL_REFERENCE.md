@@ -10,6 +10,15 @@ Verwende das höchste Tool, das die Aufgabe vollständig abdeckt. Ein High-Level
 
 Die Resources `interlis://knowledge/agent-workflow`, `interlis://knowledge/tool-guide`, `interlis://knowledge/constraint-workflow`, `interlis://knowledge/handbook-rules` und `interlis://knowledge/model-corpus-index` stellen Regeln und Abläufe bereit. Die Prompts `interlis-modeling-agent`, `review-interlis-model`, `extend-interlis-model` und `author-interlis-constraint` übersetzen sie in konkrete Agentenaufträge.
 
+# Ergänzende Prüfnachweise
+
+Modell-/Änderungsreviews, High-Level-Authoring und automatische/explizite Constraint-Tests
+liefern das typisierte Feld `evidence`. Es trennt Compiler, Modellierungsregeln, Constraint-Tests,
+Constraint-Zusammenspiel und fachliche Akzeptanz; bestehende Statuswerte und Freigaben bleiben erhalten.
+Reviews und `afterReview` enthalten zusätzlich `constraintInteractions` für unterstützte skalare
+Mandatory-Regeln. `UNKNOWN` und nicht unterstützte Teile sind keine erfolgreichen Prüfungen.
+Die vollständige Feldsemantik steht im [Benutzerhandbuch](USER_GUIDE.md#prüfnachweise-und-ihre-grenzen).
+
 # Reviews und Änderungen
 
 ## `reviewIliModel`
@@ -127,6 +136,11 @@ Erstellt SET mit `GLOBAL`/`BASKET`, optionalem WHERE und diskriminierter `OBJECT
 # XTF
 
 ## `generateExampleXtf`
+
+Jeder erzeugte Transfer wird einmal validiert. Das zusätzliche `validation` enthält `status`
+(`VALID`, `INVALID`, `ERROR`, `NOT_RUN`), nullable `valid`, Fehler-/Warnungsanzahl, Diagnosen,
+`scope` und `limitation`. `generated` bezeichnet weiterhin die Erzeugung; auch ungültiges XTF
+bleibt verfügbar. Keine zusätzliche routinemässige Validierung desselben Transfers nötig.
 
 Erzeugt deterministisches Minimal-XTF für sicher materialisierbare Klassen. `maxObjectsPerClass` liegt zwischen 1 und 20. Koordinaten werden aus den tatsächlichen Domain-Grenzen abgeleitet.
 

@@ -11,7 +11,8 @@ Der Server läuft ausschliesslich über **STDIO**. Er ist bewusst **kein Datei- 
 - Vorher-/Nachher-Stände semantisch vergleichen und potenziell inkompatible Änderungen sichtbar machen.
 - Ergänzungen, Attributänderungen und Attributlöschungen als atomare, source-preserving Batches ausführen.
 - Lokale `.ili`-Modelle als Beispiele durchsuchen und vollständig lesen.
-- XTF-Beispieldaten erzeugen und XTF mit ilivalidator prüfen.
+- XTF-Beispieldaten erzeugen und im selben Aufruf mit ilivalidator prüfen; Erzeugung und Gültigkeit getrennt ausweisen.
+- Prüfnachweise über `evidence` einordnen und unterstützte skalare Mandatory-Regeln gemeinsam auf Widersprüche untersuchen.
 - INTERLIS-Constraints erklären, automatisch Testfälle erzeugen und mit dem echten ilivalidator verifizieren.
 - Alle fünf Constraint-Arten über diskriminierte Specs typisiert und source-preserving erstellen; unvollständige Proofs werden als Kandidat zurückgehalten.
 - Agenten über MCP-Resources und MCP-Prompts einen stabilen Arbeitsablauf und eine klare Tool-Hierarchie bereitstellen.

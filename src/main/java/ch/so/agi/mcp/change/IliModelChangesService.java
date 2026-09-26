@@ -93,8 +93,10 @@ public final class IliModelChangesService {
       IliAuthoringResult result = failure(
           "BEFORE_MODEL_INVALID", "The supplied before model must compile.");
       result.beforeDiagnostics = IliAuthoringResult.diagnostics(before.messages());
+      if (result.compilerEvidence == null) result.compilerEvidence =
+          ch.so.agi.mcp.model.EvidenceSummary.compiler(before.valid(), before.messages());
       result.compilerDiagnostics = IliAuthoringResult.diagnostics(before.messages());
-      return result;
+      return result.withEvidence("ADDED_CONSTRAINTS");
     }
 
     try {
@@ -111,8 +113,10 @@ public final class IliModelChangesService {
     } catch (IllegalArgumentException ex) {
       IliAuthoringResult result = SpecValidationException.attach(failure("INVALID_SPEC", ex.getMessage()), ex);
       result.beforeDiagnostics = IliAuthoringResult.diagnostics(before.messages());
+      if (result.compilerEvidence == null) result.compilerEvidence =
+          ch.so.agi.mcp.model.EvidenceSummary.compiler(before.valid(), before.messages());
       result.compilerDiagnostics = IliAuthoringResult.diagnostics(before.messages());
-      return result;
+      return result.withEvidence("ADDED_CONSTRAINTS");
     }
   }
 
@@ -171,8 +175,10 @@ public final class IliModelChangesService {
       IliAuthoringResult result = failure(
           "INVALID_SPEC", "The requested batch changes no source text.");
       result.beforeDiagnostics = IliAuthoringResult.diagnostics(before.messages());
+      if (result.compilerEvidence == null) result.compilerEvidence =
+          ch.so.agi.mcp.model.EvidenceSummary.compiler(before.valid(), before.messages());
       result.sourceEdits = IliAuthoringResult.sourceEdits(prepared.sourceEdits());
-      return result;
+      return result.withEvidence("ADDED_CONSTRAINTS");
     }
 
     IliCompilerService.CompilationResult after = compilerService.compile(
@@ -193,7 +199,7 @@ public final class IliModelChangesService {
       result.reasonCode = "CANDIDATE_MODEL_INVALID";
       result.reason = "The complete batch candidate does not compile; no change was released.";
       result.candidateModelText = prepared.candidate();
-      return result;
+      return result.withEvidence("ADDED_CONSTRAINTS");
     }
 
     String unexpected = unexpectedSemanticChange(result, expected);
@@ -202,7 +208,7 @@ public final class IliModelChangesService {
       result.reasonCode = "UNEXPECTED_SEMANTIC_CHANGE";
       result.reason = unexpected;
       result.candidateModelText = prepared.candidate();
-      return result;
+      return result.withEvidence("ADDED_CONSTRAINTS");
     }
 
     if (changes.stream().anyMatch(this::addsExternalFunctionConstraint)) {
@@ -214,7 +220,7 @@ public final class IliModelChangesService {
       result.requiresUserDecision = true;
       result.openQuestions = List.of(IliAuthoringResult.openQuestion(
           "Provide independently verified validator cases for every external function in the batch."));
-      return result;
+      return result.withEvidence("ADDED_CONSTRAINTS");
     }
 
     if (constraintContextService != null && caseGenerationTools != null
@@ -227,7 +233,7 @@ public final class IliModelChangesService {
       result.reasonCode = result.status.name();
       result.reason = "At least one added constraint could not be fully proved.";
       result.candidateModelText = prepared.candidate();
-      return result;
+      return result.withEvidence("ADDED_CONSTRAINTS");
     }
 
     if (!result.potentiallyBreakingChanges.isEmpty() && !allowPotentiallyBreaking) {
@@ -238,14 +244,14 @@ public final class IliModelChangesService {
       result.requiresUserDecision = true;
       result.openQuestions = List.of(IliAuthoringResult.openQuestion(
           "Confirm all potentially breaking changes by setting allowPotentiallyBreaking=true."));
-      return result;
+      return result.withEvidence("ADDED_CONSTRAINTS");
     }
 
     result.status = IliAuthoringResult.Status.APPLIED;
     result.complete = true;
     result.applied = true;
     result.updatedModelText = prepared.candidate();
-    return result;
+    return result.withEvidence("ADDED_CONSTRAINTS");
   }
 
   private boolean addsExternalFunctionConstraint(IliModelChangeRequest change) {
@@ -672,6 +678,7 @@ public final class IliModelChangesService {
 
   private IliAuthoringResult reviewResult(Map<String, Object> review) {
     IliAuthoringResult result = new IliAuthoringResult();
+    result.compilerEvidence = ((ch.so.agi.mcp.model.EvidenceSummary) review.get("evidence")).compiler();
     result.semanticDiff = IliAuthoringResult.semanticDiff(review);
     result.afterReview = IliAuthoringResult.modelReview(review.get("afterReview"));
     if (result.afterReview != null) {
@@ -684,7 +691,7 @@ public final class IliModelChangesService {
     result.potentiallyBreakingChanges = IliAuthoringResult.semanticChanges(
         review.get("potentiallyBreakingChanges"));
     result.impact = string(review.get("impact"));
-    return result;
+    return result.withEvidence("ADDED_CONSTRAINTS");
   }
 
   private boolean proveAddedConstraints(
@@ -998,7 +1005,7 @@ public final class IliModelChangesService {
     result.proofVerified = false;
     result.reasonCode = status;
     result.reason = reason == null ? "" : reason;
-    return result;
+    return result.withEvidence("ADDED_CONSTRAINTS");
   }
 
   @SuppressWarnings("unchecked")

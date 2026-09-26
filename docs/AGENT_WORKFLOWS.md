@@ -343,6 +343,21 @@ Agenten müssen diese Regeln nicht aus einer externen Promptdatei duplizieren. D
 
 Diese Schnittstellen werden durch Tests abgesichert. Client-spezifische, kopierte Mega-Prompts sollen deshalb nicht als parallele zweite Wahrheit gepflegt werden.
 
+## Prüfumfang berichten
+
+Berichte `evidence` gemeinsam mit den vorhandenen Freigabefeldern. `NOT_RUN` ist kein Erfolg,
+`NOT_APPLICABLE` keine ausgeführte Prüfung. Automatisch abgeleitete Constraint-Fälle bestätigen
+keine unabhängige Fachanforderung; explizite fachliche Grenzfälle werden über `testIliConstraint`
+getrennt geprüft. Ihre Herkunft bleibt Verantwortung des Auftraggebers.
+
+`constraintInteractions` beschreibt unterstützte skalare Mandatory-Regeln. Eine gefundene
+Belegung ist kein validierter Objektgraph; ein Widerspruch betrifft den genannten Objektkontext,
+nicht zwangsläufig leere Transfers. Nicht unterstützte Teile und Budgetgrenzen sichtbar berichten.
+Diese zusätzlichen Befunde verändern keine bestehenden Freigabefelder.
+
+`generateExampleXtf` validiert erzeugte Daten einmal. Beachte `validation.status` zusätzlich zu
+`generated`; für dieselben unveränderten Daten kein weiterer routinemässiger `validateXtf`-Aufruf.
+
 ## Weiterführende Dokumentation
 
 - [Benutzerhandbuch](USER_GUIDE.md)

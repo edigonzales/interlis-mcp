@@ -15,6 +15,7 @@ class XtfServiceTest {
   void generateExampleXtfCreatesMinimalValidTransfer() {
     XtfService.GenerateExampleResult generated = service.generateExampleXtf(minimalMandatoryTextModel(), null, 1);
 
+    assertThat(generated.validation().status()).isEqualTo(XtfService.ExampleValidationStatus.VALID);
     assertThat(generated.generated()).isTrue();
     assertThat(generated.xtfText()).isNotBlank();
     assertThat(generated.basketCount()).isGreaterThanOrEqualTo(1);
@@ -31,6 +32,7 @@ class XtfServiceTest {
   void generateExampleXtfSkipsClassWithUnsupportedMandatoryAttributeType() {
     XtfService.GenerateExampleResult generated = service.generateExampleXtf(modelWithMandatoryStructureAttribute(), null, 1);
 
+    assertThat(generated.validation().status()).isEqualTo(XtfService.ExampleValidationStatus.NOT_RUN);
     assertThat(generated.generated()).isFalse();
     assertThat(generated.objectCount()).isZero();
     assertThat(generated.skippedClasses()).isNotEmpty();
@@ -44,6 +46,7 @@ class XtfServiceTest {
   @Test
   void validateXtfReturnsInvalidForBrokenMandatoryPayload() {
     XtfService.GenerateExampleResult generated = service.generateExampleXtf(minimalMandatoryTextModel(), null, 1);
+    assertThat(generated.validation().status()).isEqualTo(XtfService.ExampleValidationStatus.VALID);
     assertThat(generated.generated()).isTrue();
     assertThat(generated.xtfText()).isNotBlank();
 
@@ -61,6 +64,7 @@ class XtfServiceTest {
   void generateExampleXtfUsesModelTransferVersion() {
     XtfService.GenerateExampleResult generated = service.generateExampleXtf(ili23Model(), null, 1);
 
+    assertThat(generated.validation().status()).isEqualTo(XtfService.ExampleValidationStatus.VALID);
     assertThat(generated.generated()).isTrue();
     assertThat(generated.xtfText()).contains("VERSION=\"2.3\"");
   }
@@ -75,6 +79,7 @@ class XtfServiceTest {
 
     XtfService.GenerateExampleResult generated = service.generateExampleXtf(coordinateModel(), null, 1);
 
+    assertThat(generated.validation().status()).isEqualTo(XtfService.ExampleValidationStatus.VALID);
     assertThat(generated.generated()).isTrue();
     assertThat(generated.xtfText())
         .contains("<geom:c1>0.00</geom:c1>")
@@ -89,6 +94,51 @@ class XtfServiceTest {
             () -> service.generateExampleXtf(minimalMandatoryTextModel(), null, 21))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("must not exceed 20");
+  }
+
+  @Test
+  void generatedButConstraintInvalidTransferIsPreserved() {
+    String model = minimalMandatoryTextModel().replace("END Building;",
+        "MANDATORY CONSTRAINT name == \"required\"; END Building;");
+    var result = service.generateExampleXtf(model, null, 1);
+    assertThat(result.generated()).isTrue();
+    assertThat(result.xtfText()).isNotBlank();
+    assertThat(result.validation().status()).isEqualTo(XtfService.ExampleValidationStatus.INVALID);
+    assertThat(result.validation().valid()).isFalse();
+    assertThat(result.validation().errorCount()).isPositive();
+    assertThat(result.messages()).noneSatisfy(m -> assertThat(m.get("severity")).isEqualTo("ERROR"));
+  }
+
+  @Test
+  void skippedClassesAreNotClaimedAsValidated() {
+    String model = modelWithMandatoryStructureAttribute().replace("END Topic;",
+        "CLASS Simple = name : MANDATORY TEXT*20; END Simple; END Topic;");
+    var result = service.generateExampleXtf(model, null, 1);
+    assertThat(result.generated()).isTrue();
+    assertThat(result.skippedClasses()).hasSize(1);
+    assertThat(result.validation().status()).isEqualTo(XtfService.ExampleValidationStatus.VALID);
+    assertThat(result.validation().getLimitation()).contains("omitted classes");
+  }
+
+  @Test
+  void validationRunsExactlyOnceAndExecutionFailureDoesNotDiscardGeneratedTransfer() {
+    var calls = new java.util.concurrent.atomic.AtomicInteger();
+    var failing = new XtfService(new IliCompilerService()) {
+      @Override public ValidationResult validateXtf(String model, String xtf, String repositories) {
+        calls.incrementAndGet();
+        throw new IllegalStateException("test validator failure");
+      }
+    };
+    var result = failing.generateExampleXtf(minimalMandatoryTextModel(), null, 1);
+    assertThat(calls.get()).isEqualTo(1);
+    assertThat(result.generated()).isTrue();
+    assertThat(result.xtfText()).isNotBlank();
+    assertThat(result.validation().status()).isEqualTo(XtfService.ExampleValidationStatus.ERROR);
+    assertThat(result.validation().valid()).isNull();
+    assertThat(result.validation().messages()).isNotEmpty();
+    var invalid = failing.generateExampleXtf("INVALID", null, 1);
+    assertThat(invalid.validation().status()).isEqualTo(XtfService.ExampleValidationStatus.NOT_RUN);
+    assertThat(calls.get()).isEqualTo(1);
   }
 
   private static String minimalMandatoryTextModel() {

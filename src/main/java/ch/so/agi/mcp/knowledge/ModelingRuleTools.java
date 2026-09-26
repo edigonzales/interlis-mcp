@@ -1,6 +1,7 @@
 package ch.so.agi.mcp.knowledge;
 
 import ch.so.agi.mcp.analysis.ModelAnalysisTools;
+import ch.interlis.ili2c.metamodel.TransferDescription;
 import ch.so.agi.mcp.analysis.ModelPurpose;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.ArrayList;
@@ -68,7 +69,7 @@ public class ModelingRuleTools {
 
   @McpTool(
       name = "reviewIliModel",
-      description = "Standard-Tool fuer Baseline- und Abschlussreview eines vollstaendigen aktuellen INTERLIS-Modells. Kompiliert genau einmal und kombiniert Compilerdiagnostik, Struktur, automatisierte Modellierungsregeln, manuelle Checks und offene fachliche Fragen. Nicht routinemaessig zusaetzlich analyzeIliModel, checkModelingRules oder validateIliModel aufrufen; diese nur fuer gezielte Detaildiagnosen.",
+      description = "Standard-Tool fuer Baseline- und Abschlussreview eines vollstaendigen aktuellen INTERLIS-Modells. Kompiliert genau einmal und kombiniert Compilerdiagnostik, Struktur, automatisierte Modellierungsregeln, manuelle Checks und offene fachliche Fragen. evidence und constraintInteractions zeigen zusätzliche Prüfnachweise und begrenzte skalare Wechselwirkungen; sie ändern keine Freigaben. Nicht routinemaessig zusaetzlich analyzeIliModel, checkModelingRules oder validateIliModel aufrufen; diese nur fuer gezielte Detaildiagnosen.",
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> reviewIliModel(
@@ -85,7 +86,7 @@ public class ModelingRuleTools {
         analysisTools.analyzeCompiled(compilation.transferDescription(), modelText);
     Map<String, Object> analysis = analysisTools.toResponse(
         compilation.valid(), compilation.messages(), data, purpose);
-    Map<String, Object> review = reviewAnalyzedModel(modelText, purpose, profile, analysis);
+    Map<String, Object> review = reviewAnalyzedModel(modelText, purpose, profile, analysis, compilation.transferDescription());
 
     Map<String, Object> structure = new LinkedHashMap<>(analysis);
     structure.remove("valid");
@@ -105,7 +106,9 @@ public class ModelingRuleTools {
         Map.entry("structure", structure),
         Map.entry("ruleFindings", review.get("ruleFindings")),
         Map.entry("manualChecks", review.get("manualChecks")),
-        Map.entry("openQuestions", review.get("openQuestions"))
+        Map.entry("openQuestions", review.get("openQuestions")),
+        Map.entry("evidence", review.get("evidence")),
+        Map.entry("constraintInteractions", review.get("constraintInteractions"))
     );
   }
 
@@ -114,8 +117,15 @@ public class ModelingRuleTools {
       @Nullable ModelPurpose modelPurpose,
       @Nullable ModelingRuleProfile ruleProfile,
       Map<String, Object> analysis) {
+    return reviewAnalyzedModel(modelText, modelPurpose, ruleProfile, analysis, null);
+  }
+
+  public Map<String, Object> reviewAnalyzedModel(String modelText, @Nullable ModelPurpose modelPurpose,
+      @Nullable ModelingRuleProfile ruleProfile, Map<String,Object> analysis,
+      @Nullable TransferDescription td) {
     ModelPurpose purpose = ModelPurpose.normalize(modelPurpose);
     ModelingRuleProfile profile = ModelingRuleProfile.normalize(ruleProfile);
+    var interactions = ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis.analyze(td);
     Map<String, Object> ruleReview = checkAnalyzedModel(modelText, purpose, analysis, null, profile);
 
     List<Map<String, Object>> openQuestions = new ArrayList<>();
@@ -133,7 +143,13 @@ public class ModelingRuleTools {
         Map.entry("ruleProfile", profile.name()),
         Map.entry("ruleFindings", ruleReview.get("findings")),
         Map.entry("manualChecks", ruleReview.get("manualChecks")),
-        Map.entry("openQuestions", openQuestions));
+        Map.entry("openQuestions", openQuestions),
+        Map.entry("constraintInteractions", interactions),
+        Map.entry("evidence", ch.so.agi.mcp.model.EvidenceSummary.review(
+            Boolean.TRUE.equals(analysis.get("valid")), (List<?>) analysis.getOrDefault("messages", List.of()),
+            (List<?>) ruleReview.get("findings"), profile.name()).withRuleCount(Boolean.TRUE.equals(analysis.get("valid"))
+                ? (int) ruleLoader.rules(profile).stream().filter(r -> r.checkKind() == ModelingRule.CheckKind.AUTOMATED && applies(r, purpose)).count() : 0)
+            .withInteractions(interactions.evidence())));
   }
 
   private Map<String, Object> checkAnalyzedModel(

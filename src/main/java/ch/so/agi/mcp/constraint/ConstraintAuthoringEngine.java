@@ -72,7 +72,9 @@ public final class ConstraintAuthoringEngine {
           "BEFORE_MODEL_INVALID", "The supplied before model must compile.", null,
           before.messages());
       result.beforeDiagnostics = IliAuthoringResult.diagnostics(before.messages());
-      return result;
+      if (result.compilerEvidence == null) result.compilerEvidence =
+          ch.so.agi.mcp.model.EvidenceSummary.compiler(before.valid(), before.messages());
+      return result.withEvidence("SELECTED_CONSTRAINTS");
     }
 
     ConstraintAuthoringWorkflow.PreparedConstraint prepared;
@@ -89,7 +91,9 @@ public final class ConstraintAuthoringEngine {
       IliAuthoringResult result = failure(
           "INVALID_SPEC", ex.getMessage(), null, before.messages());
       result.beforeDiagnostics = IliAuthoringResult.diagnostics(before.messages());
-      return result;
+      if (result.compilerEvidence == null) result.compilerEvidence =
+          ch.so.agi.mcp.model.EvidenceSummary.compiler(before.valid(), before.messages());
+      return result.withEvidence("SELECTED_CONSTRAINTS");
     }
 
     String candidate = prepared.insertion().updatedModelText();
@@ -118,7 +122,7 @@ public final class ConstraintAuthoringEngine {
       result.reasonCode = result.status.name();
       result.reason = "The rendered constraint candidate does not compile.";
       result.candidateModelText = candidate;
-      return result;
+      return result.withEvidence("SELECTED_CONSTRAINTS");
     }
     if (containsExternalFunction(spec)) {
       result.status = IliAuthoringResult.Status.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED;
@@ -129,14 +133,14 @@ public final class ConstraintAuthoringEngine {
       result.openQuestions = List.of(IliAuthoringResult.openQuestion(
           "Provide an independently verified implementation and handcrafted validator cases for every external function."));
       result.proofVerified = false;
-      return result;
+      return result.withEvidence("SELECTED_CONSTRAINTS");
     }
     if (!prepared.resolution().available()) {
       result.status = IliAuthoringResult.Status.AST_ROUND_TRIP_FAILED;
       result.reasonCode = result.status.name();
       result.reason = prepared.resolution().reason();
       result.candidateModelText = candidate;
-      return result;
+      return result.withEvidence("SELECTED_CONSTRAINTS");
     }
 
     CompiledConstraintContext compiled = prepared.resolution().context();
@@ -148,7 +152,7 @@ public final class ConstraintAuthoringEngine {
       result.reasonCode = result.status.name();
       result.reason = mismatch;
       result.candidateModelText = candidate;
-      return result;
+      return result.withEvidence("SELECTED_CONSTRAINTS");
     }
 
     Map<String, Object> proof = caseGenerationTools.generateCompiledConstraintCases(compiled);
@@ -173,14 +177,14 @@ public final class ConstraintAuthoringEngine {
       result.reason = String.valueOf(proof.getOrDefault(
           "reason", "The constraint proof did not verify every coverage goal."));
       result.candidateModelText = candidate;
-      return result;
+      return result.withEvidence("SELECTED_CONSTRAINTS");
     }
 
     result.status = IliAuthoringResult.Status.GENERATED;
     result.complete = true;
     result.generated = true;
     result.updatedModelText = candidate;
-    return result;
+    return result.withEvidence("SELECTED_CONSTRAINTS");
   }
 
   private @Nullable String roundTripMismatch(
@@ -345,6 +349,7 @@ public final class ConstraintAuthoringEngine {
 
   private IliAuthoringResult reviewResult(Map<String, Object> review) {
     IliAuthoringResult result = new IliAuthoringResult();
+    result.compilerEvidence = ((ch.so.agi.mcp.model.EvidenceSummary) review.get("evidence")).compiler();
     result.semanticDiff = IliAuthoringResult.semanticDiff(review);
     result.afterReview = IliAuthoringResult.modelReview(review.get("afterReview"));
     result.added = IliAuthoringResult.semanticChanges(review.get("added"));
@@ -357,7 +362,7 @@ public final class ConstraintAuthoringEngine {
       result.openQuestions = result.afterReview.openQuestions;
       result.requiresUserDecision = !result.openQuestions.isEmpty();
     }
-    return result;
+    return result.withEvidence("SELECTED_CONSTRAINTS");
   }
 
   private IliAuthoringResult.SourceEdit sourceEdit(
@@ -387,7 +392,7 @@ public final class ConstraintAuthoringEngine {
     result.candidateModelText = candidate;
     result.compilerDiagnostics = IliAuthoringResult.diagnostics(diagnostics);
     result.afterDiagnostics = IliAuthoringResult.diagnostics(diagnostics);
-    return result;
+    return result.withEvidence("SELECTED_CONSTRAINTS");
   }
 
   private String iliVersion(String text) {

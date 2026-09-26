@@ -44,7 +44,7 @@ public class ConstraintCaseGenerationTools {
 
   @McpTool(
       name = "generateIliConstraintCases",
-      description = "Erzeugt fuer INTERLIS Mandatory-, UNIQUE-, EXISTENCE-, PLAUSIBILITY- und SET-Constraints modellbewusste Witness-, Counterexample-, Boundary- und Scope-Faelle. Verwendet einen einmal kompilierten Constraint-Kontext fuer AST/semantische IR, Solver, Object-Graph-Synthese, TypedValueFixtureFactory, NavigationGraphSynthesizer und Validator-Fixtures. UNIQUE prueft GLOBAL/WHERE/(BASKET)/LOCAL sowie direkte REFERENCE-, STRUCTURE-/COMPOSITION- und Geometrieschlüssel. EXISTENCE prueft skalare, Struktur-, REFERENCE-, COORD-, Linien-, Flaechen- und Multigeometriewerte; Validatorgrenzen werden mit Safety-Reason-Codes zurückgehalten. PLAUSIBILITY erzeugt echte Populationen an der Prozentgrenze. SET unterstützt OBJECT_COUNT einschließlich objectCount(ALL), navigierte Objektmengen, boolesche Ausdrücke und Scope-Semantik, soweit alles materialisierbar ist. Alle freigegebenen Faelle sind vom realen ilivalidator bestätigt.",
+      description = "Erzeugt fuer INTERLIS Mandatory-, UNIQUE-, EXISTENCE-, PLAUSIBILITY- und SET-Constraints modellbewusste Witness-, Counterexample-, Boundary- und Scope-Faelle. Verwendet einen einmal kompilierten Constraint-Kontext fuer AST/semantische IR, Solver, Object-Graph-Synthese, TypedValueFixtureFactory, NavigationGraphSynthesizer und Validator-Fixtures. UNIQUE prueft GLOBAL/WHERE/(BASKET)/LOCAL sowie direkte REFERENCE-, STRUCTURE-/COMPOSITION- und Geometrieschlüssel. EXISTENCE prueft skalare, Struktur-, REFERENCE-, COORD-, Linien-, Flaechen- und Multigeometriewerte; Validatorgrenzen werden mit Safety-Reason-Codes zurückgehalten. PLAUSIBILITY erzeugt echte Populationen an der Prozentgrenze. SET unterstützt OBJECT_COUNT einschließlich objectCount(ALL), navigierte Objektmengen, boolesche Ausdrücke und Scope-Semantik, soweit alles materialisierbar ist. Alle freigegebenen Faelle sind vom realen ilivalidator bestätigt. evidence kennzeichnet automatisch abgeleitete Fälle; fachliche Anforderungstreue wird nicht behauptet.",
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> generateIliConstraintCases(
@@ -56,11 +56,11 @@ public class ConstraintCaseGenerationTools {
         null,
         "ili2c_constraint_cases_");
     if (!resolution.available()) {
-      return unavailable(
+      return ch.so.agi.mcp.model.EvidenceSummary.generated(unavailable(
           resolution.reasonCode() != null ? resolution.reasonCode() : "MODEL_OR_CONSTRAINT_REVIEW_UNAVAILABLE",
           resolution.reason() != null ? resolution.reason() : "The constraint could not be resolved.",
           null,
-          resolution.compilation().messages());
+          resolution.compilation().messages()), resolution.compilation().valid(), resolution.compilation().messages());
     }
     return generateCompiledConstraintCases(resolution.context());
   }
@@ -70,6 +70,10 @@ public class ConstraintCaseGenerationTools {
    * No ili2c compilation is performed by this method.
    */
   public Map<String, Object> generateCompiledConstraintCases(CompiledConstraintContext context) {
+    return ch.so.agi.mcp.model.EvidenceSummary.generated(generateCompiledCases(context), true, context.compilation().messages());
+  }
+
+  private Map<String, Object> generateCompiledCases(CompiledConstraintContext context) {
     try {
       var result=generateScopedConstraintCases(context);
       if (result.get("verification") instanceof Map<?,?> verification && verification.get("viewScopeGoals") instanceof List<?> goals) {

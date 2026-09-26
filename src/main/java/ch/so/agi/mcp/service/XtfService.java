@@ -127,7 +127,8 @@ public class XtfService {
             "objectCount", objectIdsByClass.get(table).size()));
       }
 
-      return new GenerateExampleResult(true, xtfText, messages, basketCount, objectCount, objectsByClass, skippedClasses);
+      return new GenerateExampleResult(true, xtfText, messages, basketCount, objectCount,
+          objectsByClass, skippedClasses, validateGenerated(modelText, xtfText, modelRepositories));
     } catch (IOException e) {
       throw new UncheckedIOException("Unable to generate example XTF.", e);
     } finally {
@@ -141,6 +142,23 @@ public class XtfService {
     }
   }
 
+  private ExampleValidation validateGenerated(String modelText, String xtfText, @Nullable String repositories) {
+    try {
+      ValidationResult result = validateXtf(modelText, xtfText, repositories);
+      boolean technicalError = result.messages().stream()
+          .anyMatch(m -> "VALIDATOR_EXECUTION_FAILED".equals(m.get("code"))
+              || "VALIDATION_MODEL_UNAVAILABLE".equals(m.get("code")))
+          || !result.valid() && result.errorCount() == 0;
+      return new ExampleValidation(technicalError ? ExampleValidationStatus.ERROR
+          : result.valid() ? ExampleValidationStatus.VALID : ExampleValidationStatus.INVALID,
+          technicalError ? null : result.valid(), result.errorCount(), result.warningCount(), result.messages());
+    } catch (RuntimeException ex) {
+      return new ExampleValidation(ExampleValidationStatus.ERROR, null, 1, 0,
+          List.of(Map.of("severity", "ERROR", "code", "VALIDATOR_EXECUTION_FAILED",
+              "message", "Generated transfer validation could not complete (" + ex.getClass().getSimpleName() + ").")));
+    }
+  }
+
   public ValidationResult validateXtf(
       String modelText,
       String xtfText,
@@ -151,6 +169,8 @@ public class XtfService {
     List<Map<String, Object>> messages = copyMessages(compilation.messages());
 
     if (!compilation.valid() || compilation.transferDescription() == null) {
+      messages.add(Map.of("severity", "ERROR", "code", "VALIDATION_MODEL_UNAVAILABLE",
+          "message", "The model could not be compiled for XTF validation."));
       Counts counts = countSeverities(messages);
       return new ValidationResult(false, messages, counts.errors(), counts.warnings());
     }
@@ -199,7 +219,9 @@ public class XtfService {
       try {
         validationResult = new Validator().validate(new String[] {xtfFile.toString()}, settings);
       } catch (Exception e) {
-        messages.add(message("ERROR", "ilivalidator failed: " + e.getMessage()));
+        Map<String, Object> diagnostic = new LinkedHashMap<>(message("ERROR", "ilivalidator failed: " + e.getMessage()));
+        diagnostic.put("code", "VALIDATOR_EXECUTION_FAILED");
+        messages.add(diagnostic);
       } finally {
         logger.addListener(stdListener);
         logger.removeListener(collector);
@@ -651,7 +673,22 @@ public class XtfService {
       int basketCount,
       int objectCount,
       List<Map<String, Object>> objectsByClass,
-      List<Map<String, Object>> skippedClasses) {
+      List<Map<String, Object>> skippedClasses,
+      ExampleValidation validation) {
+    public GenerateExampleResult(boolean generated, @Nullable String xtfText, List<Map<String,Object>> messages,
+        int basketCount, int objectCount, List<Map<String,Object>> objectsByClass, List<Map<String,Object>> skippedClasses) {
+      this(generated, xtfText, messages, basketCount, objectCount, objectsByClass, skippedClasses,
+          new ExampleValidation(ExampleValidationStatus.NOT_RUN, null, 0, 0, List.of()));
+    }
+  }
+
+  public enum ExampleValidationStatus { VALID, INVALID, ERROR, NOT_RUN }
+  public record ExampleValidation(ExampleValidationStatus status, @Nullable Boolean valid,
+      int errorCount, int warningCount, List<Map<String,Object>> messages) {
+    public String getScope() { return "MODEL_RULES_FOR_TRANSFERRED_DATA"; }
+    public String getLimitation() {
+      return "Validation covers this transfer only; omitted classes and unexercised rules are not proved.";
+    }
   }
 
   public record ValidationResult(

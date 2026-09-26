@@ -65,7 +65,7 @@ class ToolRegistrationContractTest {
     assertThat("#Drainage".matches(enumValue.get("pattern").toString())).isTrue();
     assertThat("##Drainage".matches(enumValue.get("pattern").toString())).isFalse();
     assertThat(mapper.writeValueAsString(tool.inputSchema())).contains("Regel42","COLLECTION_SUM","NUMERIC_ADD","threshold");
-    assertThat(mapper.writeValueAsString(tool.outputSchema())).contains("specDiagnostics","code","path","message","hint");
+    assertThat(mapper.writeValueAsString(tool.outputSchema())).contains("specDiagnostics","code","path","message","hint", "evidence", "businessAcceptance", "constraintInteractions", "NOT_APPLICABLE");
   }
 
   @Test
@@ -147,7 +147,12 @@ class ToolRegistrationContractTest {
     assertThat(structured.get("updatedModelText").toString())
         .contains("MODEL TestModel (de)")
         .contains("code : TEXT*20;");
-    assertThat(structured).containsKeys("derivedImports", "afterReview", "constraintProofs");
+    assertThat(structured).containsKeys("derivedImports", "afterReview", "constraintProofs", "evidence");
+    assertThat(structured).doesNotContainKey("compilerEvidence");
+    Map<?,?> evidence = (Map<?,?>) structured.get("evidence");
+    assertThat(((Map<?,?>) evidence.get("constraintTests")).get("status")).isEqualTo("NOT_APPLICABLE");
+    assertThat(((Map<?,?>) evidence.get("businessAcceptance")).get("status")).isEqualTo("NOT_RUN");
+    assertThat(((Map<?,?>) structured.get("afterReview")).containsKey("constraintInteractions")).isTrue();
   }
 
   @Test
@@ -207,7 +212,10 @@ class ToolRegistrationContractTest {
     assertThat(structured.get("xtfText")).isNotNull();
     assertThat(((Number) structured.get("basketCount")).intValue()).isGreaterThanOrEqualTo(1);
     assertThat(((Number) structured.get("objectCount")).intValue()).isGreaterThanOrEqualTo(1);
-    assertThat(structured).containsKeys("objectsByClass", "skippedClasses", "messages");
+    assertThat(structured).containsKeys("objectsByClass", "skippedClasses", "messages", "validation");
+    Map<?,?> validation = (Map<?,?>) structured.get("validation");
+    assertThat(validation.get("status")).isEqualTo("VALID");
+    assertThat(validation.get("scope")).isEqualTo("MODEL_RULES_FOR_TRANSFERRED_DATA");
   }
 
   @Test

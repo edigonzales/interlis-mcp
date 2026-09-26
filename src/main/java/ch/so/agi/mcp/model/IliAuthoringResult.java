@@ -1,6 +1,7 @@
 package ch.so.agi.mcp.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -30,6 +31,15 @@ public class IliAuthoringResult {
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public record SpecDiagnostic(String code, String path, String message, @Nullable String hint) {}
+
+  public EvidenceSummary evidence = EvidenceSummary.empty();
+  @com.fasterxml.jackson.annotation.JsonIgnore
+  public EvidenceSummary.@Nullable Check compilerEvidence;
+
+  public IliAuthoringResult withEvidence(String scope) {
+    evidence = EvidenceSummary.authoring(this, scope);
+    return this;
+  }
 
   public Status status;
   public boolean complete;
@@ -137,6 +147,8 @@ public class IliAuthoringResult {
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public static final class ModelReview {
+    public @Nullable EvidenceSummary evidence;
+    public ConstraintInteractionAnalysis.@Nullable Result constraintInteractions;
     public @Nullable Boolean available;
     public @Nullable Boolean valid;
     public @Nullable Boolean compilerValid;
@@ -265,6 +277,7 @@ public class IliAuthoringResult {
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public static final class ProofCaseVerification {
+    public @Nullable Integer warningCount;
     public @Nullable String viewFqn;
     public @Nullable String baseClassFqn;
     public List<Map<String,Object>> objectCounts = List.of();
@@ -362,6 +375,9 @@ public class IliAuthoringResult {
     if (!(value instanceof Map<?, ?> raw)) return null;
     Map<String, Object> map = stringMap(raw);
     ModelReview result = new ModelReview();
+    if (map.get("evidence") instanceof EvidenceSummary evidence) result.evidence = evidence;
+    if (map.get("constraintInteractions") instanceof ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis.Result interactions)
+      result.constraintInteractions = interactions;
     result.available = bool(map.get("available"));
     result.valid = bool(map.get("valid"));
     result.compilerValid = bool(map.get("compilerValid"));
@@ -588,6 +604,7 @@ public class IliAuthoringResult {
         if (!(item instanceof Map<?, ?> caseRaw)) continue;
         Map<String, Object> entry = stringMap(caseRaw);
         ProofCaseVerification checked = new ProofCaseVerification();
+        checked.warningCount = nullableInteger(entry.get("warningCount"));
         checked.name = nullableString(entry.get("name"));
         checked.passed = bool(entry.get("passed"));
         checked.expectedValid = bool(entry.getOrDefault("expectedValid", entry.get("expectedConstraintValid")));
