@@ -202,6 +202,89 @@ class ConstraintGoalReachabilityTest {
     assertThat(ConstraintGoalSolver.goalSatisfied(laterAnd, Map.of("a", true, "b", false))).isTrue();
   }
 
+  @Test
+  void textDefinednessPreservesOptionalityCorrelationsAndOrderedGuards() {
+    for (ScalarKind kind : List.of(ScalarKind.TEXT, ScalarKind.MTEXT)) {
+      var text = new Attribute("code", Type.scalar(kind));
+      for (boolean mandatory : List.of(false, true)) {
+        var model = binding("code", kind, mandatory);
+        var defined = new Defined(text);
+        assertThat(ConstraintGoalReachability.analyze(new TestGoal(GoalKind.UNDEFINED, defined, "boolean result"), model).status())
+            .isEqualTo(ConstraintGoalReachability.Status.PROVEN_UNREACHABLE);
+        assertThat(ConstraintGoalReachability.analyze(new TestGoal(GoalKind.UNDEFINED, text, "missing text"), model).status())
+            .isEqualTo(mandatory ? ConstraintGoalReachability.Status.PROVEN_UNREACHABLE : ConstraintGoalReachability.Status.UNKNOWN);
+        assertUnknown(new TestGoal(GoalKind.TRUE, defined, "present text"), model);
+        var contradiction = new And(List.of(defined, new Not(new Defined(text))));
+        assertThat(ConstraintGoalReachability.analyze(new TestGoal(GoalKind.TRUE, contradiction, "same reference"), model).status())
+            .isEqualTo(ConstraintGoalReachability.Status.PROVEN_UNREACHABLE);
+      }
+      var state = new Attribute("state", Type.scalar(ScalarKind.ENUM));
+      var references = new LinkedHashMap<>(binding("code", kind, false).references());
+      references.put("state", new ReferenceBinding(new Reference("state", ReferenceKind.ATTRIBUTE, state.type()),
+          new ValueDomain(ScalarKind.ENUM, null, List.of("active", "inactive"), false), "state", null));
+      var model = new ModelBinding("Reach.Data.Sample", references);
+      var inactive = new Comparison(ComparisonOperator.EQ, state, new EnumLiteral("inactive"));
+      var guarded = new Or(List.of(new Not(new And(List.of(new Defined(state), inactive))), new Defined(text)));
+      var unguarded = new Or(List.of(new Not(new And(List.of(inactive, new Defined(state)))), new Defined(text)));
+      var excluded = ConstraintGoalReachability.analyze(new TestGoal(GoalKind.UNDEFINED, guarded, "OR result undefined"), model);
+      assertThat(excluded.status()).isEqualTo(ConstraintGoalReachability.Status.PROVEN_UNREACHABLE);
+      assertThat(excluded.justification()).contains("presence only", "not text contents");
+      assertUnknown(new TestGoal(GoalKind.UNDEFINED, unguarded, "ordered undefined"), model);
+      var plan = ConstraintCoveragePlanner.solve(guarded, model);
+      assertThat(plan.unsolved()).isEmpty();
+      assertThat(plan.excluded()).anySatisfy(goal -> assertThat(goal.goal().reason()).isEqualTo("OR result undefined"));
+    }
+  }
+
+  @Test
+  void textDefinednessKeepsNavigationAndUnsupportedTypesConservative() {
+    for (ScalarKind kind : List.of(ScalarKind.TEXT, ScalarKind.MTEXT)) {
+      var path = new Path("owner->code", Type.scalar(kind));
+      for (long maximum : new long[]{1, 2}) {
+        var model = new ModelBinding("Reach.Data.Sample", Map.of("owner->code",
+            new ReferenceBinding(new Reference("owner->code", ReferenceKind.PATH, path.type()),
+                new ValueDomain(kind, null, List.of(), true), "code", null,
+                List.of(new NavigationBinding(NavigationKind.COMPOSITION, "owner", "Reach.Data.Owner", 0, maximum, maximum > 1, null)))));
+        assertUnknown(new TestGoal(GoalKind.UNDEFINED, path, "optional owner"), model);
+        assertThat(ConstraintGoalReachability.analyze(new TestGoal(GoalKind.UNDEFINED, new Defined(path), "presence"), model).status())
+            .isEqualTo(maximum == 1 ? ConstraintGoalReachability.Status.PROVEN_UNREACHABLE : ConstraintGoalReachability.Status.UNKNOWN);
+      }
+    }
+    for (ScalarKind kind : List.of(ScalarKind.GEOMETRY, ScalarKind.UNKNOWN)) {
+      assertUnknown(new TestGoal(GoalKind.UNDEFINED, new Defined(new Attribute("value", Type.scalar(kind))), "unsupported type"),
+          binding("value", kind, true));
+    }
+    var code = new Attribute("code", Type.scalar(ScalarKind.TEXT));
+    var model = binding("code", ScalarKind.TEXT, true);
+    assertUnknown(new TestGoal(GoalKind.UNDEFINED, new TextLiteral("x", ScalarKind.TEXT), "literal"), model);
+    assertUnknown(new TestGoal(GoalKind.FALSE, new Comparison(ComparisonOperator.EQ, code, new TextLiteral("x", ScalarKind.TEXT)), "text comparison"), model);
+    var function = new FunctionCall(StandardFunctionRegistry.findBySemanticId("TEXT_TO_LOWER_CASE").orElseThrow().definition(), List.of(code));
+    assertUnknown(new TestGoal(GoalKind.UNDEFINED, new Defined(function), "text function"), model);
+    var collection = new Path("owners->code", Type.collection(ScalarKind.TEXT));
+    var collectionModel = new ModelBinding("Reach.Data.Sample", Map.of("owners->code",
+        new ReferenceBinding(new Reference("owners->code", ReferenceKind.PATH, collection.type()),
+            new ValueDomain(ScalarKind.TEXT, null, List.of(), false), "code", null)));
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> new Defined(collection)).isInstanceOf(IllegalArgumentException.class);
+    assertUnknown(new TestGoal(GoalKind.UNDEFINED, collection, "collection"), collectionModel);
+    assertUnknown(new TestGoal(GoalKind.UNDEFINED, new Defined(code), "missing binding"), new ModelBinding("Reach.Data.Sample", Map.of()));
+    assertUnknown(new TestGoal(GoalKind.UNDEFINED, new Defined(code), "type mismatch"), binding("code", ScalarKind.MTEXT, false));
+  }
+
+  @Test
+  void textDefinednessBudgetDoesNotBecomeAnExclusion() {
+    var expressions = new ArrayList<ConstraintExpression>();
+    var references = new LinkedHashMap<String, ReferenceBinding>();
+    for (int i = 0; i < 16; i++) {
+      String name = "text" + i;
+      expressions.add(new Defined(new Attribute(name, Type.scalar(ScalarKind.TEXT))));
+      references.putAll(binding(name, ScalarKind.TEXT, false).references());
+    }
+    var result = ConstraintGoalReachability.analyze(new TestGoal(GoalKind.UNDEFINED,
+        new And(expressions), "state limit"), new ModelBinding("Reach.Data.Sample", references));
+    assertThat(result.status()).isEqualTo(ConstraintGoalReachability.Status.UNKNOWN);
+    assertThat(result.justification()).contains("50000");
+  }
+
   static ModelBinding binding(String name, ScalarKind kind, boolean mandatory) {
     var type = Type.scalar(kind);
     return new ModelBinding("Reach.Data.Sample", Map.of(name,

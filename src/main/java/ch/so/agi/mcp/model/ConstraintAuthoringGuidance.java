@@ -4,7 +4,8 @@ package ch.so.agi.mcp.model;
 public final class ConstraintAuthoringGuidance {
   private ConstraintAuthoringGuidance() {}
   public static final String MANDATORY_SPEC_EXAMPLE = "{\"kind\":\"MANDATORY\",\"name\":\"ValueRequired\",\"condition\":{\"kind\":\"DEFINED\",\"children\":[{\"kind\":\"ATTRIBUTE\",\"name\":\"value\"}]}}";
-  public static final String MANDATORY_INPUT = "MANDATORY: Der Ausdruck steht in spec.condition; Operanden stehen geordnet in children. Beispiel fuer spec bei vorhandenem Attribut value: " + MANDATORY_SPEC_EXAMPLE;
+  public static final String SCALAR_INPUT = "Skalare Ausdruecke: Zahlen als {\"kind\":\"NUMERIC\",\"value\":7}; COMPARE mit operator ==, !=, <, <=, > oder >= und genau zwei geordneten children. DEFINED/NOT haben ein Kind, IMPLIES zwei; AND/OR behalten die Reihenfolge. MANDATORY verwendet condition.";
+  public static final String MANDATORY_INPUT = "MANDATORY: Der Ausdruck steht in spec.condition; Operanden stehen geordnet in children. Beispiel fuer spec bei vorhandenem Attribut value: " + MANDATORY_SPEC_EXAMPLE + " " + SCALAR_INPUT;
   public static final String NAME = "Technischer Constraint-Name: [A-Za-z][A-Za-z0-9_]*, z.B. Regel42. Eine fachliche Regelnummer ist kein technischer Name; keine automatische Umbenennung.";
   public static final String ENUM = "ENUM.value ist ein String, z.B. Drainage oder #Drainage, auch Gruppe.Drainage. Genau ein optionales fuehrendes # wird normalisiert; TEXT/MTEXT bleiben unveraendert.";
   public static final String FUNCTION = "FUNCTION: name ist bei functionOrigin=STANDARD die semanticId aus listConstraintFunctions, z.B. COLLECTION_SUM statt Math.sum und NUMERIC_ADD statt Math.add. Bei MODEL/VALIDATOR_EXTENSION ist name der qualifizierte Funktionsname. Argumente stehen ausschliesslich geordnet in children, niemals in FUNCTION.objects.";
@@ -19,7 +20,6 @@ public final class ConstraintAuthoringGuidance {
         - %s
         - %s
         - %s
-        - DEFINED/NOT haben ein Kind, COMPARE/IMPLIES zwei; AND/OR behalten die Reihenfolge ihrer children.
         - Entscheidungstabellen: defined=true/false bezeichnet nur SUM-Praesenz und benoetigt aggregate=SUM, ohne operator/value/addAttribute. Fuer direkte Attribute DEFINED im typisierten Authoring verwenden.
         - specDiagnostics enthält code, JSON-Pointer path, message und hint; Behandlung gemäss gemeinsamem Prosa-Workflow.
         """.formatted(MANDATORY_INPUT, NAME, ENUM, FUNCTION, COUNT);

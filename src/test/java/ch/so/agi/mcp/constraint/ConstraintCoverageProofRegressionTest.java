@@ -131,6 +131,82 @@ class ConstraintCoverageProofRegressionTest {
     assertThat(resolved.context().constraint().getContainer().getScopedName(null)).isEqualTo(request.contextFqn());
   }
 
+  @Test
+  void guardedTextAndMtextAuthoringProvesUnreachableUndefinedAndPassesFrozenExpectations() throws Exception {
+    var mapper = new ObjectMapper();
+    var spec = mapper.readValue("""
+        {"kind":"MANDATORY","name":"Presence","condition":{"kind":"IMPLIES","children":[
+          {"kind":"AND","children":[{"kind":"DEFINED","children":[{"kind":"ATTRIBUTE","name":"state"}]},
+            {"kind":"COMPARE","operator":"==","children":[{"kind":"ATTRIBUTE","name":"state"},{"kind":"ENUM","value":"inactive"}]}]},
+          {"kind":"DEFINED","children":[{"kind":"ATTRIBUTE","name":"code"}]}]}}
+        """, IliConstraintSpec.Mandatory.class);
+    for (String version : java.util.List.of("2.3", "2.4")) {
+      for (String textType : java.util.List.of("TEXT", "MTEXT")) {
+        String source = """
+            INTERLIS %s;
+            MODEL TextPresence (en) AT "https://example.org" VERSION "1" =
+              DOMAIN CodeText = %s*40;
+              TOPIC Data =
+                CLASS Item =
+                  state : (active, inactive);
+                  code : CodeText;
+                END Item;
+              END Data;
+            END TextPresence.
+            """.formatted(version, textType);
+        var cases = new java.util.ArrayList<ConstraintTestTools.TestCase>();
+        for (String state : java.util.List.of("active", "inactive", "missing")) {
+          for (boolean present : java.util.List.of(false, true)) {
+            var c = new ConstraintTestTools.TestCase();
+            c.name = state + "_" + present;
+            c.expectedConstraintValid = !state.equals("inactive") || present;
+            var o = new ConstraintTestTools.TestObject();
+            o.classFqn = "TextPresence.Data.Item";
+            o.values = new java.util.LinkedHashMap<>();
+            if (!state.equals("missing")) o.values.put("state", state);
+            if (present) o.values.put("code", "Abc");
+            c.objects = java.util.List.of(o);
+            cases.add(c);
+          }
+        }
+        var compiler = new CountingCompiler();
+        var result = new ConstraintAuthoringTools(engine(compiler)).authorIliMandatoryConstraint(
+            source, "TextPresence.Data.Item", spec, null, null);
+        assertThat(compiler.calls).isEqualTo(2);
+        assertThat(result.status).as(mapper.writeValueAsString(result)).isEqualTo(IliAuthoringResult.Status.GENERATED);
+        assertThat(result.proofVerified).isTrue();
+        var proof = result.constraintProofs.getFirst();
+        assertThat(proof.coverageComplete).isTrue();
+        assertThat(proof.coverageGaps).isEmpty();
+        assertThat(proof.coverageExcludedGoals).anySatisfy(goal -> {
+          assertThat(goal.reason).isEqualTo("OR result undefined");
+          assertThat(goal.reasonCode).isEqualTo("PROVEN_UNREACHABLE");
+          assertThat(goal.justification).contains("presence only", "not text contents");
+        });
+        assertThat(proof.verification.allPassed).isTrue();
+        var verified = new ConstraintTestTools(compiler).testIliConstraint(result.updatedModelText, "TextPresence.Data.Item.Presence", cases);
+        var json = mapper.valueToTree(verified);
+        assertThat(json.get("allPassed").asBoolean()).as(json.toString()).isTrue();
+        assertThat(json.get("modelHashes").get("model").asText()).isEqualTo(ch.so.agi.mcp.model.ModelHashes.sha256(result.updatedModelText));
+        for (var c : json.get("cases")) {
+          assertThat(c.get("fixtureValid").asBoolean()).isTrue();
+          assertThat(c.get("constraintExercised").asBoolean()).isTrue();
+        }
+        // Resolve mandatory aliases from compiler metadata, not synthetic test bindings.
+        String mandatory = result.updatedModelText.replace("code : CodeText;", "code : MANDATORY CodeText;");
+        var compilation = compiler.compile(mandatory, null);
+        assertThat(compilation.valid()).as(compilation.messages().toString()).isTrue();
+        var resolved = new ConstraintContextService(compiler).compileAndResolve(mandatory, "TextPresence.Data.Item.Presence", null, "mandatory_text_");
+        var expression = ConstraintAstTranslator.translate(resolved.context().constraint()).expression();
+        var binding = ConstraintModelSynthesizer.bind(compilation.transferDescription(), "TextPresence.Data.Item", expression);
+        var code = expression.references().stream().filter(ref -> ref.name().equals("code")).findFirst().orElseThrow();
+        var goal = new ConstraintExpressionEngine.TestGoal(ConstraintExpressionEngine.GoalKind.UNDEFINED,
+            new ConstraintExpression.Attribute("code", code.type()), "mandatory alias");
+        assertThat(ConstraintGoalReachability.analyze(goal, binding).status()).as("%s %s %s", mandatory, binding.references(), ConstraintGoalReachability.analyze(goal, binding)).isEqualTo(ConstraintGoalReachability.Status.PROVEN_UNREACHABLE);
+      }
+    }
+  }
+
   private static class CountingCompiler extends IliCompilerService {
     int calls;
     @Override public CompilationResult compile(String text, String repositories, String prefix) {

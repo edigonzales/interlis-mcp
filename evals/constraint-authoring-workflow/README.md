@@ -9,7 +9,7 @@ und die zusätzliche Schreibregel des Agenten. Die technischen Tests sind keine 
 1. Für jeden Fall einen frischen Agentenkontext mit ausschliesslich `public/<id>/model.ili`,
    `requirement.de.md` und dem aktuellen Authoring-Workflow öffnen. Keine Referenzdateien freigeben.
    Die Eingabe-Hashes aus `suite.json` vor dem Lauf unabhängig prüfen.
-2. Native MCP-Aufrufe und Antworten sowie Dialog und Dateischreibvorgänge vollständig aufzeichnen.
+2. Native MCP-Aufrufe und Antworten mit `tools/native-recorder.js` sowie Dialog und Dateischreibvorgänge vollständig aufzeichnen.
    Die Erwartungsfälle vor dem ersten Authoring-Aufruf als unverändertes Artefakt speichern.
    Eine digest-Referenz bindet jeden späteren Test an genau diese Fälle.
 3. Q01–Q03 enden bei der erforderlichen Rückfrage ohne Authoring oder Schreiben. Der unabhängige
@@ -57,3 +57,29 @@ für einen nativen Lauf. Die Prüfer-Unit-Tests verwenden ausdrücklich syntheti
 Suite, Referenzfälle, Validatorprüfungen und adversariale Prüfer-Tests gehören zu `./gradlew check`.
 Ein freier nativer Agentenlauf steht aus: In der Implementierungssitzung war kein nativer
 INTERLIS-Connector verfügbar. Deshalb wird keine Agentenerfolgsquote angegeben.
+
+## Gemeinsamer Recorder für neue Läufe
+
+`tools/native-recorder.js` ist eine Factory für die vorhandene `functions.exec`-Umgebung.
+Den Quelltext einmal lesen und als String im vorhandenen `store` halten. Mit
+`const recorder = eval(source)(absoluteCaseOutputDirectory)` einen Recorder öffnen;
+`await recorder.call(exactNativeToolName, payload)` archiviert Request und vollständige
+Antwort und gibt erst danach die unveränderte Antwort zurück. Die Sequenz und eine
+noch nicht archivierte Antwort bleiben über `store` zwischen Aufrufen erhalten.
+
+Bei einem Archivierungsfehler keine weitere Fallarbeit ausführen. Nach Behebung
+allein `await recorder.persist()` aufrufen: Es wiederholt ausschliesslich die
+Archivierung der bereits empfangenen Antwort, niemals den nativen Aufruf. Das gilt
+nicht für einen vor dem Toolaufruf gescheiterten Request-Write: Dieser wird als
+Durchführungsproblem gemeldet. Werkzeugausnahmen werden separat archiviert; der
+Recorder führt selbst keine Transport- oder Authoring-Wiederholungen aus.
+
+`logs/NNN-event.json` enthält Zeitpunkte sowie SHA-256 und Umfang der archivierten
+Request-/Antwortdateien. Teildateien tragen `.tmp` und gelten nicht als vollständige
+Belege. Ein Aufruf kann keine fachliche Reparatur oder Schreibfreigabe ersetzen.
+Die Recorder-Tests verwenden synthetische Antworten und zählen nicht als Agentenlauf.
+
+R01 bleibt der eingefrorene kontrollierte Fall: Das aktuelle Namensschema kann
+`1Adult` bereits vor dem Handler ablehnen. Ohne tatsächliches `INVALID_SPEC` erfolgt
+keine Reparatur; dieser Befund wird separat ausgewiesen. Die historische Wertung
+und der Prüfer werden dadurch nicht verändert.

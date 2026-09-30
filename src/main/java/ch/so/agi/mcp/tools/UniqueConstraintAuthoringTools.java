@@ -22,7 +22,7 @@ public final class UniqueConstraintAuthoringTools {
 
   @McpTool(
       name = "authorIliUniqueConstraint",
-      description = "Erzeugt einen typisierten UNIQUE Constraint mit GLOBAL-, BASKET- oder LOCAL-Scope, mehreren Schlüsselpfaden, optionalem WHERE und explizitem LOCAL-Präfix. Proof, AST-Roundtrip, Diff und afterReview verwenden genau einen Before- und einen After-Compile; danach ist kein reviewIliChange erforderlich. Das Tool schreibt keine Datei.",
+      description = ch.so.agi.mcp.model.ConstraintAuthoringGuidance.SCALAR_INPUT + " Erzeugt einen typisierten UNIQUE Constraint mit GLOBAL-, BASKET- oder LOCAL-Scope, mehreren Schlüsselpfaden, optionalem WHERE und explizitem LOCAL-Präfix. Proof, AST-Roundtrip, Diff und afterReview verwenden genau einen Before- und einen After-Compile; danach ist kein reviewIliChange erforderlich. Das Tool schreibt keine Datei.",
       generateOutputSchema = true,
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true))
   public IliAuthoringResult authorIliUniqueConstraint(

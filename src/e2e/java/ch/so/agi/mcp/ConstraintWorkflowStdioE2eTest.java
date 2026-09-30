@@ -183,6 +183,34 @@ class ConstraintWorkflowStdioE2eTest {
   }
 
   @Test
+  void malformedScalarInputsAreSmallSchemaErrorsBeforeTheHandler() throws Exception {
+    initializeSession();
+    var mapper=new tools.jackson.databind.ObjectMapper();
+    int id=2;
+    var number=java.util.Map.of("kind","NUMERIC","value",7);
+    var attribute=java.util.Map.of("kind","ATTRIBUTE","name","value");
+    var conditions=java.util.List.of(
+        java.util.Map.of("kind","COMPARE","operator",">=","children",java.util.List.of(attribute,java.util.Map.of("kind","NUMBER","value",7))),
+        java.util.Map.of("kind","COMPARE","operator","=","children",java.util.List.of(attribute,number)),
+        java.util.Map.of("kind","COMPARE","operator",">=","children",java.util.List.of(attribute,number)));
+    var paths=java.util.List.of("/condition/children/1/kind", "/condition/operator", "/name");
+    for(int i=0;i<conditions.size();i++) {
+      var spec=java.util.Map.of("kind","MANDATORY","name",i==2?"1Rule":"Rule","condition",conditions.get(i));
+      for(String tool:java.util.List.of("authorIliMandatoryConstraint","applyIliModelChanges")) {
+        var args=new java.util.LinkedHashMap<String,Object>();args.put("modelText","INTERLIS 2.4;");
+        if(tool.equals("authorIliMandatoryConstraint")){args.put("contextFqn","Example.Data.Item");args.put("spec",spec);}
+        else args.put("request",java.util.Map.of("changes",java.util.List.of(java.util.Map.of("operation","ADD_CONSTRAINT","addConstraint",java.util.Map.of("containerFqn","Example.Data.Item","constraint",spec)))));
+        String response=callTool(id++,tool,mapper.writeValueAsString(args));
+        assertTrue(response.getBytes(StandardCharsets.UTF_8).length<8192,response);
+        var envelope=mapper.readTree(response).get("result");
+        assertTrue(envelope.get("isError").asBoolean(),response);
+        assertContainsAll(response,"input validation failed",paths.get(i));
+        assertFalse(response.contains("INVALID_SPEC"),response);
+      }
+    }
+  }
+
+  @Test
   void publishedMandatoryExampleAndExpectedDefinednessSurviveStdio() throws Exception {
     initializeSession();
     var mapper = new tools.jackson.databind.ObjectMapper();
@@ -257,6 +285,69 @@ class ConstraintWorkflowStdioE2eTest {
     assertTrue(testResult.get("modelHashes").get("model").asText().equals(result.get("modelHashes").get("after").asText()), tested);
     assertTrue(testResult.get("omittedSuccessfulTestXtfCount").asInt() == 3, tested);
     assertFalse(testResult.get("cases").get(0).has("xtfText"), tested);
+  }
+
+  @Test
+  void guardedTextPresenceProofAndExplicitExpectationsShareModelHash() throws Exception {
+    initializeSession();
+    var mapper = new tools.jackson.databind.ObjectMapper();
+    String source = """
+        INTERLIS 2.4;
+        MODEL TextWorkflow (en) AT "https://example.org" VERSION "1" =
+          TOPIC Data =
+            CLASS Item =
+              state : (active, inactive);
+              code : TEXT*20;
+            END Item;
+          END Data;
+        END TextWorkflow.
+        """;
+    var spec = mapper.readTree("""
+        {"kind":"MANDATORY","name":"Presence","condition":{"kind":"IMPLIES","children":[
+          {"kind":"AND","children":[{"kind":"DEFINED","children":[{"kind":"ATTRIBUTE","name":"state"}]},
+            {"kind":"COMPARE","operator":"==","children":[{"kind":"ATTRIBUTE","name":"state"},{"kind":"ENUM","value":"inactive"}]}]},
+          {"kind":"DEFINED","children":[{"kind":"ATTRIBUTE","name":"code"}]}]}}
+        """);
+    var cases = new java.util.ArrayList<java.util.Map<String, Object>>();
+    for (String state : java.util.List.of("active", "inactive", "missing")) {
+      for (boolean present : java.util.List.of(false, true)) {
+        var values = new java.util.LinkedHashMap<String, Object>();
+        if (!state.equals("missing")) values.put("state", state);
+        if (present) values.put("code", "Abc");
+        cases.add(java.util.Map.of("name", state + "_" + present, "expectedConstraintValid", !state.equals("inactive") || present,
+            "objects", java.util.List.of(java.util.Map.of("classFqn", "TextWorkflow.Data.Item", "oid", "i", "values", values))));
+      }
+    }
+    var envelope = mapper.readTree(callTool(2, "authorIliMandatoryConstraint", mapper.writeValueAsString(java.util.Map.of(
+        "modelText", source, "contextFqn", "TextWorkflow.Data.Item", "spec", spec, "includeSuccessfulTestXtf", false)))).get("result");
+    var author = envelope.get("structuredContent");
+    if (author == null) author = mapper.readTree(envelope.get("content").get(0).get("text").asText());
+    assertTrue(author.get("status").asText().equals("GENERATED"), author.toString());
+    assertTrue(author.get("proofVerified").asBoolean());
+    var proof = author.get("constraintProofs").get(0);
+    assertTrue(proof.get("coverageComplete").asBoolean());
+    assertTrue(proof.get("coverageGaps").isEmpty());
+    boolean excluded = false;
+    for (var goal : proof.get("coverageExcludedGoals")) {
+      if (goal.get("reason").asText().equals("OR result undefined")) {
+        assertTrue(goal.get("reasonCode").asText().equals("PROVEN_UNREACHABLE"));
+        assertTrue(goal.get("justification").asText().contains("presence only"));
+        excluded = true;
+      }
+    }
+    assertTrue(excluded);
+    var testedEnvelope = mapper.readTree(callTool(3, "testIliConstraint", mapper.writeValueAsString(java.util.Map.of(
+        "modelText", author.get("updatedModelText").asText(), "constraint", "TextWorkflow.Data.Item.Presence",
+        "cases", cases, "includeSuccessfulTestXtf", false)))).get("result");
+    var tested = testedEnvelope.get("structuredContent");
+    if (tested == null) tested = mapper.readTree(testedEnvelope.get("content").get(0).get("text").asText());
+    assertTrue(tested.get("allPassed").asBoolean(), tested.toString());
+    assertTrue(tested.get("modelHashes").get("model").asText().equals(author.get("modelHashes").get("after").asText()));
+    assertTrue(author.get("modelHashes").get("before").asText().equals(ch.so.agi.mcp.model.ModelHashes.sha256(source)));
+    for (var item : tested.get("cases")) {
+      assertTrue(item.get("fixtureValid").asBoolean());
+      assertTrue(item.get("constraintExercised").asBoolean());
+    }
   }
 
   private void initializeSession() throws Exception {

@@ -140,3 +140,10 @@ tasks.register('constraintWorkflowCheck', Exec) {
     commandLine 'python3', '-m', 'unittest', 'discover', '-s', 'evals/constraint-authoring-workflow/tools', '-p', 'test_score.py', '-v'
 }
 tasks.named('check') { dependsOn tasks.named('constraintWorkflowCheck') }
+
+tasks.register('constraintWorkflowRecorderCheck', Exec) {
+    description = 'Checks lossless native workflow recording with mocked tools.'
+    group = 'verification'
+    commandLine 'node', 'evals/constraint-authoring-workflow/tools/test_native_recorder.cjs'
+}
+tasks.named('check') { dependsOn tasks.named('constraintWorkflowRecorderCheck') }

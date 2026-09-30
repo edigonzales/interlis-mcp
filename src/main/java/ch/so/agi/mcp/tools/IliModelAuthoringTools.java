@@ -46,7 +46,7 @@ public final class IliModelAuthoringTools {
 
   @McpTool(
       name = "authorIliModel",
-      description = ch.so.agi.mcp.knowledge.ConstraintWorkflowGuidance.TOOL + " Erzeugt aus einer vollständigen typisierten IliModelSpec ein vollständiges INTERLIS-2-Modell. Name, URI, Modellversion und INTERLIS-Version sind explizit erforderlich; fehlende Fachsemantik wird nicht erfunden. Unterstützt Units, Domains, Topics, Klassen, Strukturen, Assoziationen, Attribute, strikte Geometrien sowie UNIQUE, MANDATORY, EXISTENCE, PLAUSIBILITY und SET. Das fertige Modell wird genau einmal mit ili2c kompiliert; AST-Generierung, alle Constraint-Proofs und afterReview verwenden diesen kompilierten Kontext weiter. Das Tool schreibt keine Datei.",
+      description = ch.so.agi.mcp.model.ConstraintAuthoringGuidance.SCALAR_INPUT + " " + ch.so.agi.mcp.knowledge.ConstraintWorkflowGuidance.TOOL + " Erzeugt aus einer vollständigen typisierten IliModelSpec ein vollständiges INTERLIS-2-Modell. Name, URI, Modellversion und INTERLIS-Version sind explizit erforderlich; fehlende Fachsemantik wird nicht erfunden. Unterstützt Units, Domains, Topics, Klassen, Strukturen, Assoziationen, Attribute, strikte Geometrien sowie UNIQUE, MANDATORY, EXISTENCE, PLAUSIBILITY und SET. Das fertige Modell wird genau einmal mit ili2c kompiliert; AST-Generierung, alle Constraint-Proofs und afterReview verwenden diesen kompilierten Kontext weiter. Das Tool schreibt keine Datei.",
       generateOutputSchema = true,
       annotations = @McpTool.McpAnnotations(
           readOnlyHint = true,

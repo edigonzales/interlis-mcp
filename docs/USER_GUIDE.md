@@ -352,11 +352,14 @@ Ein ausführliches MANDATORY-Beispiel sowie Beispiele für EXISTENCE, PLAUSIBILI
 Wichtige Felder:
 
 - `generationVerified`: alle tatsächlich erzeugten Fälle hatten im Validator das erwartete Ergebnis.
-- `coverageComplete`: alle geplanten semantischen Proof-Ziele konnten synthetisiert werden.
+- `coverageComplete`: alle verbleibenden semantischen Proof-Ziele sind durch verifizierte Fälle abgedeckt; nachweislich unerreichbare strukturelle Ziele stehen separat in `coverageExcludedGoals`.
 - `coverageUnsolved`: Proof-Ziele, die aufgrund einer bewussten Grenze oder des endlichen Solvers nicht erzeugt werden konnten.
 - `verification`: reale ilivalidator-Ergebnisse.
 
 `generationVerified=true` und `coverageComplete=false` sind kein Widerspruch: Die erzeugten Fälle können vollständig verifiziert sein, obwohl zusätzliche gewünschte Coverage-Fälle nicht synthetisierbar waren.
+
+Bei `DEFINED` über skalare `TEXT`- und `MTEXT`-Attribute kann der Server unerreichbare Definiertheitszustände nachweisen. Dabei berücksichtigt er Pflichtangaben, Domain-Aliase und bereits unterstützte einwertige Pfade mit optionalen Zwischenbeziehungen. Textinhalte, Textvergleiche und Textfunktionen werden dadurch nicht zusätzlich analysiert. Nicht unterstützte Typen und ausgeschöpfte Analysebudgets bleiben offene Proof-Grenzen.
+
 
 ## Aufgabe: eigene Constraint-Testfälle prüfen
 
@@ -555,6 +558,15 @@ bereits in seiner Toolbeschreibung. Das dortige allgemeine `DEFINED`-Beispiel st
 wie das Beispiel im Authoring-Prompt aus `ConstraintAuthoringGuidance`; es setzt ein
 vorhandenes Attribut `value` voraus. Das rekursive Eingabeschema bleibt verbindlich,
 auch wenn ein Connector die Argumente lediglich als `unknown` darstellt.
+
+Die sichtbaren Beschreibungen für skalare Constraint-Ausdrücke nennen zusätzlich
+`{"kind":"NUMERIC","value":7}` sowie `COMPARE` mit `operator` aus `==`, `!=`, `<`,
+`<=`, `>` und `>=` und genau zwei geordneten `children`. `DEFINED`/`NOT` haben ein
+Kind; `AND`/`OR` behalten die Reihenfolge. Diese Angaben gelten auch für Constraints
+in `authorIliModel` und in `applyIliModelChanges`. Im Batch liegt die Spezifikation
+unter `request.changes[i].addConstraint.constraint`, der Mandatory-Ausdruck dort
+in `condition`. `NUMBER` und `=` sind keine alternativen Schreibweisen.
+
 
 Eine vorgelagerte MCP-Schemavalidierung kann einen Aufruf ablehnen, bevor der Handler
 läuft. Diese Diagnose ist kein reguläres Ergebnis mit `status=INVALID_SPEC` und darf

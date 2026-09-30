@@ -22,7 +22,7 @@ public final class SetConstraintAuthoringTools {
 
   @McpTool(
       name = "authorIliSetConstraint",
-      description = "Erzeugt einen typisierten SET CONSTRAINT mit perBasket/global-vs-Basket-Scope, optionalem where und diskriminierter OBJECT_COUNT- oder BOOLEAN_EXPRESSION-Condition; OBJECT_COUNT unterstützt objectCount(ALL) und navigierte Objektmengen. Die Einfügung ist source-preserving; Before/After je genau einmal kompiliert; constraint-level SET-IR und ilivalidator übernehmen den Proof. Geometry-aware Funktionen werden nur bei implementierter Semantik freigegeben. Diff und afterReview verwenden dieselben Compilations. Das Tool schreibt keine Datei.",
+      description = ch.so.agi.mcp.model.ConstraintAuthoringGuidance.SCALAR_INPUT + " Erzeugt einen typisierten SET CONSTRAINT mit perBasket/global-vs-Basket-Scope, optionalem where und diskriminierter OBJECT_COUNT- oder BOOLEAN_EXPRESSION-Condition; OBJECT_COUNT unterstützt objectCount(ALL) und navigierte Objektmengen. Die Einfügung ist source-preserving; Before/After je genau einmal kompiliert; constraint-level SET-IR und ilivalidator übernehmen den Proof. Geometry-aware Funktionen werden nur bei implementierter Semantik freigegeben. Diff und afterReview verwenden dieselben Compilations. Das Tool schreibt keine Datei.",
       generateOutputSchema = true,
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true))
   public IliAuthoringResult authorIliSetConstraint(

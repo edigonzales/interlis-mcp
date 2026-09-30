@@ -39,7 +39,8 @@ final class ConstraintDefinednessReachability {
     return new ConstraintGoalReachability.Result(ConstraintGoalReachability.Status.PROVEN_UNREACHABLE,
         "Exhausted " + count + " conservative definedness states. Comparisons are unconstrained when defined; "
             + "SUM may be defined or undefined. Only strict ADD/SUB/MUL/DIV undefined propagation and "
-            + "ordered, short-circuit boolean rules were used; no numerical function results or collection cardinalities were inferred.");
+            + "ordered, short-circuit boolean rules were used; TEXT/MTEXT values represent presence only, not text contents; "
+            + "no numerical function results or collection cardinalities were inferred.");
   }
 
   private static ConstraintGoalReachability.Result unknown(String reason) {
@@ -88,7 +89,8 @@ final class ConstraintDefinednessReachability {
         || (bound.reference().kind() != ReferenceKind.OBJECT_COUNT && bound.navigation().stream().anyMatch(ConstraintModelSynthesizer.NavigationBinding::multiValued))) return false;
     List<Object> values = new ArrayList<>();
     if (expression.type().isScalar(ScalarKind.BOOLEAN)) values.addAll(List.of(false, true));
-    else if (expression.type().isScalar(ScalarKind.NUMERIC) || expression.type().isScalar(ScalarKind.ENUM)) values.add(Present.VALUE);
+    else if (expression.type().isScalar(ScalarKind.NUMERIC) || expression.type().isScalar(ScalarKind.ENUM)
+        || expression.type().isScalar(ScalarKind.TEXT) || expression.type().isScalar(ScalarKind.MTEXT)) values.add(Present.VALUE);
     else return false;
     if (!bound.domain().mandatory() || (bound.reference().kind() != ReferenceKind.OBJECT_COUNT && bound.navigation().stream().anyMatch(step -> step.minimum() == 0))) values.add(Undefined.INSTANCE);
     variables.putIfAbsent(expression, List.copyOf(values));

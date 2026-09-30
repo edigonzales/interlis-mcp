@@ -163,6 +163,8 @@ Golden Scenarios prüfen die **Orchestrierung und Verträge**, nicht die Intelli
 
 `ConstraintValidatorDifferentialTest` vergleicht repräsentative explizite Assignments zwischen interner Constraint-Semantik und realem ilivalidator. Diese Tests sind absichtlich unabhängig von Solver und Coverage Planner.
 
+`ConstraintDefinednessReachability` abstrahiert skalare `TEXT`-/`MTEXT`-Referenzen als vorhanden beziehungsweise undefiniert. Die vorhandenen Modellbindungen bestimmen Pflichtangaben und optionale Navigationsschritte; wiederholte Referenzen bleiben korreliert. Diese Erweiterung betrifft ausschliesslich Definiertheit: Textliterale, Textvergleiche und Textfunktionen erhalten keine zusätzliche Unerreichbarkeitsanalyse. Das Zustandslimit und die Ausschlussregeln für notwendige Witnesses/Gegenbeispiele bleiben unverändert; die separate Constraint-Interaktionsanalyse wird nicht erweitert.
+
 ### STDIO-E2E
 
 ```bash
@@ -488,6 +490,15 @@ wie das Beispiel im Authoring-Prompt aus `ConstraintAuthoringGuidance`; es setzt
 vorhandenes Attribut `value` voraus. Das rekursive Eingabeschema bleibt verbindlich,
 auch wenn ein Connector die Argumente lediglich als `unknown` darstellt.
 
+Die sichtbaren Beschreibungen für skalare Constraint-Ausdrücke nennen zusätzlich
+`{"kind":"NUMERIC","value":7}` sowie `COMPARE` mit `operator` aus `==`, `!=`, `<`,
+`<=`, `>` und `>=` und genau zwei geordneten `children`. `DEFINED`/`NOT` haben ein
+Kind; `AND`/`OR` behalten die Reihenfolge. Diese Angaben gelten auch für Constraints
+in `authorIliModel` und in `applyIliModelChanges`. Im Batch liegt die Spezifikation
+unter `request.changes[i].addConstraint.constraint`, der Mandatory-Ausdruck dort
+in `condition`. `NUMBER` und `=` sind keine alternativen Schreibweisen.
+
+
 Eine vorgelagerte MCP-Schemavalidierung kann einen Aufruf ablehnen, bevor der Handler
 läuft. Diese Diagnose ist kein reguläres Ergebnis mit `status=INVALID_SPEC` und darf
 weder im Protokoll noch in der Bewertung so bezeichnet werden. Sie erweitert das
@@ -499,3 +510,22 @@ Schreiben. Beurteilt er eine allgemeine Frage anhand des vorhandenen Auftrags al
 für die konkrete Änderung unerheblich, muss er dies sichtbar begründen. Das Flag
 bleibt unverändert; weder ein erfundener Modellzweck noch erfolgreiche Proofs ersetzen
 diese Beurteilung. Es gibt keine pauschale Ausnahme für Modellzweckfragen.
+
+### Gezielte Schemadiagnosen und verlustfreie Laufprotokolle
+
+`ConstraintSpecSchema` wählt die 15 rekursiven Ausdrucksformen mit `allOf` und
+`if`/`then` anhand des erforderlichen `kind` aus. Die bisherigen Feld-, Typ- und
+Kindanzahlregeln bleiben erhalten. Andere diskriminierte Unions behalten `oneOf`.
+So werden Kinder nicht nochmals unter allen unpassenden Ausdrucksformen geprüft.
+Die Diagnose bleibt ein vorgelagerter Schemafehler. Das Deklarationslimit von
+50.000 Bytes ist keine allgemeine Grenze für Fehlerantworten; Regressionen begrenzen
+die repräsentativen verschachtelten Einzel- und Batchdiagnosen auf unter 8 KiB.
+
+Der Workflow-Recorder unter `evals/constraint-authoring-workflow/tools` verwendet
+native Tools und den vorhandenen `store`. Er archiviert Requests vor dem Aufruf,
+sichert Antworten vor Dateizugriffen und schreibt höchstens 8 KiB UTF-8 je Block.
+JSON und Blockhashes werden vor der abschliessenden Umbenennung geprüft. Seine
+`persist`-Funktion wiederholt nur die Archivierung; sie ruft kein MCP-Tool auf.
+Ein ausstehendes Archiv sperrt weitere Aufrufe. Toolausnahmen stehen separat in
+`*-tool-exception.json`; sie ersetzen niemals eine empfangene Antwort.
+Der Recorder ist kein Runner und trifft keine fachlichen oder Freigabeentscheidungen.

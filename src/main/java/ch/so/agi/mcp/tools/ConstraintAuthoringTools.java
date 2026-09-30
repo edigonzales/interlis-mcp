@@ -43,7 +43,7 @@ public final class ConstraintAuthoringTools {
 
   @McpTool(
       name = "authorIliPlausibilityConstraint",
-      description = "Erzeugt einen PLAUSIBILITY Constraint mit direction, percentage und rekursiver typisierter semantischen Node-Liste. Die Einfügung ist source-preserving; Before/After je genau einmal kompiliert; der Proof verwendet constraint-level IR, echte Mehrfachobjekt-Populationen an der Prozentgrenze und ilivalidator. Diff und afterReview verwenden dieselben Compilations. Das Tool schreibt keine Datei.",
+      description = ch.so.agi.mcp.model.ConstraintAuthoringGuidance.SCALAR_INPUT + " Erzeugt einen PLAUSIBILITY Constraint mit direction, percentage und rekursiver typisierter semantischen Node-Liste. Die Einfügung ist source-preserving; Before/After je genau einmal kompiliert; der Proof verwendet constraint-level IR, echte Mehrfachobjekt-Populationen an der Prozentgrenze und ilivalidator. Diff und afterReview verwenden dieselben Compilations. Das Tool schreibt keine Datei.",
       generateOutputSchema = true,
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true))
   public IliAuthoringResult authorIliPlausibilityConstraint(

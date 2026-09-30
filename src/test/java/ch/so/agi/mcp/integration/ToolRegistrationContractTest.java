@@ -47,7 +47,8 @@ class ToolRegistrationContractTest {
     var tool = specsByName().get("authorIliMandatoryConstraint").tool();
     var defs = (Map<String,Object>) tool.inputSchema().get("$defs");
     var expression = (Map<String,Object>) defs.get("ExpressionSpec");
-    var alternatives = (List<Map<String,Object>>) expression.get("oneOf");
+    var alternatives = ((List<Map<String,Object>>) expression.get("allOf")).stream()
+        .map(branch -> (Map<String,Object>) branch.get("then")).toList();
     assertThat(alternatives).hasSize(15);
     var byKind = alternatives.stream().collect(Collectors.toMap(
         a -> ((Map<?,?>)((Map<?,?>)a.get("properties")).get("kind")).get("const").toString(), a -> a));
@@ -94,6 +95,55 @@ class ToolRegistrationContractTest {
         .containsEntry("requiresUserDecision", true);
     assertThat(result.get("updatedModelText").toString()).contains("DEFINED(value)");
     assertThat(mapper.writeValueAsString(result.get("openQuestions"))).contains("intended model purpose");
+  }
+
+  @Test
+  void scalarContractIsVisibleWithoutParameterSchema() {
+    for (String name : List.of("authorIliMandatoryConstraint", "authorIliPlausibilityConstraint",
+        "authorIliUniqueConstraint", "authorIliSetConstraint", "authorIliModel", "applyIliModelChanges")) {
+      assertThat(specsByName().get(name).tool().description()).as(name)
+          .contains(ch.so.agi.mcp.model.ConstraintAuthoringGuidance.SCALAR_INPUT);
+    }
+    assertThat(specsByName().get("applyIliModelChanges").tool().description())
+        .contains("request.changes[i].addConstraint.constraint");
+  }
+
+  @Test
+  void documentedNumericNodeWorksThroughSingleBatchAndModelHandlers() throws Exception {
+    String model="""
+        INTERLIS 2.4;
+        MODEL Example (en) AT "https://example.org" VERSION "1" =
+          TOPIC Data =
+            CLASS Item =
+              value : MANDATORY 0..10;
+            END Item;
+          END Data;
+        END Example.
+        """;
+    var condition=Map.of("kind","COMPARE","operator",">=","children",List.of(
+        Map.of("kind","ATTRIBUTE","name","value"),Map.of("kind","NUMERIC","value",7)));
+    var constraint=Map.of("kind","MANDATORY","name","MinimumValue","condition",condition);
+    var completeSpec=Map.of("name","Example","language","en","uri","https://example.org",
+        "version","1","iliVersion","2.4",
+        "domains",List.of(Map.of("name","Value","kind","NUMERIC","min","0","max","10")),
+        "topics",List.of(Map.of("name","Data","classes",List.of(Map.of("name","Item",
+            "attributes",List.of(Map.of("name","value","mandatory",true,"typeSpec",Map.of("domainFqn","Example.Value"))),
+            "constraints",List.of(constraint))))));
+    var requests=Map.of(
+        "authorIliMandatoryConstraint",Map.of("modelText",model,"contextFqn","Example.Data.Item","spec",constraint),
+        "applyIliModelChanges",Map.of("modelText",model,"request",Map.of("allowPotentiallyBreaking",true,"changes",List.of(
+            Map.of("operation","ADD_CONSTRAINT","addConstraint",Map.of("containerFqn","Example.Data.Item","constraint",constraint))))),
+        "authorIliModel",Map.of("spec",completeSpec));
+    for(var entry:requests.entrySet()) {
+      var args=new LinkedHashMap<String,Object>(entry.getValue());args.put("includeSuccessfulTestXtf",false);
+      args.put("modelPurpose","CAPTURE");
+      var response=specsByName().get(entry.getKey()).callHandler().apply(null,new McpSchema.CallToolRequest(entry.getKey(),args));
+      assertThat(response.isError()).as(entry.getKey()).isNotEqualTo(true);
+      var result=extractStructuredContent(response);
+      assertThat(result.get("status")).as(result.toString()).isIn("GENERATED","APPLIED");
+      assertThat(result.get("proofVerified")).isEqualTo(true);
+      assertThat(result.get("updatedModelText").toString()).contains("value >= 7");
+    }
   }
 
   @Test

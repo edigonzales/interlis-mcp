@@ -307,6 +307,48 @@ class ConstraintValidatorDifferentialTest {
     }
   }
 
+  @Test
+  void guardedTextPresenceMatchesValidatorIncludingUndefinedOrderForBothVersions() {
+    Object u = ConstraintExpressionEngine.Undefined.INSTANCE;
+    for (String version : List.of("2.3", "2.4")) {
+      for (String textType : List.of("TEXT", "MTEXT")) {
+        for (boolean guarded : List.of(true, false)) {
+          String antecedent = guarded ? "DEFINED(state) AND state == #inactive" : "state == #inactive AND DEFINED(state)";
+          String model = """
+              INTERLIS %s;
+              MODEL ThreeValued (en) AT "https://example.org" VERSION "1" =
+                DOMAIN CodeText = %s*40;
+                TOPIC Data =
+                  CLASS Sample =
+                    state : (active, inactive);
+                    code : CodeText;
+                    !!@ name = "Presence"
+                    MANDATORY CONSTRAINT NOT(%s) OR DEFINED(code);
+                  END Sample;
+                END Data;
+              END ThreeValued.
+              """.formatted(version, textType, antecedent);
+          var compiled = compilerService.compile(model, null);
+          assertTrue(compiled.valid(), compiled.messages().toString());
+          var rule = constraint(compiled.transferDescription(), "Presence");
+          var expression = ConstraintAstTranslator.translate(rule).expression();
+          var assignments = new ArrayList<DifferentialAssignment>();
+          for (Object state : List.of("active", "inactive", u)) {
+            for (Object code : List.of("Abc", u)) {
+              var values = Map.of("state", state, "code", code);
+              Object expected = state == u && !guarded ? u : !(state.equals("inactive") && code == u);
+              assertEquals(expected == u ? ConstraintExpressionEngine.NotComputable.INSTANCE : expected,
+                  ConstraintExpressionEngine.evaluate(expression, ConstraintExpressionEngine.EvaluationContext.of(values)));
+              assertRawValidatorState(compiled.transferDescription(), rule, values, expected);
+              assignments.add(assignment(state + "_" + code, !Boolean.FALSE.equals(expected), values));
+            }
+          }
+          assertDifferential(model, "Presence", assignments);
+        }
+      }
+    }
+  }
+
   private static void assertRawValidatorState(TransferDescription td, Constraint constraint,
       Map<String, Object> values, Object expected) {
     var logging = org.mockito.Mockito.mock(ch.interlis.iox.IoxLogging.class);

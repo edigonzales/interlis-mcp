@@ -70,11 +70,20 @@ final class ConstraintSpecSchema {
       List<String> required = new ArrayList<>(List.of("kind"));
       required.addAll(rule.required());
       if (rule.minChildren() > 0) required.add("children");
-      alternatives.add(Map.of("type", "object", "properties", props, "required", required,
-          "additionalProperties", false));
+      // Select before descending into children: unrelated branches otherwise multiply
+      // recursive validation diagnostics for a single malformed leaf.
+      alternatives.add(Map.of(
+          "if", Map.of("properties", Map.of("kind", Map.of("const", kind.name())),
+              "required", List.of("kind")),
+          "then", Map.of("type", "object", "properties", props, "required", required,
+              "additionalProperties", false)));
     }
     node.clear();
-    node.put("oneOf", alternatives);
+    node.put("type", "object");
+    node.put("required", List.of("kind"));
+    node.put("properties", Map.of("kind", Map.of("enum",
+        java.util.Arrays.stream(ExpressionKind.values()).map(Enum::name).toList())));
+    node.put("allOf", alternatives);
     node.put("description", "Rekursiver Ausdruck. Erlaubte Felder haengen von kind ab; keine Rohsyntax. " + ConstraintAuthoringGuidance.COUNT);
   }
 

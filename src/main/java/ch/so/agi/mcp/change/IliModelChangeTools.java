@@ -21,7 +21,7 @@ public class IliModelChangeTools {
 
   @McpTool(
       name = "applyIliModelChanges",
-      description = ch.so.agi.mcp.knowledge.ConstraintWorkflowGuidance.TOOL + " Wendet einen typisierten Batch atomar und source-preserving auf ein vollständiges INTERLIS-Modell an. Unterstützt ADD_IMPORT, ADD_TOPIC, ADD_DOMAIN, ADD_UNIT, ADD_CLASS, ADD_STRUCTURE, ADD_ASSOCIATION, ADD_ATTRIBUTE, UPDATE_ATTRIBUTE, REMOVE_ATTRIBUTE und ADD_CONSTRAINT. Der gesamte Batch nutzt genau einen Before- und einen After-Compile; Diff und afterReview werden daraus wiederverwendet. Das Breaking-Change-Gate liefert bei potenziell brechenden Änderungen ohne explizites allowPotentiallyBreaking=true nur einen geprüften candidateModelText. Das Tool schreibt keine Datei.",
+      description = ch.so.agi.mcp.model.ConstraintAuthoringGuidance.SCALAR_INPUT + " Batch-Constraints: request.changes[i].addConstraint.constraint; MANDATORY-Ausdruck dort in condition. " + ch.so.agi.mcp.knowledge.ConstraintWorkflowGuidance.TOOL + " Wendet einen typisierten Batch atomar und source-preserving auf ein vollständiges INTERLIS-Modell an. Unterstützt ADD_IMPORT, ADD_TOPIC, ADD_DOMAIN, ADD_UNIT, ADD_CLASS, ADD_STRUCTURE, ADD_ASSOCIATION, ADD_ATTRIBUTE, UPDATE_ATTRIBUTE, REMOVE_ATTRIBUTE und ADD_CONSTRAINT. Der gesamte Batch nutzt genau einen Before- und einen After-Compile; Diff und afterReview werden daraus wiederverwendet. Das Breaking-Change-Gate liefert bei potenziell brechenden Änderungen ohne explizites allowPotentiallyBreaking=true nur einen geprüften candidateModelText. Das Tool schreibt keine Datei.",
       generateOutputSchema = true,
       annotations = @McpTool.McpAnnotations(
           readOnlyHint = true,
