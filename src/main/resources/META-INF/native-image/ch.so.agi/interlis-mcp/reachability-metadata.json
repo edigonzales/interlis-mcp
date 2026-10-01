@@ -1,0 +1,1933 @@
+{
+  "comment": "Reachability metadata for the MCP tool argument and result DTOs. Collected with the GraalVM tracing agent while tools/test-mcp-stdio.py drove every MCP tool, resource and prompt; see docs/DEVELOPER_GUIDE.md for how to regenerate it. Nested response payloads such as ConstraintInteractionAnalysis.Gap are only composed at runtime, so they cannot be derived from the tool signatures.",
+  "reflection": [
+    {
+      "type": "ch.so.agi.mcp.Application",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "main",
+          "parameterTypes": [
+            "java.lang.String[]"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.analysis.ModelAnalysisTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.service.IliCompilerService"
+          ]
+        },
+        {
+          "name": "analyzeIliModel",
+          "parameterTypes": [
+            "java.lang.String",
+            "ch.so.agi.mcp.analysis.ModelPurpose",
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.analysis.ModelChangeReviewService",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.analysis.ModelAnalysisTools",
+            "ch.so.agi.mcp.knowledge.ModelingRuleTools"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.analysis.ModelChangeTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.service.IliCompilerService",
+            "ch.so.agi.mcp.analysis.ModelChangeReviewService"
+          ]
+        },
+        {
+          "name": "reviewIliChange",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String",
+            "ch.so.agi.mcp.analysis.ModelPurpose",
+            "ch.so.agi.mcp.knowledge.ModelingRuleProfile"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.analysis.ModelPurpose"
+    },
+    {
+      "type": "ch.so.agi.mcp.change.AddAttributeChange",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAttribute",
+          "parameterTypes": [
+            "ch.so.agi.mcp.model.AttributeLineRequest"
+          ]
+        },
+        {
+          "name": "setContainerFqn",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.change.IliModelChangeOperation"
+    },
+    {
+      "type": "ch.so.agi.mcp.change.IliModelChangeRequest",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "setAddAttribute",
+          "parameterTypes": [
+            "ch.so.agi.mcp.change.AddAttributeChange"
+          ]
+        },
+        {
+          "name": "setOperation",
+          "parameterTypes": [
+            "ch.so.agi.mcp.change.IliModelChangeOperation"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.change.IliModelChangeRequest$AddAssociationChange"
+    },
+    {
+      "type": "ch.so.agi.mcp.change.IliModelChangeRequest$AddClassChange"
+    },
+    {
+      "type": "ch.so.agi.mcp.change.IliModelChangeRequest$AddConstraintChange"
+    },
+    {
+      "type": "ch.so.agi.mcp.change.IliModelChangeRequest$AddDomainChange"
+    },
+    {
+      "type": "ch.so.agi.mcp.change.IliModelChangeRequest$AddImportChange"
+    },
+    {
+      "type": "ch.so.agi.mcp.change.IliModelChangeRequest$AddStructureChange"
+    },
+    {
+      "type": "ch.so.agi.mcp.change.IliModelChangeRequest$AddTopicChange"
+    },
+    {
+      "type": "ch.so.agi.mcp.change.IliModelChangeRequest$AddUnitChange"
+    },
+    {
+      "type": "ch.so.agi.mcp.change.IliModelChangeTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.change.IliModelChangesService"
+          ]
+        },
+        {
+          "name": "applyIliModelChanges",
+          "parameterTypes": [
+            "java.lang.String",
+            "ch.so.agi.mcp.change.IliModelChangesRequest",
+            "ch.so.agi.mcp.analysis.ModelPurpose",
+            "ch.so.agi.mcp.knowledge.ModelingRuleProfile",
+            "java.lang.Boolean"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.change.IliModelChangesRequest",
+      "fields": [
+        {
+          "name": "changes"
+        }
+      ],
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.change.IliModelChangesService",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.service.IliCompilerService",
+            "ch.so.agi.mcp.analysis.ModelChangeReviewService",
+            "ch.so.agi.mcp.model.IliSpecRenderer",
+            "ch.so.agi.mcp.constraint.ConstraintContextService",
+            "ch.so.agi.mcp.tools.ConstraintCaseGenerationTools"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.change.RemoveAttributeChange"
+    },
+    {
+      "type": "ch.so.agi.mcp.change.UpdateAttributeChange"
+    },
+    {
+      "type": "ch.so.agi.mcp.change.UpdateAttributeChange$AttributePatch"
+    },
+    {
+      "type": "ch.so.agi.mcp.change.UpdateAttributeChange$IliDocAction"
+    },
+    {
+      "type": "ch.so.agi.mcp.change.UpdateAttributeChange$MetaAttributesAction"
+    },
+    {
+      "type": "ch.so.agi.mcp.config.ClockConfig",
+      "methods": [
+        {
+          "name": "clock",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.config.ClockConfig$$SpringCGLIB$$0",
+      "fields": [
+        {
+          "name": "$$beanFactory"
+        },
+        {
+          "name": "CGLIB$CALLBACK_FILTER"
+        },
+        {
+          "name": "CGLIB$FACTORY_DATA"
+        }
+      ],
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "CGLIB$SET_STATIC_CALLBACKS",
+          "parameterTypes": [
+            "org.springframework.cglib.proxy.Callback[]"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.config.ClockConfig$$SpringCGLIB$$FastClass$$0",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Class"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.config.ClockConfig$$SpringCGLIB$$FastClass$$1",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.Class"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.config.McpDiscriminatorSchemaConfig",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "discriminatedToolSchemaPostProcessor",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.config.McpDiscriminatorSchemaConfig$1"
+    },
+    {
+      "type": "ch.so.agi.mcp.config.McpToolReflectionHintsConfig",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "mcpToolDtoReflectionProcessor",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.config.StdioTransportConfig",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "serializedStdioServerTransport",
+          "parameterTypes": [
+            "tools.jackson.databind.json.JsonMapper",
+            "org.springframework.core.env.Environment"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.constraint.ConstraintAuthoringEngine",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.constraint.ConstraintAuthoringWorkflow",
+            "ch.so.agi.mcp.model.IliSpecRenderer",
+            "ch.so.agi.mcp.tools.ConstraintCaseGenerationTools",
+            "ch.so.agi.mcp.analysis.ModelChangeReviewService"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.constraint.ConstraintAuthoringWorkflow",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.service.IliCompilerService",
+            "ch.so.agi.mcp.constraint.ConstraintContextService",
+            "ch.so.agi.mcp.constraint.ConstraintSourceEditService"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.constraint.ConstraintContextService",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.service.IliCompilerService"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.constraint.ConstraintExplanation",
+      "methods": [
+        {
+          "name": "constraintFqn",
+          "parameterTypes": []
+        },
+        {
+          "name": "contextFqn",
+          "parameterTypes": []
+        },
+        {
+          "name": "description",
+          "parameterTypes": []
+        },
+        {
+          "name": "kind",
+          "parameterTypes": []
+        },
+        {
+          "name": "limitations",
+          "parameterTypes": []
+        },
+        {
+          "name": "notes",
+          "parameterTypes": []
+        },
+        {
+          "name": "referencedElements",
+          "parameterTypes": []
+        },
+        {
+          "name": "status",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.constraint.ConstraintExplanation$Status"
+    },
+    {
+      "type": "ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis$ContextResult",
+      "methods": [
+        {
+          "name": "constraintFqns",
+          "parameterTypes": []
+        },
+        {
+          "name": "contextFqn",
+          "parameterTypes": []
+        },
+        {
+          "name": "domains",
+          "parameterTypes": []
+        },
+        {
+          "name": "examinedStates",
+          "parameterTypes": []
+        },
+        {
+          "name": "reasonCode",
+          "parameterTypes": []
+        },
+        {
+          "name": "scalarAssignment",
+          "parameterTypes": []
+        },
+        {
+          "name": "status",
+          "parameterTypes": []
+        },
+        {
+          "name": "undefinedAttributes",
+          "parameterTypes": []
+        },
+        {
+          "name": "unsupported",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis$ContextResult[]"
+    },
+    {
+      "type": "ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis$Domain"
+    },
+    {
+      "type": "ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis$Domain[]"
+    },
+    {
+      "type": "ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis$Gap",
+      "methods": [
+        {
+          "name": "constraintFqn",
+          "parameterTypes": []
+        },
+        {
+          "name": "reasonCode",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis$Gap[]"
+    },
+    {
+      "type": "ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis$Result",
+      "methods": [
+        {
+          "name": "analyzed",
+          "parameterTypes": []
+        },
+        {
+          "name": "contexts",
+          "parameterTypes": []
+        },
+        {
+          "name": "examinedStates",
+          "parameterTypes": []
+        },
+        {
+          "name": "limitation",
+          "parameterTypes": []
+        },
+        {
+          "name": "scope",
+          "parameterTypes": []
+        },
+        {
+          "name": "stateBudget",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis$Status"
+    },
+    {
+      "type": "ch.so.agi.mcp.constraint.ConstraintSourceEditService",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.knowledge.AgentPrompts",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "extendInterlisModel",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "interlisModelingAgent",
+          "parameterTypes": []
+        },
+        {
+          "name": "reviewInterlisModel",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.knowledge.KnowledgeResources",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.knowledge.KnowledgeRuleLoader",
+            "ch.so.agi.mcp.knowledge.ModelCorpusService"
+          ]
+        },
+        {
+          "name": "agentWorkflow",
+          "parameterTypes": []
+        },
+        {
+          "name": "handbookRules",
+          "parameterTypes": []
+        },
+        {
+          "name": "modelCorpusIndex",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.knowledge.KnowledgeRuleLoader",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.knowledge.KnowledgeRuleLoader$KnowledgeRuleResources"
+    },
+    {
+      "type": "ch.so.agi.mcp.knowledge.ModelCorpusService",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.String",
+            "long",
+            "int"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.knowledge.ModelCorpusTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.knowledge.ModelCorpusService"
+          ]
+        },
+        {
+          "name": "findSimilarModels",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String",
+            "ch.so.agi.mcp.analysis.ModelPurpose",
+            "java.lang.Integer"
+          ]
+        },
+        {
+          "name": "indexConfiguredModels",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.knowledge.ModelingRuleProfile"
+    },
+    {
+      "type": "ch.so.agi.mcp.knowledge.ModelingRuleTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.knowledge.KnowledgeRuleLoader",
+            "ch.so.agi.mcp.analysis.ModelAnalysisTools",
+            "ch.so.agi.mcp.service.IliCompilerService"
+          ]
+        },
+        {
+          "name": "checkModelingRules",
+          "parameterTypes": [
+            "java.lang.String",
+            "ch.so.agi.mcp.analysis.ModelPurpose",
+            "java.util.List",
+            "ch.so.agi.mcp.knowledge.ModelingRuleProfile"
+          ]
+        },
+        {
+          "name": "listModelingRules",
+          "parameterTypes": [
+            "ch.so.agi.mcp.knowledge.ModelingRuleProfile"
+          ]
+        },
+        {
+          "name": "reviewIliModel",
+          "parameterTypes": [
+            "java.lang.String",
+            "ch.so.agi.mcp.analysis.ModelPurpose",
+            "ch.so.agi.mcp.knowledge.ModelingRuleProfile"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.AttributeLineRequest",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "setName",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setTypeSpec",
+          "parameterTypes": [
+            "ch.so.agi.mcp.model.TypeSpec"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.AttributeLineRequest$Collection"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.BaseType",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "setKind",
+          "parameterTypes": [
+            "ch.so.agi.mcp.model.BaseType$Kind"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.BaseType$Kind"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.BasketTypeSpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.BasketTypeSpec$Kind"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.BlackboxTypeSpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.BlackboxTypeSpec$Kind"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.EnumTreeItem"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.EnumTreeValueTypeSpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.EnumValueItem"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.EvidenceSummary",
+      "methods": [
+        {
+          "name": "businessAcceptance",
+          "parameterTypes": []
+        },
+        {
+          "name": "compiler",
+          "parameterTypes": []
+        },
+        {
+          "name": "constraintInteractions",
+          "parameterTypes": []
+        },
+        {
+          "name": "constraintTests",
+          "parameterTypes": []
+        },
+        {
+          "name": "modelingRules",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.EvidenceSummary$Check",
+      "methods": [
+        {
+          "name": "basis",
+          "parameterTypes": []
+        },
+        {
+          "name": "checkedCount",
+          "parameterTypes": []
+        },
+        {
+          "name": "errorCount",
+          "parameterTypes": []
+        },
+        {
+          "name": "reasonCodes",
+          "parameterTypes": []
+        },
+        {
+          "name": "scope",
+          "parameterTypes": []
+        },
+        {
+          "name": "status",
+          "parameterTypes": []
+        },
+        {
+          "name": "warningCount",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.EvidenceSummary$Status"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.GeometryTypeSpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.GeometryTypeSpec$InterlisKind"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.GeometryTypeSpec$Provider"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult",
+      "fields": [
+        {
+          "name": "added"
+        },
+        {
+          "name": "afterDiagnostics"
+        },
+        {
+          "name": "afterReview"
+        },
+        {
+          "name": "applied"
+        },
+        {
+          "name": "beforeDiagnostics"
+        },
+        {
+          "name": "candidateModelText"
+        },
+        {
+          "name": "changed"
+        },
+        {
+          "name": "compilerDiagnostics"
+        },
+        {
+          "name": "complete"
+        },
+        {
+          "name": "constraintProofs"
+        },
+        {
+          "name": "derivedImports"
+        },
+        {
+          "name": "details"
+        },
+        {
+          "name": "evidence"
+        },
+        {
+          "name": "generated"
+        },
+        {
+          "name": "impact"
+        },
+        {
+          "name": "modelHashes"
+        },
+        {
+          "name": "omittedSuccessfulTestXtfCount"
+        },
+        {
+          "name": "openQuestions"
+        },
+        {
+          "name": "potentiallyBreakingChanges"
+        },
+        {
+          "name": "proofVerified"
+        },
+        {
+          "name": "reason"
+        },
+        {
+          "name": "reasonCode"
+        },
+        {
+          "name": "removed"
+        },
+        {
+          "name": "requiresUserDecision"
+        },
+        {
+          "name": "semanticDiff"
+        },
+        {
+          "name": "sourceEdits"
+        },
+        {
+          "name": "specDiagnostics"
+        },
+        {
+          "name": "status"
+        },
+        {
+          "name": "updatedModelText"
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$CompilerDiagnostic"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$CompilerDiagnostic[]"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$ConstraintProof"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$ConstraintProof[]"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$CoverageExclusion"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$CoverageGap"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$CoverageGoal"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$ModelReview",
+      "fields": [
+        {
+          "name": "available"
+        },
+        {
+          "name": "compilerValid"
+        },
+        {
+          "name": "constraintInteractions"
+        },
+        {
+          "name": "evidence"
+        },
+        {
+          "name": "manualChecks"
+        },
+        {
+          "name": "modelPurpose"
+        },
+        {
+          "name": "openQuestions"
+        },
+        {
+          "name": "reason"
+        },
+        {
+          "name": "ruleFindings"
+        },
+        {
+          "name": "ruleProfile"
+        },
+        {
+          "name": "valid"
+        },
+        {
+          "name": "validForAutomatedRules"
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$OpenQuestion"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$OpenQuestion[]"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$ProofCase"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$ProofCaseVerification"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$ProofVerification"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$ReviewFinding",
+      "fields": [
+        {
+          "name": "id"
+        },
+        {
+          "name": "location"
+        },
+        {
+          "name": "message"
+        },
+        {
+          "name": "recommendation"
+        },
+        {
+          "name": "severity"
+        },
+        {
+          "name": "sourceSection"
+        },
+        {
+          "name": "sourceUrl"
+        },
+        {
+          "name": "title"
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$ReviewFinding[]"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$SemanticChange",
+      "fields": [
+        {
+          "name": "after"
+        },
+        {
+          "name": "before"
+        },
+        {
+          "name": "changedFields"
+        },
+        {
+          "name": "kind"
+        },
+        {
+          "name": "mandatory"
+        },
+        {
+          "name": "model"
+        },
+        {
+          "name": "name"
+        },
+        {
+          "name": "owner"
+        },
+        {
+          "name": "properties"
+        },
+        {
+          "name": "reason"
+        },
+        {
+          "name": "scopedName"
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$SemanticChange[]"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$SemanticDiff",
+      "fields": [
+        {
+          "name": "added"
+        },
+        {
+          "name": "astRoundTripVerified"
+        },
+        {
+          "name": "changed"
+        },
+        {
+          "name": "impact"
+        },
+        {
+          "name": "kind"
+        },
+        {
+          "name": "modelName"
+        },
+        {
+          "name": "potentiallyBreakingChanges"
+        },
+        {
+          "name": "removed"
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$SourceEdit",
+      "fields": [
+        {
+          "name": "after"
+        },
+        {
+          "name": "before"
+        },
+        {
+          "name": "description"
+        },
+        {
+          "name": "endLine"
+        },
+        {
+          "name": "endOffset"
+        },
+        {
+          "name": "startLine"
+        },
+        {
+          "name": "startOffset"
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$SourceEdit[]"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$SourceExcerpt"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$SpecDiagnostic"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$SpecDiagnostic[]"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliAuthoringResult$Status"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliConstraintSpec",
+      "fields": [
+        {
+          "name": "iliDoc"
+        },
+        {
+          "name": "name"
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliConstraintSpec$AllObjectsSpec",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliConstraintSpec$BooleanSetConditionSpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliConstraintSpec$Existence",
+      "fields": [
+        {
+          "name": "requiredIn"
+        },
+        {
+          "name": "restrictedPath"
+        }
+      ],
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliConstraintSpec$ExistenceTargetSpec",
+      "fields": [
+        {
+          "name": "attributePath"
+        },
+        {
+          "name": "viewableFqn"
+        }
+      ],
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliConstraintSpec$ExpressionKind"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliConstraintSpec$ExpressionSpec",
+      "fields": [
+        {
+          "name": "children"
+        },
+        {
+          "name": "kind"
+        },
+        {
+          "name": "name"
+        },
+        {
+          "name": "operator"
+        },
+        {
+          "name": "value"
+        }
+      ],
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliConstraintSpec$FunctionOrigin"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliConstraintSpec$Mandatory",
+      "fields": [
+        {
+          "name": "condition"
+        }
+      ],
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliConstraintSpec$ObjectCountSetConditionSpec",
+      "fields": [
+        {
+          "name": "objects"
+        },
+        {
+          "name": "operator"
+        },
+        {
+          "name": "threshold"
+        }
+      ],
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliConstraintSpec$ObjectSetSpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliConstraintSpec$PathObjectsSpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliConstraintSpec$Plausibility",
+      "fields": [
+        {
+          "name": "condition"
+        },
+        {
+          "name": "direction"
+        },
+        {
+          "name": "percentage"
+        }
+      ],
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliConstraintSpec$PlausibilityDirection"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliConstraintSpec$Set",
+      "fields": [
+        {
+          "name": "condition"
+        },
+        {
+          "name": "scope"
+        }
+      ],
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliConstraintSpec$SetConditionSpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliConstraintSpec$SetScope"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliConstraintSpec$Unique",
+      "fields": [
+        {
+          "name": "keyPaths"
+        },
+        {
+          "name": "scope"
+        }
+      ],
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliConstraintSpec$UniqueScope"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliModelSpec",
+      "fields": [
+        {
+          "name": "iliVersion"
+        },
+        {
+          "name": "language"
+        },
+        {
+          "name": "metaAttributes"
+        },
+        {
+          "name": "name"
+        },
+        {
+          "name": "uri"
+        },
+        {
+          "name": "version"
+        }
+      ],
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliModelSpec$AnnotatedSpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliModelSpec$AssociationRoleSpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliModelSpec$AssociationSpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliModelSpec$CardinalitySpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliModelSpec$ClassSpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliModelSpec$DomainKind"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliModelSpec$DomainSpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliModelSpec$StructureSpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliModelSpec$TopicSpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliModelSpec$UnitSpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliModelSpec$ViewableSpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.IliSpecRenderer",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.tools.AttributeTools",
+            "ch.so.agi.mcp.tools.DomainTools"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.MetaAttributeSpec",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "setName",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "setValue",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.MetaobjectTypeSpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.ModelHashes",
+      "methods": [
+        {
+          "name": "after",
+          "parameterTypes": []
+        },
+        {
+          "name": "before",
+          "parameterTypes": []
+        },
+        {
+          "name": "candidate",
+          "parameterTypes": []
+        },
+        {
+          "name": "model",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.model.ObjectTypeSpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.ReferenceTypeSpec"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.RenameElementKind"
+    },
+    {
+      "type": "ch.so.agi.mcp.model.TypeSpec",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "setBaseType",
+          "parameterTypes": [
+            "ch.so.agi.mcp.model.BaseType"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.service.IliCompilerService",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.service.XtfService",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.service.IliCompilerService"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.service.XtfService$ExampleValidation",
+      "methods": [
+        {
+          "name": "errorCount",
+          "parameterTypes": []
+        },
+        {
+          "name": "getLimitation",
+          "parameterTypes": []
+        },
+        {
+          "name": "getScope",
+          "parameterTypes": []
+        },
+        {
+          "name": "messages",
+          "parameterTypes": []
+        },
+        {
+          "name": "status",
+          "parameterTypes": []
+        },
+        {
+          "name": "valid",
+          "parameterTypes": []
+        },
+        {
+          "name": "warningCount",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.service.XtfService$ExampleValidationStatus"
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.AssociationTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.AttributeTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.ClassTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.ConstraintAuthoringTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.constraint.ConstraintAuthoringEngine"
+          ]
+        },
+        {
+          "name": "authorIliMandatoryConstraint",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String",
+            "ch.so.agi.mcp.model.IliConstraintSpec$Mandatory",
+            "ch.so.agi.mcp.analysis.ModelPurpose",
+            "ch.so.agi.mcp.knowledge.ModelingRuleProfile",
+            "java.lang.Boolean"
+          ]
+        },
+        {
+          "name": "authorIliPlausibilityConstraint",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String",
+            "ch.so.agi.mcp.model.IliConstraintSpec$Plausibility",
+            "ch.so.agi.mcp.analysis.ModelPurpose",
+            "ch.so.agi.mcp.knowledge.ModelingRuleProfile",
+            "java.lang.Boolean"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.ConstraintCaseGenerationTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.constraint.ConstraintContextService",
+            "ch.so.agi.mcp.tools.ConstraintTestTools"
+          ]
+        },
+        {
+          "name": "generateIliConstraintCases",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.Boolean"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.ConstraintDecisionTableTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.constraint.ConstraintAuthoringEngine"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.ConstraintDecisionTableTools$DecisionCondition"
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.ConstraintDecisionTableTools$DecisionRow"
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.ConstraintKnowledgeTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.service.IliCompilerService"
+          ]
+        },
+        {
+          "name": "listConstraintFunctions",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "resolveConstraintPath",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.ConstraintReviewTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.service.IliCompilerService",
+            "ch.so.agi.mcp.tools.ConstraintKnowledgeTools"
+          ]
+        },
+        {
+          "name": "reviewIliConstraint",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.ConstraintTestTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.service.IliCompilerService"
+          ]
+        },
+        {
+          "name": "testIliConstraint",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String",
+            "java.util.List",
+            "java.lang.Boolean"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.ConstraintTestTools$ExpectationSource"
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.ConstraintTestTools$TestCase",
+      "fields": [
+        {
+          "name": "expectationSource"
+        },
+        {
+          "name": "expectedConstraintValid"
+        },
+        {
+          "name": "name"
+        },
+        {
+          "name": "objects"
+        }
+      ],
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.ConstraintTestTools$TestLink"
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.ConstraintTestTools$TestObject",
+      "fields": [
+        {
+          "name": "classFqn"
+        },
+        {
+          "name": "values"
+        }
+      ],
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.ConstraintTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.DomainTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.DomainTools$CoordinateAxis"
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.ExistenceConstraintAuthoringTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.constraint.ConstraintAuthoringEngine"
+          ]
+        },
+        {
+          "name": "authorIliExistenceConstraint",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String",
+            "ch.so.agi.mcp.model.IliConstraintSpec$Existence",
+            "ch.so.agi.mcp.analysis.ModelPurpose",
+            "ch.so.agi.mcp.knowledge.ModelingRuleProfile",
+            "java.lang.Boolean"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.FormattingTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.service.IliCompilerService"
+          ]
+        },
+        {
+          "name": "formatIliModel",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.GeometryAttributeTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "listGeometryTypes",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.GeometryTypeRenderer",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.IliModelAuthoringTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.model.IliSpecRenderer",
+            "ch.so.agi.mcp.service.IliCompilerService",
+            "ch.so.agi.mcp.constraint.ConstraintContextService",
+            "ch.so.agi.mcp.tools.ConstraintCaseGenerationTools",
+            "ch.so.agi.mcp.analysis.ModelChangeReviewService"
+          ]
+        },
+        {
+          "name": "authorIliModel",
+          "parameterTypes": [
+            "ch.so.agi.mcp.model.IliModelSpec",
+            "ch.so.agi.mcp.analysis.ModelPurpose",
+            "ch.so.agi.mcp.knowledge.ModelingRuleProfile",
+            "java.lang.Boolean"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.ModelTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.time.Clock"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.RenameTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.service.IliCompilerService"
+          ]
+        },
+        {
+          "name": "renameModelElement",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String",
+            "ch.so.agi.mcp.model.RenameElementKind",
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.SetConstraintAuthoringTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.constraint.ConstraintAuthoringEngine"
+          ]
+        },
+        {
+          "name": "authorIliSetConstraint",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String",
+            "ch.so.agi.mcp.model.IliConstraintSpec$Set",
+            "ch.so.agi.mcp.analysis.ModelPurpose",
+            "ch.so.agi.mcp.knowledge.ModelingRuleProfile",
+            "java.lang.Boolean"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.StructureTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.TopicTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.UniqueConstraintAuthoringTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.constraint.ConstraintAuthoringEngine"
+          ]
+        },
+        {
+          "name": "authorIliUniqueConstraint",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String",
+            "ch.so.agi.mcp.model.IliConstraintSpec$Unique",
+            "ch.so.agi.mcp.analysis.ModelPurpose",
+            "ch.so.agi.mcp.knowledge.ModelingRuleProfile",
+            "java.lang.Boolean"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.ValidationTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.service.IliCompilerService"
+          ]
+        },
+        {
+          "name": "validateIliModel",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.tools.XtfTools",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "ch.so.agi.mcp.service.XtfService"
+          ]
+        },
+        {
+          "name": "generateExampleXtf",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.Integer"
+          ]
+        },
+        {
+          "name": "validateXtf",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ch.so.agi.mcp.transport.SerializedStdioServerTransportProvider",
+      "methods": [
+        {
+          "name": "close",
+          "parameterTypes": []
+        }
+      ]
+    }
+  ]
+}

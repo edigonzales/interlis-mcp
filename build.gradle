@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '4.1.1'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'org.graalvm.buildtools.native' version '1.1.14'
 }
 
 apply from: "$rootDir/gradle/versioning.gradle"
@@ -9,6 +10,20 @@ apply from: "$rootDir/gradle/docker.gradle"
 
 group = 'ch.so.agi'
 def resolvedProjectVersion = version.toString()
+
+// The native build always runs on GraalVM: the GraalVM Gradle plugin locates
+// native-image in the JVM that drives Gradle. The application toolchain above
+// still pins Java 21 for the JVM artifact, and options.release keeps the bytecode
+// level independent of the JDK that happens to run Gradle.
+graalvmNative {
+    binaries {
+        main {
+            if (project.hasProperty('nativeQuickBuild')) {
+                buildArgs.add('-O0')
+            }
+        }
+    }
+}
 
 sourceSets {
     benchmark {
@@ -42,10 +57,22 @@ tasks.register('benchmarkCheck', Exec) {
     commandLine 'python3', '-m', 'unittest', 'discover', '-s', 'evals/constraint-reconstruction/tools', '-p', 'test_benchmark.py', '-v'
 }
 
-java { 
-    toolchain { 
-        languageVersion = JavaLanguageVersion.of(21) 
-    } 
+// The toolchain that compiles the application. Local development and the CI
+// runners use the pinned Java 21 JDK. The GraalVM builder image contains no
+// separate Java 21 JDK, so its Docker build selects the JDK that drives Gradle
+// with -PappJavaVersion=25; options.release keeps the bytecode level at 21.
+def appJavaVersion = (findProperty('appJavaVersion') ?: '21') as int
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(appJavaVersion)
+    }
+}
+
+// The JVM artifact has to stay loadable on Java 21. A native build drives Gradle
+// with GraalVM for JDK 25, which would otherwise emit class file version 69.
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
 }
 
 repositories { 
@@ -112,7 +139,11 @@ tasks.withType(Test).configureEach {
 }
 
 bootJar { 
-    archiveFileName = 'interlis-mcp.jar' 
+    archiveFileName = 'interlis-mcp.jar'
+    // The hand written GraalVM metadata lives in src/main/resources so that the
+    // native build finds it on the classpath. Spring AOT writes its own file to
+    // the same path, so the JVM artifact excludes the hand written copy.
+    exclude('META-INF/native-image/**')
 }
 
 tasks.withType(AbstractArchiveTask).configureEach {

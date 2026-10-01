@@ -26,6 +26,25 @@ Voraussetzung ist Java 21.
 java -jar build/libs/interlis-mcp.jar
 ```
 
+Für einen lokalen Native-Image-Build wird zusätzlich GraalVM für JDK 25 benötigt.
+Entweder als aktives `JAVA_HOME`:
+
+```bash
+export JAVA_HOME="$HOME/.sdkman/candidates/java/25.0.3-graal"
+./gradlew nativeCompile
+./build/native/nativeCompile/interlis-mcp
+```
+
+oder über `GRAALVM_HOME`, wenn Java 21 das aktive `JAVA_HOME` bleiben soll:
+
+```bash
+export JAVA_HOME="$HOME/.sdkman/candidates/java/21.0.10-tem"
+export GRAALVM_HOME="$HOME/.sdkman/candidates/java/25.0.3-graal"
+./gradlew nativeCompile
+```
+
+Das JVM-Artefakt bleibt in beiden Fällen Java-21-Bytecode.
+
 Für die Entwicklung kann der Server direkt über Gradle gestartet werden:
 
 ```bash
@@ -37,6 +56,23 @@ Da MCP über STDIN und STDOUT kommuniziert, darf beim Containerbetrieb kein TTY 
 ```bash
 docker run --rm -i sogis/interlis-mcp:latest
 ```
+
+Es gibt zwei Container-Varianten, jeweils für `linux/amd64` und `linux/arm64`:
+
+| Image | Inhalt |
+| --- | --- |
+| `sogis/interlis-mcp:latest` | GraalVM Native Image, empfohlen |
+| `sogis/interlis-mcp-jvm:latest` | Spring-Boot-JAR auf Java 21 |
+
+Das Native Image startet ohne JVM-Kaltstart. Lokal bauen:
+
+```bash
+./gradlew buildNativeImage   # GraalVM Native Image
+./gradlew buildJvmImage      # JVM-Variante
+```
+
+Der Native-Image-Build benötigt GraalVM als `JAVA_HOME`, zum Beispiel
+`~/.sdkman/candidates/java/25.0.3-graal`.
 
 ## Typische Aufgaben
 

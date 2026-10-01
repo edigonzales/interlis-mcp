@@ -12,10 +12,28 @@ import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.aot.hint.RuntimeHints;
+import org.springframework.aot.hint.RuntimeHintsRegistrar;
+import org.springframework.context.annotation.ImportRuntimeHints;
 import org.springframework.stereotype.Component;
 
 @Component
+@ImportRuntimeHints(KnowledgeRuleLoader.KnowledgeRuleResources.class)
 public class KnowledgeRuleLoader {
+
+  /**
+   * The rule profiles are read through {@code getResourceAsStream}, which the
+   * resource hints Spring Boot generates for its own configuration files do not
+   * cover. A GraalVM native image bundles only resources that are reachable from
+   * a hint, so the profiles are registered explicitly.
+   */
+  static final class KnowledgeRuleResources implements RuntimeHintsRegistrar {
+
+    @Override
+    public void registerHints(RuntimeHints hints, ClassLoader classLoader) {
+      hints.resources().registerPattern("knowledge/*.yml");
+    }
+  }
 
   private static final String CORE_RESOURCE = "/knowledge/modeling-rules.core.yml";
   private static final String SO_RESOURCE = "/knowledge/modeling-rules.so.yml";

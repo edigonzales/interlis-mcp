@@ -337,19 +337,119 @@ STDOUT ist Teil des MCP-Transports. Normale Logs gehören deshalb auf STDERR.
 
 `logback-spring.xml` hält Framework-Noise klein. Neue Bibliotheken sollten nicht unkontrolliert auf STDOUT schreiben.
 
-## Docker-Publishing
+## Container-Images
 
-Der Gradle-Task
+Es gibt zwei Laufzeitvarianten:
+
+| Image | Inhalt | Zielgruppe |
+| --- | --- | --- |
+| `sogis/interlis-mcp` | GraalVM Native Image, kein JVM im Image | Standard |
+| `sogis/interlis-mcp-jvm` | Spring-Boot-JAR auf Java 21 | Fallback und Diagnose |
+
+Beide werden als Multi-Architektur-Manifest für `linux/amd64` und `linux/arm64`
+veröffentlicht. Die Architektur-Tags (`<version>-amd64`, `<version>-arm64`)
+bleiben zusätzlich verfügbar.
+
+### GitHub Actions
+
+Der Workflow `.github/workflows/container-image.yml` baut vier Images: JVM und
+Native Image, je für `linux/amd64` und `linux/arm64`.
+
+Jede Architektur wird auf einem eigenen Runner gebaut (`ubuntu-24.04` bzw.
+`ubuntu-24.04-arm`), weil der Native-Image-Build rechenintensiv ist und nicht
+unter Emulation laufen soll. Nach dem Build startet der Workflow jedes Image und
+führt `tools/test-mcp-stdio.py` dagegen aus: Der Test spricht jeden
+MCP-Tool-, Resource- und Prompt-Endpunkt über STDIN an und schlägt fehl, sobald
+etwas anderes als JSON-RPC auf STDOUT erscheint. Erst danach werden die
+Architektur-Images gepusht und zu Multi-Architektur-Manifesten zusammengeführt.
+Gepusht wird nur auf `main`; Pull Requests bauen und testen ausschliesslich.
+
+Benötigte Secrets: `DOCKER_USERNAME` und `DOCKER_PASSWORD` für Docker Hub. Für
+GHCR genügt das eingebaute `GITHUB_TOKEN`.
+
+### Lokal bauen
 
 ```bash
-./gradlew buildAndPushMultiArchImage
+./gradlew buildNativeImage   # Native Image, lokale Architektur
+./gradlew buildJvmImage      # JVM-Variante, lokale Architektur
 ```
 
-ist ein **Publish-Task**. Er ruft `docker buildx build --push` für `linux/amd64` und `linux/arm64` auf und veröffentlicht Tags unter `sogis/interlis-mcp`, darunter `latest` und versionsabhängige Tags.
+Beide Tasks laden das Image in den lokalen Docker-Daemon. Anschliessend:
 
-Er ist nicht als lokaler „build only“-Task zu verstehen und benötigt eine passende Registry-Anmeldung.
+```bash
+docker run --rm -i sogis/interlis-mcp:latest
+```
 
-Im GitHub-Workflow läuft das Publishing nur auf `main` ausserhalb von Pull Requests.
+## Welche Java-Version gilt wofür?
+
+Es gibt drei getrennte Rollen. Nur die erste ist eine Voraussetzung für die
+Anwendung, die anderen beiden betreffen ausschliesslich den Build:
+
+| Rolle | Version | Gilt für |
+| --- | --- | --- |
+| Laufzeit und Anwendungs-Toolchain | **Java 21** | `bootJar`, `bootRun`, Tests, das JVM-Image |
+| JVM, die Gradle beim Native-Build ausführt | **GraalVM für JDK 25** | `nativeCompile`, `buildNativeImage` |
+| Gradle selbst | 9.5.1 (Wrapper) | alle Tasks |
+
+Das JVM-Artefakt ist immer Java-21-Bytecode, unabhängig davon, welche JVM Gradle
+ausführt: `options.release = 21` erzwingt das, und im GraalVM-Container setzt der
+Docker-Build zusätzlich `-PappJavaVersion=25`, weil dort kein Java-21-JDK liegt.
+
+Wer nur `bootJar`, `bootRun` oder die Tests braucht, kommt also mit Java 21 aus.
+GraalVM wird erst für das Native Image benötigt.
+
+## Native Image bauen
+
+Das GraalVM-Gradle-Plugin sucht `native-image` in der JVM, die Gradle ausführt.
+Der Build braucht deshalb GraalVM — entweder als `JAVA_HOME` oder über
+`GRAALVM_HOME`, wenn Java 21 das aktive `JAVA_HOME` bleiben soll:
+
+```bash
+# Variante A: GraalVM ist das aktive JAVA_HOME
+export JAVA_HOME="$HOME/.sdkman/candidates/java/25.0.3-graal"
+./gradlew nativeCompile
+
+# Variante B: Java 21 bleibt aktiv, GraalVM nur für native-image
+export JAVA_HOME="$HOME/.sdkman/candidates/java/21.0.10-tem"
+export GRAALVM_HOME="$HOME/.sdkman/candidates/java/25.0.3-graal"
+./gradlew nativeCompile
+```
+
+Beide Varianten erzeugen dasselbe Binary unter
+`build/native/nativeCompile/interlis-mcp`. Ist weder `JAVA_HOME` noch
+`GRAALVM_HOME` ein GraalVM, bricht der Task mit einem entsprechenden Hinweis ab.
+Ein schneller, unoptimierter Build für die Fehlersuche ist über
+`-PnativeQuickBuild` möglich.
+
+In der CI ist GraalVM das `JAVA_HOME` des Docker-Build-Stages; das
+Anwendungs-Toolchain bleibt davon unberührt.
+
+### Reflection-Metadaten pflegen
+
+Jackson wandelt MCP-Tool-Argumente und -Ergebnisse reflektiv um. Ein Native Image
+behält nur, was über einen Hint erreichbar ist. Deshalb registriert
+`McpDtoReflectionHints` die Payload-Typen aus
+
+```
+src/main/resources/META-INF/native-image/ch.so.agi/interlis-mcp/reachability-metadata.json
+```
+
+mit allen öffentlichen Membern, damit Record-Accessoren unabhängig vom jeweiligen
+Aufrufpfad funktionieren. Die Typenliste wurde mit dem GraalVM-Tracing-Agent
+gesammelt, während `tools/test-mcp-stdio.py` alle Tools ausgeführt hat. Die Datei
+ist reine Datenhaltung und wird nicht von Hand gepflegt, sondern bei Bedarf neu
+erzeugt:
+
+```bash
+export JAVA_HOME="$HOME/.sdkman/candidates/java/25.0.3-graal"
+./gradlew bootJar
+java -agentlib:native-image-agent=config-output-dir=/tmp/agent-config \
+     -jar build/libs/interlis-mcp.jar     # mit tools/test-mcp-stdio.py als Client
+```
+
+Danach die `reflection`-Einträge für `ch.so.agi.*` in die Datei übernehmen.
+Zeigt ein Tool im Native Image `MissingReflectionRegistrationError`, fehlt der
+Typ in dieser Liste.
 
 ## Dokumentation pflegen
 

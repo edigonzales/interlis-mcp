@@ -35,6 +35,7 @@ Das ist eine wichtige Trennung: `interlis-mcp` liefert INTERLIS-Fachlogik, Compi
 - Java 21
 - für einen lokalen Build: Gradle Wrapper aus dem Repository
 - optional Docker
+- für den Native-Image-Build zusätzlich GraalVM (siehe Developer Guide)
 - ein MCP-Client, beispielsweise VS Code oder Claude Desktop
 
 ## Server starten
@@ -55,6 +56,17 @@ Für die Entwicklung:
 Wenn das Standard-`java` nicht Java 21 ist, verwende den vollständigen Pfad zum Java-21-Binary.
 
 ### Container
+
+`interlis-mcp` steht als GraalVM Native Image bereit und startet dadurch ohne
+JVM-Kaltstart. Für Diagnosefälle gibt es zusätzlich eine JVM-Variante:
+
+| Image | Anmerkung |
+| --- | --- |
+| `sogis/interlis-mcp:latest` | Native Image, empfohlen |
+| `sogis/interlis-mcp-jvm:latest` | Spring-Boot-JAR auf Java 21 |
+
+Beide Images gibt es für `linux/amd64` und `linux/arm64`; `docker` wählt die
+passende Architektur automatisch.
 
 Ein veröffentlichtes Image kann ohne TTY gestartet werden:
 
