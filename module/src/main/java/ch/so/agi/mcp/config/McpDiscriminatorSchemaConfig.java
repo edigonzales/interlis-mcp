@@ -16,6 +16,36 @@ import org.springframework.context.annotation.Configuration;
 @Configuration(proxyBeanMethods = false)
 public class McpDiscriminatorSchemaConfig {
 
+  // Bound this schema adapter to the public INTERLIS tool contract.
+  private static final Set<String> INTERLIS_TOOLS = Set.of(
+      "analyzeIliModel",
+      "applyIliModelChanges",
+      "authorIliExistenceConstraint",
+      "authorIliMandatoryConstraint",
+      "authorIliModel",
+      "authorIliPlausibilityConstraint",
+      "authorIliSetConstraint",
+      "authorIliUniqueConstraint",
+      "checkModelingRules",
+      "findSimilarModels",
+      "formatIliModel",
+      "generateExampleXtf",
+      "generateIliConstraintCases",
+      "generateIliConstraintFromDecisionTable",
+      "indexConfiguredModels",
+      "listConstraintFunctions",
+      "listGeometryTypes",
+      "listModelingRules",
+      "readModelExample",
+      "renameModelElement",
+      "resolveConstraintPath",
+      "reviewIliChange",
+      "reviewIliConstraint",
+      "reviewIliModel",
+      "testIliConstraint",
+      "validateIliModel",
+      "validateXtf");
+
   @Bean
   static BeanPostProcessor discriminatedToolSchemaPostProcessor() {
     return new BeanPostProcessor() {
@@ -29,6 +59,10 @@ public class McpDiscriminatorSchemaConfig {
             continue;
           }
           McpSchema.Tool tool = specification.tool();
+          if (!INTERLIS_TOOLS.contains(tool.name())) {
+            normalizedSpecifications.add(specification);
+            continue;
+          }
           Map<String, Object> normalizedInput = normalize(tool.inputSchema());
           ConstraintSpecSchema.enrich(normalizedInput);
           Map<String, Object> normalizedOutput = normalize(tool.outputSchema());

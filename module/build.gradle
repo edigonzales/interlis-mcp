@@ -1,0 +1,27 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+version = '0.1.0-SNAPSHOT'
+base { archivesName = 'interlis-mcp-module' }
+java { withSourcesJar(); withJavadocJar() }
+dependencies {
+    api platform('org.springframework.boot:spring-boot-dependencies:4.1.1')
+    api platform('org.springframework.ai:spring-ai-bom:2.0.1')
+    api platform('io.modelcontextprotocol.sdk:mcp-bom:2.0.1')
+    api 'org.springframework.ai:spring-ai-mcp'
+    api 'org.springframework.ai:spring-ai-mcp-annotations'
+    api 'io.modelcontextprotocol.sdk:mcp'
+    api 'org.springframework.boot:spring-boot-starter'
+    api 'org.springframework.boot:spring-boot-starter-validation'
+    api 'org.jspecify:jspecify:1.0.1'
+    api 'ch.ehi:ehibasics:1.4.1'
+    api 'antlr:antlr:2.7.7'
+    api 'ch.interlis:ili2c-core:5.6.8'
+    api 'ch.interlis:ili2c-tool:5.6.8'
+    api 'ch.interlis:iox-ili:1.24.4'
+    // Maven's nearest-wins mediation must agree with Gradle's resolved compiler/validator API.
+    api 'ch.interlis:iox-api:1.0.4'
+    api 'ch.interlis:ilivalidator:1.14.3'
+}
+apply from: "$rootDir/gradle/module-publishing.gradle"

@@ -21,7 +21,7 @@ Verbindliche Laufzeitquelle für diese Versionen ist `build.gradle`. Es gibt bew
 Die wichtigsten Bereiche sind:
 
 ```text
-src/main/java/ch/so/agi/mcp/
+module/src/main/java/ch/so/agi/mcp/
   Application.java
   analysis/      Modellanalyse und Vorher-/Nachher-Review
   change/        typisierte semantische Modelländerungen
@@ -302,8 +302,8 @@ Constraint-Fixtures dürfen spezifischer sein, müssen aber Nebenfehler sauber v
 Regeln liegen unter:
 
 ```text
-src/main/resources/knowledge/modeling-rules.core.yml
-src/main/resources/knowledge/modeling-rules.so.yml
+module/src/main/resources/knowledge/modeling-rules.core.yml
+module/src/main/resources/knowledge/modeling-rules.so.yml
 ```
 
 - `CORE`: portable Regeln.
@@ -337,92 +337,38 @@ STDOUT ist Teil des MCP-Transports. Normale Logs gehören deshalb auf STDERR.
 
 `logback-spring.xml` hält Framework-Noise klein. Neue Bibliotheken sollten nicht unkontrolliert auf STDOUT schreiben.
 
-## Container-Images
+## Container-Images und Module
 
-Es gibt zwei Laufzeitvarianten:
+Das Root-Projekt bleibt die Standalone-Anwendung; Fachcode und fachliche Ressourcen
+liegen in `module/src/main/`. `InterlisMcpModuleConfiguration` exportiert die
+MCP-Funktionen ohne Transport oder globale Logging-Vorgaben. Die Suite importiert
+sie zusammen mit NETLs Konfiguration. Die Schema-Normalisierung wird nur auf die
+INTERLIS-Tools angewendet.
 
-| Image | Inhalt | Zielgruppe |
-| --- | --- | --- |
-| `sogis/interlis-mcp` | GraalVM Native Image, kein JVM im Image | Standard |
-| `sogis/interlis-mcp-jvm` | Spring-Boot-JAR auf Java 21 | Fallback und Diagnose |
-
-Beide werden als Multi-Architektur-Manifest für `linux/amd64` und `linux/arm64`
-veröffentlicht. Die Architektur-Tags (`<version>-amd64`, `<version>-arm64`)
-bleiben zusätzlich verfügbar.
-
-### GitHub Actions
-
-Der Workflow `.github/workflows/container-image.yml` baut vier Images: JVM und
-Native Image, je für `linux/amd64` und `linux/arm64`.
-
-Jede Architektur wird auf einem eigenen Runner gebaut (`ubuntu-24.04` bzw.
-`ubuntu-24.04-arm`), weil der Native-Image-Build rechenintensiv ist und nicht
-unter Emulation laufen soll. Nach dem Build startet der Workflow jedes Image und
-führt `tools/test-mcp-stdio.py` dagegen aus: Der Test spricht jeden
-MCP-Tool-, Resource- und Prompt-Endpunkt über STDIN an und schlägt fehl, sobald
-etwas anderes als JSON-RPC auf STDOUT erscheint. Erst danach werden die
-Architektur-Images gepusht und zu Multi-Architektur-Manifesten zusammengeführt.
-Gepusht wird nur auf `main`; Pull Requests bauen und testen ausschliesslich.
-
-Benötigte Secrets: `DOCKER_USERNAME` und `DOCKER_PASSWORD` für Docker Hub. Für
-GHCR genügt das eingebaute `GITHUB_TOKEN`.
-
-### Lokal bauen
+`./gradlew buildImage` baut zuerst `build/libs/interlis-mcp.jar`, anschliessend das
+Java-21-Image. `buildJvmImage` bleibt als Alias erhalten. Docker verwendet das Profil
+`http` (WebMVC, SYNC, Streamable HTTP, `/mcp`, Port 8080). Das Profil `stdio` bleibt
+der Standard bei lokalen JAR-Aufrufen. Beide verwenden eine Stunde Request-Timeout.
 
 ```bash
-./gradlew buildNativeImage   # Native Image, lokale Architektur
-./gradlew buildJvmImage      # JVM-Variante, lokale Architektur
+docker run --rm -p 127.0.0.1:8080:8080 sogis/interlis-mcp:latest
+docker run --rm -i -e SPRING_PROFILES_ACTIVE=stdio sogis/interlis-mcp:latest
 ```
 
-Beide Tasks laden das Image in den lokalen Docker-Daemon. Anschliessend:
+Der Workflow `.github/workflows/main.yml` prüft Fachtests, Benchmarkprüfungen und
+STDIO-E2E, baut kanonische Artefakte einmal und verwendet dasselbe JAR auf nativen
+amd64-/arm64-Runnern. Beide Images werden über HTTP und STDIO geprüft; erst nach
+Erfolg beider Architekturen werden die getesteten Artefakte veröffentlicht.
+Pull Requests veröffentlichen nichts. Main-Pushes und manuelle Main-Läufe veröffentlichen
+Module auf `jars.interlis.guru/snapshots/` sowie Images auf Docker Hub und GHCR.
+Details und Secrets: [Modularer Betrieb](MODULES.md).
 
-```bash
-docker run --rm -i sogis/interlis-mcp:latest
-```
+## Java und deaktivierte Native-Builds
 
-## Welche Java-Version gilt wofür?
-
-Es gibt drei getrennte Rollen. Nur die erste ist eine Voraussetzung für die
-Anwendung, die anderen beiden betreffen ausschliesslich den Build:
-
-| Rolle | Version | Gilt für |
-| --- | --- | --- |
-| Laufzeit und Anwendungs-Toolchain | **Java 21** | `bootJar`, `bootRun`, Tests, das JVM-Image |
-| JVM, die Gradle beim Native-Build ausführt | **GraalVM für JDK 25** | `nativeCompile`, `buildNativeImage` |
-| Gradle selbst | 9.5.1 (Wrapper) | alle Tasks |
-
-Das JVM-Artefakt ist immer Java-21-Bytecode, unabhängig davon, welche JVM Gradle
-ausführt: `options.release = 21` erzwingt das, und im GraalVM-Container setzt der
-Docker-Build zusätzlich `-PappJavaVersion=25`, weil dort kein Java-21-JDK liegt.
-
-Wer nur `bootJar`, `bootRun` oder die Tests braucht, kommt also mit Java 21 aus.
-GraalVM wird erst für das Native Image benötigt.
-
-## Native Image bauen
-
-Das GraalVM-Gradle-Plugin sucht `native-image` in der JVM, die Gradle ausführt.
-Der Build braucht deshalb GraalVM — entweder als `JAVA_HOME` oder über
-`GRAALVM_HOME`, wenn Java 21 das aktive `JAVA_HOME` bleiben soll:
-
-```bash
-# Variante A: GraalVM ist das aktive JAVA_HOME
-export JAVA_HOME="$HOME/.sdkman/candidates/java/25.0.3-graal"
-./gradlew nativeCompile
-
-# Variante B: Java 21 bleibt aktiv, GraalVM nur für native-image
-export JAVA_HOME="$HOME/.sdkman/candidates/java/21.0.10-tem"
-export GRAALVM_HOME="$HOME/.sdkman/candidates/java/25.0.3-graal"
-./gradlew nativeCompile
-```
-
-Beide Varianten erzeugen dasselbe Binary unter
-`build/native/nativeCompile/interlis-mcp`. Ist weder `JAVA_HOME` noch
-`GRAALVM_HOME` ein GraalVM, bricht der Task mit einem entsprechenden Hinweis ab.
-Ein schneller, unoptimierter Build für die Fehlersuche ist über
-`-PnativeQuickBuild` möglich.
-
-In der CI ist GraalVM das `JAVA_HOME` des Docker-Build-Stages; das
-Anwendungs-Toolchain bleibt davon unberührt.
+Syntax, Bytecode, Toolchain und Laufzeit verwenden Java 21; Gradle ist 9.5.1.
+`options.release=21` gilt auch für das Modul. GraalVM-Plugin, Native-Tasks,
+Native-Dockerstufen und Native-CI-Veröffentlichung sind deaktiviert. Die nachfolgenden
+Reflection-Metadaten dokumentieren den erhaltenen Stand für eine spätere Wiederaufnahme.
 
 ### Reflection-Metadaten pflegen
 
@@ -431,7 +377,7 @@ behält nur, was über einen Hint erreichbar ist. Deshalb registriert
 `McpDtoReflectionHints` die Payload-Typen aus
 
 ```
-src/main/resources/META-INF/native-image/ch.so.agi/interlis-mcp/reachability-metadata.json
+module/src/main/resources/META-INF/native-image/ch.so.agi/interlis-mcp/reachability-metadata.json
 ```
 
 mit allen öffentlichen Membern, damit Record-Accessoren unabhängig vom jeweiligen

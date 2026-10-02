@@ -1,59 +1,13 @@
-// Building and publishing the container images is done by the GitHub Actions
-// workflow .github/workflows/container-image.yml. It builds four images
-// (JVM and GraalVM native, each for linux/amd64 and linux/arm64), smoke tests
-// every one of them over STDIO and merges the architecture images into
-// multi-architecture manifests.
-//
-// The tasks below only serve local verification. They build the native image for
-// the architecture of the local Docker daemon.
-
 def imageVersion = version.toString()
-
-// Container builds copy no .git and may have no git binary. The workflow passes
-// the commit through -PgitCommit instead.
-def resolveGitHash() {
-    if (project.hasProperty('gitCommit') && project.gitCommit.toString().isBlank() == false) {
-        return project.gitCommit.toString()
-    }
-    try {
-        return providers.exec {
-            commandLine 'git', 'log', '-1', '--pretty=%H'
-            ignoreExitValue = true
-        }.standardOutput.asText.get().trim()
-    } catch (Exception ignored) {
-        return 'unknown'
-    }
-}
-
-def gitHash = resolveGitHash()
-
-// Loads the native image into the local Docker daemon so it can be started with
-// `docker run --rm -i`.
-tasks.register('buildNativeImage', Exec) {
+def commit = providers.gradleProperty('gitCommit').orElse(providers.provider {
+    providers.exec { commandLine 'git', 'rev-parse', 'HEAD' }.standardOutput.asText.get().trim()
+})
+tasks.register('buildImage', Exec) {
     group = 'docker'
-    description = 'Builds the GraalVM native container image for the local architecture.'
-    dependsOn 'nativeCompile'
-    commandLine 'docker', 'build',
-                '--target', 'native-runtime',
-                '-f', "$projectDir/docker/Dockerfile",
-                '-t', "sogis/interlis-mcp:${imageVersion}",
-                '-t', 'sogis/interlis-mcp:latest',
-                '--build-arg', "IMAGE_VERSION=${imageVersion}",
-                '--build-arg', "GIT_COMMIT=${gitHash}",
-                "$projectDir"
+    description = 'Builds the tested JVM container for the local Docker architecture.'
+    dependsOn tasks.named('bootJar')
+    commandLine 'docker', 'build', '-f', "$projectDir/docker/Dockerfile",
+        '-t', "sogis/${rootProject.name}:${imageVersion}", '-t', "sogis/${rootProject.name}:latest",
+        '--build-arg', "IMAGE_VERSION=${imageVersion}", '--build-arg', "GIT_COMMIT=${commit.get()}", "$projectDir"
 }
-
-// Loads the JVM image into the local Docker daemon.
-tasks.register('buildJvmImage', Exec) {
-    group = 'docker'
-    description = 'Builds the JVM container image for the local architecture.'
-    dependsOn 'bootJar'
-    commandLine 'docker', 'build',
-                '--target', 'jvm-runtime',
-                '-f', "$projectDir/docker/Dockerfile",
-                '-t', "sogis/interlis-mcp-jvm:${imageVersion}",
-                '-t', 'sogis/interlis-mcp-jvm:latest',
-                '--build-arg', "IMAGE_VERSION=${imageVersion}",
-                '--build-arg', "GIT_COMMIT=${gitHash}",
-                "$projectDir"
-}
+tasks.register('buildJvmImage') { group = 'docker'; dependsOn tasks.named('buildImage') }

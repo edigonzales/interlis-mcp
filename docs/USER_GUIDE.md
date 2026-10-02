@@ -35,7 +35,6 @@ Das ist eine wichtige Trennung: `interlis-mcp` liefert INTERLIS-Fachlogik, Compi
 - Java 21
 - für einen lokalen Build: Gradle Wrapper aus dem Repository
 - optional Docker
-- für den Native-Image-Build zusätzlich GraalVM (siehe Developer Guide)
 - ein MCP-Client, beispielsweise VS Code oder Claude Desktop
 
 ## Server starten
@@ -57,24 +56,21 @@ Wenn das Standard-`java` nicht Java 21 ist, verwende den vollständigen Pfad zum
 
 ### Container
 
-`interlis-mcp` steht als GraalVM Native Image bereit und startet dadurch ohne
-JVM-Kaltstart. Für Diagnosefälle gibt es zusätzlich eine JVM-Variante:
+Die Java-21-Images `sogis/interlis-mcp:latest` und
+`ghcr.io/edigonzales/interlis-mcp:latest` unterstützen `linux/amd64` und `linux/arm64`.
+`interlis-mcp-jvm` ist ein Alias desselben Images. Native-Builds sind momentan deaktiviert.
 
-| Image | Anmerkung |
-| --- | --- |
-| `sogis/interlis-mcp:latest` | Native Image, empfohlen |
-| `sogis/interlis-mcp-jvm:latest` | Spring-Boot-JAR auf Java 21 |
-
-Beide Images gibt es für `linux/amd64` und `linux/arm64`; `docker` wählt die
-passende Architektur automatisch.
-
-Ein veröffentlichtes Image kann ohne TTY gestartet werden:
+HTTP startet standardmässig; der MCP-Endpunkt ist `http://127.0.0.1:8080/mcp`:
 
 ```bash
-docker run --rm -i sogis/interlis-mcp:latest
+docker run --rm -p 127.0.0.1:8080:8080 sogis/interlis-mcp:latest
 ```
 
-STDIN muss offen bleiben, weil darüber die MCP-Kommunikation läuft.
+Für einen STDIO-Client ohne TTY und mit offenem STDIN:
+
+```bash
+docker run --rm -i -e SPRING_PROFILES_ACTIVE=stdio sogis/interlis-mcp:latest
+```
 
 Wenn der Client beendet wird, schliesst er zuerst seine STDIN-Verbindung. Der
 Standalone-Server erkennt EOF und beendet seinen Spring-Kontext kontrolliert.

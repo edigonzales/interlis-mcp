@@ -2,7 +2,6 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '4.1.1'
     id 'io.spring.dependency-management' version '1.1.7'
-    id 'org.graalvm.buildtools.native' version '1.1.14'
 }
 
 apply from: "$rootDir/gradle/versioning.gradle"
@@ -10,20 +9,6 @@ apply from: "$rootDir/gradle/docker.gradle"
 
 group = 'ch.so.agi'
 def resolvedProjectVersion = version.toString()
-
-// The native build always runs on GraalVM: the GraalVM Gradle plugin locates
-// native-image in the JVM that drives Gradle. The application toolchain above
-// still pins Java 21 for the JVM artifact, and options.release keeps the bytecode
-// level independent of the JDK that happens to run Gradle.
-graalvmNative {
-    binaries {
-        main {
-            if (project.hasProperty('nativeQuickBuild')) {
-                buildArgs.add('-O0')
-            }
-        }
-    }
-}
 
 sourceSets {
     benchmark {
@@ -57,33 +42,7 @@ tasks.register('benchmarkCheck', Exec) {
     commandLine 'python3', '-m', 'unittest', 'discover', '-s', 'evals/constraint-reconstruction/tools', '-p', 'test_benchmark.py', '-v'
 }
 
-// The toolchain that compiles the application. Local development and the CI
-// runners use the pinned Java 21 JDK. The GraalVM builder image contains no
-// separate Java 21 JDK, so its Docker build selects the JDK that drives Gradle
-// with -PappJavaVersion=25; options.release keeps the bytecode level at 21.
-def appJavaVersion = (findProperty('appJavaVersion') ?: '21') as int
-
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(appJavaVersion)
-    }
-}
-
-// The JVM artifact has to stay loadable on Java 21. A native build drives Gradle
-// with GraalVM for JDK 25, which would otherwise emit class file version 69.
-tasks.withType(JavaCompile).configureEach {
-    options.release = 21
-}
-
-repositories { 
-    mavenCentral() 
-    maven { url = "https://jars.sogeo.services/mirror" }
-}
-
-ext {
-    set('springAiVersion', "2.0.1")
-    set('mcpSdkVersion', "2.0.1")
-}
+apply from: "$rootDir/gradle/dependencies.gradle"
 
 configurations {
     e2eImplementation.extendsFrom testImplementation
@@ -91,28 +50,10 @@ configurations {
 }
 
 dependencies {
-    implementation "org.springframework.ai:spring-ai-starter-mcp-server"
-    // Spring AI 2.0.1 still declares MCP SDK 2.0.0 transitively. Keep the
-    // protocol implementation on the current compatible patch release.
-    implementation "io.modelcontextprotocol.sdk:mcp:${mcpSdkVersion}"
-    implementation "org.springframework.boot:spring-boot-starter"
-    implementation "org.springframework.boot:spring-boot-starter-validation"
-    implementation "org.jspecify:jspecify:1.0.0"
-    implementation "ch.ehi:ehibasics:1.4.1"
-    implementation "antlr:antlr:2.7.7"
-    implementation "ch.interlis:ili2c-core:5.6.8"
-    implementation "ch.interlis:ili2c-tool:5.6.8"
-    implementation "ch.interlis:iox-ili:1.24.4"
-    implementation "ch.interlis:ilivalidator:1.14.3"
-    testImplementation "org.springframework.boot:spring-boot-starter-test"
-        
+    implementation project(':interlis-mcp-module')
+    implementation 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
     e2eImplementation 'org.springframework.boot:spring-boot-starter-test'
-}
-
-dependencyManagement {
-    imports {
-        mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
-    }
 }
 
 tasks.named('test') {
@@ -140,9 +81,7 @@ tasks.withType(Test).configureEach {
 
 bootJar { 
     archiveFileName = 'interlis-mcp.jar'
-    // The hand written GraalVM metadata lives in src/main/resources so that the
-    // native build finds it on the classpath. Spring AOT writes its own file to
-    // the same path, so the JVM artifact excludes the hand written copy.
+    // Dormant reflection metadata is preserved in the library for future native support.
     exclude('META-INF/native-image/**')
 }
 
@@ -178,3 +117,6 @@ tasks.register('constraintWorkflowRecorderCheck', Exec) {
     commandLine 'node', 'evals/constraint-authoring-workflow/tools/test_native_recorder.cjs'
 }
 tasks.named('check') { dependsOn tasks.named('constraintWorkflowRecorderCheck') }
+
+// Preserve interactive STDIO when developing with bootRun.
+tasks.named('bootRun') { standardInput = System.in }

@@ -196,8 +196,10 @@ public final class SerializedStdioServerTransportProvider
 
     private void start() {
       handleIncomingMessages();
-      startInboundProcessing();
       startOutboundProcessing();
+      // EOF can complete the inbound sink and shut down both executors immediately.
+      // Start the writer before the reader so an empty input cannot race its submission.
+      startInboundProcessing();
     }
 
     @Override

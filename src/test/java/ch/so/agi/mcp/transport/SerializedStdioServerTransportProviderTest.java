@@ -12,6 +12,7 @@ import io.modelcontextprotocol.spec.McpSchema.JSONRPCResponse;
 import io.modelcontextprotocol.spec.McpServerSession;
 import io.modelcontextprotocol.spec.McpServerTransport;
 import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayInputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -29,6 +30,21 @@ import reactor.core.publisher.Mono;
 class SerializedStdioServerTransportProviderTest {
 
   private final McpJsonMapper jsonMapper = new JacksonMcpJsonMapperSupplier().get();
+
+  @Test
+  void alreadyClosedInputCanStartAndStopWithoutRejectingTheWriter() {
+    for (int attempt = 0; attempt < 32; attempt++) {
+      var provider = new SerializedStdioServerTransportProvider(
+          jsonMapper, new ByteArrayInputStream(new byte[0]), new ByteArrayOutputStream());
+      var session = mock(McpServerSession.class);
+      when(session.closeGracefully()).thenReturn(Mono.empty());
+      try {
+        provider.setSessionFactory(transport -> session);
+      } finally {
+        provider.close();
+      }
+    }
+  }
 
   @Test
   void concurrentlyQueuedResponsesAreAllWrittenAsJsonLines() throws Exception {

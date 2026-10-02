@@ -2,7 +2,7 @@
 
 `interlis-mcp` ist ein [Model Context Protocol (MCP)](https://modelcontextprotocol.io)-Server für INTERLIS 2. Er stellt Coding-Agenten und anderen MCP-Clients Fachwissen und Werkzeuge zum Erstellen, Analysieren, Ändern, Prüfen und Testen von INTERLIS-Modellen bereit.
 
-Der Server läuft ausschliesslich über **STDIO**. Er ist bewusst **kein Datei- oder Workspace-Agent**: Der MCP-Client liest und schreibt `.ili`-Dateien. `interlis-mcp` erhält Modelltext als Eingabe und liefert strukturierte Ergebnisse oder einen aktualisierten Modelltext zurück.
+Der Server unterstützt **STDIO** und **Streamable HTTP**. Lokale JAR-Aufrufe verwenden standardmässig STDIO; Dockerimages starten HTTP auf `/mcp`. Er ist bewusst **kein Datei- oder Workspace-Agent**: Der MCP-Client liest und schreibt `.ili`-Dateien. `interlis-mcp` erhält Modelltext als Eingabe und liefert strukturierte Ergebnisse oder einen aktualisierten Modelltext zurück.
 
 ## Was kann der Server?
 
@@ -26,53 +26,36 @@ Voraussetzung ist Java 21.
 java -jar build/libs/interlis-mcp.jar
 ```
 
-Für einen lokalen Native-Image-Build wird zusätzlich GraalVM für JDK 25 benötigt.
-Entweder als aktives `JAVA_HOME`:
+Für die Entwicklung: `./gradlew bootRun`. HTTP lokal:
 
 ```bash
-export JAVA_HOME="$HOME/.sdkman/candidates/java/25.0.3-graal"
-./gradlew nativeCompile
-./build/native/nativeCompile/interlis-mcp
+java -jar build/libs/interlis-mcp.jar --spring.profiles.active=http
 ```
 
-oder über `GRAALVM_HOME`, wenn Java 21 das aktive `JAVA_HOME` bleiben soll:
+Dockerimages stehen unter `sogis/interlis-mcp` und
+`ghcr.io/edigonzales/interlis-mcp` für `linux/amd64` und `linux/arm64` bereit:
 
 ```bash
-export JAVA_HOME="$HOME/.sdkman/candidates/java/21.0.10-tem"
-export GRAALVM_HOME="$HOME/.sdkman/candidates/java/25.0.3-graal"
-./gradlew nativeCompile
+./gradlew buildImage                       # baut zuerst das ausführbare JAR
+./gradlew buildJvmImage                    # weiterhin verfügbarer Alias
+# Streamable HTTP: http://127.0.0.1:8080/mcp
+docker run --rm -p 127.0.0.1:8080:8080 sogis/interlis-mcp:latest
+# STDIO: ohne TTY, mit offenem STDIN
+docker run --rm -i -e SPRING_PROFILES_ACTIVE=stdio sogis/interlis-mcp:latest
 ```
 
-Das JVM-Artefakt bleibt in beiden Fällen Java-21-Bytecode.
+`interlis-mcp-jvm` bleibt in beiden Registries ein Alias desselben JVM-Images.
+Native-Builds sind lokal und in CI deaktiviert; vorhandene Reflection-Metadaten bleiben erhalten.
 
-Für die Entwicklung kann der Server direkt über Gradle gestartet werden:
-
-```bash
-./gradlew bootRun
-```
-
-Da MCP über STDIN und STDOUT kommuniziert, darf beim Containerbetrieb kein TTY erzwungen werden. Ein veröffentlichtes Image kann beispielsweise so gestartet werden:
-
-```bash
-docker run --rm -i sogis/interlis-mcp:latest
-```
-
-Es gibt zwei Container-Varianten, jeweils für `linux/amd64` und `linux/arm64`:
-
-| Image | Inhalt |
-| --- | --- |
-| `sogis/interlis-mcp:latest` | GraalVM Native Image, empfohlen |
-| `sogis/interlis-mcp-jvm:latest` | Spring-Boot-JAR auf Java 21 |
-
-Das Native Image startet ohne JVM-Kaltstart. Lokal bauen:
-
-```bash
-./gradlew buildNativeImage   # GraalVM Native Image
-./gradlew buildJvmImage      # JVM-Variante
-```
-
-Der Native-Image-Build benötigt GraalVM als `JAVA_HOME`, zum Beispiel
-`~/.sdkman/candidates/java/25.0.3-graal`.
+Das Fachmodul liegt unter `module/` und wird als
+`ch.so.agi:interlis-mcp-module:0.1.0-SNAPSHOT` mit POM, Sources und Javadoc
+auf [jars.interlis.guru](https://jars.interlis.guru/snapshots/) veröffentlicht.
+Es enthält Fachcode, Tools, Resources und Prompts, keine Startklasse oder globale
+Transport-/Logging-Konfiguration. Eine Hostanwendung importiert ausdrücklich
+`ch.so.agi.mcp.InterlisMcpModuleConfiguration`.
+Die [MCP-Suite](https://github.com/edigonzales/mcp-suite) kombiniert dieses Modul
+und NETL in einer Java-21-JVM und einem Spring-Kontext.
+Build, Veröffentlichung und Tests: [Modularer Betrieb](docs/MODULES.md).
 
 ## Typische Aufgaben
 

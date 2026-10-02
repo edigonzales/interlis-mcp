@@ -1,10 +1,6 @@
-.git/
-.gradle/
-build/
-**/build/
-.idea/
-.vscode/
-**/.DS_Store
-evals/
-docs/
-*.md
+**
+!build/
+!build/libs/
+!build/libs/interlis-mcp.jar
+!docker/
+!docker/Dockerfile
