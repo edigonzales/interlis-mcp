@@ -135,6 +135,7 @@ class ToolChoiceGuidanceTest {
 
     assertThat(guide)
         .contains("interlis://knowledge/tool-guide")
+        .contains("findConstraintPaths", "usageHints.expression", "proofStatus=NOT_RUN")
         .contains("reviewIliModel")
         .contains("applyIliModelChanges")
         .contains("UPDATE_ATTRIBUTE")

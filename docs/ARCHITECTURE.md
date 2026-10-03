@@ -187,6 +187,12 @@ Dadurch muss ein unverändertes Modell während Coverage, Solver, Objektgraph-Sy
 
 ## Semantische Repräsentationen
 
+`ConstraintPathAnalysis` liefert die gemeinsame compilerbasierte Pfadauswertung für
+`resolveConstraintPath` und `findConstraintPaths`. `ConstraintPathSearch` durchsucht deklarierte
+Navigationen nach Pfadlänge und Name, prüft jeden Präfix mit ili2c und kompiliert das Modell
+nur einmal. Begrenzte Tiefe, Treffer und Arbeitsbudget halten auch zyklische Modelle endlich.
+Die Suche liefert Fakten und Ausdrucksbausteine; sie führt keinen Solver oder Validator aus.
+
 Je nach Constraint kommen verschiedene typisierte Ebenen zum Einsatz:
 
 - constraint-level IR für MANDATORY, UNIQUE, EXISTENCE, PLAUSIBILITY und SET,

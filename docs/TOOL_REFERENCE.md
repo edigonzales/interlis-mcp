@@ -95,7 +95,52 @@ Liefert den kanonischen Funktionskatalog mit stabilen semantischen IDs und typis
 
 ## `resolveConstraintPath`
 
-Löst einen Objekt-/Attributpfad im kompilierten Kontext auf und liefert Schritte, Kardinalitäten und Zieltyp.
+Löst einen bekannten Objekt-/Attributpfad im kompilierten Kontext auf und liefert Schritte,
+Kardinalitäten, Optionalität, Zieltyp und technische Verwendungshinweise. Dieselbe Auswertung
+wird von `findConstraintPaths` verwendet. Bestehende Eingaben und Ergebnisfelder bleiben erhalten.
+
+## `findConstraintPaths`
+
+Sucht Pfade vom `context` zum `targetFqn` im übergebenen `modelText`. Das Ziel ist der genaue
+FQN eines Attributes oder deklarierten Objekttyps (Klasse, Struktur, Association oder View).
+Geerbte Attribute können über ihre Deklaration oder einen erbenden Kontext adressiert werden.
+Ein geerbter FQN wie `Child.value` bleibt auf diesen Kontext und dessen Unterklassen begrenzt;
+überschriebene Attribute besitzen ihre eigene effektive Deklaration.
+
+`maxDepth` zählt alle Schritte einschliesslich Endattribut (Standard 3, zulässig 1–8).
+`limit` begrenzt Treffer (Standard 10, zulässig 1–50); ungültige Werte werden abgelehnt.
+Pro Aufruf werden höchstens 2’000 Pfadpräfixe geprüft. Das Modell wird einmal kompiliert;
+alle angebotenen Pfade sind mit dem ili2c-Pfadparser geprüft und nach Länge, dann Pfadtext sortiert.
+`modelHashes.model` bindet die Antwort an den übergebenen Modelltext.
+
+`paths` enthält je Pfad die Felder von `resolveConstraintPath`, insbesondere:
+
+- `steps`: Element-FQN, Ziel/Typ, lokale Kardinalität und `optional` je Schritt.
+- `collection`: mindestens ein Schritt erlaubt mehrere Werte/Objekte.
+- `mayBeUndefined`: mindestens ein optionaler Schritt; berücksichtigt nur deklarierte
+  Kardinalitäten/Optionalität. Zusätzliche Constraints oder berechnete Ausdrücke werden nicht ausgewertet.
+- `usageHints`: `SINGLE_VALUE`, `SUM` mit `COLLECTION_SUM` oder `OBJECT_COUNT`, jeweils mit
+  einem wiederverwendbaren `expression`-Baustein. Leere Hinweise bedeuten keine Unterstützungsaussage.
+- `proofStatus=NOT_RUN`: Pfadauflösung ist kein Nachweis für einen vollständigen Constraint.
+
+`search` nennt Grenzen, untersuchte Präfixe, `truncated`, `reasonCodes` und
+`completeWithinBounds`. Letzteres bezeichnet nur die unterstützte Suchform innerhalb von
+`maxDepth`; ein Tiefenabbruch kann daher gleichzeitig `truncated=true` melden.
+Treffer-/Arbeitsbudget, Parserablehnungen und nicht unterstützte Navigationen setzen
+`completeWithinBounds=false`. Höchstens 20 Beispiele nicht unterstützter Präfixe werden
+mitgeliefert, daneben deren Gesamtzahl. Fehlerhafte Modelle, Kontexte oder Ziele liefern
+`status=UNAVAILABLE`; eine reguläre Suche liefert `AVAILABLE`, auch ohne Treffer.
+
+Die Suche folgt deklarierten Rollen, Referenzen und Strukturen mit einfachen `->`-Schritten.
+Sie erfindet keine Downcasts, Unterklassenpfade, View-Basisaliase oder Strukturindizes.
+Mehrere deklarierte Ziele derselben Rolle werden als `MULTIPLE_ROLE_TARGETS_UNSUPPORTED`
+ausgewiesen. Zyklen dürfen als endliche Pfade vorkommen. Keine Treffer beweisen keine
+allgemeine Unerreichbarkeit; der Agent entscheidet anhand der Fachregel zwischen Alternativen.
+
+Verwendung: **Pfad suchen → Ausdruck erstellen → bestehendes Authoring und Validatorprüfung**.
+Numerische Sammelpfade können Summen bilden; leere Mengen und fehlende Werte benötigen eigene
+Erwartungen. Objektzählungen betreffen Klassenobjekte und Pfadvorkommen, keine implizite
+DISTINCT-Zählung. Strukturen erhalten keinen `OBJECT_COUNT`-Hinweis.
 
 ## `reviewIliConstraint`
 

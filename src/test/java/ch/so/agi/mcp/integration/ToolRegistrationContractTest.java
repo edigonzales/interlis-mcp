@@ -109,6 +109,22 @@ class ToolRegistrationContractTest {
   }
 
   @Test
+  void pathDiscoveryWorksThroughRegisteredHandlerWithOptionalBounds() throws Exception {
+    var tool = specsByName().get("findConstraintPaths");
+    String model = "INTERLIS 2.4; MODEL SearchDemo (en) AT \"https://example.org\" VERSION \"1\" = "
+        + "TOPIC T = CLASS Item = value : MANDATORY 0..10; END Item; END T; END SearchDemo.";
+    var response = tool.callHandler().apply(null, new McpSchema.CallToolRequest(tool.tool().name(),
+        Map.of("modelText", model, "context", "SearchDemo.T.Item", "targetFqn", "SearchDemo.T.Item.value")));
+    assertThat(response.isError()).isFalse();
+    var result = extractStructuredContent(response);
+    assertThat(result).containsEntry("status", "AVAILABLE");
+    assertThat(mapper.writeValueAsString(result)).contains("SINGLE_VALUE", "NOT_RUN", "completeWithinBounds", "modelHashes");
+    var declaration = mapper.writeValueAsString(tool.tool().inputSchema());
+    assertThat(declaration).contains("maxDepth", "limit", "targetFqn", "2000");
+    assertThat(tool.tool().annotations().readOnlyHint()).isTrue();
+  }
+
+  @Test
   void documentedNumericNodeWorksThroughSingleBatchAndModelHandlers() throws Exception {
     String model="""
         INTERLIS 2.4;
@@ -202,7 +218,7 @@ class ToolRegistrationContractTest {
 
   @Test
   void publicToolSurfaceStaysSmallEnoughForAgentContext() throws Exception {
-    assertThat(toolSpecifications).hasSize(27);
+    assertThat(toolSpecifications).hasSize(28);
     for (SyncToolSpecification specification : toolSpecifications) {
       assertThat(mapper.writeValueAsBytes(specification.tool()).length)
           .as("serialized MCP declaration for %s", specification.tool().name())
@@ -672,6 +688,7 @@ class ToolRegistrationContractTest {
     expectations.put("listGeometryTypes", schema(Set.of(), Set.of("iliVersion")));
     expectations.put("listModelingRules", schema(Set.of(), Set.of("profile")));
     expectations.put("resolveConstraintPath", schema(Set.of("modelText", "context", "path"), Set.of()));
+    expectations.put("findConstraintPaths", schema(Set.of("modelText", "context", "targetFqn"), Set.of("maxDepth", "limit")));
     expectations.put("renameModelElement", schema(Set.of("modelText", "elementFqn", "newName"), Set.of("expectedKind")));
     expectations.put("validateIliModel", schema(Set.of("modelText"), Set.of()));
     expectations.put("generateExampleXtf", schema(Set.of("modelText"), Set.of("maxObjectsPerClass")));

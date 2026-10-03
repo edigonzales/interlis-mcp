@@ -513,6 +513,24 @@ Attribute und Domains, Optionalität, Enum-Werte, numerische Grenzen, Vererbung,
 vorhandene Regeln. Ohne `contextFqn` bleibt die vollständige Analyse unverändert. Es erfolgt
 keine automatische Zuordnung fachlicher Begriffe zu Modellelementen.
 
+Ist das Zielattribut bekannt, aber der Weg dorthin unklar, hilft `findConstraintPaths`:
+
+```json
+{
+  "modelText": "<vollständiger Modelltext>",
+  "context": "Demo.Data.Haupt",
+  "targetFqn": "Demo.Data.Neben.Gewichtung"
+}
+```
+
+Für ein passend aufgebautes Modell kann das Ergebnis etwa `Nebenauspraegung->Gewichtung`
+mit der Rollenkardinalität `{0..3}` und einem `SUM`-Hinweis enthalten. `usageHints.expression`
+liefert den typisierten Summenausdruck mit `COLLECTION_SUM`. Der Agent ergänzt die fachlich
+begründete Bedingung und prüft sie mit dem vorhandenen Authoring sowie den zuvor festgelegten
+Erwartungsfällen. Mehrere Pfade sind Alternativen; die Sortierung bezeichnet keine fachliche
+Empfehlung. Suchgrenzen sind sichtbar, eine leere Trefferliste beweist keine Unerreichbarkeit.
+Ein bereits bekannter Pfad kann weiterhin mit `resolveConstraintPath` geprüft werden.
+
 Eindeutige Anforderungen werden direkt bearbeitet. Nur fachlich wirksame Unklarheiten erfordern
 Rückfragen: etwa fehlende Werte, eine leere Beziehung oder der Bereich einer Eindeutigkeit.
 „Wenn A, dann B“ erlaubt keine automatisch ergänzte Umkehrung.

@@ -9,6 +9,10 @@ public final class ConstraintWorkflowGuidance {
       Prosa zu Constraints: verbindlicher Agentenablauf
       1. Original- und Teilanforderungen erhalten; Zielkontext mit analyzeIliModel(contextFqn)
          prüfen. Betroffene Objekte, Bedingung, Konsequenz, Grenzen und Geltungsbereich festhalten.
+         Bei bekanntem Ziel-FQN fehlende Pfade mit findConstraintPaths suchen; Alternativen,
+         Kardinalitäten und Optionalität beurteilen. usageHints.expression als Baustein verwenden,
+         dann Ausdruck erstellen und mit Authoring/Validator prüfen. Suchgrenzen sind kein
+         Unerreichbarkeitsbeweis; bekannte Pfade mit resolveConstraintPath prüfen.
          Eindeutige Vorgaben direkt umsetzen, nur fachlich wirksame Mehrdeutigkeiten rückfragen:
          „Wenn A, dann B“ verlangt keine Umkehrung; „mindestens 18“ schliesst 18 ein.
          Bei fehlenden Werten: unzulässig oder nicht anwendbar? Leere Beziehungen verlangen

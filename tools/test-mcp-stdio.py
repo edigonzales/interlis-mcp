@@ -161,6 +161,8 @@ CALLS = [
     ("listConstraintFunctions", {"iliVersion": "2.4"}, ["functions"]),
     ("resolveConstraintPath", {"modelText": MODEL, "context": "ProbeModel.Data.A",
                                "path": "name"}, ["name"]),
+    ("findConstraintPaths", {"modelText": MODEL, "context": "ProbeModel.Data.A",
+                             "targetFqn": "ProbeModel.Data.A.name"}, ["paths", "SINGLE_VALUE", "modelHashes"]),
     # --- geometry ----------------------------------------------------------------
     ("listGeometryTypes", {"iliVersion": "2.4"}, ["types"]),
     # --- XTF ---------------------------------------------------------------------

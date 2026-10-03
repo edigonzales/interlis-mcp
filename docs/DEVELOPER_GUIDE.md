@@ -442,8 +442,8 @@ Die Regressionen prüfen insbesondere unabhängige Altersgrenzen (17/18/19), get
 Mandatory-Auswertung bei UNDEFINED, numerische Präzision, Enum-Widersprüche, nicht
 unterstützte Regeln, das echte 50.000-Zustände-Budget sowie den unveränderten
 Ein-/Zwei-Compile-Vertrag. Ein zusätzlicher Befund darf weder die bestehende Freigabe
-noch `requiresUserDecision` verändern. Die MCP-Oberfläche bleibt bei 27 Tools mit
-unveränderten Eingabeparametern; die vorhandenen Schema-Grössenlimits werden eingehalten.
+noch `requiresUserDecision` verändern. Diese Ergänzung verändert keine bestehenden
+Eingabeparameter; die vorhandenen Schema-Grössenlimits werden eingehalten.
 
 Bei Constraint-Tests zählt `evidence.constraintTests.errorCount` fehlgeschlagene Testerwartungen,
 nicht die erwarteten Validatorverletzungen erfolgreicher negativer Testfälle.
@@ -470,7 +470,7 @@ bei eingebetteten Erklärungen keine zusätzlichen Kompilierungen. Der automatis
 transportiert die Erklärung zum gemeinsamen `ConstraintProof`-Ergebnis. Nicht auflösbare
 Proof-Kontexte bekommen `UNAVAILABLE`; Compiler-, Proof- und Freigabestatus bleiben unverändert.
 
-Der native Vertrag behält 27 Tools und das Limit von 50.000 Bytes je Tooldeklaration.
+Der native Vertrag behält das Limit von 50.000 Bytes je Tooldeklaration.
 `expectationSource` ist eine optionale Herkunftsangabe des Aufrufers, kein Sicherheitsnachweis.
 Die strengere Schreibregel lebt im Agentenworkflow, nicht in serverseitigen Freigabefeldern.
 
@@ -575,3 +575,19 @@ JSON und Blockhashes werden vor der abschliessenden Umbenennung geprüft. Seine
 Ein ausstehendes Archiv sperrt weitere Aufrufe. Toolausnahmen stehen separat in
 `*-tool-exception.json`; sie ersetzen niemals eine empfangene Antwort.
 Der Recorder ist kein Runner und trifft keine fachlichen oder Freigabeentscheidungen.
+
+## Modellbasierte Pfadsuche
+
+`findConstraintPaths` erweitert den aktuellen MCP-Vertrag auf 28 Tools. Die bisherigen
+Signaturen bleiben erhalten; historische Abnahmen oben dokumentieren ihren damaligen Umfang.
+`ConstraintPathSearch` kompiliert nicht selbst: Der Tool-Handler übergibt die einmal kompilierte
+`TransferDescription`. `ConstraintPathAnalysis` teilt Parserprüfung, Typ-/Kardinalitätsfakten
+und Verwendungshinweise mit `resolveConstraintPath`.
+
+Die Suche hält auch die Warteschlange begrenzt und verarbeitet Präfixe deterministisch nach
+Länge und Name. Sie verwirft keine besuchte Klasse global, da unterschiedliche oder zyklische
+Pfade fachlich verschieden sein können. Suchgrenzen und nicht unterstützte Formen bleiben
+sichtbar. Die Verwendungshinweise sind Ausdrucksbausteine ohne Vergleichsoperator oder
+fachlichen Grenzwert; Tests führen Einzelwert, Summe und Objektzählung durch das bestehende
+Authoring und den echten Validator. Der STDIO-Test prüft zudem identische Pfadfakten aus
+Suche und expliziter Auflösung.

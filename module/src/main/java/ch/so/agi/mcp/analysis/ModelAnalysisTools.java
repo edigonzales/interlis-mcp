@@ -137,7 +137,7 @@ public class ModelAnalysisTools {
       for (var target : targets.values()) targetEntries.add(Map.of("contextFqn", target.getScopedName(),
           "attributes", effectiveAttributes(target, td).stream().filter(a -> Boolean.TRUE.equals(a.get("scalar"))).toList()));
       context.put("relationshipTargets", targetEntries);
-      context.put("limitations", List.of("Nur direkte Beziehungsziele; weiterführende Pfade mit resolveConstraintPath prüfen.",
+      context.put("limitations", List.of("Nur direkte Beziehungsziele; weiterführende Pfade mit findConstraintPaths suchen oder mit resolveConstraintPath prüfen.",
           "Keine automatische Zuordnung von Prosa zu Modellelementen."));
       if (root instanceof Table table) (table.isIdentifiable() ? selected.classes : selected.structures).add(classMap(table, table.isIdentifiable() ? "CLASS" : "STRUCTURE"));
       else if (root instanceof AssociationDef association) selected.associations.add(associationMap(association));

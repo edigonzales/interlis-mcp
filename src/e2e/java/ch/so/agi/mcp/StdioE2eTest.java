@@ -487,6 +487,41 @@ public class StdioE2eTest {
     }
 
     @Test
+    void findsAndResolvesConstraintPathsOverStdio() throws Exception {
+        initializeSession();
+        var mapper = new tools.jackson.databind.ObjectMapper();
+        String model = """
+                INTERLIS 2.4;
+                MODEL Discovery (en) AT "https://example.org" VERSION "1" =
+                  TOPIC T =
+                    CLASS Root = END Root;
+                    CLASS Child = amount : MANDATORY 0..100; END Child;
+                    ASSOCIATION Link = parents -- {0..*} Root; children -- {0..3} Child; END Link;
+                  END T;
+                END Discovery.
+                """;
+        String args = mapper.writeValueAsString(java.util.Map.of("modelText", model,
+                "context", "Discovery.T.Root", "targetFqn", "Discovery.T.Child.amount"));
+        String response = callTool(3, "findConstraintPaths", args);
+        assertSuccessfulToolResponse(response, "findConstraintPaths", "children->amount", "COLLECTION_SUM", "NOT_RUN", "modelHashes");
+        var envelope = mapper.readTree(response).get("result");
+        var result = envelope.has("structuredContent") ? envelope.get("structuredContent")
+                : mapper.readTree(envelope.get("content").get(0).get("text").asString());
+        org.junit.jupiter.api.Assertions.assertEquals("AVAILABLE", result.get("status").asString());
+        org.junit.jupiter.api.Assertions.assertEquals(1, result.get("paths").size());
+        assertTrue(result.get("paths").get(0).get("collection").asBoolean());
+        assertTrue(result.get("paths").get(0).get("steps").get(0).get("optional").asBoolean());
+
+        String resolved = callTool(4, "resolveConstraintPath", mapper.writeValueAsString(java.util.Map.of(
+                "modelText", model, "context", "Discovery.T.Root", "path", "children->amount")));
+        assertSuccessfulToolResponse(resolved, "resolveConstraintPath", "COLLECTION_SUM", "optional");
+        var resolvedEnvelope = mapper.readTree(resolved).get("result");
+        var resolvedResult = resolvedEnvelope.has("structuredContent") ? resolvedEnvelope.get("structuredContent")
+                : mapper.readTree(resolvedEnvelope.get("content").get(0).get("text").asString());
+        org.junit.jupiter.api.Assertions.assertEquals(result.get("paths").get(0), resolvedResult);
+    }
+
+    @Test
     void checkModelingRules_profileCore_overStdio() throws Exception {
         initializeSession();
 

@@ -117,6 +117,9 @@ public class KnowledgeResources {
 
         ## Pfade und Funktionen
 
+        - Bei bekanntem Ziel-FQN mit `findConstraintPaths` Pfade suchen; Kardinalitaet, Optionalitaet und Alternativen anhand der Fachregel beurteilen.
+          `usageHints.expression` liefert einen Ausdrucksbaustein, keine fertige Regel. Danach Ausdruck erstellen und bestehendes Authoring/Validator nutzen.
+          Suchgrenzen berichten; keine Treffer beweisen keine Unerreichbarkeit. `proofStatus=NOT_RUN` ist keine Freigabe.
         - Standardfunktionen fuer typed Authoring zuerst mit `listConstraintFunctions` bestimmen und deren stabile `semanticId` verwenden.
         - Parameter mit `semanticType=ATTRIBUTE_PATH` als `PATH` modellieren; unklare Pfade mit `resolveConstraintPath` pruefen.
         - `reviewIliConstraint` loest Pfade fuer einen bereits vorhandenen Constraint automatisch im kompilierten Kontext auf.
