@@ -32,7 +32,7 @@ class EvidenceWorkflowTest {
       """;
 
   @Test void reviewsDistinguishWarningsCompilerFailureAndUnperformedTests() {
-    Map<String,Object> reviewed = reviews.reviewIliModel(model, ModelPurpose.CAPTURE, ModelingRuleProfile.SO);
+    Map<String,Object> reviewed = reviews.reviewIliModel(model, ModelPurpose.CAPTURE, ModelingRuleProfile.SO_GIS);
     var evidence = (EvidenceSummary) reviewed.get("evidence");
     assertThat(evidence.compiler().status()).isEqualTo(EvidenceSummary.Status.PASSED);
     assertThat(evidence.modelingRules().status()).isEqualTo(EvidenceSummary.Status.HAS_WARNINGS);

@@ -99,7 +99,7 @@ Wenn nur ein aktueller Modellstand vorliegt, ist `reviewIliModel` das Abschlussg
 {
   "modelText": "<vollständiger Modelltext>",
   "modelPurpose": "PUBLICATION",
-  "ruleProfile": "SO"
+  "ruleProfile": "SO-GIS"
 }
 ```
 

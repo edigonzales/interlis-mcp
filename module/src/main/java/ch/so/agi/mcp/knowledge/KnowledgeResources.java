@@ -34,7 +34,7 @@ public class KnowledgeResources {
   public ReadResourceResult handbookRules() {
     return markdown(
         "interlis://knowledge/handbook-rules",
-        ruleLoader.rulesAsMarkdown(ModelingRuleProfile.SO));
+        ruleLoader.rulesAsMarkdown(ModelingRuleProfile.SO_GIS));
   }
 
   @McpResource(

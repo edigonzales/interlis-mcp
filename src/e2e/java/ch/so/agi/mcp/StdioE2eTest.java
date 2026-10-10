@@ -471,7 +471,7 @@ public class StdioE2eTest {
         String argsJson = "{"
                 + "\"modelText\":" + jsonString(modelText) + ","
                 + "\"modelPurpose\":\"PUBLICATION\","
-                + "\"profile\":\"SO\""
+                + "\"profile\":\"SO-GIS\""
                 + "}";
 
         String analysis = callTool(7, "analyzeIliModel", argsJson);
@@ -480,10 +480,12 @@ public class StdioE2eTest {
         String ruleCheck = callTool(8, "checkModelingRules", argsJson);
         assertSuccessfulToolResponse(ruleCheck,
                 "checkModelingRules",
-                "SO",
+                "SO-GIS",
                 "validForAutomatedRules",
                 "manualChecks",
                 "MDE-060");
+        String legacy = callTool(9, "checkModelingRules", argsJson.replace("SO-GIS", "SO"));
+        assertSuccessfulToolResponse(legacy, "checkModelingRules", "SO-GIS", "MDE-060");
     }
 
     @Test

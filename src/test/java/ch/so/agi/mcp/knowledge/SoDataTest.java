@@ -15,12 +15,12 @@ class SoDataTest {
   }
   @Test void profileRetainsRulesExceptTheThreeDocumentationRules() {
     var loader = new KnowledgeRuleLoader();
-    var expected = loader.rules(ModelingRuleProfile.SO).stream().map(ModelingRule::id)
+    var expected = loader.rules(ModelingRuleProfile.SO_GIS).stream().map(ModelingRule::id)
         .filter(id -> !List.of("MDE-060","MDE-209","MDE-210").contains(id)).toList();
     assertThat(loader.rules(ModelingRuleProfile.SO_DATA).stream().map(ModelingRule::id).toList())
         .containsAll(expected).contains("DATA-001","DATA-002").doesNotContain("MDE-060","MDE-209","MDE-210");
     assertThat(tools.reviewIliModel(model(), ModelPurpose.VALIDATION, ModelingRuleProfile.SO_DATA).get("valid")).isEqualTo(true);
-    assertThat(tools.reviewIliModel(model(), ModelPurpose.VALIDATION, ModelingRuleProfile.SO).get("valid")).isEqualTo(false);
+    assertThat(tools.reviewIliModel(model(), ModelPurpose.VALIDATION, ModelingRuleProfile.SO_GIS).get("valid")).isEqualTo(false);
     assertThat(tools.reviewIliModel(model(), ModelPurpose.VALIDATION, ModelingRuleProfile.CORE).get("valid")).isEqualTo(true);
   }
   @Test void stringsAreNotCommentsButCommentsAreRejected() {
@@ -39,5 +39,8 @@ class SoDataTest {
     var mapper = new tools.jackson.databind.ObjectMapper();
     assertThat(mapper.writeValueAsString(ModelingRuleProfile.SO_DATA)).isEqualTo("\"SO-DATA\"");
     assertThat(mapper.readValue("\"SO-DATA\"", ModelingRuleProfile.class)).isEqualTo(ModelingRuleProfile.SO_DATA);
+    assertThat(mapper.writeValueAsString(ModelingRuleProfile.SO_GIS)).isEqualTo("\"SO-GIS\"");
+    assertThat(mapper.readValue("\"SO-GIS\"", ModelingRuleProfile.class)).isEqualTo(ModelingRuleProfile.SO_GIS);
+    assertThat(mapper.readValue("\"SO\"", ModelingRuleProfile.class)).isEqualTo(ModelingRuleProfile.SO_GIS);
   }
 }

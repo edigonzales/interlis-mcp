@@ -7,15 +7,15 @@ import org.jspecify.annotations.Nullable;
 
 public enum ModelingRuleProfile {
   CORE,
-  SO,
+  @JsonProperty("SO-GIS") SO_GIS,
   @JsonProperty("SO-DATA") SO_DATA;
 
   @JsonValue
-  public String wireName() { return this == SO_DATA ? "SO-DATA" : name(); }
+  public String wireName() { return switch (this) { case SO_GIS -> "SO-GIS"; case SO_DATA -> "SO-DATA"; default -> name(); }; }
 
   @JsonCreator
   public static ModelingRuleProfile parse(String value) {
-    return switch (value) { case "CORE" -> CORE; case "SO" -> SO; case "SO-DATA" -> SO_DATA; default -> throw new IllegalArgumentException("Unknown profile: " + value); };
+    return switch (value) { case "CORE" -> CORE; case "SO", "SO-GIS" -> SO_GIS; case "SO-DATA" -> SO_DATA; default -> throw new IllegalArgumentException("Unknown profile: " + value); };
   }
 
   @Override public String toString() { return wireName(); }

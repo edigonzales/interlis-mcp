@@ -43,7 +43,7 @@ public class ModelingRuleTools {
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = false)
   )
   public Map<String, Object> listModelingRules(
-      @McpToolParam(description = "Regelprofil: CORE, SO oder SO-DATA (Default CORE)", required = false) @Nullable ModelingRuleProfile profile
+      @McpToolParam(description = "Regelprofil: CORE, SO-GIS oder SO-DATA (Default CORE)", required = false) @Nullable ModelingRuleProfile profile
   ) {
     ModelingRuleProfile normalizedProfile = ModelingRuleProfile.normalize(profile);
     return Map.of(
@@ -60,7 +60,7 @@ public class ModelingRuleTools {
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
       @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false) @Nullable ModelPurpose modelPurpose,
       @McpToolParam(description = "Optionale Regel-IDs, die geprueft werden sollen", required = false) @Nullable List<String> ruleIds,
-      @McpToolParam(description = "Regelprofil: CORE, SO oder SO-DATA (Default CORE)", required = false) @Nullable ModelingRuleProfile profile
+      @McpToolParam(description = "Regelprofil: CORE, SO-GIS oder SO-DATA (Default CORE)", required = false) @Nullable ModelingRuleProfile profile
   ) {
     ModelPurpose purpose = ModelPurpose.normalize(modelPurpose);
     ModelingRuleProfile normalizedProfile = ModelingRuleProfile.normalize(profile);
@@ -76,7 +76,7 @@ public class ModelingRuleTools {
   public Map<String, Object> reviewIliModel(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
       @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false) @Nullable ModelPurpose modelPurpose,
-      @McpToolParam(description = "Regelprofil: CORE, SO oder SO-DATA (Default CORE)", required = false) @Nullable ModelingRuleProfile ruleProfile
+      @McpToolParam(description = "Regelprofil: CORE, SO-GIS oder SO-DATA (Default CORE)", required = false) @Nullable ModelingRuleProfile ruleProfile
   ) {
     return ModelHashes.attach(reviewIliModelFull(modelText, modelPurpose, ruleProfile), ModelHashes.model(modelText));
   }

@@ -8,6 +8,8 @@ Verwende das höchste Tool, das die Aufgabe vollständig abdeckt. Ein High-Level
 
 ## Resources und Prompts
 
+`interlis://knowledge/so-data-rules` liefert den Regelkatalog für SO-DATA.
+
 Die Resources `interlis://knowledge/agent-workflow`, `interlis://knowledge/tool-guide`, `interlis://knowledge/constraint-workflow`, `interlis://knowledge/handbook-rules` und `interlis://knowledge/model-corpus-index` stellen Regeln und Abläufe bereit. Die Prompts `interlis-modeling-agent`, `review-interlis-model`, `extend-interlis-model` und `author-interlis-constraint` übersetzen sie in konkrete Agentenaufträge.
 
 # Ergänzende Prüfnachweise
@@ -35,7 +37,7 @@ Erzeugt ein vollständiges Modell aus einer typisierten `IliModelSpec`. Name, UR
 
 ## `applyIliModelChanges`
 
-Wendet einen atomaren Batch source-preserving an. Unterstützt `ADD_IMPORT`, `ADD_TOPIC`, `ADD_DOMAIN`, `ADD_UNIT`, `ADD_CLASS`, `ADD_STRUCTURE`, `ADD_ASSOCIATION`, `ADD_ATTRIBUTE`, `UPDATE_ATTRIBUTE`, `REMOVE_ATTRIBUTE` und `ADD_CONSTRAINT`. Der Batch nutzt genau einen Before- und After-Compile. Potenziell brechende Änderungen werden ohne `allowPotentiallyBreaking=true` nur als geprüfter Kandidat zurückgegeben.
+Wendet einen atomaren Batch source-preserving an. Unterstützt `ADD_IMPORT`, `ADD_TOPIC`, `ADD_DOMAIN`, `ADD_UNIT`, `ADD_CLASS`, `ADD_STRUCTURE`, `ADD_ASSOCIATION`, `ADD_ATTRIBUTE`, `UPDATE_ATTRIBUTE`, `REMOVE_ATTRIBUTE`, `ADD_CONSTRAINT` und `REMOVE_COMMENTS`. Der Batch nutzt genau einen Before- und After-Compile. Potenziell brechende Änderungen werden ohne `allowPotentiallyBreaking=true` nur als geprüfter Kandidat zurückgegeben.
 
 ## `renameModelElement`
 
@@ -53,7 +55,7 @@ Liefert die kompilierte Modellstruktur, darunter Modelle, Topics, Klassen, Struk
 
 ## `listModelingRules`
 
-Listet den Regelkatalog für `CORE`, `SO` oder `SO-DATA`. Das Tool prüft selbst kein Modell.
+Listet den Regelkatalog für `CORE`, `SO-GIS` oder `SO-DATA`. Das Tool prüft selbst kein Modell.
 
 ## `checkModelingRules`
 
@@ -195,7 +197,9 @@ Validiert bis zu 20 MiB XTF-Text gegen den vollständigen Modelltext mit ilivali
 
 ## SO-DATA: Profil und Kommentarentfernung
 
-Alle Profilparameter akzeptieren `CORE`, `SO` und `SO-DATA`; Default bleibt CORE.
+Alle Profilparameter akzeptieren `CORE`, `SO-GIS` und `SO-DATA`; Default bleibt CORE.
+Das frühere `SO` wird als Eingabealias für `SO-GIS` akzeptiert und im Schema als
+veralteter Alias beschrieben. Antworten verwenden ausschliesslich den neuen Namen.
 `listModelingRules(profile="SO-DATA")` und
 `interlis://knowledge/so-data-rules` liefern den vollständigen Regelkatalog.
 `REMOVE_COMMENTS` benötigt keine zusätzliche Payload:

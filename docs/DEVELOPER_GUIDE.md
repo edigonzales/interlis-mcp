@@ -307,7 +307,8 @@ module/src/main/resources/knowledge/modeling-rules.so.yml
 ```
 
 - `CORE`: portable Regeln.
-- `SO`: Solothurn-spezifische Ergänzungen; beim Laden wird `CORE` automatisch mitgeführt.
+- `SO-GIS`: Solothurn-spezifische Ergänzungen; beim Laden wird `CORE` automatisch mitgeführt.
+- `SO-DATA`: CORE/SO-GIS ohne MDE-060, MDE-209, MDE-210 und mit zusätzlichen Prüfungen DATA-001/002.
 
 Eine Regel muss klar angeben:
 
@@ -596,12 +597,12 @@ Suche und expliziter Auflösung.
 
 Das interne Enum `SO_DATA` serialisiert ausschliesslich als `SO-DATA`.
 `McpDiscriminatorSchemaConfig` normalisiert auch die tatsächlich veröffentlichten
-Werkzeugschemas. `KnowledgeRuleLoader` übernimmt CORE/SO ohne MDE-060, MDE-209 und
+Werkzeugschemas. `KnowledgeRuleLoader` übernimmt CORE/SO-GIS ohne MDE-060, MDE-209 und
 MDE-210 und ergänzt DATA-001/DATA-002. `IliComments` erkennt Kommentarspannen
 lexikalisch ausserhalb von Strings; `REMOVE_COMMENTS` führt sie durch die atomare
 Patch-/Compiler-/Review-Pipeline. Technische Constraint-Namen bleiben als native
 INTERLIS-Bezeichner erhalten. Der profilgebundene Renderer ist aufruflokal;
-CORE/SO verwenden weiterhin das bisherige Rendering.
+CORE/SO-GIS verwenden weiterhin das bisherige Rendering.
 
 `SoDataTest`, die Authoring-/Änderungstests und `ToolRegistrationContractTest`
 prüfen Regeln, Quellerhaltung, fünf Constraint-Arten und reale MCP-Schemas.

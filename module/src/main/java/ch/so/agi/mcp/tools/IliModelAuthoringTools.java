@@ -58,7 +58,7 @@ public final class IliModelAuthoringTools {
       IliModelSpec spec,
       @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false)
       @Nullable ModelPurpose modelPurpose,
-      @McpToolParam(description = "Regelprofil: CORE, SO oder SO-DATA (Default CORE)", required = false)
+      @McpToolParam(description = "Regelprofil: CORE, SO-GIS oder SO-DATA (Default CORE)", required = false)
       @Nullable ModelingRuleProfile ruleProfile,
       @McpToolParam(description = TestXtfOutput.PARAMETER, required = false) @org.jspecify.annotations.Nullable Boolean includeSuccessfulTestXtf) {
     return TestXtfOutput.prepare(ModelHashes.attach(authorIliModelFull(spec, modelPurpose, ruleProfile), null), includeSuccessfulTestXtf);

@@ -295,7 +295,25 @@ Kuratierte Regeln liegen als versionierte YAML-Ressourcen im Repository:
 - `modeling-rules.core.yml`
 - `modeling-rules.so.yml`
 
-`CORE` ist portabel. `SO` erweitert `CORE` um Regeln des Solothurner Modellierungshandbuchs.
+`CORE` ist portabel. `SO-GIS` erweitert `CORE` um Regeln des Solothurner Modellierungshandbuchs.
+
+`SO-DATA` übernimmt CORE und SO-GIS ausser MDE-060, MDE-209 und MDE-210.
+Der Loader ergänzt DATA-001 (keine Kommentare ausserhalb von Strings) und
+DATA-002 (gültiges VERSION-Datum, passendes Namenssuffix und absolute AT-URI)
+programmatisch. Die bestehende YAML-Datei `modeling-rules.so.yml` enthält
+nun Profilwerte `SO-GIS`; ihr Dateiname bleibt stabil.
+
+Öffentliche Antworten verwenden `CORE`, `SO-GIS` und `SO-DATA`.
+Schemas führen zusätzlich das frühere `SO` als veralteten Eingabealias für
+SO-GIS auf, damit auch die Transportvalidierung alte Aufrufe akzeptiert. Die Enum-Werte `SO_GIS`
+und `SO_DATA` sind intern; die Schema-Normalisierung und JSON-Serialisierung
+liefern die Schreibweise mit Bindestrich.
+
+`REMOVE_COMMENTS` ist eine explizite, typisierte Änderung. Der Lexer bewahrt
+Strings, Zeilenumbrüche und Tokentrennung. Technische Constraint-Namen aus
+Kommentar-Metaattributen werden als native INTERLIS-Namen erhalten.
+Compiler, semantischer Vergleich und Review prüfen das Ergebnis; reine Reviews
+verändern den Quelltext nicht.
 
 Jede Regel unterscheidet explizit zwischen automatischer und manueller Prüfung. Fachlich nicht deterministisch prüfbare Regeln bleiben `MANUAL`; der Server simuliert keine Gewissheit.
 

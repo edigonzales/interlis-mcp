@@ -49,7 +49,7 @@ public class AgentPrompts {
 
         Regelprofile:
         - `CORE` enthält nur portable technische und agentische Basisregeln.
-        - Wenn das Modell nach den Vorgaben des Kantons Solothurn beurteilt wird, verwende `ruleProfile=SO`;
+        - Wenn das Modell nach den Vorgaben des Kantons Solothurn beurteilt wird, verwende `ruleProfile=SO-GIS`;
           dieses Profil enthält CORE plus die Regeln aus dem Solothurner Modellierungshandbuch.
 
         Bevorzuge diesen Ablauf:
@@ -92,7 +92,7 @@ public class AgentPrompts {
     return prompt("INTERLIS-Modell prüfen", """
         Prüfe das INTERLIS-Modell mit Modellzweck `%s`.
 
-        Wenn die Vorgaben des Kantons Solothurn gelten, verwende bei `reviewIliModel` das `ruleProfile=SO`.
+        Wenn die Vorgaben des Kantons Solothurn gelten, verwende bei `reviewIliModel` das `ruleProfile=SO-GIS`.
         Für portable technische und agentische Basisregeln genügt `CORE`.
 
         Pflichtablauf:
@@ -118,7 +118,7 @@ public class AgentPrompts {
     return prompt("INTERLIS-Modell erweitern", """
         Erweitere ein bestehendes INTERLIS-Modell mit Modellzweck `%s`.
 
-        Wenn die Vorgaben des Kantons Solothurn gelten, verwende in den Reviews `ruleProfile=SO`;
+        Wenn die Vorgaben des Kantons Solothurn gelten, verwende in den Reviews `ruleProfile=SO-GIS`;
         `CORE` enthält nur die portablen technischen und agentischen Basisregeln.
 
         Vorgehen:

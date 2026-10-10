@@ -30,11 +30,16 @@ class ToolRegistrationContractTest {
 @Test
 void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
   for (String name : List.of("authorIliModel", "applyIliModelChanges", "reviewIliModel", "listModelingRules")) {
-    assertThat(mapper.writeValueAsString(specsByName().get(name).tool().inputSchema())).contains("SO-DATA").doesNotContain("SO_DATA");
+    assertThat(mapper.writeValueAsString(specsByName().get(name).tool().inputSchema())).contains("SO-DATA", "SO-GIS", "veralteter Eingabealias").doesNotContain("SO_DATA", "SO_GIS");
   }
   var response = specsByName().get("listModelingRules").callHandler().apply(null,
       new McpSchema.CallToolRequest("listModelingRules", Map.of("profile", "SO-DATA")));
   assertThat(mapper.writeValueAsString(response)).contains("SO-DATA", "DATA-001").doesNotContain("SO_DATA");
+  for (String profile : List.of("SO-GIS", "SO")) {
+    var gis = specsByName().get("listModelingRules").callHandler().apply(null,
+        new McpSchema.CallToolRequest("listModelingRules", Map.of("profile", profile)));
+    assertThat(mapper.writeValueAsString(gis)).contains("SO-GIS", "MDE-060", "MDE-209", "MDE-210").doesNotContain("SO_GIS");
+  }
   assertThat(mapper.writeValueAsString(specsByName().get("applyIliModelChanges").tool().inputSchema())).contains("REMOVE_COMMENTS");
 }
 

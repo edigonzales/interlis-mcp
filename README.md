@@ -92,12 +92,14 @@ Die MCP-Resource `interlis://knowledge/agent-workflow` und der Prompt `interlis-
 
 ## Modellierungsregeln
 
-Es gibt zwei Regelprofile:
+Es gibt drei Regelprofile:
 
 - `CORE`: portable technische und agentische Basisregeln.
-- `SO`: `CORE` plus die kuratierten Regeln aus dem Solothurner Modellierungshandbuch.
+- `SO-GIS`: `CORE` plus die kuratierten Regeln aus dem Solothurner Modellierungshandbuch.
+- `SO-DATA`: kommentarfreie CSV-Validierungsmodelle mit passendem Namenssuffix und Versionsdatum; die drei Dokumentationsregeln entfallen.
 
-Für Modelle nach den Vorgaben des Kantons Solothurn sollte `ruleProfile=SO` verwendet werden.
+Für Modelle nach den Vorgaben des Kantons Solothurn sollte `ruleProfile=SO-GIS` verwendet werden.
+Das bisherige `SO` bleibt ein im Schema dokumentierter Eingabealias; Antworten verwenden `SO-GIS`.
 
 ## Dokumentation
 
@@ -137,7 +139,7 @@ im [Benutzerhandbuch](docs/USER_GUIDE.md#constraints-aus-prosa-mit-fachlichen-er
 ## SO-DATA: CSV-Validierungsmodelle
 
 `SO-DATA` ist das Profil für kommentarfreie CSV-Validierungsmodelle mit passendem
-Modellnamenssuffix und VERSION-Datum. CORE und SO bleiben unverändert verfügbar.
+Modellnamenssuffix und VERSION-Datum. CORE und SO-GIS bleiben unverändert verfügbar.
 [Regeln und Umstellung vorhandener Modelle](docs/USER_GUIDE.md#so-data-csv-validierungsmodelle)
 stehen im Benutzerhandbuch; [lokale Abnahme und Auslieferungsgrenzen](docs/SO_DATA_ACCEPTANCE.md)
 sind separat ausgewiesen.

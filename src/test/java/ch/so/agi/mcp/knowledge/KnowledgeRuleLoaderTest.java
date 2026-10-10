@@ -16,8 +16,8 @@ class KnowledgeRuleLoaderTest {
     assertThat(loader.rules()).extracting(ModelingRule::profile)
         .containsOnly(ModelingRuleProfile.CORE);
 
-    assertThat(loader.rules(ModelingRuleProfile.SO)).hasSize(18);
-    assertThat(loader.rules(ModelingRuleProfile.SO)).extracting(ModelingRule::id)
+    assertThat(loader.rules(ModelingRuleProfile.SO_GIS)).hasSize(18);
+    assertThat(loader.rules(ModelingRuleProfile.SO_GIS)).extracting(ModelingRule::id)
         .containsExactly(
             "MDE-020",
             "MDE-040",
@@ -37,8 +37,8 @@ class KnowledgeRuleLoaderTest {
             "MDE-601",
             "MDE-602",
             "MDE-603");
-    assertThat(loader.rules(ModelingRuleProfile.SO))
-        .filteredOn(rule -> rule.profile() == ModelingRuleProfile.SO)
+    assertThat(loader.rules(ModelingRuleProfile.SO_GIS))
+        .filteredOn(rule -> rule.profile() == ModelingRuleProfile.SO_GIS)
         .hasSize(16);
   }
 
@@ -52,10 +52,10 @@ class KnowledgeRuleLoaderTest {
         .contains("MDE-040")
         .doesNotContain("MDE-603");
 
-    assertThat(loader.rulesAsMarkdown(ModelingRuleProfile.SO))
-        .contains("Aktives Profil: `SO`")
+    assertThat(loader.rulesAsMarkdown(ModelingRuleProfile.SO_GIS))
+        .contains("Aktives Profil: `SO-GIS`")
         .contains("MDE-020")
         .contains("MDE-603")
-        .contains("Profil: SO");
+        .contains("Profil: SO-GIS");
   }
 }

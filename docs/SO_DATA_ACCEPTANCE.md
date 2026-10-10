@@ -1,4 +1,31 @@
-# SO-DATA – lokale Entwicklungsabnahme vom 10. Oktober 2026
+# Abnahmestand: SO-GIS und SO-DATA
+
+## SO-GIS und vervollständigte Referenzen vom 10. Oktober 2026
+
+Das bisherige Profil `SO` heisst `SO-GIS`, intern `SO_GIS`. Die GIS-Regeln
+bleiben gleich; Modellnamen mit `SO_` werden nicht umbenannt. Schemas erklären
+`SO` als veralteten Eingabealias; Parser und MCP-Transport akzeptieren ihn,
+Antworten verwenden `SO-GIS`. `SO-DATA` bleibt ein eigenes Profil.
+
+Benutzerhandbuch, Tool-Referenz, Architektur, Entwicklerhandbuch, README,
+MCP-Prompts und Regelressourcen sind gemeinsam nachgeführt. Die primäre
+Operationsliste enthält `REMOVE_COMMENTS`; die Ressourcenübersicht nennt
+`interlis://knowledge/so-data-rules`.
+
+Tatsächlich lokal mit JDK 21 ausgeführt: `test check e2eTest bootJar` und
+`:interlis-mcp-module:publishMavenJavaPublicationToVerificationRepository`.
+595 JUnit-Tests und 24 MCP-End-to-End-Tests bestanden. Insbesondere prüft der
+STDIO-Test beide Profilnamen durch die tatsächliche MCP-Schemavalidierung.
+Benchmark- und Workflow-Prüfungen sind ebenfalls erfolgreich.
+
+Der vorausgehende Stand `41ec4eb` wurde als `0.0.571-1` veröffentlicht:
+[erfolgreiche Pipeline](https://github.com/edigonzales/interlis-mcp/actions/runs/38075711193).
+Docker-Hub-Digest: `sha256:e14f2305c71003f0ae5a0167835c67958125da768c948eed1572cb4ad36accde`,
+mit linux/arm64 und linux/amd64. Dieser Vorgänger enthält noch kein `SO-GIS`.
+Die Veröffentlichung der hier beschriebenen Umbenennung wird nach dem Push
+separat geprüft; der Integrator darf erst deren verifizierten Digest pinnen.
+
+## SO-DATA – lokale Entwicklungsabnahme vom 10. Oktober 2026
 
 Implementiert: öffentliches Profil `SO-DATA`, CORE/SO-Regeln ausser MDE-060,
 MDE-209 und MDE-210, kommentarfreie Quellen, Datumssuffix/VERSION/AT-Abgleich

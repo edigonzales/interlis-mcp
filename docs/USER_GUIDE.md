@@ -158,9 +158,10 @@ Die Suche ist lokal und lexikalisch. Sie verwendet keine Embeddings, keine Daten
 Bei Reviews und Regelchecks kann ein Regelprofil gewählt werden:
 
 - `CORE`: portable technische und agentische Basisregeln.
-- `SO`: enthält `CORE` und zusätzlich die kuratierten Regeln aus dem Solothurner Modellierungshandbuch.
+- `SO-GIS`: enthält `CORE` und zusätzlich die kuratierten Regeln aus dem Solothurner Modellierungshandbuch.
+- `SO-DATA`: für kommentarfreie CSV-Validierungsmodelle, mit Namens-/Versionsabgleich und ohne die drei Dokumentationspflichten; siehe [Profilregeln](#so-data-csv-validierungsmodelle).
 
-Für ein Modell, das nach den Vorgaben des Kantons Solothurn geprüft werden soll, ist `SO` die passende Wahl.
+Für ein Modell, das nach den Vorgaben des Kantons Solothurn geprüft werden soll, ist `SO-GIS` die passende Wahl.
 
 ## Aufgabe: ein vollständiges Modell prüfen
 
@@ -172,7 +173,7 @@ Beispiel:
 {
   "modelText": "INTERLIS 2.4;\n\nMODEL Demo (de) AT \"https://example.org/demo\" VERSION \"2026-08-20\" =\nEND Demo.\n",
   "modelPurpose": "PUBLICATION",
-  "ruleProfile": "SO"
+  "ruleProfile": "SO-GIS"
 }
 ```
 
@@ -256,7 +257,7 @@ Beispiel: Eine Klasse wird absichtlich von `OldBuilding` in `Building` umbenannt
   "beforeModelText": "<vorher>",
   "afterModelText": "<nachher>",
   "modelPurpose": "CAPTURE",
-  "ruleProfile": "SO"
+  "ruleProfile": "SO-GIS"
 }
 ```
 
@@ -608,9 +609,9 @@ diese Beurteilung. Es gibt keine pauschale Ausnahme für Modellzweckfragen.
 
 ## SO-DATA: CSV-Validierungsmodelle
 
-Das öffentliche Profil `SO-DATA` übernimmt CORE und SO mit Ausnahme von
+Das öffentliche Profil `SO-DATA` übernimmt CORE und SO-GIS mit Ausnahme von
 `MDE-060`, `MDE-209`, `MDE-210`. Die übrigen Regeln bleiben aktiv, insbesondere
-Namens-, Textlängen-, OID- und AT-Anforderungen. `CORE` und `SO` behalten ihre
+Namens-, Textlängen-, OID- und AT-Anforderungen. `CORE` und `SO-GIS` behalten ihre
 bisherigen Regeln. Über MCP gilt ausschliesslich `SO-DATA`, intern `SO_DATA`.
 Der Katalog ist mit `listModelingRules(profile="SO-DATA")` und als Ressource
 `interlis://knowledge/so-data-rules` verfügbar.
@@ -632,3 +633,8 @@ Abschlussreview prüfen den Kandidaten; `sourceEdits` zeigt die Entfernungen.
 Überlappende Änderungen im selben Batch werden wie bisher abgelehnt; solche
 Änderungen in getrennten geprüften Batches ausführen. Namens-/Versionsanpassungen
 werden durch Kommentarentfernung nicht automatisch erfunden.
+
+`SO-GIS` ist der neue Name des bisherigen Profils `SO`; die GIS-Regeln bleiben
+inhaltlich gleich. Bestehende Clients dürfen `SO` weiterhin als Eingabealias
+senden. Neue Aufträge und alle Antworten verwenden `SO-GIS`. SO-DATA ist ein
+eigenständiges Profil und wird durch diese Umbenennung nicht verändert.

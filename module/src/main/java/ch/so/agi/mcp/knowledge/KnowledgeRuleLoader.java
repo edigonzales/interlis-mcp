@@ -42,8 +42,8 @@ public class KnowledgeRuleLoader {
   public KnowledgeRuleLoader() {
     Map<ModelingRuleProfile, List<ModelingRule>> loaded = new EnumMap<>(ModelingRuleProfile.class);
     loaded.put(ModelingRuleProfile.CORE, List.copyOf(loadRules(CORE_RESOURCE, ModelingRuleProfile.CORE)));
-    loaded.put(ModelingRuleProfile.SO, List.copyOf(loadRules(SO_RESOURCE, ModelingRuleProfile.SO)));
-    var dataRules = new ArrayList<>(loaded.get(ModelingRuleProfile.SO).stream()
+    loaded.put(ModelingRuleProfile.SO_GIS, List.copyOf(loadRules(SO_RESOURCE, ModelingRuleProfile.SO_GIS)));
+    var dataRules = new ArrayList<>(loaded.get(ModelingRuleProfile.SO_GIS).stream()
         .filter(r -> !java.util.Set.of("MDE-060", "MDE-209", "MDE-210").contains(r.id())).toList());
     for (var entry : Map.of("DATA-001", "SO-DATA models must not contain comments.",
         "DATA-002", "Model suffix _YYYYMMDD must match the valid VERSION date and AT must be absolute.").entrySet()) {
@@ -129,7 +129,7 @@ public class KnowledgeRuleLoader {
       String rawProfile = raw.get("profile");
       ModelingRuleProfile profile = rawProfile == null || rawProfile.isBlank()
           ? defaultProfile
-          : ModelingRuleProfile.valueOf(rawProfile);
+          : ModelingRuleProfile.parse(rawProfile);
       parsed.add(new ModelingRule(
           profile,
           require(raw, "id"),
