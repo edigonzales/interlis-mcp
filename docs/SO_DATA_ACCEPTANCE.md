@@ -22,8 +22,17 @@ Der vorausgehende Stand `41ec4eb` wurde als `0.0.571-1` veröffentlicht:
 [erfolgreiche Pipeline](https://github.com/edigonzales/interlis-mcp/actions/runs/38075711193).
 Docker-Hub-Digest: `sha256:e14f2305c71003f0ae5a0167835c67958125da768c948eed1572cb4ad36accde`,
 mit linux/arm64 und linux/amd64. Dieser Vorgänger enthält noch kein `SO-GIS`.
-Die Veröffentlichung der hier beschriebenen Umbenennung wird nach dem Push
-separat geprüft; der Integrator darf erst deren verifizierten Digest pinnen.
+Die Umbenennung ist mit Quellrevision `44ea8449b819aa1cb009388fd7650a85285a03d3`
+als **0.0.572-1** veröffentlicht:
+[erfolgreiche Pipeline](https://github.com/edigonzales/interlis-mcp/actions/runs/38076945421).
+Application-, ARM64-, AMD64- und Publish-Job sind erfolgreich, einschliesslich
+Maven-Verbrauchertest und Image-Smokes. Der Registry-Digest
+`sha256:eb348cd3cc6da8fedf9da2dbf564f1c8ee0d3827fb0c8e9447b3b44f013d338b`
+enthält linux/arm64 und linux/amd64; das heruntergeladene ARM64-Image weist
+dieselbe Quellrevision und Version aus. Der Integrator übernimmt diesen
+unveränderlichen Digest für seine gemeinsame Abnahme und seine aktuellen Pins.
+Der folgende Abschnitt dokumentiert den früheren Entwicklungsstand; seine
+damaligen offenen Veröffentlichungspunkte sind durch diesen Nachweis erledigt.
 
 ## SO-DATA – lokale Entwicklungsabnahme vom 10. Oktober 2026
 
