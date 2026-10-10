@@ -27,7 +27,19 @@ class ToolRegistrationContractTest {
   @Qualifier("toolSpecs")
   List<SyncToolSpecification> toolSpecifications;
 
-  @Test
+@Test
+void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
+  for (String name : List.of("authorIliModel", "applyIliModelChanges", "reviewIliModel", "listModelingRules")) {
+    assertThat(mapper.writeValueAsString(specsByName().get(name).tool().inputSchema())).contains("SO-DATA").doesNotContain("SO_DATA");
+  }
+  var response = specsByName().get("listModelingRules").callHandler().apply(null,
+      new McpSchema.CallToolRequest("listModelingRules", Map.of("profile", "SO-DATA")));
+  assertThat(mapper.writeValueAsString(response)).contains("SO-DATA", "DATA-001").doesNotContain("SO_DATA");
+  assertThat(mapper.writeValueAsString(specsByName().get("applyIliModelChanges").tool().inputSchema())).contains("REMOVE_COMMENTS");
+}
+
+@Test
+
   void exportVerifiedBenchmarkToolCatalog() throws Exception {
     Set<String> names = Set.of("validateIliModel", "reviewIliConstraint", "generateIliConstraintCases",
         "authorIliMandatoryConstraint", "authorIliPlausibilityConstraint", "authorIliExistenceConstraint",

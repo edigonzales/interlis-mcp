@@ -133,3 +133,11 @@ die angegebene Herkunft, `explanation` beschreibt die kompilierte Regel. `modelH
 Prüfungen an den genauen Modelltext; `includeSuccessfulTestXtf=false` verkürzt erfolgreiche
 Testausgaben ohne Verlust von Diagnosen. Details und Grenzen stehen
 im [Benutzerhandbuch](docs/USER_GUIDE.md#constraints-aus-prosa-mit-fachlichen-erwartungen).
+
+## SO-DATA: CSV-Validierungsmodelle
+
+`SO-DATA` ist das Profil für kommentarfreie CSV-Validierungsmodelle mit passendem
+Modellnamenssuffix und VERSION-Datum. CORE und SO bleiben unverändert verfügbar.
+[Regeln und Umstellung vorhandener Modelle](docs/USER_GUIDE.md#so-data-csv-validierungsmodelle)
+stehen im Benutzerhandbuch; [lokale Abnahme und Auslieferungsgrenzen](docs/SO_DATA_ACCEPTANCE.md)
+sind separat ausgewiesen.

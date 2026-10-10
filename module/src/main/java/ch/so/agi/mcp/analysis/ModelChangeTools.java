@@ -41,7 +41,7 @@ public class ModelChangeTools {
       @McpToolParam(description = "INTERLIS-2 Modelltext vor der Aenderung", required = true) String beforeModelText,
       @McpToolParam(description = "INTERLIS-2 Modelltext nach der Aenderung", required = true) String afterModelText,
       @McpToolParam(description = "Modellzweck fuer das Review des After-Modells: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false) @Nullable ModelPurpose modelPurpose,
-      @McpToolParam(description = "Regelprofil fuer das Review des After-Modells: CORE oder SO (Default CORE)", required = false) @Nullable ModelingRuleProfile ruleProfile
+      @McpToolParam(description = "Regelprofil fuer das Review des After-Modells: CORE, SO oder SO-DATA (Default CORE)", required = false) @Nullable ModelingRuleProfile ruleProfile
   ) {
     return ModelHashes.attach(reviewIliChangeFull(beforeModelText, afterModelText, modelPurpose, ruleProfile), ModelHashes.change(beforeModelText, afterModelText));
   }

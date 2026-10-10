@@ -112,9 +112,9 @@ public class ModelChangeReviewService {
       return Map.of(
           "available", false,
           "constraintInteractions", ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis.analyze(null),
-          "evidence", ch.so.agi.mcp.model.EvidenceSummary.review(false, compilation.messages(), List.of(), profile.name()),
+          "evidence", ch.so.agi.mcp.model.EvidenceSummary.review(false, compilation.messages(), List.of(), profile.wireName()),
           "modelPurpose", purpose.name(),
-          "ruleProfile", profile.name(),
+          "ruleProfile", profile.wireName(),
           "reason", "The authored model must compile before it can be reviewed.");
     }
     ModelAnalysisTools.AnalysisData analysis = analysisTools.analyzeCompiled(
@@ -152,9 +152,9 @@ public class ModelChangeReviewService {
     return Map.of(
         "available", false,
           "constraintInteractions", ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis.analyze(null),
-        "evidence", ch.so.agi.mcp.model.EvidenceSummary.review(false, diagnostics, List.of(), profile.name()),
+        "evidence", ch.so.agi.mcp.model.EvidenceSummary.review(false, diagnostics, List.of(), profile.wireName()),
         "modelPurpose", purpose.name(),
-        "ruleProfile", profile.name(),
+        "ruleProfile", profile.wireName(),
         "reason", "The after model must compile before modeling rules can be reviewed.");
   }
 

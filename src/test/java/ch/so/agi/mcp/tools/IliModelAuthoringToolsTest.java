@@ -24,7 +24,21 @@ import org.junit.jupiter.api.Test;
 
 class IliModelAuthoringToolsTest {
 
-  @Test
+@Test
+void soDataKeepsAllFiveConstraintNamesWithoutMetadataComments() throws Exception {
+  var mapper = new tools.jackson.databind.ObjectMapper();
+  var spec = mapper.readValue(mapper.writeValueAsString(completeSpec()).replace("AuthorDemo", "AuthorDemo_20260824"), IliModelSpec.class);
+  var compiler = new CountingCompiler();
+  var result = tools(compiler).authorIliModel(spec, ModelPurpose.VALIDATION, ModelingRuleProfile.SO_DATA);
+  assertThat(result.proofVerified).as("%s", result.constraintProofs).isTrue();
+  assertThat(result.constraintProofs).hasSize(5);
+  String text = result.updatedModelText != null ? result.updatedModelText : result.candidateModelText;
+  assertThat(ch.so.agi.mcp.change.IliComments.spans(text)).isEmpty();
+  assertThat(text).contains("MANDATORY CONSTRAINT ", "UNIQUE ", "EXISTENCE CONSTRAINT ");
+}
+
+@Test
+
   void authorsChBaseModelWithAllFiveConstraintProofsUsingOneCompile() {
     CountingCompiler compiler = new CountingCompiler();
     IliModelAuthoringTools tools = tools(compiler);

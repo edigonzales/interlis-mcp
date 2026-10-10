@@ -53,7 +53,7 @@ Liefert die kompilierte Modellstruktur, darunter Modelle, Topics, Klassen, Struk
 
 ## `listModelingRules`
 
-Listet den Regelkatalog für `CORE` oder `SO`. Das Tool prüft selbst kein Modell.
+Listet den Regelkatalog für `CORE`, `SO` oder `SO-DATA`. Das Tool prüft selbst kein Modell.
 
 ## `checkModelingRules`
 
@@ -192,3 +192,21 @@ Erzeugt deterministisches Minimal-XTF für sicher materialisierbare Klassen. `ma
 ## `validateXtf`
 
 Validiert bis zu 20 MiB XTF-Text gegen den vollständigen Modelltext mit ilivalidator und liefert strukturierte Fehler- und Warnungszählungen.
+
+## SO-DATA: Profil und Kommentarentfernung
+
+Alle Profilparameter akzeptieren `CORE`, `SO` und `SO-DATA`; Default bleibt CORE.
+`listModelingRules(profile="SO-DATA")` und
+`interlis://knowledge/so-data-rules` liefern den vollständigen Regelkatalog.
+`REMOVE_COMMENTS` benötigt keine zusätzliche Payload:
+
+```json
+{"changes": [{"operation": "REMOVE_COMMENTS"}]}
+```
+
+Dieser Batch wird nur auf ausdrücklichen Änderungsauftrag über
+`applyIliModelChanges` angewendet; Reviews sind read-only. `sourceEdits` zeigt die
+Entfernung und gegebenenfalls native Constraint-Namen. Überlappende Änderungen
+werden zurückgewiesen und benötigen getrennte geprüfte Batches. Die bisherigen
+Gates für potenziell brechende Änderungen bleiben bestehen.
+[Profilregeln und Beispiele](USER_GUIDE.md#so-data-csv-validierungsmodelle).

@@ -91,7 +91,11 @@ public class McpDiscriminatorSchemaConfig {
     if (node instanceof Map<?, ?> raw) {
       @SuppressWarnings("unchecked")
       Map<String, Object> map = (Map<String, Object>) raw;
+      if (map.get("enum") instanceof List<?> values && values.containsAll(List.of("CORE", "SO", "SO_DATA"))) {
+        map.put("enum", values.stream().map(v -> "SO_DATA".equals(v) ? "SO-DATA" : v).toList());
+      }
       Object alternatives = map.get("anyOf");
+
       if (alternatives instanceof List<?> list && isDiscriminatedUnion(list, definitions)) {
         map.remove("anyOf");
         map.put("oneOf", alternatives);

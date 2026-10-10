@@ -31,7 +31,7 @@ public final class ConstraintAuthoringTools {
       @McpToolParam(description = "Vollqualifizierter Constraint-Kontext", required = true) String contextFqn,
       @McpToolParam(description = "Typisierte MANDATORY-Spezifikation" + " " + ch.so.agi.mcp.model.ConstraintAuthoringGuidance.INPUT, required = true) IliConstraintSpec.Mandatory spec,
       @McpToolParam(description = "Modellzweck", required = false) @Nullable ModelPurpose modelPurpose,
-      @McpToolParam(description = "Regelprofil CORE oder SO", required = false) @Nullable ModelingRuleProfile ruleProfile,
+      @McpToolParam(description = "Regelprofil CORE, SO oder SO-DATA", required = false) @Nullable ModelingRuleProfile ruleProfile,
       @McpToolParam(description = TestXtfOutput.PARAMETER, required = false) @org.jspecify.annotations.Nullable Boolean includeSuccessfulTestXtf) {
     return TestXtfOutput.prepare(ModelHashes.attach(engine.author(modelText, contextFqn, spec, modelPurpose, ruleProfile), modelText), includeSuccessfulTestXtf);
   }
@@ -51,7 +51,7 @@ public final class ConstraintAuthoringTools {
       @McpToolParam(description = "Vollqualifizierter Constraint-Kontext", required = true) String contextFqn,
       @McpToolParam(description = "Typisierte PLAUSIBILITY-Spezifikation" + " " + ch.so.agi.mcp.model.ConstraintAuthoringGuidance.INPUT, required = true) IliConstraintSpec.Plausibility spec,
       @McpToolParam(description = "Modellzweck", required = false) @Nullable ModelPurpose modelPurpose,
-      @McpToolParam(description = "Regelprofil CORE oder SO", required = false) @Nullable ModelingRuleProfile ruleProfile,
+      @McpToolParam(description = "Regelprofil CORE, SO oder SO-DATA", required = false) @Nullable ModelingRuleProfile ruleProfile,
       @McpToolParam(description = TestXtfOutput.PARAMETER, required = false) @org.jspecify.annotations.Nullable Boolean includeSuccessfulTestXtf) {
     return TestXtfOutput.prepare(ModelHashes.attach(engine.author(modelText, contextFqn, spec, modelPurpose, ruleProfile), modelText), includeSuccessfulTestXtf);
   }

@@ -59,7 +59,7 @@ public final class ConstraintAuthoringEngine {
       constraintName = ConstraintSpecContract.technicalName(spec.name, "/spec/name");
       version = iliVersion(modelText);
       String modelName = context.substring(0, context.indexOf('.'));
-      constraintText = renderer.renderConstraint(spec, version, modelName, imports).text();
+      constraintText = renderer.forProfile(ruleProfile).renderConstraint(spec, version, modelName, imports).text();
     } catch (IllegalArgumentException ex) {
       return SpecValidationException.attach(
           failure("INVALID_SPEC", ex.getMessage(), null, List.of()), ex);

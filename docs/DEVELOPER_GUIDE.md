@@ -591,3 +591,19 @@ sichtbar. Die Verwendungshinweise sind Ausdrucksbausteine ohne Vergleichsoperato
 fachlichen Grenzwert; Tests führen Einzelwert, Summe und Objektzählung durch das bestehende
 Authoring und den echten Validator. Der STDIO-Test prüft zudem identische Pfadfakten aus
 Suche und expliziter Auflösung.
+
+## SO-DATA: Implementierung und Prüfungen
+
+Das interne Enum `SO_DATA` serialisiert ausschliesslich als `SO-DATA`.
+`McpDiscriminatorSchemaConfig` normalisiert auch die tatsächlich veröffentlichten
+Werkzeugschemas. `KnowledgeRuleLoader` übernimmt CORE/SO ohne MDE-060, MDE-209 und
+MDE-210 und ergänzt DATA-001/DATA-002. `IliComments` erkennt Kommentarspannen
+lexikalisch ausserhalb von Strings; `REMOVE_COMMENTS` führt sie durch die atomare
+Patch-/Compiler-/Review-Pipeline. Technische Constraint-Namen bleiben als native
+INTERLIS-Bezeichner erhalten. Der profilgebundene Renderer ist aufruflokal;
+CORE/SO verwenden weiterhin das bisherige Rendering.
+
+`SoDataTest`, die Authoring-/Änderungstests und `ToolRegistrationContractTest`
+prüfen Regeln, Quellerhaltung, fünf Constraint-Arten und reale MCP-Schemas.
+[Benutzervertrag](USER_GUIDE.md#so-data-csv-validierungsmodelle) und
+[Abnahmestand](SO_DATA_ACCEPTANCE.md) beschreiben Nutzung und Auslieferungsgrenzen.

@@ -43,6 +43,15 @@ public class KnowledgeRuleLoader {
     Map<ModelingRuleProfile, List<ModelingRule>> loaded = new EnumMap<>(ModelingRuleProfile.class);
     loaded.put(ModelingRuleProfile.CORE, List.copyOf(loadRules(CORE_RESOURCE, ModelingRuleProfile.CORE)));
     loaded.put(ModelingRuleProfile.SO, List.copyOf(loadRules(SO_RESOURCE, ModelingRuleProfile.SO)));
+    var dataRules = new ArrayList<>(loaded.get(ModelingRuleProfile.SO).stream()
+        .filter(r -> !java.util.Set.of("MDE-060", "MDE-209", "MDE-210").contains(r.id())).toList());
+    for (var entry : Map.of("DATA-001", "SO-DATA models must not contain comments.",
+        "DATA-002", "Model suffix _YYYYMMDD must match the valid VERSION date and AT must be absolute.").entrySet()) {
+      dataRules.add(new ModelingRule(ModelingRuleProfile.SO_DATA, entry.getKey(), entry.getValue(),
+          ModelingRule.Severity.ERROR, ModelPurpose.ANY, ModelingRule.CheckKind.AUTOMATED,
+          "urn:interlis-mcp:SO-DATA", "SO-DATA", entry.getValue(), entry.getValue()));
+    }
+    loaded.put(ModelingRuleProfile.SO_DATA, List.copyOf(dataRules));
     this.rulesByProfile = Map.copyOf(loaded);
   }
 

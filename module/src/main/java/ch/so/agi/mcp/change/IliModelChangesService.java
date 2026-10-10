@@ -163,7 +163,7 @@ public final class IliModelChangesService {
       validateConstraintPayload(changes.get(index), iliVersion, "/request/changes/" + index);
       prepareOperation(
           changes.get(index), index, td, localModel, document, iliVersion, modelName,
-          replacements, insertions, expected, derivedImports);
+          replacements, insertions, expected, derivedImports, renderer.forProfile(ruleProfile));
     }
     addMissingDerivedImports(
         document, localModel, changes.size(), insertions, expected, derivedImports);
@@ -325,9 +325,14 @@ public final class IliModelChangesService {
       List<IliTextPatch> replacements,
       List<PendingInsertion> insertions,
       List<ExpectedChange> expected,
-      Set<String> derivedImports) {
+      Set<String> derivedImports, IliSpecRenderer renderer) {
     switch (change.requireOperation()) {
+      case REMOVE_COMMENTS -> {
+        replacements.addAll(IliComments.removalPatches(document));
+        expected.add(new ExpectedChange(Direction.CHANGE, "COMMENTS", localModel.getScopedName(), true));
+      }
       case ADD_IMPORT -> {
+
         IliModelChangeRequest.AddImportChange payload = change.getAddImport();
         String target = fqn(payload.modelFqn, "addImport.modelFqn");
         require(target.equals(localModel.getScopedName()),
@@ -766,6 +771,13 @@ public final class IliModelChangesService {
       scoped = String.valueOf(item.get("owner"));
     }
     for (ExpectedChange candidate : expected) {
+      if ("COMMENTS".equals(candidate.kind()) && direction == Direction.CHANGE
+      && (scoped.equals(candidate.scopedName()) || scoped.startsWith(candidate.scopedName() + "."))
+      && item.get("changedFields") instanceof List<?> fields
+      && !fields.isEmpty() && fields.stream().allMatch(f -> Set.of("documentation", "metaAttributes").contains(f))) return true;
+      if ("COMMENTS".equals(candidate.kind()) && direction == Direction.CHANGE
+          && nativeConstraintNameOnly(item)) return true;
+
       if (candidate.direction() == direction && candidate.matches(kind, scoped)) {
         return true;
       }
@@ -776,6 +788,17 @@ public final class IliModelChangesService {
       }
     }
     return false;
+  }
+
+  private boolean nativeConstraintNameOnly(IliAuthoringResult.SemanticChange item) {
+    if (item.before == null || item.after == null
+        || !item.changedFields.equals(List.of("definitionText"))) return false;
+    Object name = item.before.get("name");
+    if (name == null || !name.equals(item.after.get("name"))) return false;
+    String before = String.valueOf(item.before.get("definitionText"));
+    String after = String.valueOf(item.after.get("definitionText"));
+    var prefix = Pattern.compile("^(MANDATORY CONSTRAINT|EXISTENCE CONSTRAINT|SET CONSTRAINT(?: \\(BASKET\\))?|UNIQUE(?: \\(BASKET\\))?|CONSTRAINT)(?=\\s)").matcher(before);
+    return prefix.find() && after.equals(before.substring(0, prefix.end()) + " " + name + ":" + before.substring(prefix.end()));
   }
 
   private void addBeforeEnd(
@@ -1049,6 +1072,7 @@ public final class IliModelChangesService {
       return matches(String.valueOf(item.get("kind")), String.valueOf(item.get("scopedName")));
     }
     boolean matches(String actualKind, String actualScopedName) {
+      if ("COMMENTS".equals(kind)) return "META_ATTRIBUTE".equals(actualKind) && (actualScopedName.equals(scopedName) || actualScopedName.startsWith(scopedName + "."));
       if ("META_ATTRIBUTE".equals(actualKind)) {
         return actualScopedName.equals(scopedName)
             || (includeDescendants && actualScopedName.startsWith(scopedName + "."));

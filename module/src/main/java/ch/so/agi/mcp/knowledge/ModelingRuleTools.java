@@ -43,11 +43,11 @@ public class ModelingRuleTools {
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = false)
   )
   public Map<String, Object> listModelingRules(
-      @McpToolParam(description = "Regelprofil: CORE oder SO (Default CORE)", required = false) @Nullable ModelingRuleProfile profile
+      @McpToolParam(description = "Regelprofil: CORE, SO oder SO-DATA (Default CORE)", required = false) @Nullable ModelingRuleProfile profile
   ) {
     ModelingRuleProfile normalizedProfile = ModelingRuleProfile.normalize(profile);
     return Map.of(
-        "profile", normalizedProfile.name(),
+        "profile", normalizedProfile.wireName(),
         "rules", ruleLoader.rules(normalizedProfile).stream().map(this::ruleSummary).toList());
   }
 
@@ -60,7 +60,7 @@ public class ModelingRuleTools {
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
       @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false) @Nullable ModelPurpose modelPurpose,
       @McpToolParam(description = "Optionale Regel-IDs, die geprueft werden sollen", required = false) @Nullable List<String> ruleIds,
-      @McpToolParam(description = "Regelprofil: CORE oder SO (Default CORE)", required = false) @Nullable ModelingRuleProfile profile
+      @McpToolParam(description = "Regelprofil: CORE, SO oder SO-DATA (Default CORE)", required = false) @Nullable ModelingRuleProfile profile
   ) {
     ModelPurpose purpose = ModelPurpose.normalize(modelPurpose);
     ModelingRuleProfile normalizedProfile = ModelingRuleProfile.normalize(profile);
@@ -76,7 +76,7 @@ public class ModelingRuleTools {
   public Map<String, Object> reviewIliModel(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
       @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false) @Nullable ModelPurpose modelPurpose,
-      @McpToolParam(description = "Regelprofil: CORE oder SO (Default CORE)", required = false) @Nullable ModelingRuleProfile ruleProfile
+      @McpToolParam(description = "Regelprofil: CORE, SO oder SO-DATA (Default CORE)", required = false) @Nullable ModelingRuleProfile ruleProfile
   ) {
     return ModelHashes.attach(reviewIliModelFull(modelText, modelPurpose, ruleProfile), ModelHashes.model(modelText));
   }
@@ -145,14 +145,14 @@ public class ModelingRuleTools {
     return Map.ofEntries(
         Map.entry("validForAutomatedRules", ruleReview.get("validForAutomatedRules")),
         Map.entry("modelPurpose", purpose.name()),
-        Map.entry("ruleProfile", profile.name()),
+        Map.entry("ruleProfile", profile.wireName()),
         Map.entry("ruleFindings", ruleReview.get("findings")),
         Map.entry("manualChecks", ruleReview.get("manualChecks")),
         Map.entry("openQuestions", openQuestions),
         Map.entry("constraintInteractions", interactions),
         Map.entry("evidence", ch.so.agi.mcp.model.EvidenceSummary.review(
             Boolean.TRUE.equals(analysis.get("valid")), (List<?>) analysis.getOrDefault("messages", List.of()),
-            (List<?>) ruleReview.get("findings"), profile.name()).withRuleCount(Boolean.TRUE.equals(analysis.get("valid"))
+            (List<?>) ruleReview.get("findings"), profile.wireName()).withRuleCount(Boolean.TRUE.equals(analysis.get("valid"))
                 ? (int) ruleLoader.rules(profile).stream().filter(r -> r.checkKind() == ModelingRule.CheckKind.AUTOMATED && applies(r, purpose)).count() : 0)
             .withInteractions(interactions.evidence())));
   }
@@ -184,7 +184,28 @@ public class ModelingRuleTools {
       }
     }
 
+    if (profile == ModelingRuleProfile.SO_DATA) {
+      if (isSelected(selectedRuleIds, "DATA-001") && !ch.so.agi.mcp.change.IliComments.spans(modelText).isEmpty()) {
+        findings.add(ruleFinding(rulesById.get("DATA-001"), "Comments are not permitted in SO-DATA.", null));
+      }
+      if (isSelected(selectedRuleIds, "DATA-002")) {
+        for (Object item : listValue(analysis, "models")) {
+          if (item instanceof Map<?, ?> model) {
+            boolean valid = false;
+            try {
+              String version = String.valueOf(model.get("version"));
+              var date = java.time.LocalDate.parse(version);
+              valid = version.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}")
+                  && String.valueOf(model.get("scopedName")).endsWith("_" + date.format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE))
+                  && java.net.URI.create(String.valueOf(model.get("issuer"))).isAbsolute();
+            } catch (IllegalArgumentException | java.time.DateTimeException ignored) {}
+            if (!valid) findings.add(ruleFinding(rulesById.get("DATA-002"), "Model name, VERSION and absolute AT URI must be consistent.", null));
+          }
+        }
+      }
+    }
     addCompilerFindings(findings, selectedRuleIds, analysis, rulesById);
+
     addPublicationAssociationFinding(findings, selectedRuleIds, purpose, analysis, rulesById);
     addGeometryConventionFinding(findings, selectedRuleIds, analysis, rulesById);
     addMetaAttributeFinding(findings, selectedRuleIds, analysis, rulesById);
@@ -201,7 +222,7 @@ public class ModelingRuleTools {
     boolean validForAutomatedRules = findings.stream()
         .noneMatch(finding -> "ERROR".equals(finding.get("severity")) || "WARNING".equals(finding.get("severity")));
     return Map.of(
-        "profile", profile.name(),
+        "profile", profile.wireName(),
         "validForAutomatedRules", validForAutomatedRules,
         "findings", findings,
         "manualChecks", manualChecks
@@ -557,7 +578,7 @@ public class ModelingRuleTools {
 
   private Map<String, Object> ruleSummary(ModelingRule rule) {
     Map<String, Object> map = new LinkedHashMap<>();
-    map.put("profile", rule.profile().name());
+    map.put("profile", rule.profile().wireName());
     map.put("id", rule.id());
     map.put("title", rule.title());
     map.put("severity", rule.severity().name());

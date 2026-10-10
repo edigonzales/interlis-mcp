@@ -58,7 +58,7 @@ public final class IliModelAuthoringTools {
       IliModelSpec spec,
       @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false)
       @Nullable ModelPurpose modelPurpose,
-      @McpToolParam(description = "Regelprofil: CORE oder SO (Default CORE)", required = false)
+      @McpToolParam(description = "Regelprofil: CORE, SO oder SO-DATA (Default CORE)", required = false)
       @Nullable ModelingRuleProfile ruleProfile,
       @McpToolParam(description = TestXtfOutput.PARAMETER, required = false) @org.jspecify.annotations.Nullable Boolean includeSuccessfulTestXtf) {
     return TestXtfOutput.prepare(ModelHashes.attach(authorIliModelFull(spec, modelPurpose, ruleProfile), null), includeSuccessfulTestXtf);
@@ -71,7 +71,7 @@ public final class IliModelAuthoringTools {
   private IliAuthoringResult authorIliModelFull(IliModelSpec spec, @Nullable ModelPurpose modelPurpose, @Nullable ModelingRuleProfile ruleProfile) {
     IliSpecRenderer.RenderedModel rendered;
     try {
-      rendered = renderer.renderModel(spec);
+      rendered = renderer.forProfile(ruleProfile).renderModel(spec);
     } catch (IllegalArgumentException ex) {
       return SpecValidationException.attach(
           failure("INVALID_SPEC", ex.getMessage(), null, List.of()), ex);

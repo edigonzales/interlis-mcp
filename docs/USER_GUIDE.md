@@ -605,3 +605,30 @@ Schreiben. Beurteilt er eine allgemeine Frage anhand des vorhandenen Auftrags al
 für die konkrete Änderung unerheblich, muss er dies sichtbar begründen. Das Flag
 bleibt unverändert; weder ein erfundener Modellzweck noch erfolgreiche Proofs ersetzen
 diese Beurteilung. Es gibt keine pauschale Ausnahme für Modellzweckfragen.
+
+## SO-DATA: CSV-Validierungsmodelle
+
+Das öffentliche Profil `SO-DATA` übernimmt CORE und SO mit Ausnahme von
+`MDE-060`, `MDE-209`, `MDE-210`. Die übrigen Regeln bleiben aktiv, insbesondere
+Namens-, Textlängen-, OID- und AT-Anforderungen. `CORE` und `SO` behalten ihre
+bisherigen Regeln. Über MCP gilt ausschliesslich `SO-DATA`, intern `SO_DATA`.
+Der Katalog ist mit `listModelingRules(profile="SO-DATA")` und als Ressource
+`interlis://knowledge/so-data-rules` verfügbar.
+
+`DATA-001` verbietet Kommentare einschliesslich `!!`, `!!@` und Blockkommentaren
+ausserhalb von Zeichenketten. `DATA-002` verlangt ein gültiges ISO-Versionsdatum,
+eine absolute AT-URI und das gleiche Datum als Modellnamenssuffix `_YYYYMMDD`,
+z.B. `SO_Messwerte_20261010` mit `VERSION "2026-10-10"`. Beim Authoring keine
+`iliDoc`- oder beschreibenden `metaAttributes`-Felder senden. Beschreibungen
+können im zugehörigen Datenblatt verbleiben.
+
+Read-only-Reviews ändern keinen Quelltext. Eine ausdrücklich beauftragte
+Umstellung vorhandener Quellen nutzt `applyIliModelChanges` mit
+`request.changes: [{"operation":"REMOVE_COMMENTS"}]`. Die Operation benötigt
+keine zusätzliche Payload. Ein Lexer erkennt Kommentare ausserhalb von
+Zeichenketten und ersetzt deren Zeichen durch Leerraum, unter Erhalt der
+Zeilenumbrüche und Tokentrennung. Compiler, semantischer Änderungsnachweis und
+Abschlussreview prüfen den Kandidaten; `sourceEdits` zeigt die Entfernungen.
+Überlappende Änderungen im selben Batch werden wie bisher abgelehnt; solche
+Änderungen in getrennten geprüften Batches ausführen. Namens-/Versionsanpassungen
+werden durch Kommentarentfernung nicht automatisch erfunden.

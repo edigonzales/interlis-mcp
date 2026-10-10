@@ -27,7 +27,24 @@ import org.junit.jupiter.api.Test;
 
 class IliModelChangesServiceTest {
 
-  @Test
+@Test
+void removeCommentsPreservesModelSemanticsAndReportsEdits() {
+  var compiler = new CountingCompiler();
+  var change = new IliModelChangeRequest();
+  change.setOperation(IliModelChangeOperation.REMOVE_COMMENTS);
+  var request = new IliModelChangesRequest();
+  request.changes = List.of(change);
+  request.allowPotentiallyBreaking = true;
+  var original = model().replace("other : TEXT*10;", "other : TEXT*10;\n!!@ name=\"NamedRule\"\nMANDATORY CONSTRAINT DEFINED(other);");
+  var result = service(compiler).apply(original, request, null, null, null);
+  assertThat(result.status).as("%s %s", result.reason, result.changed.stream().map(c -> c.changedFields + " before=" + c.before + " after=" + c.after).toList()).isEqualTo(IliAuthoringResult.Status.APPLIED);
+  assertThat(IliComments.spans(result.updatedModelText)).isEmpty();
+  assertThat(result.sourceEdits).isNotEmpty();
+  assertThat(result.updatedModelText).contains("name :", "other :");
+}
+
+@Test
+
   void updateAttributeIsHeldUntilBreakingChangeIsConfirmed() {
     CountingCompiler compiler = new CountingCompiler();
     IliModelChangesService service = service(compiler);

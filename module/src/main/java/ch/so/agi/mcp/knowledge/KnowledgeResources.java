@@ -17,7 +17,14 @@ public class KnowledgeResources {
     this.corpusService = corpusService;
   }
 
+  @McpResource(uri = "interlis://knowledge/so-data-rules", name = "so-data-rules",
+      title = "SO-DATA: kommentarfreie CSV-Validierungsmodelle", mimeType = "text/markdown")
+  public ReadResourceResult soDataRules() {
+    return markdown("interlis://knowledge/so-data-rules", ruleLoader.rulesAsMarkdown(ModelingRuleProfile.SO_DATA));
+  }
+
   @McpResource(
+
       uri = "interlis://knowledge/handbook-rules",
       name = "handbook-rules",
       title = "INTERLIS-Modellierungsregeln Solothurn",

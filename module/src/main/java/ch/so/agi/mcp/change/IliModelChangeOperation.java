@@ -1,6 +1,7 @@
 package ch.so.agi.mcp.change;
 
 public enum IliModelChangeOperation {
+  REMOVE_COMMENTS,
   ADD_IMPORT,
   ADD_TOPIC,
   ADD_DOMAIN,

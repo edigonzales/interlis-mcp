@@ -111,6 +111,7 @@ public class IliModelChangeRequest {
 
   public Object requirePayload() {
     return switch (requireOperation()) {
+      case REMOVE_COMMENTS -> this;
       case ADD_IMPORT -> require(addImport, "addImport");
       case ADD_TOPIC -> require(addTopic, "addTopic");
       case ADD_DOMAIN -> require(addDomain, "addDomain");

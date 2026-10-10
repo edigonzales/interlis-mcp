@@ -6,6 +6,7 @@ import ch.so.agi.mcp.tools.AttributeTools;
 import ch.so.agi.mcp.tools.DomainTools;
 import ch.so.agi.mcp.util.AnnotationRenderer;
 import ch.so.agi.mcp.util.NameValidator;
+import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.util.ArrayList;
@@ -29,10 +30,22 @@ public final class IliSpecRenderer {
 
   private final AttributeTools attributeTools;
   private final DomainTools domainTools;
+  private final boolean nativeConstraintNames;
 
+  @org.springframework.beans.factory.annotation.Autowired
   public IliSpecRenderer(AttributeTools attributeTools, DomainTools domainTools) {
+    this(attributeTools, domainTools, false);
+  }
+
+  private IliSpecRenderer(AttributeTools attributeTools, DomainTools domainTools, boolean nativeConstraintNames) {
+    this.nativeConstraintNames = nativeConstraintNames;
     this.attributeTools = attributeTools;
     this.domainTools = domainTools;
+  }
+
+  public IliSpecRenderer forProfile(@Nullable ModelingRuleProfile profile) {
+    return profile == ModelingRuleProfile.SO_DATA
+        ? new IliSpecRenderer(attributeTools, domainTools, true) : this;
   }
 
   public RenderedModel renderModel(IliModelSpec spec) {
@@ -233,7 +246,16 @@ public final class IliSpecRenderer {
           renderPlausibility(plausibility, version, currentModel, imports);
       case IliConstraintSpec.Set set -> renderSet(set, version, currentModel, imports);
     };
+    if (nativeConstraintNames) {
+      // Native constraint identifiers avoid the legacy !!@ name metadata comment.
+      ident(name, "constraint.name");
+      annotation = AnnotationRenderer.renderAnnotations(spec.iliDoc, spec.metaAttributes);
+      var prefix = Pattern.compile("^(MANDATORY CONSTRAINT|EXISTENCE CONSTRAINT|SET CONSTRAINT(?: \\(BASKET\\))?|UNIQUE(?: \\(BASKET\\))?|CONSTRAINT)").matcher(statement);
+      if (!prefix.find()) throw new IllegalArgumentException("Constraint prefix unavailable.");
+      statement = statement.substring(0, prefix.end()) + " " + name + ":" + statement.substring(prefix.end());
+    }
     return new RenderedFragment(annotation + statement, List.copyOf(imports));
+
   }
 
   public String renderExternalConstraintBlock(

@@ -30,7 +30,7 @@ public final class ExistenceConstraintAuthoringTools {
       @McpToolParam(description = "Vollqualifizierter Constraint-Kontext", required = true) String contextFqn,
       @McpToolParam(description = "Typisierte EXISTENCE-Spezifikation" + " " + ch.so.agi.mcp.model.ConstraintAuthoringGuidance.INPUT, required = true) IliConstraintSpec.Existence spec,
       @McpToolParam(description = "Modellzweck", required = false) @Nullable ModelPurpose modelPurpose,
-      @McpToolParam(description = "Regelprofil CORE oder SO", required = false) @Nullable ModelingRuleProfile ruleProfile,
+      @McpToolParam(description = "Regelprofil CORE, SO oder SO-DATA", required = false) @Nullable ModelingRuleProfile ruleProfile,
       @McpToolParam(description = TestXtfOutput.PARAMETER, required = false) @org.jspecify.annotations.Nullable Boolean includeSuccessfulTestXtf) {
     return TestXtfOutput.prepare(ModelHashes.attach(engine.author(modelText, contextFqn, spec, modelPurpose, ruleProfile), modelText), includeSuccessfulTestXtf);
   }

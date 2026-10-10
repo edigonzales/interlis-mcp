@@ -287,6 +287,7 @@ public class ModelAnalysisTools {
 
   private Map<String, Object> modelMap(Model model) {
     Map<String, Object> map = elementMap(model, "MODEL");
+    if (model.getIssuer() != null) map.put("issuer", model.getIssuer());
     if (model.getModelVersion() != null && !model.getModelVersion().isBlank()) {
       map.put("version", model.getModelVersion());
     }

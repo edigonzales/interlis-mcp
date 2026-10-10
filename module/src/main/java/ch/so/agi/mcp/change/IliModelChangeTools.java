@@ -35,7 +35,7 @@ public class IliModelChangeTools {
       IliModelChangesRequest request,
       @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false)
       @Nullable ModelPurpose modelPurpose,
-      @McpToolParam(description = "Regelprofil: CORE oder SO (Default CORE)", required = false)
+      @McpToolParam(description = "Regelprofil: CORE, SO oder SO-DATA (Default CORE)", required = false)
       @Nullable ModelingRuleProfile ruleProfile,
       @McpToolParam(description = TestXtfOutput.PARAMETER, required = false) @org.jspecify.annotations.Nullable Boolean includeSuccessfulTestXtf) {
     return TestXtfOutput.prepare(ModelHashes.attach(changesService.apply(modelText, request, null, modelPurpose, ruleProfile), modelText), includeSuccessfulTestXtf);
