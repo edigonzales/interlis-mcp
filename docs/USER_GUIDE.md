@@ -634,7 +634,6 @@ Abschlussreview prüfen den Kandidaten; `sourceEdits` zeigt die Entfernungen.
 Änderungen in getrennten geprüften Batches ausführen. Namens-/Versionsanpassungen
 werden durch Kommentarentfernung nicht automatisch erfunden.
 
-`SO-GIS` ist der neue Name des bisherigen Profils `SO`; die GIS-Regeln bleiben
-inhaltlich gleich. Bestehende Clients dürfen `SO` weiterhin als Eingabealias
-senden. Neue Aufträge und alle Antworten verwenden `SO-GIS`. SO-DATA ist ein
-eigenständiges Profil und wird durch diese Umbenennung nicht verändert.
+GIS-Aufträge verwenden `SO-GIS`, CSV-Validierungsmodelle `SO-DATA`.
+Zulässig sind ausschliesslich `CORE`, `SO-GIS` und `SO-DATA`; das frühere `SO`
+wird zurückgewiesen. Die fachlichen Regeln der drei Profile bleiben unverändert.

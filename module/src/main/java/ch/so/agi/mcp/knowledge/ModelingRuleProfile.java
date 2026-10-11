@@ -15,7 +15,7 @@ public enum ModelingRuleProfile {
 
   @JsonCreator
   public static ModelingRuleProfile parse(String value) {
-    return switch (value) { case "CORE" -> CORE; case "SO", "SO-GIS" -> SO_GIS; case "SO-DATA" -> SO_DATA; default -> throw new IllegalArgumentException("Unknown profile: " + value); };
+    return switch (value) { case "CORE" -> CORE; case "SO-GIS" -> SO_GIS; case "SO-DATA" -> SO_DATA; default -> throw new IllegalArgumentException("Unknown profile: " + value + "; use CORE, SO-GIS or SO-DATA"); };
   }
 
   @Override public String toString() { return wireName(); }

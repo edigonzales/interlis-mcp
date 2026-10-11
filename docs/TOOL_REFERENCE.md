@@ -198,8 +198,8 @@ Validiert bis zu 20 MiB XTF-Text gegen den vollständigen Modelltext mit ilivali
 ## SO-DATA: Profil und Kommentarentfernung
 
 Alle Profilparameter akzeptieren `CORE`, `SO-GIS` und `SO-DATA`; Default bleibt CORE.
-Das frühere `SO` wird als Eingabealias für `SO-GIS` akzeptiert und im Schema als
-veralteter Alias beschrieben. Antworten verwenden ausschliesslich den neuen Namen.
+Das frühere `SO` ist kein zulässiger Eingabewert. Parser und Werkzeugschemas
+akzeptieren ausschliesslich `CORE`, `SO-GIS` und `SO-DATA`.
 `listModelingRules(profile="SO-DATA")` und
 `interlis://knowledge/so-data-rules` liefern den vollständigen Regelkatalog.
 `REMOVE_COMMENTS` benötigt keine zusätzliche Payload:

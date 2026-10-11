@@ -304,8 +304,7 @@ programmatisch. Die bestehende YAML-Datei `modeling-rules.so.yml` enthält
 nun Profilwerte `SO-GIS`; ihr Dateiname bleibt stabil.
 
 Öffentliche Antworten verwenden `CORE`, `SO-GIS` und `SO-DATA`.
-Schemas führen zusätzlich das frühere `SO` als veralteten Eingabealias für
-SO-GIS auf, damit auch die Transportvalidierung alte Aufrufe akzeptiert. Die Enum-Werte `SO_GIS`
+Schemas und Parser akzeptieren genau diese drei Profile. Die Enum-Werte `SO_GIS`
 und `SO_DATA` sind intern; die Schema-Normalisierung und JSON-Serialisierung
 liefern die Schreibweise mit Bindestrich.
 

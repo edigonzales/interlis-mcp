@@ -41,6 +41,8 @@ class SoDataTest {
     assertThat(mapper.readValue("\"SO-DATA\"", ModelingRuleProfile.class)).isEqualTo(ModelingRuleProfile.SO_DATA);
     assertThat(mapper.writeValueAsString(ModelingRuleProfile.SO_GIS)).isEqualTo("\"SO-GIS\"");
     assertThat(mapper.readValue("\"SO-GIS\"", ModelingRuleProfile.class)).isEqualTo(ModelingRuleProfile.SO_GIS);
-    assertThat(mapper.readValue("\"SO\"", ModelingRuleProfile.class)).isEqualTo(ModelingRuleProfile.SO_GIS);
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> mapper.readValue("\"SO\"", ModelingRuleProfile.class))
+        .hasMessageContaining("SO-GIS");
+    assertThat(mapper.readValue("\"CORE\"", ModelingRuleProfile.class)).isEqualTo(ModelingRuleProfile.CORE);
   }
 }

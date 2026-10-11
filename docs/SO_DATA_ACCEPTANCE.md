@@ -1,5 +1,21 @@
 # Abnahmestand: SO-GIS und SO-DATA
 
+## Profilbereinigung vom 11. Oktober 2026
+
+Aktuelle Parser und MCP-Schemas akzeptieren ausschliesslich `CORE`, `SO-GIS`
+und `SO-DATA`. Der Eingabealias `SO` wurde entfernt; die Profilregeln bleiben
+unverändert. Frühere Abschnitte beschreiben historische Quellstände.
+
+Tatsächlich mit JDK 21 ausgeführt: `check e2eTest bootJar` und
+`:interlis-mcp-module:publishMavenJavaPublicationToVerificationRepository`.
+Alle 595 Unit-Tests und 24 echten STDIO-End-to-End-Tests bestanden, darunter
+Profilserialisierung, tatsächliche Werkzeugschemas und Zurückweisung von `SO`.
+Die bestehenden Benchmark- und Workflow-Prüfungen bestanden ebenfalls.
+Nachweis des lokalen Laufs: `/tmp/interlis-cleanup-checks.log`.
+
+Die Veröffentlichung dieses Quellstands wird nach dem Push separat geprüft;
+der bisher veröffentlichte Stand ist noch kein Nachweis dieser Bereinigung.
+
 ## SO-GIS und vervollständigte Referenzen vom 10. Oktober 2026
 
 Das bisherige Profil `SO` heisst `SO-GIS`, intern `SO_GIS`. Die GIS-Regeln

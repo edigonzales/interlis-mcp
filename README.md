@@ -99,7 +99,7 @@ Es gibt drei Regelprofile:
 - `SO-DATA`: kommentarfreie CSV-Validierungsmodelle mit passendem Namenssuffix und Versionsdatum; die drei Dokumentationsregeln entfallen.
 
 Für Modelle nach den Vorgaben des Kantons Solothurn sollte `ruleProfile=SO-GIS` verwendet werden.
-Das bisherige `SO` bleibt ein im Schema dokumentierter Eingabealias; Antworten verwenden `SO-GIS`.
+Zulässige Profilwerte sind ausschliesslich `CORE`, `SO-GIS` und `SO-DATA`.
 
 ## Dokumentation
 

@@ -93,10 +93,7 @@ public class McpDiscriminatorSchemaConfig {
       Map<String, Object> map = (Map<String, Object>) raw;
       if (map.get("enum") instanceof List<?> values && values.containsAll(List.of("CORE", "SO_GIS", "SO_DATA"))) {
         var profiles = new ArrayList<>(values.stream().map(v -> "SO_DATA".equals(v) ? "SO-DATA" : "SO_GIS".equals(v) ? "SO-GIS" : v).toList());
-        profiles.add("SO");
         map.put("enum", profiles);
-        map.put("description", map.getOrDefault("description", "Regelprofil.")
-            + " SO ist ein veralteter Eingabealias für SO-GIS; Antworten verwenden SO-GIS.");
       }
       Object alternatives = map.get("anyOf");
 

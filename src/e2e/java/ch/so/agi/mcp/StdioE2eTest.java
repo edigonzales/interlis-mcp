@@ -485,7 +485,7 @@ public class StdioE2eTest {
                 "manualChecks",
                 "MDE-060");
         String legacy = callTool(9, "checkModelingRules", argsJson.replace("SO-GIS", "SO"));
-        assertSuccessfulToolResponse(legacy, "checkModelingRules", "SO-GIS", "MDE-060");
+        assertTrue(legacy.contains("\"isError\":true") || legacy.contains("\"error\":"), legacy);
     }
 
     @Test
