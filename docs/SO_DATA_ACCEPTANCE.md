@@ -13,8 +13,14 @@ Profilserialisierung, tatsächliche Werkzeugschemas und Zurückweisung von `SO`.
 Die bestehenden Benchmark- und Workflow-Prüfungen bestanden ebenfalls.
 Nachweis des lokalen Laufs: `/tmp/interlis-cleanup-checks.log`.
 
-Die Veröffentlichung dieses Quellstands wird nach dem Push separat geprüft;
-der bisher veröffentlichte Stand ist noch kein Nachweis dieser Bereinigung.
+Veröffentlicht und tatsächlich verifiziert: **0.0.574-1**, Quellrevision
+`2f202dd9926f9a0eb0b73a7a50bb73179d2cba3a`.
+[Pipeline 38114821829](https://github.com/edigonzales/interlis-mcp/actions/runs/38114821829)
+bestand Application-, beide Architektur- und Publish-Jobs. Registry-Digest
+`sha256:e9824d526528127705d800b798e8e6173dc2adb812451bf9096b349d7174b233`
+enthält AMD64 und ARM64. Das frisch geladene ARM64-Image bestätigt Version und
+Quellrevision. Dieser unveränderliche Release ist der Bezugspunkt; spätere reine
+Dokumentations-Builds ersetzen seinen Nachweis nicht.
 
 ## SO-GIS und vervollständigte Referenzen vom 10. Oktober 2026
 
