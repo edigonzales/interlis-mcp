@@ -143,3 +143,7 @@ Modellnamenssuffix und VERSION-Datum. CORE und SO-GIS bleiben unver√§ndert verf√
 [Regeln und Umstellung vorhandener Modelle](docs/USER_GUIDE.md#so-data-csv-validierungsmodelle)
 stehen im Benutzerhandbuch; [lokale Abnahme und Auslieferungsgrenzen](docs/SO_DATA_ACCEPTANCE.md)
 sind separat ausgewiesen.
+
+## Executable Maven artifact
+
+In addition to the reusable module and existing container images, CI publishes the tested `bootJar` as `ch.so.agi:interlis-mcp:<version>:boot@jar` to `https://jars.interlis.guru/snapshots/`. It uses `MAVEN_USERNAME` and `MAVEN_PASSWORD`, downloads the published bytes and checks stdio startup, tools and EOF shutdown on JDK 21.

@@ -120,3 +120,5 @@ tasks.named('check') { dependsOn tasks.named('constraintWorkflowRecorderCheck') 
 
 // Preserve interactive STDIO when developing with bootRun.
 tasks.named('bootRun') { standardInput = System.in }
+
+apply from: "$rootDir/gradle/boot-publishing.gradle"

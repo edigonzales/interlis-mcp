@@ -105,7 +105,7 @@ jobs:
         env:
           MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
-        run: ./gradlew --no-daemon -PpublishCanonicalArtifacts=true :interlis-mcp-module:publishMavenJavaPublicationToInterlisGuruSnapshotsRepository
+        run: ./gradlew --no-daemon -PpublishCanonicalArtifacts=true :interlis-mcp-module:publishMavenJavaPublicationToInterlisGuruSnapshotsRepository publishExecutablePublicationToExecutableSnapshotsRepository verifyPublishedExecutable
       - name: Download the published module and transitives with a fresh cache
         run: python3 tools/verify-module.py --artifact interlis-mcp-module --version 0.1.0-SNAPSHOT
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
