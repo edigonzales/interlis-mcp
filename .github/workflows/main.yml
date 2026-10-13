@@ -26,6 +26,8 @@ jobs:
         run: ./gradlew --no-daemon clean check e2eTest bootJar :interlis-mcp-module:publishMavenJavaPublicationToVerificationRepository
       - name: Verify the module using a fresh external Maven consumer
         run: python3 tools/verify-module.py --repository build/verification-repository --artifact interlis-mcp-module --version 0.1.0-SNAPSHOT
+      - name: Verify publication of the restored executable
+        run: ./gradlew --no-daemon -PpublishCanonicalArtifacts=true publishExecutablePublicationToExecutableVerificationRepository verifyPublishedExecutable -PexecutableRepository="file://$PWD/build/executable-repository/"
       - name: Archive the exact canonical artifacts with their paths
         run: tar -czf canonical-artifacts.tar.gz build/libs/interlis-mcp.jar module/build/libs module/build/publications
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
