@@ -214,3 +214,17 @@ Entfernung und gegebenenfalls native Constraint-Namen. Überlappende Änderungen
 werden zurückgewiesen und benötigen getrennte geprüfte Batches. Die bisherigen
 Gates für potenziell brechende Änderungen bleiben bestehen.
 [Profilregeln und Beispiele](USER_GUIDE.md#so-data-csv-validierungsmodelle).
+
+## `verifyIliModel`
+
+Prüft unveränderten `modelText` mit optionalem `modelPurpose` und `ruleProfile`.
+Der Compiler, die Modellierungsregeln und alle im eingereichten Modell deklarierten
+Constraints werden geprüft. `VERIFIED` bedeutet vollständige automatische Nachweise;
+es ist keine fachliche Freigabe. Die zurückgegebenen Modellbytes bleiben unverändert,
+`modelHashes` bindet sie an das Ergebnis. Unvollständige Nachweise behalten ihre
+Constraint-spezifischen Ursachen. Gleichnamige Constraints werden zurückgewiesen.
+
+Nach einer Erweiterung der Proof-Engine dieses Tool verwenden, statt einen bereits
+vorhandenen Constraint erneut mit `ADD_CONSTRAINT` einzufügen. XMLDate-Schlüssel
+werden anhand ihrer Kalenderstruktur und Grenzen geprüft; beliebige formatierte
+Typen, XMLTime und XMLDateTime erhalten dadurch keine pauschale Unterstützung.

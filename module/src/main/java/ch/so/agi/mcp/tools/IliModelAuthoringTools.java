@@ -68,6 +68,61 @@ public final class IliModelAuthoringTools {
     return authorIliModel(spec, modelPurpose, ruleProfile, null);
   }
 
+  @McpTool(name = "verifyIliModel", description = "Prüft unveränderten Modelltext: Compiler, Modellierungsregeln und automatische Nachweise aller deklarierten Constraints. Keine Ableitung, Änderung oder fachliche Freigabe.", generateOutputSchema = true,
+      annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true))
+  public IliAuthoringResult verifyIliModel(
+      @McpToolParam(description = "Unveränderter vollständiger Modelltext", required = true) String modelText,
+      @McpToolParam(description = "Modellzweck", required = false) @Nullable ModelPurpose modelPurpose,
+      @McpToolParam(description = "Regelprofil", required = false) @Nullable ModelingRuleProfile ruleProfile) {
+    var compilation = compilerService.compile(modelText, null, "ili2c_verify_model_");
+    if (!compilation.valid() || compilation.transferDescription() == null)
+      return ModelHashes.attach(failure("CANDIDATE_MODEL_INVALID", "Model did not compile.", modelText, compilation.messages()), modelText);
+    var constraints = new ArrayList<String>();
+    for (var model : compilation.transferDescription().getModelsFromLastFile()) collectConstraintNames(model, constraints);
+    if (new java.util.HashSet<>(constraints).size() != constraints.size())
+      return ModelHashes.attach(failure("INVALID_SPEC", "DUPLICATE_CONSTRAINT_NAME", modelText, compilation.messages()), modelText);
+    var proofs = new ArrayList<IliAuthoringResult.ConstraintProof>();
+    for (String fqn : constraints) {
+      var resolution = constraintContextService.resolveCompiled(modelText, fqn, null, compilation);
+      if (!resolution.available()) {
+        var proof = IliAuthoringResult.constraintProof(fqn, false, null);
+        proof.reasonCode = resolution.reasonCode();
+        proof.reason = resolution.reason();
+        proofs.add(proof);
+      } else {
+        var proof = caseGenerationTools.generateCompiledConstraintCases(resolution.context());
+        proofs.add(IliAuthoringResult.constraintProof(fqn,
+            Boolean.TRUE.equals(proof.get("generationVerified")) && Boolean.TRUE.equals(proof.get("coverageComplete")), proof));
+      }
+    }
+    var review = reviewService.reviewCompiledModel(compilation, modelText, ModelPurpose.normalize(modelPurpose), ModelingRuleProfile.normalize(ruleProfile));
+    var result = new IliAuthoringResult();
+    result.afterReview = IliAuthoringResult.modelReview(review);
+    result.compilerDiagnostics = IliAuthoringResult.diagnostics(compilation.messages());
+    result.afterDiagnostics = result.compilerDiagnostics;
+    result.constraintProofs = List.copyOf(proofs);
+    result.proofVerified = proofs.stream().allMatch(p -> Boolean.TRUE.equals(p.proofVerified));
+    result.openQuestions = result.afterReview.openQuestions;
+    result.requiresUserDecision = !result.openQuestions.isEmpty();
+    result.complete = result.proofVerified && Boolean.TRUE.equals(review.get("validForAutomatedRules")) && !result.requiresUserDecision;
+    result.status = result.complete ? IliAuthoringResult.Status.VERIFIED : IliAuthoringResult.Status.PROOF_INCOMPLETE;
+    if (result.complete) result.updatedModelText = modelText;
+    else {
+      result.candidateModelText = modelText;
+      result.reasonCode = "PROOF_INCOMPLETE";
+      result.reason = "Compiler, modeling rules or declared constraint proofs are incomplete; model bytes are unchanged.";
+    }
+    return ModelHashes.attach(result.withEvidence("ALL_DECLARED_CONSTRAINTS"), modelText);
+  }
+
+  private static void collectConstraintNames(ch.interlis.ili2c.metamodel.Container<?> container, List<String> names) {
+    for (var iterator = container.iterator(); iterator.hasNext();) {
+      Object child = iterator.next();
+      if (child instanceof ch.interlis.ili2c.metamodel.Constraint constraint) names.add(constraint.getScopedName());
+      else if (child instanceof ch.interlis.ili2c.metamodel.Container<?> nested) collectConstraintNames(nested, names);
+    }
+  }
+
   private IliAuthoringResult authorIliModelFull(IliModelSpec spec, @Nullable ModelPurpose modelPurpose, @Nullable ModelingRuleProfile ruleProfile) {
     IliSpecRenderer.RenderedModel rendered;
     try {

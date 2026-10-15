@@ -10,6 +10,51 @@ import org.junit.jupiter.api.Test;
 
 class ConstraintUniqueCaseGenerationTest {
 
+  @Test
+  void xmlDateUniqueUsesRealCalendarValuesAndValidator() {
+    for (String domain : List.of("INTERLIS.XMLDate", "Day")) {
+      String model = """
+          INTERLIS 2.4;
+          MODEL DateProof (en) AT "https://example.org" VERSION "2026-10-15" =
+            DOMAIN Day = FORMAT INTERLIS.XMLDate "2024-02-28" .. "2024-03-01";
+            TOPIC Data =
+              CLASS Item =
+                day : MANDATORY %s;
+                UNIQUE UniqueDay: day;
+              END Item;
+            END Data;
+          END DateProof.
+          """.formatted(domain);
+      var result = tools(new IliCompilerService()).generateIliConstraintCases(model, "UniqueDay");
+      assertThat(result.get("generationVerified")).as(result.toString()).isEqualTo(true);
+      assertThat(result.get("coverageComplete")).isEqualTo(true);
+      assertThat(map(result.get("verification")).get("allPassed")).isEqualTo(true);
+    }
+  }
+
+  @Test
+  void singletonDateDomainIsExplicitlyIncompleteAndCompositeDateKeysAreVerified() {
+    String model = """
+        INTERLIS 2.4;
+        MODEL DateProof (en) AT "https://example.org" VERSION "2026-10-15" =
+          DOMAIN Day = FORMAT INTERLIS.XMLDate "2024-02-29" .. "2024-02-29";
+          TOPIC Data =
+            CLASS Item =
+              day : MANDATORY Day;
+              code : MANDATORY TEXT*10;
+              UNIQUE UniqueDay: day, code;
+            END Item;
+          END Data;
+        END DateProof.
+        """;
+    var singleton = tools(new IliCompilerService()).generateIliConstraintCases(model, "UniqueDay");
+    assertThat(singleton.get("generationVerified")).isEqualTo(false);
+    assertThat(singleton.get("reasonCode")).isEqualTo("UNIQUE_SECOND_VALID_VALUE_UNAVAILABLE");
+    var composite = tools(new IliCompilerService()).generateIliConstraintCases(model.replace(".. \"2024-02-29\"", ".. \"2024-03-01\""), "UniqueDay");
+    assertThat(composite.get("generationVerified")).as(composite.toString()).isEqualTo(true);
+    assertThat(composite.get("coverageComplete")).isEqualTo(true);
+  }
+
   private static final String MODEL = """
       INTERLIS 2.4;
 

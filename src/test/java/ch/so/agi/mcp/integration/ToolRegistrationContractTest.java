@@ -235,7 +235,7 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
 
   @Test
   void publicToolSurfaceStaysSmallEnoughForAgentContext() throws Exception {
-    assertThat(toolSpecifications).hasSize(28);
+    assertThat(toolSpecifications).hasSize(29);
     for (SyncToolSpecification specification : toolSpecifications) {
       assertThat(mapper.writeValueAsBytes(specification.tool()).length)
           .as("serialized MCP declaration for %s", specification.tool().name())
@@ -687,6 +687,7 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
     expectations.put("checkModelingRules", schema(Set.of("modelText"), Set.of("modelPurpose", "ruleIds", "profile")));
     expectations.put("reviewIliModel", schema(Set.of("modelText"), Set.of("modelPurpose", "ruleProfile")));
     expectations.put("reviewIliChange", schema(Set.of("beforeModelText", "afterModelText"), Set.of("modelPurpose", "ruleProfile")));
+    expectations.put("verifyIliModel", schema(Set.of("modelText"), Set.of("modelPurpose", "ruleProfile")));
     expectations.put("authorIliModel", schema(Set.of("spec"), Set.of("modelPurpose", "ruleProfile", "includeSuccessfulTestXtf")));
     expectations.put("applyIliModelChanges", schema(Set.of("modelText", "request"), Set.of("modelPurpose", "ruleProfile", "includeSuccessfulTestXtf")));
     expectations.put("reviewIliConstraint", schema(Set.of("modelText", "constraint"), Set.of()));

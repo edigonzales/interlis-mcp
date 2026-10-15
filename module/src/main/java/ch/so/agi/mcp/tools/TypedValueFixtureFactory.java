@@ -19,6 +19,9 @@ import ch.interlis.ili2c.metamodel.SurfaceType;
 import ch.interlis.ili2c.metamodel.Table;
 import ch.interlis.ili2c.metamodel.TextType;
 import ch.interlis.ili2c.metamodel.Type;
+import ch.interlis.ili2c.metamodel.FormattedType;
+import ch.interlis.ili2c.metamodel.PredefinedModel;
+import java.time.LocalDate;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -95,6 +98,7 @@ final class TypedValueFixtureFactory {
   static @Nullable ValuePair pair(Type declaredType) {
     if (declaredType == null) return null;
     Type real = Type.findReal(declaredType);
+    if (real instanceof FormattedType formatted) return datePair(formatted);
     if (real instanceof TextType text) {
       int maximum = text.getMaxLength();
       if (maximum == 0) return null;
@@ -144,6 +148,25 @@ final class TypedValueFixtureFactory {
     if (real instanceof CompositionType composition) return compositionPair(composition);
     if (real instanceof LineType) return null;
     return null;
+  }
+
+  private static @Nullable ValuePair datePair(FormattedType date) {
+    // Resolve the actual calendar structure, not a user-chosen domain/attribute name.
+    if (date.getBaseStruct() != PredefinedModel.getInstance().GregorianDate) return null;
+    try {
+      var format = java.time.format.DateTimeFormatter.ofPattern("uuuu-M-d").withResolverStyle(java.time.format.ResolverStyle.STRICT);
+      LocalDate minimum = LocalDate.parse(date.getMinimum(), format);
+      LocalDate maximum = LocalDate.parse(date.getMaximum(), format);
+      if (minimum.isAfter(maximum) || !date.isValueInRange(minimum.toString())) return null;
+      String different = null;
+      if (minimum.isBefore(maximum)) {
+        String next = minimum.plusDays(1).toString();
+        if (date.isValueInRange(next)) different = next;
+      }
+      return new ValuePair(minimum.toString(), different, "XMLDATE");
+    } catch (IllegalArgumentException | java.time.DateTimeException ex) {
+      return null; // Unsupported formats are explicit proof boundaries.
+    }
   }
 
   private static ValuePair numericPair(NumericType numeric) {

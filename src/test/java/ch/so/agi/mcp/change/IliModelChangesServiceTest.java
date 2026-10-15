@@ -312,6 +312,12 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     assertThat(result.updatedModelText)
         .contains("CONSTRAINTS OF Demo.Data.Thing =")
         .contains("MANDATORY CONSTRAINT DEFINED(other);");
+    var repeated = service.apply(result.updatedModelText, batch(List.of(operation), true), null, null, null);
+    assertThat(repeated.status).isEqualTo(IliAuthoringResult.Status.INVALID_SPEC);
+    assertThat(repeated.reason).contains("DUPLICATE_CONSTRAINT_NAME");
+    var twice = service.apply(model(), batch(List.of(operation, operation), true), null, null, null);
+    assertThat(twice.status).isEqualTo(IliAuthoringResult.Status.INVALID_SPEC);
+    assertThat(twice.reason).contains("DUPLICATE_CONSTRAINT_NAME");
   }
 
   @Test

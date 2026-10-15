@@ -546,7 +546,11 @@ public final class ConstraintAnalysisService {
     boolean booleanType = type.isBoolean()
         || type == PredefinedModel.getInstance().BOOLEAN.getType();
     Type real = type.resolveAliases();
-    if (booleanType) {
+    if (real instanceof ch.interlis.ili2c.metamodel.FormattedType formatted
+        && formatted.getBaseStruct() == PredefinedModel.getInstance().GregorianDate) {
+      result.put("kind", "XMLDATE");
+      result.put("typeText", "INTERLIS.XMLDate");
+    } else if (booleanType) {
       result.put("kind", "BOOLEAN");
       result.put("typeText", "BOOLEAN");
     } else if (real instanceof NumericType numeric) {

@@ -23,6 +23,7 @@ public class McpDiscriminatorSchemaConfig {
       "authorIliExistenceConstraint",
       "authorIliMandatoryConstraint",
       "authorIliModel",
+      "verifyIliModel",
       "authorIliPlausibilityConstraint",
       "authorIliSetConstraint",
       "authorIliUniqueConstraint",

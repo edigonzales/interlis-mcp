@@ -438,6 +438,10 @@ public final class IliModelChangesService {
         require(payload.constraint != null, "addConstraint.constraint is required.");
         Element context = localContainer(
             td, payload.containerFqn, Table.class, AssociationDef.class, View.class);
+        String constraintFqn = context.getScopedName() + "." + ident(payload.constraint.name, "constraint.name");
+        require(td.getElement(constraintFqn) == null
+                && expected.stream().noneMatch(e -> e.scopedName().equals(constraintFqn)),
+            "DUPLICATE_CONSTRAINT_NAME: " + constraintFqn);
         String blockText = renderer.renderExternalConstraintBlock(
             context.getScopedName(), payload.constraint, iliVersion, modelName, derivedImports);
         Topic topic = containingTopic(context);

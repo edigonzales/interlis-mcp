@@ -72,7 +72,7 @@ public record ConstraintExplanation(Status status, String constraintFqn, String 
           case ">=" -> "ist mindestens"; case "<" -> "ist kleiner als"; default -> "ist höchstens";
         } + " " + render(n.get("right"));
         case "OBJECT_PATH" -> {
-          if (!Set.of("NUMERIC", "BOOLEAN", "ENUM", "TEXT", "MTEXT").contains(String.valueOf(map(n.get("type")).get("kind"))))
+          if (!Set.of("NUMERIC", "BOOLEAN", "ENUM", "TEXT", "MTEXT", "XMLDATE").contains(String.valueOf(map(n.get("type")).get("kind"))))
             gaps.add("Nichtskalarer Pfad: nur strukturelle Referenz erklärt.");
           if (Boolean.TRUE.equals(n.get("collection")) || (n.get("steps") instanceof List<?> steps && steps.size() > 1))
             gaps.add("Navigierter Pfad: keine vollständige Erklärung der Navigationssemantik.");

@@ -24,6 +24,31 @@ import org.junit.jupiter.api.Test;
 
 class IliModelAuthoringToolsTest {
 
+  @Test
+  void verifiesUnchangedDateModelAndRejectsDuplicateNames() {
+    String text = """
+        INTERLIS 2.4;
+        MODEL DateProof (en) AT "https://example.org" VERSION "2026-10-15" =
+          TOPIC Data =
+            CLASS Item =
+              day : MANDATORY INTERLIS.XMLDate;
+              UNIQUE UniqueDay: day;
+            END Item;
+          END Data;
+        END DateProof.
+        """;
+    var compiler = new CountingCompiler();
+    var result = tools(compiler).verifyIliModel(text, ModelPurpose.VALIDATION, ModelingRuleProfile.CORE);
+    assertThat(result.status).isEqualTo(IliAuthoringResult.Status.VERIFIED);
+    assertThat(result.updatedModelText).isEqualTo(text);
+    assertThat(result.constraintProofs).hasSize(1);
+    assertThat(result.proofVerified).isTrue();
+    assertThat(compiler.calls).isEqualTo(1);
+    var duplicate = tools(compiler).verifyIliModel(text.replace("UNIQUE UniqueDay: day;", "UNIQUE UniqueDay: day;\n UNIQUE UniqueDay: day;"), ModelPurpose.VALIDATION, ModelingRuleProfile.CORE);
+    assertThat(duplicate.complete).isFalse();
+    assertThat(duplicate.updatedModelText).isNull();
+  }
+
 @Test
 void soDataKeepsAllFiveConstraintNamesWithoutMetadataComments() throws Exception {
   var mapper = new tools.jackson.databind.ObjectMapper();

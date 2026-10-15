@@ -12,6 +12,7 @@ import org.jspecify.annotations.Nullable;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class IliAuthoringResult {
   public enum Status {
+    VERIFIED,
     GENERATED,
     APPLIED,
     BREAKING_CHANGE_REQUIRES_CONFIRMATION,
