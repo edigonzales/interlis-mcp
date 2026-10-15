@@ -56,7 +56,11 @@ public class AttributeTools {
         yield namedType.fqn().trim();
       }
       case BaseType bt -> {
-        bt.validate();
+        try {
+          bt.validate();
+        } catch (IllegalArgumentException error) {
+          throw new IllegalArgumentException("Attribute " + req.getName() + ": " + error.getMessage(), error);
+        }
         yield switch (bt.getKind()) {
           case TEXT -> (bt.getLength() == null) ? "TEXT" : "TEXT*" + bt.getLength();
           case MTEXT -> (bt.getLength() == null) ? "MTEXT" : "MTEXT*" + bt.getLength();

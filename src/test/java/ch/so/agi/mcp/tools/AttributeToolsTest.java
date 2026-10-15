@@ -463,6 +463,13 @@ class AttributeToolsTest {
             assertEquals("value : " + bounds.get(0) + " .. " + bounds.get(1) + ";", attributeTools.createAttributeLine(request).getIliSnippet());
         }
         BaseType invalid = mapper.readValue("{\"kind\":\"NUM_RANGE\",\"min\":\"0.0\",\"max\":\"100.00\"}", BaseType.class);
-        assertTrue(assertThrows(IllegalArgumentException.class, invalid::validate).getMessage().contains("scale=2"));
+        TypeSpec invalidSpec = new TypeSpec(); invalidSpec.setBaseType(invalid);
+        AttributeLineRequest invalidRequest = new AttributeLineRequest();
+        invalidRequest.setName("percentage"); invalidRequest.setTypeSpec(invalidSpec);
+        String message = assertThrows(IllegalArgumentException.class,
+            () -> attributeTools.createAttributeLine(invalidRequest)).getMessage();
+        assertTrue(message.contains("percentage"));
+        assertTrue(message.contains("min=0.0 (scale=1)"));
+        assertTrue(message.contains("max=100.00 (scale=2)"));
     }
 }
