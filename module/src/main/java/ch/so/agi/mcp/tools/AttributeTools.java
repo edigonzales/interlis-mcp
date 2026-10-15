@@ -125,9 +125,9 @@ public class AttributeTools {
     boolean hasUnit = bt.getUnitFqn() != null && !bt.getUnitFqn().isBlank();
     var sb = new StringBuilder();
     if (bt.getKind() == BaseType.Kind.NUM_RANGE) {
-      sb.append(formatRangeValue(bt.getMin(), hasUnit))
+      sb.append(formatRangeValue(bt.getMin()))
           .append(" .. ")
-          .append(formatRangeValue(bt.getMax(), hasUnit));
+          .append(formatRangeValue(bt.getMax()));
     } else {
       sb.append("NUMERIC");
     }
@@ -152,10 +152,10 @@ public class AttributeTools {
     return sb.toString();
   }
 
-  private String formatRangeValue(BigDecimal value, boolean keepScale) {
+  private String formatRangeValue(BigDecimal value) {
     if (value == null) {
       throw new IllegalArgumentException("NUM_RANGE requires non-null range bounds.");
     }
-    return (keepScale ? value : value.stripTrailingZeros()).toPlainString();
+    return value.toPlainString();
   }
 }

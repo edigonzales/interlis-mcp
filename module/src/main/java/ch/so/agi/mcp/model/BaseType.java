@@ -73,6 +73,7 @@ public class BaseType {
       case NUM_RANGE -> {
         if (length != null) throw new IllegalArgumentException("NUM_RANGE does not support 'length'.");
         if (min == null || max == null) throw new IllegalArgumentException("NUM_RANGE requires 'min' and 'max'.");
+        if (min.scale() != max.scale()) throw new IllegalArgumentException("NUM_RANGE bounds require equal decimal places: min=" + min.toPlainString() + " (scale=" + min.scale() + "), max=" + max.toPlainString() + " (scale=" + max.scale() + ").");
         if (min.compareTo(max) >= 0) throw new IllegalArgumentException("NUM_RANGE requires min < max (got " + min + " .. " + max + ").");
         if (refSysFqn != null && !refSysFqn.isBlank()) throw new IllegalArgumentException("NUM_RANGE does not support 'refSysFqn'.");
         if (circular != null) throw new IllegalArgumentException("NUM_RANGE does not support 'circular'.");

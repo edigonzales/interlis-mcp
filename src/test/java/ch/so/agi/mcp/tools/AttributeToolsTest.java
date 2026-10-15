@@ -81,8 +81,8 @@ class AttributeToolsTest {
 
         BaseType baseType = new BaseType();
         baseType.setKind(BaseType.Kind.NUM_RANGE);
-        baseType.setMin(new BigDecimal("2000.0"));
-        baseType.setMax(new BigDecimal("3000.0"));
+        baseType.setMin(new BigDecimal("2000"));
+        baseType.setMax(new BigDecimal("3000"));
 
         TypeSpec spec = new TypeSpec();
         spec.setBaseType(baseType);
@@ -452,5 +452,17 @@ class AttributeToolsTest {
         metaAttribute.setValue(value);
         metaAttribute.setRawValue(rawValue);
         return metaAttribute;
+    }
+    @Test
+    void decimalStringsPreserveZeroAndScaleWithoutUnit() throws Exception {
+        var mapper = new tools.jackson.databind.ObjectMapper();
+        for (var bounds : java.util.List.of(java.util.List.of("0.0", "100.0"), java.util.List.of("0.00", "100.00"), java.util.List.of("0.00", "999.99"), java.util.List.of("-1.00", "9007199254740993.00"))) {
+            BaseType base = mapper.readValue("{\"kind\":\"NUM_RANGE\",\"min\":\"" + bounds.get(0) + "\",\"max\":\"" + bounds.get(1) + "\"}", BaseType.class);
+            TypeSpec spec = new TypeSpec(); spec.setBaseType(base);
+            AttributeLineRequest request = new AttributeLineRequest(); request.setName("value"); request.setTypeSpec(spec);
+            assertEquals("value : " + bounds.get(0) + " .. " + bounds.get(1) + ";", attributeTools.createAttributeLine(request).getIliSnippet());
+        }
+        BaseType invalid = mapper.readValue("{\"kind\":\"NUM_RANGE\",\"min\":\"0.0\",\"max\":\"100.00\"}", BaseType.class);
+        assertTrue(assertThrows(IllegalArgumentException.class, invalid::validate).getMessage().contains("scale=2"));
     }
 }

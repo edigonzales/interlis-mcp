@@ -147,3 +147,12 @@ sind separat ausgewiesen.
 ## Executable Maven artifact
 
 In addition to the reusable module and existing container images, CI publishes the tested `bootJar` as `ch.so.agi:interlis-mcp:<version>:boot@jar` to `https://jars.interlis.guru/snapshots/`. It uses `MAVEN_USERNAME` and `MAVEN_PASSWORD`, downloads the published bytes and checks stdio startup, tools and EOF shutdown on JDK 21.
+
+### Numeric bounds and decimal places
+
+`NUM_RANGE.min` and `max` accept JSON numbers or decimal strings. Use strings when
+decimal places are significant: `"0.00"` / `"100.00"` renders `0.00 .. 100.00`,
+including without a unit. Both bounds must have the same number of decimal
+places. No rounding or removal of trailing zeros is performed. The same contract
+applies to typed attribute changes. Tool input schemas advertise
+`x-interlis-decimal-bounds: strings-v1` for capability detection.

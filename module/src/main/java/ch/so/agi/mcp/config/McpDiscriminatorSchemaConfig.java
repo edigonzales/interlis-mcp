@@ -66,6 +66,7 @@ public class McpDiscriminatorSchemaConfig {
           }
           Map<String, Object> normalizedInput = normalize(tool.inputSchema());
           ConstraintSpecSchema.enrich(normalizedInput);
+          normalizedInput.put("x-interlis-decimal-bounds", "strings-v1");
           Map<String, Object> normalizedOutput = normalize(tool.outputSchema());
           McpSchema.Tool normalizedTool = new McpSchema.Tool(
               tool.name(), tool.title(), tool.description(), normalizedInput, normalizedOutput,
@@ -96,7 +97,21 @@ public class McpDiscriminatorSchemaConfig {
         var profiles = new ArrayList<>(values.stream().map(v -> "SO_DATA".equals(v) ? "SO-DATA" : "SO_GIS".equals(v) ? "SO-GIS" : v).toList());
         map.put("enum", profiles);
       }
+      // Decimal strings preserve trailing zeros across generic JSON number transports.
+      if (map.get("properties") instanceof Map<?, ?> rawProperties) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) rawProperties;
+        if (properties.containsKey("kind") && properties.containsKey("min") && properties.containsKey("max")) {
+          for (String bound : List.of("min", "max")) {
+            properties.put(bound, Map.of("anyOf", List.of(
+                Map.of("type", "number"),
+                Map.of("type", "string", "pattern", "^-?[0-9]+(?:[.][0-9]+)?$")),
+                "description", "Decimal bound; use strings to preserve decimal places, e.g. 0.00 and 100.00. Both bounds require equal scale."));
+          }
+        }
+      }
       Object alternatives = map.get("anyOf");
+
 
       if (alternatives instanceof List<?> list && isDiscriminatedUnion(list, definitions)) {
         map.remove("anyOf");

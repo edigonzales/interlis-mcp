@@ -727,4 +727,32 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
 
   private record SchemaExpectation(Set<String> required, Set<String> optional) {
   }
+  @Test
+  void decimalStringBoundsArePublicAndSurviveTypedAuthoring() throws Exception {
+    var tool = specsByName().get("authorIliModel");
+    assertThat(tool.tool().inputSchema()).containsEntry("x-interlis-decimal-bounds", "strings-v1");
+    var attributes = new java.util.ArrayList<Object>();
+    var bounds = List.of(List.of("0.0", "100.0"), List.of("0.00", "100.00"), List.of("0.00", "999.99"));
+    for (int i = 0; i < bounds.size(); i++) {
+      attributes.add(Map.of("name", "value" + i, "typeSpec", Map.of("baseType", Map.of(
+          "kind", "NUM_RANGE", "min", bounds.get(i).get(0), "max", bounds.get(i).get(1)))));
+    }
+    var response = tool.callHandler().apply(null, new McpSchema.CallToolRequest("authorIliModel", Map.of(
+        "modelPurpose", "VALIDATION", "ruleProfile", "CORE", "spec", Map.of(
+            "name", "DecimalTest", "uri", "https://example.org", "version", "2026-10-15", "iliVersion", "2.4",
+            "topics", List.of(Map.of("name", "Data", "classes", List.of(Map.of("name", "Row", "attributes", attributes))))))));
+    var result = extractStructuredContent(response);
+    assertThat(result.get("updatedModelText")).as(result.toString()).isNotNull();
+    String text = result.get("updatedModelText").toString();
+    assertThat(text).contains("0.0 .. 100.0", "0.00 .. 100.00", "0.00 .. 999.99");
+    var change = specsByName().get("applyIliModelChanges");
+    var changed = change.callHandler().apply(null, new McpSchema.CallToolRequest("applyIliModelChanges", Map.of(
+        "modelText", text, "modelPurpose", "VALIDATION", "ruleProfile", "CORE", "request", Map.of(
+            "allowPotentiallyBreaking", true, "changes", List.of(Map.of("operation", "UPDATE_ATTRIBUTE", "updateAttribute", Map.of(
+                "attributeFqn", "DecimalTest.Data.Row.value0", "patch", Map.of("typeSpec", Map.of("baseType", Map.of(
+                    "kind", "NUM_RANGE", "min", "0.00", "max", "100.00"))))))))));
+    var changedResult = extractStructuredContent(changed);
+    assertThat(changedResult.get("updatedModelText")).as(changedResult.toString()).isNotNull();
+    assertThat(changedResult.get("updatedModelText").toString()).contains("value0 : 0.00 .. 100.00");
+  }
 }
