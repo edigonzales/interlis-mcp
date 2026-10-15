@@ -24,6 +24,10 @@ jobs:
           cache: gradle
       - name: Build and verify canonical artifacts once
         run: ./gradlew --no-daemon clean check e2eTest bootJar :interlis-mcp-module:publishMavenJavaPublicationToVerificationRepository
+      - name: Probe every advertised tool on the canonical JAR before image builds
+        env:
+          SPRING_PROFILES_ACTIVE: stdio
+        run: python3 tools/test-mcp-stdio.py java -jar build/libs/interlis-mcp.jar
       - name: Verify the module using a fresh external Maven consumer
         run: python3 tools/verify-module.py --repository build/verification-repository --artifact interlis-mcp-module --version 0.1.0-SNAPSHOT
       - name: Verify publication of the restored executable

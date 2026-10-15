@@ -55,6 +55,10 @@ MODEL_WITH_CONSTRAINT = (
 
 RENAMED_MODEL = MODEL.replace("CLASS A =", "CLASS ARenamed =")
 
+MODEL_WITH_DATE_UNIQUE = MODEL_WITH_CONSTRAINT.replace(
+    "count : MANDATORY 0 .. 100;", "day : MANDATORY INTERLIS.XMLDate;"
+).replace("MANDATORY CONSTRAINT Positiv: count > 0;", "UNIQUE UniqueDay: day;")
+
 # Associations make the scalar interaction analysis report coverage gaps, which
 # is the only path that serializes ConstraintInteractionAnalysis.Gap.
 MODEL_WITH_ASSOCIATION = (
@@ -80,6 +84,9 @@ MODEL_WITH_ASSOCIATION = (
 CALLS = [
     # --- model review / analysis -------------------------------------------------
     ("validateIliModel", {"modelText": MODEL}, ["valid"]),
+    ("verifyIliModel", {"modelText": MODEL_WITH_DATE_UNIQUE,
+                        "modelPurpose": "VALIDATION", "ruleProfile": "CORE"},
+     ["VERIFIED", "UniqueDay", "modelHashes"]),
     ("analyzeIliModel", {"modelText": MODEL, "modelPurpose": "PUBLICATION",
                          "contextFqn": "ProbeModel.Data"}, ["classes"]),
     ("reviewIliModel", {"modelText": MODEL, "modelPurpose": "PUBLICATION",

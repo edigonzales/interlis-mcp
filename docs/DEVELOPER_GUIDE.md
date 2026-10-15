@@ -205,7 +205,7 @@ Empfohlener Ablauf:
 4. Optionalität im Java-Typ und im MCP-Schema konsistent ausdrücken.
 5. Fachliche Unsicherheit als Ergebniszustand modellieren; keine fehlende Semantik erfinden.
 6. Fokussierte Tests ergänzen.
-7. Bei öffentlichem Schema `ToolRegistrationContractTest` aktualisieren.
+7. Bei öffentlichem Schema `ToolRegistrationContractTest` aktualisieren und in `tools/test-mcp-stdio.py` einen Probeaufruf mit aussagekräftigen Ergebniserwartungen ergänzen. Die Probe verlangt Abdeckung jedes über `tools/list` registrierten Tools.
 8. Wenn der vorgesehene Agentenablauf betroffen ist, Prompt/Resource und Golden Scenario prüfen.
 9. Benutzer- oder Referenzdokumentation aktualisieren.
 
@@ -358,7 +358,9 @@ docker run --rm -i -e SPRING_PROFILES_ACTIVE=stdio sogis/interlis-mcp:latest
 
 Der Workflow `.github/workflows/main.yml` prüft Fachtests, Benchmarkprüfungen und
 STDIO-E2E, baut kanonische Artefakte einmal und verwendet dasselbe JAR auf nativen
-amd64-/arm64-Runnern. Beide Images werden über HTTP und STDIO geprüft; erst nach
+amd64-/arm64-Runnern. Bereits vor den Image-Builds ruft die vollständige STDIO-Probe
+alle registrierten Tools gegen das kanonische JAR auf. `verifyIliModel` wird dabei
+mit einer XMLDate-UNIQUE-Regel auf `VERIFIED` geprüft. Beide Images werden über HTTP und STDIO geprüft; erst nach
 Erfolg beider Architekturen werden die getesteten Artefakte veröffentlicht.
 Pull Requests veröffentlichen nichts. Main-Pushes und manuelle Main-Läufe veröffentlichen
 Module auf `jars.interlis.guru/snapshots/` sowie Images auf Docker Hub und GHCR.
