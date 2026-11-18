@@ -12,9 +12,9 @@ import ch.so.agi.mcp.model.SpecValidationException;
 import ch.so.agi.mcp.model.IliModelSpec;
 import ch.so.agi.mcp.model.IliSpecRenderer;
 import ch.so.agi.mcp.service.IliCompilerService;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.Set;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
@@ -80,7 +80,7 @@ public final class IliModelAuthoringTools {
     if (!result.afterCompilation.valid()) {
       return result.reject(Status.CANDIDATE_MODEL_INVALID, "Model did not compile.", modelText);
     }
-    if (reviewAndProve(result, modelText, compilation, modelPurpose, ruleProfile, Set.of())) {
+    if (reviewAndProve(result, modelText, compilation, modelPurpose, ruleProfile, Map.of())) {
       result.status = Status.VERIFIED;
     }
     return result;
@@ -119,26 +119,29 @@ public final class IliModelAuthoringTools {
     result.semanticDiff.kind = "NEW_MODEL";
     result.semanticDiff.modelName = spec.name.trim();
     result.details = Map.of("astGeneratedModelText", astText);
-    Set<String> externalConstraints = new HashSet<>();
-    if (spec.topics != null) spec.topics.forEach(topic -> topic.collectExternalConstraints(spec.name.trim(), externalConstraints));
-    if (!reviewAndProve(result, rendered.modelText(), compilation, modelPurpose, ruleProfile, externalConstraints)) return result;
+    Map<String, Boolean> requestedConstraints = new LinkedHashMap<>();
+    if (spec.topics != null) spec.topics.forEach(topic -> topic.collectConstraints(spec.name.trim(), requestedConstraints));
+    if (!reviewAndProve(result, rendered.modelText(), compilation, modelPurpose, ruleProfile, requestedConstraints)) return result;
     return result.release(Status.GENERATED, rendered.modelText());
   }
 
   private boolean reviewAndProve(IliAuthoringResult result, String modelText,
       IliCompilerService.CompilationResult compilation, @Nullable ModelPurpose purpose,
-      @Nullable ModelingRuleProfile profile, Set<String> externalConstraints) {
+      @Nullable ModelingRuleProfile profile, Map<String, Boolean> requestedConstraints) {
     var constraints = ConstraintContextService.declaredConstraintNames(compilation.transferDescription());
     var review = reviewService.reviewCompiledModel(compilation, modelText,
         ModelPurpose.normalize(purpose), ModelingRuleProfile.normalize(profile));
     result.attachReview(review, true);
-    if (new HashSet<>(constraints).size() != constraints.size()) {
+    var required = new LinkedHashSet<>(constraints);
+    if (required.size() != constraints.size()) {
       result.reasonCode = "DUPLICATE_CONSTRAINT_NAME";
       result.reject(Status.INVALID_SPEC, "Declared constraint names must be unique.", modelText);
       return false;
     }
-    var proofs = constraints.stream().map(fqn -> caseGenerationTools.prove(fqn,
-        constraintContextService.resolveCompiled(modelText, fqn, null, compilation), externalConstraints.contains(fqn))).toList();
+    required.addAll(requestedConstraints.keySet());
+    var proofs = required.stream().map(fqn -> caseGenerationTools.prove(fqn,
+        constraintContextService.resolveCompiled(modelText, fqn, null, compilation),
+        Boolean.TRUE.equals(requestedConstraints.get(fqn)))).toList();
     if (result.rejectFailedProof(proofs, modelText)) return false;
     if (!result.openQuestions.isEmpty()) {
       result.reasonCode = "MODEL_PURPOSE_REQUIRED";

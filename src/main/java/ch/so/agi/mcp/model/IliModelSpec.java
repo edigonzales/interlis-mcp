@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /** Typed, complete input tree shared by full-model and change authoring. */
@@ -60,11 +60,11 @@ public class IliModelSpec {
     @JsonProperty(required = false) public @Nullable List<ClassSpec> classes;
     @JsonProperty(required = false) public @Nullable List<AssociationSpec> associations;
 
-    public void collectExternalConstraints(String model, Set<String> names) {
+    public void collectConstraints(String model, Map<String, Boolean> names) {
       String topic = model + "." + name.trim();
-      if (classes != null) classes.forEach(viewable -> viewable.collectExternalConstraints(topic, names));
-      if (structures != null) structures.forEach(viewable -> viewable.collectExternalConstraints(topic, names));
-      if (associations != null) associations.forEach(viewable -> viewable.collectExternalConstraints(topic, names));
+      if (classes != null) classes.forEach(viewable -> viewable.collectConstraints(topic, names));
+      if (structures != null) structures.forEach(viewable -> viewable.collectConstraints(topic, names));
+      if (associations != null) associations.forEach(viewable -> viewable.collectConstraints(topic, names));
     }
   }
 
@@ -74,10 +74,11 @@ public class IliModelSpec {
     @JsonProperty(required = false) public @Nullable List<AttributeLineRequest> attributes;
     @JsonProperty(required = false) public @Nullable List<IliConstraintSpec> constraints;
 
-    public void collectExternalConstraints(String topic, Set<String> names) {
+    public void collectConstraints(String topic, Map<String, Boolean> names) {
       if (constraints == null) return;
+      String context = topic + "." + name.trim();
       for (IliConstraintSpec constraint : constraints) {
-        if (constraint.hasExternalFunctionSemantics()) names.add(topic + "." + name.trim() + "." + constraint.name.trim());
+        names.put(context + "." + constraint.name.trim(), constraint.hasExternalFunctionSemantics());
       }
     }
   }

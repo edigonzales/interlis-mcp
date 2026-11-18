@@ -533,8 +533,7 @@ Rückfragen: etwa fehlende Werte, eine leere Beziehung oder der Bereich einer Ei
 Vor dem Schreiben prüft der Agent die zuvor festgelegten Fälle mit `testIliConstraint` gegen
 exakt den vom Authoring zurückgegebenen Modellstand. `expectationSource` kennzeichnet die
 Herkunftsangabe: `USER_PROVIDED`, `USER_CONFIRMED`, `AGENT_DERIVED` oder standardmässig
-`UNSPECIFIED`. Der Server verifiziert diese Herkunft nicht. Auch vom Agenten aus der Anforderung
-abgeleitete Fälle sind keine unabhängige Fachabnahme; `businessAcceptance` bleibt `NOT_RUN`.
+`UNSPECIFIED`. Für die fachliche Abnahme sind Erwartungen aus einer bestätigten Fachquelle nötig.
 
 Beispiel: „mindestens 18, Alter erforderlich“ verlangt die Fälle 17 unzulässig, 18 zulässig,
 19 zulässig und fehlendes Alter unzulässig. Ein automatischer Proof für `age > 18` ersetzt diese

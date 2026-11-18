@@ -80,7 +80,13 @@ def probe(url):
                 'modelText': MODEL.replace('INTERLIS.XMLDate', 'MissingSmokeDomain'),
             }, 3)
             verified = proof.result()
-            assert verified['status'] == 'VERIFIED' and verified['proofVerified'], verified
+            assert verified['status'] == 'VERIFIED', verified
+            assert verified['afterCompilation']['valid'] is True, verified
+            proofs = verified['constraintProofs']
+            assert len(proofs) == 1 and proofs[0]['status'] == 'PASSED', verified
+            assert any(case['targetViolationCount'] > 0 and case['passed']
+                       for case in proofs[0]['verification']['cases']), verified
+            assert 'updatedModelText' not in verified and 'candidateModelText' not in verified, verified
             diagnostic = invalid.result()
             assert diagnostic['valid'] is False, diagnostic
             assert any('MissingSmokeDomain' in message['message'] for message in diagnostic['messages']), diagnostic

@@ -72,9 +72,7 @@ void soDataKeepsAllFiveConstraintNamesWithoutMetadataComments() throws Exception
         completeSpec(), ModelPurpose.CAPTURE, ModelingRuleProfile.CORE);
 
     assertThat(compiler.calls).isEqualTo(1);
-    assertThat(result.status).as("%s", result.constraintProofs).isEqualTo(IliAuthoringResult.Status.GENERATED);
-    assertThat(result.status).isEqualTo(IliAuthoringResult.Status.GENERATED);
-    assertThat(result.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
+    assertThat(result.status).as("%s", result).isEqualTo(IliAuthoringResult.Status.GENERATED);
     assertThat(result.constraintProofs).hasSize(5)
         .allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
     assertThat(result.derivedImports).containsExactly("GeometryCHLV95_V2");
@@ -114,7 +112,8 @@ void soDataKeepsAllFiveConstraintNamesWithoutMetadataComments() throws Exception
     assertThat(result.status).isEqualTo(IliAuthoringResult.Status.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED);
     assertThat(result.updatedModelText).isNull();
     assertThat(result.candidateModelText).contains("Text_V2.startsWith(code, \"A\")");
-    assertThat(result.updatedModelText).isNull();
+    assertThat(result.constraintProofs).anySatisfy(proof ->
+        assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED));
   }
 
   private IliModelAuthoringTools tools(IliCompilerService compiler) {

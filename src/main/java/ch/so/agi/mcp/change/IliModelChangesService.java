@@ -184,27 +184,34 @@ public final class IliModelChangesService {
       return result.reject(Status.UNEXPECTED_SEMANTIC_CHANGE, unexpected, prepared.candidate());
     }
 
-    Set<String> externalConstraints = new LinkedHashSet<>();
+    Map<String, Boolean> requestedConstraints = new LinkedHashMap<>();
     for (var change : changes) {
       switch (change.requireOperation()) {
-        case ADD_TOPIC -> change.getAddTopic().topic.collectExternalConstraints(modelName, externalConstraints);
-        case ADD_CLASS -> change.getAddClass().clazz.collectExternalConstraints(change.getAddClass().topicFqn.trim(), externalConstraints);
-        case ADD_STRUCTURE -> change.getAddStructure().structure.collectExternalConstraints(change.getAddStructure().topicFqn.trim(), externalConstraints);
-        case ADD_ASSOCIATION -> change.getAddAssociation().association.collectExternalConstraints(change.getAddAssociation().topicFqn.trim(), externalConstraints);
+        case ADD_TOPIC -> change.getAddTopic().topic.collectConstraints(modelName, requestedConstraints);
+        case ADD_CLASS -> change.getAddClass().clazz.collectConstraints(change.getAddClass().topicFqn.trim(), requestedConstraints);
+        case ADD_STRUCTURE -> change.getAddStructure().structure.collectConstraints(change.getAddStructure().topicFqn.trim(), requestedConstraints);
+        case ADD_ASSOCIATION -> change.getAddAssociation().association.collectConstraints(change.getAddAssociation().topicFqn.trim(), requestedConstraints);
         case ADD_CONSTRAINT -> {
           var add = change.getAddConstraint();
-          if (add.constraint.hasExternalFunctionSemantics()) {
-            externalConstraints.add(add.containerFqn.trim() + "." + add.constraint.name.trim());
-          }
+          requestedConstraints.put(add.containerFqn.trim() + "." + add.constraint.name.trim(),
+              add.constraint.hasExternalFunctionSemantics());
         }
         default -> { }
       }
     }
-    Set<String> existing = new LinkedHashSet<>(ConstraintContextService.declaredConstraintNames(td));
-    var proofs = ConstraintContextService.declaredConstraintNames(Objects.requireNonNull(after.transferDescription()))
-        .stream().filter(fqn -> !existing.contains(fqn))
+    Map<String, Integer> existing = new LinkedHashMap<>();
+    for (String fqn : ConstraintContextService.declaredConstraintNames(td)) {
+      existing.merge(fqn, 1, Integer::sum);
+    }
+    var required = new LinkedHashSet<String>();
+    for (String fqn : ConstraintContextService.declaredConstraintNames(Objects.requireNonNull(after.transferDescription()))) {
+      if (existing.merge(fqn, -1, Integer::sum) < 0) required.add(fqn);
+    }
+    // A declared request is still required if its constraint cannot be found in the compiled candidate.
+    required.addAll(requestedConstraints.keySet());
+    var proofs = required.stream()
         .map(fqn -> caseGenerationTools.prove(fqn, constraintContextService.resolveCompiled(
-            prepared.candidate(), fqn, modelRepositories, after), externalConstraints.contains(fqn)))
+            prepared.candidate(), fqn, modelRepositories, after), Boolean.TRUE.equals(requestedConstraints.get(fqn))))
         .toList();
     if (result.rejectFailedProof(proofs, prepared.candidate())) return result;
 

@@ -48,13 +48,12 @@ public final class ConstraintWorkflowGuidance {
          constraintInteractions bleiben advisory; technische Statuswerte und Freigaben unverändert.
          Bei Einträgen in openQuestions die konkrete Frage und den Umgang damit in der
          Abschlussantwort nennen. Ist eine allgemeine Frage anhand des vorhandenen Auftrags
-         für die konkrete Änderung unerheblich, diese Beurteilung dort begründen; das Flag
-         bleibt unverändert. Kein Modellzweck wird erfunden, keine pauschale Ausnahme erteilt.
+         für die konkrete Änderung unerheblich, diese Beurteilung dort begründen.
+         Blockierende Fragen mit dem Nutzer klären.
          Tatsächlich offene Fachentscheide verhindern weiterhin das Schreiben; Proofs ersetzen
          diese Beurteilung nicht.
 
-      Einzeltests isolieren den Constraint; AGENT_DERIVED ist keine unabhängige Fachabnahme,
-      businessAcceptance bleibt NOT_RUN. Der Server erzwingt die Schreibregel nicht bei fremden
-      Clients. Diesen Ablauf bei Prosa-Authoring anwenden, nicht bei reinen Reviews.
+      Einzeltests isolieren den Constraint. Für eine unabhängige fachliche Abnahme sind
+      Erwartungen aus einer bestätigten Fachquelle nötig. Diesen Ablauf bei Prosa-Authoring anwenden.
       """;
 }

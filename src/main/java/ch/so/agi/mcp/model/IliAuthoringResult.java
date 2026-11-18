@@ -383,10 +383,7 @@ public class IliAuthoringResult {
     ConstraintProof result = new ConstraintProof();
     result.constraintFqn = constraintFqn;
     result.status = status;
-    if (proof == null) {
-      result.explanation = ch.so.agi.mcp.constraint.ConstraintExplanation.unavailable(constraintFqn);
-      return result;
-    }
+    if (proof == null) return result;
     result.explanation = (ch.so.agi.mcp.constraint.ConstraintExplanation) proof.get("explanation");
     result.pattern = nullableString(proof.get("pattern"));
     result.coverageGoalCount = nullableInteger(proof.get("coverageGoalCount"));

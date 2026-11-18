@@ -79,7 +79,9 @@ public class ConstraintCaseGenerationTools {
   }
 
   public ConstraintProof prove(String fqn, ConstraintContextService.Resolution resolution, boolean declaredExternal) {
-    if (declaredExternal) {
+    if (declaredExternal && (resolution.available()
+        || !"CONSTRAINT_LOOKUP_FAILED".equals(resolution.reasonCode())
+            && !"CONSTRAINT_LOOKUP_AMBIGUOUS".equals(resolution.reasonCode()))) {
       var proof = IliAuthoringResult.constraintProof(fqn, ProofStatus.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED, null);
       proof.reasonCode = "EXTERNAL_FUNCTION_SEMANTICS_REQUIRED";
       proof.reason = "Executable semantics for model-defined or validator-extension functions are unavailable.";
