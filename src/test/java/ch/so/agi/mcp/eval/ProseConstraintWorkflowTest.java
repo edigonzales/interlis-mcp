@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.constraint.*;
 import ch.so.agi.mcp.service.IliCompilerService;
+import ch.so.agi.mcp.service.XtfService;
 import ch.so.agi.mcp.tools.*;
 import java.util.*;
 import org.junit.jupiter.api.Test;
@@ -160,30 +161,59 @@ class ProseConstraintWorkflowTest {
       assertThat(map(tools.analyzeIliModel(source, null, fqn).get("authoringContext"))).containsEntry("status", "AVAILABLE");
   }
 
-  @Test void independentWorkflowReferencesAgreeWithRealValidator() throws Exception {
-    var root = java.nio.file.Path.of("evals/constraint-authoring-workflow");
-    var mapper = new tools.jackson.databind.ObjectMapper();
-    var suite = mapper.readTree(java.nio.file.Files.readString(root.resolve("suite.json")));
+  @Test void independentWorkflowReferencesAgreeWithRealValidator() {
     var compiler = new IliCompilerService();
-    for (var entry : suite.get("cases")) {
-      String id = entry.get("id").asText();
-      String source = java.nio.file.Files.readString(root.resolve("public/" + id + "/model.ili"));
-      assertThat(compiler.compile(source, null).valid()).as(id).isTrue();
-      var oracle = mapper.readTree(java.nio.file.Files.readString(root.resolve("reference/" + id + ".json")));
-      for (var rule : oracle.get("referenceConstraints").properties()) {
-        String modified = source.replace("END Person;", "MANDATORY CONSTRAINT " + rule.getKey() + ": " + rule.getValue().asText() + "; END Person;");
-        var cases = new ArrayList<ConstraintTestTools.TestCase>();
-        for (var expected : oracle.get("expectations")) {
-          var object = new ConstraintTestTools.TestObject(); object.classFqn = "ProseWorkflow.Data.Person"; object.oid = "p";
-          object.values = mapper.convertValue(expected.get("values"), Map.class);
-          var test = new ConstraintTestTools.TestCase(); test.name = expected.get("id").asText();
-          test.expectedConstraintValid = expected.get("expectedRules").get(rule.getKey()).asBoolean(); test.objects = List.of(object);
-          cases.add(test);
-        }
-        var result = new ConstraintTestTools(compiler).testIliConstraint(modified, "ProseWorkflow.Data.Person." + rule.getKey(), cases);
-        assertThat(result.get("allPassed")).as(id + ": " + result).isEqualTo(true);
-      }
+    var validator = new ConstraintTestTools(compiler);
+    assertRule(validator, simple("DEFINED(age) AND age >= 18"), List.of(
+        person(Map.of("age", 17), false), person(Map.of("age", 18), true),
+        person(Map.of("age", 19), true), person(Map.of(), false)));
+    assertRule(validator, simple("DEFINED(age) AND age > 18"), List.of(
+        person(Map.of("age", 18), false), person(Map.of("age", 19), true), person(Map.of(), false)));
+    assertRule(validator, withCode(simple("NOT (DEFINED(state)) OR state != #inactive OR DEFINED(code)")), List.of(
+        person(Map.of("state", "inactive"), false), person(Map.of("state", "inactive", "code", "X"), true),
+        person(Map.of("state", "active", "code", "X"), true), person(Map.of(), true)));
+    assertRule(validator, simple("age >= 18"), List.of(
+        person(Map.of("age", 17), false), person(Map.of("age", 18), true), person(Map.of(), true)));
+
+    String ageRule = withCode(simple("DEFINED(age) AND age >= 18"));
+    String bothRules = ageRule.replace("MANDATORY CONSTRAINT Rule", "\n!!@ ilivalid.msg = \"Age required\"\nMANDATORY CONSTRAINT Rule")
+        .replace("END Person;", "\n!!@ ilivalid.msg = \"Code required\"\nMANDATORY CONSTRAINT RequiredCode: DEFINED(code); END Person;");
+    var cases = List.of(person(Map.of("age", 17, "code", "X"), false),
+        person(Map.of("age", 18, "code", "X"), true), person(Map.of("age", 18), true),
+        person(Map.of("code", "X"), false));
+    var isolated = assertRule(validator, ageRule, cases);
+    var expectedErrors = List.of(List.of("Age required"), List.<String>of(), List.of("Code required"), List.of("Age required"));
+    var xtfValidator = new XtfService(compiler);
+    for (int i = 0; i < isolated.size(); i++) {
+      var result = xtfValidator.validateXtf(bothRules, (String) isolated.get(i).get("xtfText"), null);
+      assertThat(result.messages()).filteredOn(m -> "ERROR".equals(m.get("severity")))
+          .extracting(m -> m.get("message")).containsExactlyElementsOf(expectedErrors.get(i));
     }
+  }
+
+  private static String withCode(String source) {
+    return source.replace("age : 0..100;", "age : 0..100; state : (active, inactive); code : TEXT*20;");
+  }
+
+  private static ConstraintTestTools.TestCase person(Map<String, Object> values, boolean valid) {
+    var test = age(null, valid, ConstraintTestTools.ExpectationSource.USER_PROVIDED);
+    test.name = values.toString();
+    test.objects.getFirst().values = values;
+    return test;
+  }
+
+  private static List<Map<String, Object>> assertRule(ConstraintTestTools validator, String source,
+      List<ConstraintTestTools.TestCase> expected) {
+    var result = validator.testIliConstraint(source, "Simple.Data.Person.Rule", expected, true);
+    var observed = list(result.get("cases"));
+    assertThat(observed).as(result.toString()).hasSize(expected.size());
+    for (int i = 0; i < expected.size(); i++) {
+      boolean valid = expected.get(i).expectedConstraintValid;
+      assertThat(observed.get(i)).as(expected.get(i).name).containsEntry("fixtureValid", true)
+          .containsEntry("constraintExercised", true).containsEntry("actualConstraintValid", valid)
+          .containsEntry("targetViolationCount", valid ? 0 : 1);
+    }
+    return observed;
   }
 
   @Test void explanationsPreserveOrderThatChangesRealValidatorResults() {

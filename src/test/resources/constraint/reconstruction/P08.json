@@ -1,0 +1,13 @@
+{
+  "contextFqn": "VSADSSMINI_2020_1_LV95_Validierung_IPW_S2_20250123.VSADSSMini_Validierung.v_Knoten_inBetrieb",
+  "spec": {
+    "kind": "UNIQUE",
+    "name": "ReconstructedRule",
+    "scope": "GLOBAL",
+    "keyPaths": [
+      "Bezeichnung",
+      "DatenherrRef"
+    ],
+    "iliDoc": "In der Sicht der in Betrieb befindlichen Knoten muss die Kombination aus Bezeichnung und DatenherrRef eindeutig sein."
+  }
+}

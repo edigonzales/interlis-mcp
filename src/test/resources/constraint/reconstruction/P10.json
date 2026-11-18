@@ -1,0 +1,17 @@
+{
+  "contextFqn": "VSADSSMINI_2020_1_LV95_Validierung_IPW_S2_20250123.VSADSSMini_Validierung.v_Bauwerkskomponente",
+  "spec": {
+    "kind": "SET",
+    "name": "ReconstructedRule",
+    "scope": "GLOBAL",
+    "condition": {
+      "kind": "OBJECT_COUNT",
+      "objects": {
+        "kind": "ALL"
+      },
+      "operator": "==",
+      "threshold": 0
+    },
+    "iliDoc": "Die Sicht v_Bauwerkskomponente darf keine Objekte enthalten."
+  }
+}

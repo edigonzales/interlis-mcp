@@ -38,18 +38,11 @@ dependencies {
 }
 
 sourceSets {
-    benchmark {
-        compileClasspath += sourceSets.main.output + configurations.testRuntimeClasspath
-        runtimeClasspath += output + compileClasspath
-    }
     e2e {
         compileClasspath += sourceSets.main.output
         runtimeClasspath += sourceSets.main.output
     }
 }
-
-sourceSets.test.compileClasspath += sourceSets.benchmark.output
-sourceSets.test.runtimeClasspath += sourceSets.benchmark.output
 
 configurations {
     e2eImplementation.extendsFrom testImplementation
@@ -63,12 +56,6 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
-}
-
-tasks.named('test') {
-    inputs.dir('evals/constraint-reconstruction/v1/public')
-    inputs.dir('evals/constraint-reconstruction/v2')
-    inputs.dir('evals/constraint-authoring-workflow')
 }
 
 tasks.named('processResources') {
@@ -111,36 +98,4 @@ tasks.register('buildImage', Exec) {
     commandLine 'docker', 'build', '-f', 'docker/Dockerfile',
         '-t', "sogis/interlis-mcp:${serverVersion}", '-t', 'sogis/interlis-mcp:latest',
         '--build-arg', "IMAGE_VERSION=${serverVersion}", '--build-arg', "GIT_COMMIT=${commit}", '.'
-}
-
-tasks.register('benchmarkClasspath') {
-    dependsOn tasks.named('benchmarkClasses')
-    doLast {
-        def output = layout.buildDirectory.file('benchmark/classpath.txt').get().asFile
-        output.parentFile.mkdirs()
-        output.text = sourceSets.benchmark.runtimeClasspath.asPath
-    }
-}
-
-tasks.register('benchmarkCheck', Exec) {
-    description = 'Checks independent benchmark evidence and adversarial scoring fixtures.'
-    group = 'verification'
-    dependsOn tasks.named('test'), tasks.named('benchmarkClasspath')
-    commandLine 'python3', '-m', 'unittest', 'discover', '-s', 'evals/constraint-reconstruction/tools', '-p', 'test_benchmark.py', '-v'
-}
-
-tasks.register('constraintWorkflowCheck', Exec) {
-    description = 'Checks the separate prose-authoring workflow evidence scorer.'
-    group = 'verification'
-    commandLine 'python3', '-m', 'unittest', 'discover', '-s', 'evals/constraint-authoring-workflow/tools', '-p', 'test_score.py', '-v'
-}
-
-tasks.register('constraintWorkflowRecorderCheck', Exec) {
-    description = 'Checks lossless native workflow recording with mocked tools.'
-    group = 'verification'
-    commandLine 'node', 'evals/constraint-authoring-workflow/tools/test_native_recorder.cjs'
-}
-
-tasks.named('check') {
-    dependsOn tasks.benchmarkCheck, tasks.constraintWorkflowCheck, tasks.constraintWorkflowRecorderCheck
 }
