@@ -22,6 +22,7 @@ import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
 import java.io.StringWriter;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -140,20 +141,39 @@ class ConstraintReconstructionTest {
         .isEqualTo(removeAndRender(original, expected));
 
     switch (id) {
-      case "P02" -> assertSoilPh(after, target, context);
+      case "P02" -> assertSoilPh(after, target, context, original);
       case "P03" -> assertWeightRelationship(after, target, context);
       case "P04" -> assertDrainageProfile(after, target);
       case "P09" -> assertShootingRangeExistence(after, target);
     }
   }
 
-  private void assertSoilPh(String source, String target, String context) {
-    var cases = List.of(
-        soilCase(context, "Wald", 60, Map.of("Untertyp_E", "E5"), true),
-        soilCase(context, "Wald", 60, Map.of("Untertyp_E", "E1", "Unterboden", Map.of("Ph", 6.7)), true),
-        soilCase(context, "Wald", 60, Map.of("Untertyp_E", "E0", "Unterboden", Map.of("Ph", 6.7)), false),
-        soilCase(context, "Wald", 60, Map.of("Untertyp_E", "E0", "Unterboden", Map.of("Ph", 6.8)), true),
-        soilCase(context, "Wald", 60, Map.of("Untertyp_E", "E1", "Unterboden", Map.of("Ph", 6.8)), false));
+  private void assertSoilPh(String source, String target, String context, TransferDescription original) {
+    var ph = (AttributeDef) original.getElement(
+        "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Unterboden_Wald.Ph");
+    var domain = (NumericType) ph.getDomainResolvingAliases();
+    assertThat(domain.getMinimum().toString()).isEqualTo("0.0");
+    assertThat(domain.getMaximum().toString()).isEqualTo("10.0");
+    assertThat(domain.getMinimum().getAccuracy()).isEqualTo(1);
+    assertThat(domain.getMaximum().getAccuracy()).isEqualTo(1);
+
+    // Adjacent bands are separated by one representable pH increment (0.1).
+    int[][] ranges = {{68, 100}, {62, 67}, {51, 61}, {43, 50}, {33, 42}, {0, 32}};
+    var cases = new ArrayList<ConstraintTestTools.TestCase>();
+    cases.add(soilCase(context, "Wald", 60, Map.of("Untertyp_E", "E5"), true));
+    for (int band = 0; band < ranges.length; band++) {
+      var lower = Map.of("Ph", BigDecimal.valueOf(ranges[band][0], 1));
+      var upper = Map.of("Ph", BigDecimal.valueOf(ranges[band][1], 1));
+      String subtype = "E" + band;
+      cases.add(soilCase(context, "Wald", 60, Map.of("Untertyp_E", subtype, "Unterboden", lower), true));
+      cases.add(soilCase(context, "Wald", 60, Map.of("Untertyp_E", subtype, "Unterboden", upper), true));
+      if (band < ranges.length - 1) {
+        cases.add(soilCase(context, "Wald", 60, Map.of("Untertyp_E", "E" + (band + 1), "Unterboden", lower), false));
+      }
+      if (band > 0) {
+        cases.add(soilCase(context, "Wald", 60, Map.of("Untertyp_E", "E" + (band - 1), "Unterboden", upper), false));
+      }
+    }
     assertValidatorCases(source, target, cases);
   }
 
