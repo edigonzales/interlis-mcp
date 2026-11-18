@@ -248,6 +248,11 @@ Bestehende Verträge:
 
 Neue Orchestratoren sollten deshalb bevorzugt Methoden verwenden, die bereits kompilierte Kontexte akzeptieren, statt öffentliche Tools intern erneut mit demselben Text aufzurufen.
 
+**Bekannte ili2c-Einschränkung:** Bereits vor R1 wurde beobachtet, dass derselbe
+Prozess ein ungültiges Modell mit `INTERLIS.MissingSyntheticType` zuerst mit
+`valid=false` und bei Wiederholungen mit `valid=true` meldete. Die Einschränkung
+gilt weiterhin als offen. Ihre Korrektur liegt ausserhalb von R1.1.
+
 ## Source-preserving Änderungen erweitern
 
 Source-preserving bedeutet: Nur der beabsichtigte Quelltextbereich soll verändert werden.
