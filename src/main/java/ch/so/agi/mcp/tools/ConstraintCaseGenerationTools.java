@@ -1,6 +1,10 @@
 package ch.so.agi.mcp.tools;
 
 import ch.so.agi.mcp.model.ModelHashes;
+import ch.so.agi.mcp.model.IliAuthoringResult;
+import ch.so.agi.mcp.model.IliAuthoringResult.ConstraintProof;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofStatus;
+import ch.so.agi.mcp.constraint.ConstraintAnalysisService;
 import ch.so.agi.mcp.model.TestXtfOutput;
 import ch.interlis.ili2c.generator.Interlis2Generator;
 import ch.interlis.ili2c.metamodel.ExistenceConstraint;
@@ -46,7 +50,7 @@ public class ConstraintCaseGenerationTools {
 
   @McpTool(
       name = "generateIliConstraintCases",
-      description = "Erzeugt fuer INTERLIS Mandatory-, UNIQUE-, EXISTENCE-, PLAUSIBILITY- und SET-Constraints modellbewusste Witness-, Counterexample-, Boundary- und Scope-Faelle. Verwendet einen einmal kompilierten Constraint-Kontext fuer AST/semantische IR, Solver, Object-Graph-Synthese, TypedValueFixtureFactory, NavigationGraphSynthesizer und Validator-Fixtures. UNIQUE prueft GLOBAL/WHERE/(BASKET)/LOCAL sowie direkte REFERENCE-, STRUCTURE-/COMPOSITION- und Geometrieschlüssel. EXISTENCE prueft skalare, Struktur-, REFERENCE-, COORD-, Linien-, Flaechen- und Multigeometriewerte; Validatorgrenzen werden mit Safety-Reason-Codes zurückgehalten. PLAUSIBILITY erzeugt echte Populationen an der Prozentgrenze. SET unterstützt OBJECT_COUNT einschließlich objectCount(ALL), navigierte Objektmengen, boolesche Ausdrücke und Scope-Semantik, soweit alles materialisierbar ist. Alle freigegebenen Faelle sind vom realen ilivalidator bestätigt. evidence kennzeichnet automatisch abgeleitete Fälle; fachliche Anforderungstreue wird nicht behauptet.",
+      description = "Erzeugt fuer INTERLIS Mandatory-, UNIQUE-, EXISTENCE-, PLAUSIBILITY- und SET-Constraints modellbewusste Witness-, Counterexample-, Boundary- und Scope-Faelle. Verwendet einen einmal kompilierten Constraint-Kontext fuer AST/semantische IR, Solver, Object-Graph-Synthese, TypedValueFixtureFactory, NavigationGraphSynthesizer und Validator-Fixtures. UNIQUE prueft GLOBAL/WHERE/(BASKET)/LOCAL sowie direkte REFERENCE-, STRUCTURE-/COMPOSITION- und Geometrieschlüssel. EXISTENCE prueft skalare, Struktur-, REFERENCE-, COORD-, Linien-, Flaechen- und Multigeometriewerte; Validatorgrenzen werden mit Safety-Reason-Codes zurückgehalten. PLAUSIBILITY erzeugt echte Populationen an der Prozentgrenze. SET unterstützt OBJECT_COUNT einschließlich objectCount(ALL), navigierte Objektmengen, boolesche Ausdrücke und Scope-Semantik, soweit alles materialisierbar ist. Alle freigegebenen Faelle sind vom realen ilivalidator bestätigt. Die Fälle werden automatisch aus der Regel abgeleitet und prüfen endliche Coverage.",
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> generateIliConstraintCases(
@@ -66,25 +70,71 @@ public class ConstraintCaseGenerationTools {
         constraint,
         null,
         "ili2c_constraint_cases_");
-    if (!resolution.available()) {
-      return ch.so.agi.mcp.model.EvidenceSummary.generated(unavailable(
-          resolution.reasonCode() != null ? resolution.reasonCode() : "MODEL_OR_CONSTRAINT_REVIEW_UNAVAILABLE",
-          resolution.reason() != null ? resolution.reason() : "The constraint could not be resolved.",
-          null,
-          resolution.compilation().messages()), resolution.compilation().valid(), resolution.compilation().messages());
-    }
-    return generateCompiledConstraintCases(resolution.context());
+    Map<String, Object> result = resolution.available()
+        ? generateCompiledConstraintCases(resolution.context())
+        : unavailable(resolution.reasonCode(), resolution.reason(), null, List.of());
+    result.put("compilerValid", resolution.compilation().valid());
+    result.put("compilerMessages", resolution.compilation().messages());
+    return result;
   }
 
-  /**
-   * Internal entry point for callers that already own the compiled model and resolved constraint.
-   * No ili2c compilation is performed by this method.
-   */
-  public Map<String, Object> generateCompiledConstraintCases(CompiledConstraintContext context) {
-    Map<String, Object> result = new LinkedHashMap<>(generateCompiledCases(context));
-    result.put("explanation", new ch.so.agi.mcp.constraint.ConstraintAnalysisService()
-        .reviewCompiled(context.transferDescription(), context.constraintFqn()).get("explanation"));
-    return ch.so.agi.mcp.model.EvidenceSummary.generated(result, true, context.compilation().messages());
+  public ConstraintProof prove(String fqn, ConstraintContextService.Resolution resolution, boolean declaredExternal) {
+    if (declaredExternal) {
+      var proof = IliAuthoringResult.constraintProof(fqn, ProofStatus.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED, null);
+      proof.reasonCode = "EXTERNAL_FUNCTION_SEMANTICS_REQUIRED";
+      proof.reason = "Executable semantics for model-defined or validator-extension functions are unavailable.";
+      return proof;
+    }
+    if (!resolution.available()) {
+      var proof = IliAuthoringResult.constraintProof(fqn, ProofStatus.INCOMPLETE, null);
+      proof.reasonCode = resolution.reasonCode();
+      proof.reason = resolution.reason();
+      return proof;
+    }
+    Map<String, Object> generated;
+    try {
+      generated = generateCompiledConstraintCases(resolution.context());
+    } catch (IllegalArgumentException ex) {
+      var proof = IliAuthoringResult.constraintProof(fqn, ProofStatus.FAILED, null);
+      proof.reasonCode = "PROOF_EXECUTION_FAILED";
+      proof.reason = ex.getMessage();
+      return proof;
+    }
+    var proof = IliAuthoringResult.constraintProof(fqn, ProofStatus.INCOMPLETE, generated);
+    if ("EXTERNAL_FUNCTION_SEMANTICS_REQUIRED".equals(proof.reasonCode)) {
+      proof.status = ProofStatus.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED;
+    } else if (proof.verification != null && !proof.verification.cases.isEmpty()) {
+      var cases = proof.verification.cases;
+      if (cases.stream().anyMatch(test -> Boolean.FALSE.equals(test.fixtureValid)
+          || Boolean.TRUE.equals(test.constraintExercised) && !Boolean.TRUE.equals(test.passed))) {
+        proof.status = ProofStatus.FAILED;
+      } else if (Boolean.TRUE.equals(generated.get("generationVerified"))
+          && Boolean.TRUE.equals(proof.coverageComplete) && cases.stream().allMatch(test ->
+          Boolean.TRUE.equals(test.passed) && Boolean.TRUE.equals(test.fixtureValid)
+              && Boolean.TRUE.equals(test.constraintExercised))) {
+        proof.status = ProofStatus.PASSED;
+      }
+    }
+    if (proof.status == ProofStatus.INCOMPLETE && proof.reasonCode == null && !proof.coverageGaps.isEmpty()) {
+      var gap = proof.coverageGaps.getFirst();
+      proof.reasonCode = gap.reasonCode;
+      proof.reason = gap.reason;
+    }
+    return proof;
+  }
+
+  /** Reuses the compiled constraint and its AST for proof and explanation. */
+  private Map<String, Object> generateCompiledConstraintCases(CompiledConstraintContext context) {
+    var review = new ConstraintAnalysisService().reviewCompiled(context.transferDescription(), context.constraintFqn());
+    boolean external = ((List<?>) review.get("functions")).stream()
+        .map(Map.class::cast).anyMatch(function -> "MODEL_FUNCTION".equals(function.get("origin"))
+            && !"INTERLIS".equals(function.get("sourceModel")));
+    var result = external ? unavailable("EXTERNAL_FUNCTION_SEMANTICS_REQUIRED",
+        "Executable semantics for model-defined or validator-extension functions are unavailable.",
+        context, List.of()) : generateCompiledCases(context);
+    var response = new LinkedHashMap<>(result);
+    response.put("explanation", review.get("explanation"));
+    return response;
   }
 
   private Map<String, Object> generateCompiledCases(CompiledConstraintContext context) {

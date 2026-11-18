@@ -142,6 +142,42 @@ class ConstraintExistenceSpecialCaseGenerationTest {
   }
 
   @Test
+  void verifyKeepsSuccessfulProofAndReportsRealValidatorFailureForSecondConstraint() {
+    var compiler = new CountingCompiler();
+    var contexts = new ConstraintContextService(compiler);
+    var analysis = new ch.so.agi.mcp.analysis.ModelAnalysisTools(compiler);
+    var review = new ch.so.agi.mcp.analysis.ModelChangeReviewService(analysis,
+        new ch.so.agi.mcp.knowledge.ModelingRuleTools(new ch.so.agi.mcp.knowledge.KnowledgeRuleLoader(), analysis, compiler));
+    var authoring = new IliModelAuthoringTools(new ch.so.agi.mcp.model.IliSpecRenderer(new AttributeTools(), new DomainTools()),
+        compiler, contexts, new ConstraintCaseGenerationTools(contexts, new ConstraintTestTools(compiler)), review);
+    String source = REFERENCE_MODEL.replace("END Entity;", """
+        code : TEXT*10;
+        MANDATORY CONSTRAINT CodeDefined: DEFINED(code);
+        END Entity;
+        """);
+    var result = authoring.verifyIliModel(source, ch.so.agi.mcp.analysis.ModelPurpose.VALIDATION,
+        ch.so.agi.mcp.knowledge.ModelingRuleProfile.CORE);
+    assertThat(compiler.calls).isEqualTo(1);
+    assertThat(result.status).as("%s", result).isEqualTo(ch.so.agi.mcp.model.IliAuthoringResult.Status.PROOF_FAILED);
+    assertThat(result.updatedModelText).isNull();
+    assertThat(result.candidateModelText).isEqualTo(source);
+    assertThat(result.constraintProofs).hasSize(2).anySatisfy(proof -> {
+      assertThat(proof.constraintFqn).endsWith(".CodeDefined");
+      assertThat(proof.status).isEqualTo(ch.so.agi.mcp.model.IliAuthoringResult.ProofStatus.PASSED);
+    }).anySatisfy(proof -> {
+      assertThat(proof.constraintFqn).endsWith(".ReferenceExists");
+      assertThat(proof.status).isEqualTo(ch.so.agi.mcp.model.IliAuthoringResult.ProofStatus.FAILED);
+      assertThat(proof.reasonCode).isEqualTo("REFERENCE_EQUALITY_VALIDATOR_FAILURE");
+      assertThat(proof.coverageComplete).isTrue();
+      assertThat(proof.verification.cases).anySatisfy(test -> {
+        assertThat(test.passed).isFalse();
+        assertThat(test.xtfText).isNotBlank();
+        assertThat(test.messages).isNotEmpty();
+      });
+    });
+  }
+
+  @Test
   void coordExistenceUsesValueAwareValidatorConfirmedFixtures() {
     Map<String, Object> result = tools(new IliCompilerService()).generateIliConstraintCases(
         COORD_MODEL,

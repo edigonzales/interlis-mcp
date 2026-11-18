@@ -39,7 +39,7 @@ class ConstraintAuthoringContractRegressionTest {
           """.formatted(value), IliConstraintSpec.Mandatory.class);
       var result = engine.author(MODEL, "ContractDemo.Data.Item", spec, null, null);
       assertThat(result.status).as(mapper.writeValueAsString(result)).isEqualTo(IliAuthoringResult.Status.GENERATED);
-      assertThat(result.proofVerified).isTrue(); assertThat(result.specDiagnostics).isEmpty();
+      assertThat(result.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED)); assertThat(result.specDiagnostics).isEmpty();
       assertThat(spec.condition.children.get(1).value).isEqualTo(value);
       if (previous != null) {
         assertThat(result.updatedModelText).isEqualTo(previous.updatedModelText);
@@ -90,7 +90,11 @@ class ConstraintAuthoringContractRegressionTest {
     var error=catchThrowableOfType(() -> renderer.renderModel(model),SpecValidationException.class);
     assertThat(error.diagnostic().path()).isEqualTo("/spec/topics/0/classes/0/constraints/0/condition/objects");
     var compiler=new CountingCompiler();
-    var service=new IliModelChangesService(compiler,null,renderer);
+    var analysis = new ModelAnalysisTools(compiler);
+    var review = new ModelChangeReviewService(analysis, new ModelingRuleTools(new KnowledgeRuleLoader(), analysis, compiler));
+    var contexts = new ConstraintContextService(compiler);
+    var service = new IliModelChangesService(compiler, review, renderer, contexts,
+        new ConstraintCaseGenerationTools(contexts, new ConstraintTestTools(compiler)));
     var payload=new IliModelChangeRequest.AddConstraintChange(); payload.containerFqn="ContractDemo.Data.Item"; payload.constraint=invalid;
     var change=new IliModelChangeRequest(); change.setOperation(IliModelChangeOperation.ADD_CONSTRAINT); change.setAddConstraint(payload);
     var request=new IliModelChangesRequest(); request.changes=List.of(change);

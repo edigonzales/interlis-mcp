@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
-/** Output-only projection after evidence calculation. Only known verification case lists are touched. */
+/** Output-only projection after validation. Only known verification case lists are touched. */
 public final class TestXtfOutput {
   private TestXtfOutput() {}
   public static final String PARAMETER = "Standard true. false lässt nur XTF-Texte bestandener, ausgeübter Fälle mit gültiger Fixture und null Warnungen weg; alle Diagnosen bleiben erhalten.";
@@ -18,7 +18,7 @@ public final class TestXtfOutput {
 
   /** The typed result is a fresh public response; internal validator results are not modified. */
   public static IliAuthoringResult prepare(IliAuthoringResult result, @Nullable Boolean include) {
-    if (!Boolean.FALSE.equals(include)) return result;
+    if (!Boolean.FALSE.equals(include) || result.constraintProofs == null) return result;
     int omitted = 0;
     for (var proof : result.constraintProofs) {
       if (proof.verification == null) continue;

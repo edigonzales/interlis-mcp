@@ -71,13 +71,13 @@ Deshalb ist folgende Kombination möglich und sinnvoll:
 
 Die erzeugten Fälle sind dann verifiziert, aber ein zusätzlicher gewünschter Randfall konnte nicht sicher erzeugt werden. Ein Agent muss diese Grenze berichten und darf sie nicht als bewiesen darstellen.
 
-### `proofVerified`
+### Proof-Status je Constraint
 
-Typisierte Authoring-Tools liefern `proofVerified=true`, wenn der neu erzeugte Constraint seinen internen semantischen Roundtrip bestanden hat und die erzeugten Proof-Fälle vom Validator bestätigt wurden.
+Typisierte Authoring-Tools liefern `constraintProofs[].status = PASSED`, wenn der neu erzeugte Constraint seinen internen semantischen Roundtrip bestanden hat und die erzeugten Proof-Fälle vom Validator bestätigt wurden.
 
 Der Proof bezieht sich auf **diesen Constraint**. Die Authoring-Tools liefern zusätzlich den semantischen Vorher-/Nachher-Diff und `afterReview` aus denselben Compilations; für den unveränderten Resultattext ist kein zusätzlicher Review-Aufruf nötig.
 
-Die gemeinsamen Authoring-Resultate verwenden ein geschlossenes Status-Enum mit `GENERATED`, `APPLIED`, `BREAKING_CHANGE_REQUIRES_CONFIRMATION`, `NEEDS_INPUT`, `INVALID_SPEC`, `BEFORE_MODEL_INVALID`, `CANDIDATE_MODEL_INVALID`, `AST_ROUND_TRIP_FAILED`, `PROOF_INCOMPLETE`, `PROOF_FAILED`, `EXTERNAL_FUNCTION_SEMANTICS_REQUIRED` und `UNEXPECTED_SEMANTIC_CHANGE`. `updatedModelText` erscheint nur bei `GENERATED` beziehungsweise `APPLIED`; jeder kompilierbare, aber nicht freigegebene Stand erscheint ausschliesslich als `candidateModelText`.
+Die gemeinsamen Authoring-Resultate verwenden ein geschlossenes Status-Enum mit `VERIFIED`, `GENERATED`, `APPLIED`, `BREAKING_CHANGE_REQUIRES_CONFIRMATION`, `NEEDS_INPUT`, `INVALID_SPEC`, `BEFORE_MODEL_INVALID`, `CANDIDATE_MODEL_INVALID`, `AST_ROUND_TRIP_FAILED`, `PROOF_INCOMPLETE`, `PROOF_FAILED`, `EXTERNAL_FUNCTION_SEMANTICS_REQUIRED` und `UNEXPECTED_SEMANTIC_CHANGE`. `updatedModelText` erscheint nur bei `GENERATED` beziehungsweise `APPLIED`; jeder kompilierbare, aber nicht freigegebene Stand erscheint ausschliesslich als `candidateModelText`.
 
 ## Eingabevertrag und frühe Diagnosen
 
@@ -133,10 +133,6 @@ mit einem RFC-6901-JSON-Pointer gemeldet, auch innerhalb eingebetteter Modell- o
 ```json
 {
   "status": "INVALID_SPEC",
-  "reasonCode": "INVALID_SPEC",
-  "complete": false,
-  "generated": false,
-  "proofVerified": false,
   "specDiagnostics": [{
     "code": "INVALID_FIELD",
     "path": "/spec/condition/objects",
@@ -313,8 +309,8 @@ Beispiel-Payload:
 
 Bei Erfolg enthält das Resultat unter anderem:
 
-- `generated=true`
-- `proofVerified=true`
+- `status = GENERATED`
+- `constraintProofs[].status = PASSED`
 - `updatedModelText`
 - `sourceEdits`
 - `semanticDiff` und `afterReview`
@@ -330,7 +326,7 @@ Die gemeinsame Coverage-Planung für Mandatory, Decision Tables und boolesche SE
 
 `coverageExcludedCount` und `coverageExcludedGoals` führen nachweislich unerreichbare strukturelle Ziele separat auf. Jeder Ausschluss enthält `goal`, `reason`, `expression`, `reasonCode=PROVEN_UNREACHABLE` und `justification`. Die skalare Prüfung berücksichtigt vollständige Boolean-/Enum-Domänen, numerische Vergleichspartitionen und Optionalität entlang einwertiger Pfade. Eine ergänzende Definiertheitsabstraktion kann Widersprüche unter SUM und strikter ADD/SUB/MUL/DIV-Undefiniert-Fortpflanzung beweisen; sie berechnet keine numerischen Funktionswerte. Unbekannte Funktionssemantik und überschrittene Analysegrenzen liefern keinen Ausschluss.
 
-Ein erfolgloser endlicher Solver-Lauf ist kein Unerreichbarkeitsbeweis. Suchlimits, unbekannte Semantik und Fixture-Probleme bleiben Lücken. Globale Witness-/Counterexample-Ziele bleiben auch dann Pflicht, wenn sie unerreichbar sind. `coverageComplete=true` setzt alle anwendbaren Ziele voraus; `proofVerified=true` verlangt zusätzlich erzeugte und erfolgreich geprüfte Validatorfälle. P02 prüft diesen Ablauf mit unverändertem Constraint einschliesslich des Falls ohne pH-Wert.
+Ein erfolgloser endlicher Solver-Lauf ist kein Unerreichbarkeitsbeweis. Suchlimits, unbekannte Semantik und Fixture-Probleme bleiben Lücken. Globale Witness-/Counterexample-Ziele bleiben auch dann Pflicht, wenn sie unerreichbar sind. `coverageComplete=true` setzt alle anwendbaren Ziele voraus; `constraintProofs[].status = PASSED` verlangt zusätzlich erzeugte und erfolgreich geprüfte Validatorfälle. P02 prüft diesen Ablauf mit unverändertem Constraint einschliesslich des Falls ohne pH-Wert.
 
 ### Geordnete Auswertung und Validator-Grenze
 
@@ -525,8 +521,7 @@ Zusätzliche Resultatfelder:
 - `generatedCases[].ownerClassFqn` und `structurePath`: gewählte Einbettung.
 - `verification.cases[].subjectCount`, `constraintExercised`, `fixtureValid`,
   `fixtureErrors` und `fixturePreparationReasonCode`: auch im typisierten Authoring-Resultat.
-- Die typisierten Felder `expectedValid` und `actualValid` übernehmen ebenfalls die
-  entsprechenden `expectedConstraintValid`-/`actualConstraintValid`-Werte des Rohresultats.
+- `expectedConstraintValid`, `actualConstraintValid` und `targetViolationCount` dokumentieren die erwartete Gültigkeit und den Befund für die Zielregel.
 
 Bekannte Grenzen werden als strukturierte Proof-Resultate gemeldet:
 `STRUCTURE_OWNER_NOT_FOUND`, `STRUCTURE_PATH_UNSUPPORTED`,
@@ -750,7 +745,7 @@ Ein `PATH`-Objektset materialisiert Rollen, Referenzattribute und konkrete Compo
 }
 ```
 
-Das Resultat enthält bei Erfolg `proofVerified=true`, `updatedModelText` und den eingebetteten SET-Proof.
+Das Resultat enthält bei Erfolg `constraintProofs[].status = PASSED`, `updatedModelText` und den eingebetteten SET-Proof.
 
 ## Bewusste Grenzen
 
@@ -818,7 +813,7 @@ Für einen neuen typisiert unterstützten Constraint:
 ```text
 fachliche Regel
 -> passendes authorIli...Constraint
--> proofVerified=true prüfen
+-> Constraint-Proof mit Status PASSED prüfen
 -> coverageUnsolved/Safety-Codes berichten
 -> updatedModelText übernehmen
 -> Diff und afterReview aus demselben Aufruf prüfen
@@ -837,7 +832,7 @@ Für einen neuen UNIQUE-Constraint:
 
 ```text
 authorIliUniqueConstraint
--> proofVerified prüfen
+-> Status des Constraint-Proofs prüfen
 -> Diff und afterReview prüfen
 -> updatedModelText übernehmen
 ```
@@ -917,14 +912,13 @@ Fehlende optionale Verbindungen ergeben null Pfadvorkommen. Nicht auflösbare Re
 
 Nach Fixture-Ergänzung werden ursprüngliche kompilierte Zählausdrücke erneut gegen den Validator-Pool geprüft. `OBJECT_PATH_COUNT_MISMATCH` und `OBJECT_PATH_TOPOLOGY_MISMATCH` verhindern einen erfolgreichen Proof. `OBJECT_PATH_CONCRETE_ROUTE_UNAVAILABLE`, `OBJECT_PATH_STEP_BUDGET_EXCEEDED`, `OBJECT_PATH_ROUTE_BUDGET_EXCEEDED` und `OBJECT_PATH_FIXTURE_BUDGET_EXCEEDED` unterscheiden nicht unterstützte Routen und Budgets. Ungültige Zweifachverknüpfungen einer `{0..1}`-Rolle liefern `OBJECT_PATH_CARDINALITY_VIOLATION`; sonstige bekannte XTF-Schreibfehler `FIXTURE_XTF_SERIALIZATION_FAILED`.
 
-Ohne vollständige Coverage und verifizierten Witness sowie Counterexample bleiben `generated=false`, `proofVerified=false` und der Kandidat erhalten. `updatedModelText` wird nicht freigegeben. `elementCount` für Strukturzählungen, polymorphe Strukturtypwahl, neue View-Formen und ein Validator-Upgrade gehören nicht zu dieser Unterstützung.
+Bei fehlender Coverage oder fehlender Verifikation bleibt der Modelltext als `candidateModelText` erhalten. `elementCount` für Strukturzählungen, polymorphe Strukturtypwahl, neue View-Formen und ein Validator-Upgrade gehören nicht zu dieser Unterstützung.
 
 ## Ergänzende Nachweise und Constraint-Zusammenspiel
 
-`evidence` unterscheidet automatisch aus dem Constraint abgeleitete Tests von expliziten
-`CALLER_SUPPLIED_EXPECTATIONS`. Beide belegen nur ihren angegebenen Umfang; `businessAcceptance`
-bleibt `NOT_RUN`. Fachliche Grenzfälle können über das vorhandene `testIliConstraint` unabhängig
-vom automatischen Proof vorgegeben werden.
+Authoring und `generateIliConstraintCases` prüfen automatisch abgeleitete Fälle
+gegen den Validator. Für unabhängige fachliche Grenzfälle akzeptiert `testIliConstraint`
+explizit vorgegebene Erwartungen. `expectationSource` dokumentiert ihre angegebene Herkunft.
 
 Reviews und eingebettete `afterReview`-Ergebnisse enthalten `constraintInteractions`. Die gemeinsame
 skalare Partitionierung mit der Erreichbarkeitsprüfung berücksichtigt Domains, Präzision und

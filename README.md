@@ -12,7 +12,7 @@ Der Server unterstützt **STDIO** und **Streamable HTTP**. Lokale JAR-Aufrufe ve
 - Ergänzungen, Attributänderungen und Attributlöschungen als atomare, source-preserving Batches ausführen.
 - Lokale `.ili`-Modelle als Beispiele durchsuchen und vollständig lesen.
 - XTF-Beispieldaten erzeugen und im selben Aufruf mit ilivalidator prüfen; Erzeugung und Gültigkeit getrennt ausweisen.
-- Prüfnachweise über `evidence` einordnen und unterstützte skalare Mandatory-Regeln gemeinsam auf Widersprüche untersuchen.
+- Compilerdiagnosen und Validatorresultate einzeln einordnen und unterstützte skalare Mandatory-Regeln gemeinsam auf Widersprüche untersuchen.
 - INTERLIS-Constraints erklären, automatisch Testfälle erzeugen und mit dem echten ilivalidator verifizieren.
 - Pfade zu bekannten Modellelementen compilerbasiert finden, mit Kardinalitäten, Optionalität und Ausdrucksbausteinen für Constraints.
 - Alle fünf Constraint-Arten über diskriminierte Specs typisiert und source-preserving erstellen; unvollständige Proofs werden als Kandidat zurückgehalten.

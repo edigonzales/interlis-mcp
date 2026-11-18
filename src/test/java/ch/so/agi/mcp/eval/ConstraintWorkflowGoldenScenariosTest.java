@@ -114,8 +114,8 @@ class ConstraintWorkflowGoldenScenariosTest {
         ModelPurpose.CAPTURE,
         ModelingRuleProfile.CORE);
 
-    assertThat(authored.generated).isEqualTo(true);
-    assertThat(authored.proofVerified).isEqualTo(true);
+    assertThat(authored.status).isEqualTo(IliAuthoringResult.Status.GENERATED);
+    assertThat(authored.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
     assertThat(compiler.calls).isEqualTo(2);
     assertThat(authored.semanticDiff).isNotNull();
     assertThat(authored.afterReview).isNotNull();
@@ -146,7 +146,7 @@ class ConstraintWorkflowGoldenScenariosTest {
 
     assertThat(compiler.calls).isEqualTo(2);
     assertThat(result.status).isEqualTo(IliAuthoringResult.Status.GENERATED);
-    assertThat(result.proofVerified).isTrue();
+    assertThat(result.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
     assertThat(result.semanticDiff).isNotNull();
     assertThat(result.afterReview).isNotNull();
   }
@@ -164,7 +164,7 @@ class ConstraintWorkflowGoldenScenariosTest {
           ModelPurpose.CAPTURE, ModelingRuleProfile.CORE);
       assertThat(compiler.calls).as(spec.kind().name()).isEqualTo(2);
       assertThat(result.status).as("%s: %s", spec.kind(), result).isEqualTo(IliAuthoringResult.Status.GENERATED);
-      assertThat(result.proofVerified).isTrue();
+      assertThat(result.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
     }
   }
 
@@ -219,7 +219,7 @@ class ConstraintWorkflowGoldenScenariosTest {
     assertThat(result.status).isEqualTo(IliAuthoringResult.Status.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED);
     assertThat(result.updatedModelText).isNull();
     assertThat(result.candidateModelText).contains("ConstraintWorkflow.custom(value)");
-    assertThat(result.proofVerified).isFalse();
+    assertThat(result.updatedModelText).isNull();
   }
 
   @Test
@@ -257,7 +257,7 @@ class ConstraintWorkflowGoldenScenariosTest {
 
       assertThat(compiler.calls).as(spec.name).isEqualTo(2);
       assertThat(result.status).as(result.toString()).isEqualTo(IliAuthoringResult.Status.GENERATED);
-      assertThat(result.proofVerified).isTrue();
+      assertThat(result.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
       assertThat(result.updatedModelText)
           .contains("CONSTRAINTS OF ConstraintSetPath.Data.Main")
           .contains(spec.name);
@@ -293,10 +293,10 @@ class ConstraintWorkflowGoldenScenariosTest {
     assertThat(result.updatedModelText).contains("INTERLIS.objectCount(TargetRole) >= 1");
     assertThat(result.candidateModelText).isNull();
     assertThat(result.constraintProofs).singleElement().satisfies(proof -> {
-      assertThat(proof.proofVerified).isTrue();
+      assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED);
       assertThat(proof.coverageComplete).isTrue();
       assertThat(proof.generatedCases)
-          .extracting(candidate -> candidate.get("routeTargetFqn"))
+          .extracting(candidate -> candidate.routeTargetFqn)
           .contains(
               "ConstraintSetPolymorphic.Data.TargetA",
               "ConstraintSetPolymorphic.Data.TargetB");

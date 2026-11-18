@@ -65,8 +65,8 @@ class ConstraintDecisionTableSumTest {
         "SecondarySumBetween10And20",
         List.of(allowed));
 
-    assertEquals(true, result.generated, String.valueOf(result));
-    assertEquals(true, result.proofVerified, String.valueOf(result));
+    assertEquals(IliAuthoringResult.Status.GENERATED, result.status, String.valueOf(result));
+    assertEquals(IliAuthoringResult.ProofStatus.PASSED, result.constraintProofs.getFirst().status, String.valueOf(result));
     assertEquals(
         "(Math.sum(\"Nebenauspraegung->Gewichtung\") >= 10 AND Math.sum(\"Nebenauspraegung->Gewichtung\") <= 20)",
         result.details.get("constraintExpression"));
@@ -79,20 +79,20 @@ class ConstraintDecisionTableSumTest {
     assertCase(cases, "21", false);
 
     IliAuthoringResult.ProofCase empty = caseByPurpose(cases, "aggregate empty collection");
-    assertEquals(true, empty.get("expectedConstraintValid"));
-    assertEquals(1, ((Number) empty.get("objectCount")).intValue());
-    assertEquals(0, ((Number) empty.get("associationLinkCount")).intValue());
+    assertEquals(true, empty.expectedConstraintValid);
+    assertEquals(1, ((Number) empty.objectCount).intValue());
+    assertEquals(0, ((Number) empty.associationLinkCount).intValue());
 
     IliAuthoringResult.ProofCase maximum = caseByPurpose(
         cases, "aggregate maximum relevant cardinality 3");
-    assertEquals(4, ((Number) maximum.get("objectCount")).intValue());
-    assertEquals(3, ((Number) maximum.get("associationLinkCount")).intValue());
+    assertEquals(4, ((Number) maximum.objectCount).intValue());
+    assertEquals(3, ((Number) maximum.associationLinkCount).intValue());
 
     IliAuthoringResult.ProofVerification verification =
         result.constraintProofs.getFirst().verification;
-    assertEquals(7, verification.caseCount);
-    assertEquals(7, verification.passedCount);
-    assertEquals(true, verification.allPassed);
+    assertEquals(7, verification.cases.size());
+
+    assertTrue(verification.cases.stream().allMatch(c -> Boolean.TRUE.equals(c.passed)));
 
     String xtf = verification.cases.getFirst().xtfText;
     assertTrue(count(xtf, "<Bodeneinheit REF=\"auto_case_1_root\"") >= 1, xtf);
@@ -108,19 +108,19 @@ class ConstraintDecisionTableSumTest {
             "sum 150",
             sumCondition("Nebenauspraegung->Gewichtung", "==", 150))));
 
-    assertEquals(true, result.generated, String.valueOf(result));
-    assertEquals(true, result.proofVerified, String.valueOf(result));
+    assertEquals(IliAuthoringResult.Status.GENERATED, result.status, String.valueOf(result));
+    assertEquals(IliAuthoringResult.ProofStatus.PASSED, result.constraintProofs.getFirst().status, String.valueOf(result));
     assertEquals("Math.sum(\"Nebenauspraegung->Gewichtung\") == 150",
         result.details.get("constraintExpression"));
 
     List<IliAuthoringResult.ProofCase> cases = result.constraintProofs.getFirst().generatedCases;
     assertCase(cases, "150", true);
     assertCase(cases, "149", false);
-    assertEquals(true, caseByPurpose(cases, "aggregate empty collection").get("expectedConstraintValid"));
+    assertEquals(true, caseByPurpose(cases, "aggregate empty collection").expectedConstraintValid);
     assertEquals(3, ((Number) caseByPurpose(
-        cases, "aggregate maximum relevant cardinality 3").get("associationLinkCount")).intValue());
+        cases, "aggregate maximum relevant cardinality 3").associationLinkCount).intValue());
 
-    assertEquals(true, result.constraintProofs.getFirst().verification.allPassed);
+    assertTrue(result.constraintProofs.getFirst().verification.cases.stream().allMatch(c -> Boolean.TRUE.equals(c.passed)));
   }
 
   private ConstraintDecisionTableTools.DecisionRow row(
@@ -150,17 +150,17 @@ class ConstraintDecisionTableSumTest {
       boolean expectedValid) {
     IliAuthoringResult.ProofCase match = cases.stream()
         .filter(item -> expectedValue.equals(String.valueOf(
-            map(item.get("values")).get("Nebenauspraegung->Gewichtung"))))
+            map(item.values).get("Nebenauspraegung->Gewichtung"))))
         .findFirst()
         .orElseThrow(() -> new AssertionError("Missing SUM boundary value " + expectedValue + ": " + cases));
-    assertEquals(expectedValid, match.get("expectedConstraintValid"));
+    assertEquals(expectedValid, match.expectedConstraintValid);
   }
 
   private IliAuthoringResult.ProofCase caseByPurpose(
       List<IliAuthoringResult.ProofCase> cases,
       String purpose) {
     return cases.stream()
-        .filter(item -> purpose.equals(item.get("purpose"))
+        .filter(item -> purpose.equals(item.purpose)
             || item.coveredGoals.stream().anyMatch(goal -> purpose.equals(goal.reason)))
         .findFirst()
         .orElseThrow(() -> new AssertionError("Missing coverage case '" + purpose + "': " + cases));

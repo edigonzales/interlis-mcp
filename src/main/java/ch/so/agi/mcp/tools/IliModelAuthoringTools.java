@@ -7,15 +7,14 @@ import ch.so.agi.mcp.analysis.ModelPurpose;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
 import ch.so.agi.mcp.model.IliAuthoringResult;
+import ch.so.agi.mcp.model.IliAuthoringResult.Status;
 import ch.so.agi.mcp.model.SpecValidationException;
-import ch.so.agi.mcp.model.IliConstraintSpec;
 import ch.so.agi.mcp.model.IliModelSpec;
 import ch.so.agi.mcp.model.IliSpecRenderer;
 import ch.so.agi.mcp.service.IliCompilerService;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
@@ -75,52 +74,16 @@ public final class IliModelAuthoringTools {
       @McpToolParam(description = "Modellzweck", required = false) @Nullable ModelPurpose modelPurpose,
       @McpToolParam(description = "Regelprofil", required = false) @Nullable ModelingRuleProfile ruleProfile) {
     var compilation = compilerService.compile(modelText, null, "ili2c_verify_model_");
-    if (!compilation.valid() || compilation.transferDescription() == null)
-      return ModelHashes.attach(failure("CANDIDATE_MODEL_INVALID", "Model did not compile.", modelText, compilation.messages()), modelText);
-    var constraints = new ArrayList<String>();
-    for (var model : compilation.transferDescription().getModelsFromLastFile()) collectConstraintNames(model, constraints);
-    if (new java.util.HashSet<>(constraints).size() != constraints.size())
-      return ModelHashes.attach(failure("INVALID_SPEC", "DUPLICATE_CONSTRAINT_NAME", modelText, compilation.messages()), modelText);
-    var proofs = new ArrayList<IliAuthoringResult.ConstraintProof>();
-    for (String fqn : constraints) {
-      var resolution = constraintContextService.resolveCompiled(modelText, fqn, null, compilation);
-      if (!resolution.available()) {
-        var proof = IliAuthoringResult.constraintProof(fqn, false, null);
-        proof.reasonCode = resolution.reasonCode();
-        proof.reason = resolution.reason();
-        proofs.add(proof);
-      } else {
-        var proof = caseGenerationTools.generateCompiledConstraintCases(resolution.context());
-        proofs.add(IliAuthoringResult.constraintProof(fqn,
-            Boolean.TRUE.equals(proof.get("generationVerified")) && Boolean.TRUE.equals(proof.get("coverageComplete")), proof));
-      }
-    }
-    var review = reviewService.reviewCompiledModel(compilation, modelText, ModelPurpose.normalize(modelPurpose), ModelingRuleProfile.normalize(ruleProfile));
     var result = new IliAuthoringResult();
-    result.afterReview = IliAuthoringResult.modelReview(review);
-    result.compilerDiagnostics = IliAuthoringResult.diagnostics(compilation.messages());
-    result.afterDiagnostics = result.compilerDiagnostics;
-    result.constraintProofs = List.copyOf(proofs);
-    result.proofVerified = proofs.stream().allMatch(p -> Boolean.TRUE.equals(p.proofVerified));
-    result.openQuestions = result.afterReview.openQuestions;
-    result.requiresUserDecision = !result.openQuestions.isEmpty();
-    result.complete = result.proofVerified && Boolean.TRUE.equals(review.get("validForAutomatedRules")) && !result.requiresUserDecision;
-    result.status = result.complete ? IliAuthoringResult.Status.VERIFIED : IliAuthoringResult.Status.PROOF_INCOMPLETE;
-    if (result.complete) result.updatedModelText = modelText;
-    else {
-      result.candidateModelText = modelText;
-      result.reasonCode = "PROOF_INCOMPLETE";
-      result.reason = "Compiler, modeling rules or declared constraint proofs are incomplete; model bytes are unchanged.";
+    result.modelHashes = ModelHashes.model(modelText);
+    result.afterCompilation = IliAuthoringResult.Compilation.from(compilation);
+    if (!result.afterCompilation.valid()) {
+      return result.reject(Status.CANDIDATE_MODEL_INVALID, "Model did not compile.", modelText);
     }
-    return ModelHashes.attach(result.withEvidence("ALL_DECLARED_CONSTRAINTS"), modelText);
-  }
-
-  private static void collectConstraintNames(ch.interlis.ili2c.metamodel.Container<?> container, List<String> names) {
-    for (var iterator = container.iterator(); iterator.hasNext();) {
-      Object child = iterator.next();
-      if (child instanceof ch.interlis.ili2c.metamodel.Constraint constraint) names.add(constraint.getScopedName());
-      else if (child instanceof ch.interlis.ili2c.metamodel.Container<?> nested) collectConstraintNames(nested, names);
+    if (reviewAndProve(result, modelText, compilation, modelPurpose, ruleProfile, Set.of())) {
+      result.status = Status.VERIFIED;
     }
+    return result;
   }
 
   private IliAuthoringResult authorIliModelFull(IliModelSpec spec, @Nullable ModelPurpose modelPurpose, @Nullable ModelingRuleProfile ruleProfile) {
@@ -129,226 +92,64 @@ public final class IliModelAuthoringTools {
       rendered = renderer.forProfile(ruleProfile).renderModel(spec);
     } catch (IllegalArgumentException ex) {
       return SpecValidationException.attach(
-          failure("INVALID_SPEC", ex.getMessage(), null, List.of()), ex);
+          new IliAuthoringResult().reject(Status.INVALID_SPEC, ex.getMessage(), null), ex);
     }
 
     IliCompilerService.CompilationResult compilation = compilerService.compile(
         rendered.modelText(), null, "ili2c_author_model_");
-    if (!compilation.valid() || compilation.transferDescription() == null) {
-      return failure(
-          "CANDIDATE_MODEL_INVALID",
-          "The typed model candidate did not compile.",
-          rendered.modelText(),
-          compilation.messages(),
-          rendered.derivedImports());
+    var result = new IliAuthoringResult();
+    result.afterCompilation = IliAuthoringResult.Compilation.from(compilation);
+    result.derivedImports = rendered.derivedImports();
+    if (!result.afterCompilation.valid()) {
+      return result.reject(Status.CANDIDATE_MODEL_INVALID, "The typed model candidate did not compile.", rendered.modelText());
     }
 
     String astText;
     try {
       astText = compilerService.generateModelsFromLastFile(compilation.transferDescription());
       if (astText == null || astText.isBlank() || !astText.contains("MODEL " + spec.name.trim())) {
-        return failure(
-            "AST_ROUND_TRIP_FAILED",
-            "ili2c could not regenerate the submitted model from its AST.",
-            rendered.modelText(), compilation.messages(), rendered.derivedImports());
+        return result.reject(Status.AST_ROUND_TRIP_FAILED,
+            "ili2c could not regenerate the submitted model from its AST.", rendered.modelText());
       }
     } catch (RuntimeException ex) {
-      return failure(
-          "AST_ROUND_TRIP_FAILED", ex.getMessage(), rendered.modelText(),
-          compilation.messages(), rendered.derivedImports());
+      return result.reject(Status.AST_ROUND_TRIP_FAILED, ex.getMessage(), rendered.modelText());
     }
 
-    Map<String, IliConstraintSpec> authoredConstraints = constraintSpecs(spec);
-    boolean hasExternalFunctions = authoredConstraints.values().stream()
-        .anyMatch(IliConstraintSpec::hasExternalFunctionSemantics);
-    List<IliAuthoringResult.ConstraintProof> proofs = new ArrayList<>();
-    boolean proofsVerified = true;
-    for (String constraintFqn : constraintFqns(spec)) {
-      if (authoredConstraints.get(constraintFqn).hasExternalFunctionSemantics()) {
-        IliAuthoringResult.ConstraintProof proofEntry = IliAuthoringResult.constraintProof(
-            constraintFqn, false, null);
-        proofEntry.reasonCode = "EXTERNAL_FUNCTION_SEMANTICS_REQUIRED";
-        proofEntry.reason = "External function semantics cannot be proved from an INTERLIS declaration.";
-        proofs.add(proofEntry);
-        proofsVerified = false;
-        continue;
-      }
-      ConstraintContextService.Resolution resolution = constraintContextService.resolveCompiled(
-          rendered.modelText(), constraintFqn, null, compilation);
-      if (!resolution.available()) {
-        IliAuthoringResult.ConstraintProof proofEntry = IliAuthoringResult.constraintProof(
-            constraintFqn, false, null);
-        proofEntry.reasonCode = resolution.reasonCode();
-        proofEntry.reason = resolution.reason();
-        proofs.add(proofEntry);
-        proofsVerified = false;
-      } else {
-        Map<String, Object> proof = caseGenerationTools.generateCompiledConstraintCases(
-            resolution.context());
-        boolean verified = Boolean.TRUE.equals(proof.get("generationVerified"))
-            && Boolean.TRUE.equals(proof.get("coverageComplete"));
-        proofs.add(IliAuthoringResult.constraintProof(constraintFqn, verified, proof));
-        proofsVerified &= verified;
-      }
+    result.semanticDiff = new IliAuthoringResult.SemanticDiff();
+    result.semanticDiff.kind = "NEW_MODEL";
+    result.semanticDiff.modelName = spec.name.trim();
+    result.details = Map.of("astGeneratedModelText", astText);
+    Set<String> externalConstraints = new HashSet<>();
+    if (spec.topics != null) spec.topics.forEach(topic -> topic.collectExternalConstraints(spec.name.trim(), externalConstraints));
+    if (!reviewAndProve(result, rendered.modelText(), compilation, modelPurpose, ruleProfile, externalConstraints)) return result;
+    return result.release(Status.GENERATED, rendered.modelText());
+  }
+
+  private boolean reviewAndProve(IliAuthoringResult result, String modelText,
+      IliCompilerService.CompilationResult compilation, @Nullable ModelPurpose purpose,
+      @Nullable ModelingRuleProfile profile, Set<String> externalConstraints) {
+    var constraints = ConstraintContextService.declaredConstraintNames(compilation.transferDescription());
+    var review = reviewService.reviewCompiledModel(compilation, modelText,
+        ModelPurpose.normalize(purpose), ModelingRuleProfile.normalize(profile));
+    result.attachReview(review, true);
+    if (new HashSet<>(constraints).size() != constraints.size()) {
+      result.reasonCode = "DUPLICATE_CONSTRAINT_NAME";
+      result.reject(Status.INVALID_SPEC, "Declared constraint names must be unique.", modelText);
+      return false;
     }
-
-    ModelPurpose purpose = ModelPurpose.normalize(modelPurpose);
-    ModelingRuleProfile profile = ModelingRuleProfile.normalize(ruleProfile);
-    Map<String, Object> afterReview = reviewService.reviewCompiledModel(
-        compilation, rendered.modelText(), purpose, profile);
-
-    IliAuthoringResult result = new IliAuthoringResult();
-    result.generated = proofsVerified;
-    result.complete = proofsVerified;
-    result.status = proofsVerified
-        ? IliAuthoringResult.Status.GENERATED
-        : IliAuthoringResult.Status.PROOF_FAILED;
-    result.compilerDiagnostics = IliAuthoringResult.diagnostics(compilation.messages());
-    result.afterDiagnostics = IliAuthoringResult.diagnostics(compilation.messages());
-    result.derivedImports = rendered.derivedImports();
-    result.constraintProofs = List.copyOf(proofs);
-    result.proofVerified = proofsVerified;
-    result.afterReview = IliAuthoringResult.modelReview(afterReview);
-    result.openQuestions = result.afterReview == null
-        ? List.of() : result.afterReview.openQuestions;
-    result.requiresUserDecision = !result.openQuestions.isEmpty();
-    result.semanticDiff = IliAuthoringResult.semanticDiff(Map.of(
-        "kind", "NEW_MODEL",
-        "modelName", spec.name.trim(),
-        "astRoundTripVerified", true));
-    result.details = Map.of(
-        "compileCount", 1,
-        "astRoundTripVerified", true,
-        "astGeneratedModelText", astText);
-    boolean reviewValid = !Boolean.FALSE.equals(afterReview.get("validForAutomatedRules"));
-    if (proofsVerified && reviewValid && !result.requiresUserDecision) {
-      result.updatedModelText = rendered.modelText();
-    } else {
-      result.candidateModelText = rendered.modelText();
-      result.generated = false;
-      result.complete = false;
-      if (hasExternalFunctions) {
-        result.status = IliAuthoringResult.Status.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED;
-        result.reasonCode = "EXTERNAL_FUNCTION_SEMANTICS_REQUIRED";
-        result.reason = "At least one constraint uses a model-defined or validator-extension function whose executable semantics are unavailable.";
-        result.requiresUserDecision = true;
-        result.openQuestions = List.of(IliAuthoringResult.openQuestion(
-            "Provide independently verified validator cases for every external function."));
-      } else if (!proofsVerified) {
-        boolean incomplete = proofs.stream().anyMatch(
-            proof -> !Boolean.TRUE.equals(proof.coverageComplete));
-        result.status = incomplete
-            ? IliAuthoringResult.Status.PROOF_INCOMPLETE
-            : IliAuthoringResult.Status.PROOF_FAILED;
-        result.reasonCode = result.status.name();
-        result.reason = "At least one compiled constraint could not be fully proved.";
-      } else if (!reviewValid) {
-        result.status = IliAuthoringResult.Status.NEEDS_INPUT;
-        result.reasonCode = "NEEDS_INPUT";
-        result.reason = "The final automated modeling review contains blocking findings.";
-      } else {
-        result.status = IliAuthoringResult.Status.NEEDS_INPUT;
-        result.reasonCode = "NEEDS_INPUT";
-        result.reason = "The final review requires an explicit user decision.";
-      }
+    var proofs = constraints.stream().map(fqn -> caseGenerationTools.prove(fqn,
+        constraintContextService.resolveCompiled(modelText, fqn, null, compilation), externalConstraints.contains(fqn))).toList();
+    if (result.rejectFailedProof(proofs, modelText)) return false;
+    if (!result.openQuestions.isEmpty()) {
+      result.reasonCode = "MODEL_PURPOSE_REQUIRED";
+      result.reject(Status.NEEDS_INPUT, "The model review requires an explicit model purpose.", modelText);
+      return false;
     }
-    return result.withEvidence("ALL_DECLARED_CONSTRAINTS");
-  }
-
-  private List<String> constraintFqns(IliModelSpec spec) {
-    List<String> result = new ArrayList<>();
-    for (IliModelSpec.TopicSpec topic : safe(spec.topics)) {
-      String topicFqn = spec.name.trim() + "." + topic.name.trim();
-      for (IliModelSpec.StructureSpec structure : safe(topic.structures)) {
-        addConstraintFqns(result, topicFqn + "." + structure.name.trim(), structure.constraints);
-      }
-      for (IliModelSpec.ClassSpec clazz : safe(topic.classes)) {
-        addConstraintFqns(result, topicFqn + "." + clazz.name.trim(), clazz.constraints);
-      }
-      for (IliModelSpec.AssociationSpec association : safe(topic.associations)) {
-        addConstraintFqns(result, topicFqn + "." + association.name.trim(), association.constraints);
-      }
+    if (!Boolean.TRUE.equals(result.afterReview.validForAutomatedRules)) {
+      result.reasonCode = "MODELING_RULE_ERRORS";
+      result.reject(Status.NEEDS_INPUT, "The model review has blocking automated rule findings.", modelText);
+      return false;
     }
-    return List.copyOf(result);
-  }
-
-  private Map<String, IliConstraintSpec> constraintSpecs(IliModelSpec spec) {
-    Map<String, IliConstraintSpec> result = new LinkedHashMap<>();
-    for (IliModelSpec.TopicSpec topic : safe(spec.topics)) {
-      String topicFqn = spec.name.trim() + "." + topic.name.trim();
-      for (IliModelSpec.StructureSpec structure : safe(topic.structures)) {
-        addConstraintSpecs(result, topicFqn + "." + structure.name.trim(), structure.constraints);
-      }
-      for (IliModelSpec.ClassSpec clazz : safe(topic.classes)) {
-        addConstraintSpecs(result, topicFqn + "." + clazz.name.trim(), clazz.constraints);
-      }
-      for (IliModelSpec.AssociationSpec association : safe(topic.associations)) {
-        addConstraintSpecs(result, topicFqn + "." + association.name.trim(), association.constraints);
-      }
-    }
-    return Map.copyOf(result);
-  }
-
-  private void addConstraintSpecs(
-      Map<String, IliConstraintSpec> result,
-      String context,
-      @Nullable List<IliConstraintSpec> constraints) {
-    for (IliConstraintSpec constraint : safe(constraints)) {
-      result.put(context + "." + constraint.name.trim(), constraint);
-    }
-  }
-
-  private void addConstraintFqns(
-      List<String> result,
-      String context,
-      @Nullable List<IliConstraintSpec> constraints) {
-    for (IliConstraintSpec constraint : safe(constraints)) {
-      result.add(context + "." + constraint.name.trim());
-    }
-  }
-
-  private <T> List<T> safe(@Nullable List<T> value) {
-    return value == null ? List.of() : value;
-  }
-
-  private List<String> reviewQuestions(@Nullable Object value) {
-    if (!(value instanceof List<?> list)) return List.of();
-    List<String> result = new ArrayList<>();
-    for (Object item : list) {
-      if (item instanceof Map<?, ?> map && map.get("question") != null) {
-        result.add(String.valueOf(map.get("question")));
-      } else if (item != null) {
-        result.add(String.valueOf(item));
-      }
-    }
-    return List.copyOf(result);
-  }
-
-  private IliAuthoringResult failure(
-      String status,
-      @Nullable String reason,
-      @Nullable String candidate,
-      List<Map<String, Object>> diagnostics) {
-    return failure(status, reason, candidate, diagnostics, List.of());
-  }
-
-  private IliAuthoringResult failure(
-      String status,
-      @Nullable String reason,
-      @Nullable String candidate,
-      List<Map<String, Object>> diagnostics,
-      List<String> derivedImports) {
-    IliAuthoringResult result = new IliAuthoringResult();
-    result.status = IliAuthoringResult.Status.valueOf(status);
-    result.complete = false;
-    result.generated = false;
-    result.proofVerified = false;
-    result.reasonCode = status;
-    result.reason = reason == null ? "" : reason;
-    result.candidateModelText = candidate;
-    result.compilerDiagnostics = IliAuthoringResult.diagnostics(diagnostics);
-    result.afterDiagnostics = IliAuthoringResult.diagnostics(diagnostics);
-    result.derivedImports = derivedImports;
-    return result.withEvidence("ALL_DECLARED_CONSTRAINTS");
+    return true;
   }
 }

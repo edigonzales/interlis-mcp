@@ -81,24 +81,24 @@ class ConstraintReconstructionTest {
 
     String after;
     if (id.startsWith("N")) {
-      assertThat(result).containsEntry("status", "EXTERNAL_FUNCTION_SEMANTICS_REQUIRED")
-          .containsEntry("reasonCode", "EXTERNAL_FUNCTION_SEMANTICS_REQUIRED")
-          .containsEntry("proofVerified", false).containsEntry("generated", false);
+      assertThat(result).containsEntry("status", "EXTERNAL_FUNCTION_SEMANTICS_REQUIRED");
       assertThat(result.get("updatedModelText")).isNull();
-      assertThat((List<?>) result.get("constraintProofs")).isEmpty();
+      var proof = mapper.valueToTree(result.get("constraintProofs")).get(0);
+      assertThat(proof.path("status").asText()).isEqualTo("EXTERNAL_FUNCTION_SEMANTICS_REQUIRED");
+      assertThat(proof.has("verification")).isFalse();
       after = (String) result.get("candidateModelText");
     } else {
-      assertThat(result).containsEntry("status", "GENERATED")
-          .containsEntry("proofVerified", true).containsEntry("generated", true);
+      assertThat(result).containsEntry("status", "GENERATED");
       after = (String) result.get("updatedModelText");
       var proof = mapper.valueToTree(result.get("constraintProofs")).get(0);
+      assertThat(proof.path("status").asText()).isEqualTo("PASSED");
       var cases = proof.path("verification").path("cases");
       assertThat(cases).isNotEmpty().allSatisfy(test -> {
         assertThat(test.path("constraintExercised").asBoolean()).as(test.toString()).isTrue();
         assertThat(test.path("fixtureValid").asBoolean()).as(test.toString()).isTrue();
         assertThat(test.path("fixtureErrors").isEmpty()).as(test.toString()).isTrue();
         assertThat(test.path("passed").asBoolean()).as(test.toString()).isTrue();
-      }).anySatisfy(test -> assertThat(test.path("actualValid").asBoolean(true)).isFalse());
+      }).anySatisfy(test -> assertThat(test.path("actualConstraintValid").asBoolean(true)).isFalse());
     }
 
     assertThat(after).isNotBlank();

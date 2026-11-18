@@ -62,7 +62,7 @@ public class KnowledgeResources {
         3. Fuer ein neues Modell `authorIliModel`, fuer einen bestehenden Stand den atomaren Batch `applyIliModelChanges` verwenden.
         4. Ein erfolgreiches `APPLIED`-Resultat von `applyIliModelChanges` enthaelt den semantischen Diff und `afterReview` als
           Abschlussgate. Fuer denselben unveraenderten Nachher-Stand nicht zusaetzlich `reviewIliChange` oder `reviewIliModel` ausfuehren.
-        5. Fuer einen neuen Constraint verwende das hoechste passende Authoring-Tool. Ein erfolgreiches `proofVerified=true`
+        5. Fuer einen neuen Constraint verwende das hoechste passende Authoring-Tool. Ein erfolgreiches `constraintProofs[].status = PASSED`
            ist das technische Constraint-Gate; fuer denselben unveraenderten Constraint folgt kein redundanter Validator-Durchlauf.
         6. Constraint-Authoring liefert Diff und `afterReview` aus denselben Compilations; kein redundantes Abschlussreview.
         7. Fuer noch nicht unterstuetzte sonstige Aenderungen bearbeite den Modelltext gezielt und vergleiche Vorher und Nachher mit `reviewIliChange`.
@@ -112,7 +112,7 @@ public class KnowledgeResources {
           `UNDEFINED_COUNTS_AS_SUCCESS` verifizieren.
         - SET authoren: `authorIliSetConstraint` fuer `OBJECT_COUNT` ueber `ALL` oder einen navigierten Objektpfad sowie `BOOLEAN_EXPRESSION`, optionales WHERE und GLOBAL/BASKET.
         - UNIQUE authoren: `authorIliUniqueConstraint` fuer GLOBAL/BASKET/LOCAL, mehrere Schluesselpfade, WHERE und LOCAL-Praefix.
-        - `proofVerified=true` bzw. `generationVerified=true` bedeutet, dass alle erzeugten Proof-Faelle vom echten
+        - `constraintProofs[].status = PASSED` bzw. `generationVerified=true` bedeutet, dass alle erzeugten Proof-Faelle vom echten
           ilivalidator mit dem erwarteten Resultat bestaetigt wurden. `coverageComplete=false` kann trotzdem verbleibende
           sichere Coverage-Grenzen anzeigen.
         - Safety-Grenzen nicht approximieren. `REFERENCE_EQUALITY_VALIDATOR_FAILURE`, `GEOMETRY_EQUALITY_VALIDATOR_FAILURE`
@@ -164,11 +164,11 @@ public class KnowledgeResources {
 
         | Art | Bevorzugtes Authoring | Proof |
         | --- | --- | --- |
-        | MANDATORY | `authorIliMandatoryConstraint` | im Authoring enthalten (`proofVerified`) |
-        | UNIQUE | `authorIliUniqueConstraint` | im Authoring enthalten (`proofVerified`) |
-        | EXISTENCE | `authorIliExistenceConstraint` | im Authoring enthalten (`proofVerified`) |
-        | PLAUSIBILITY | `authorIliPlausibilityConstraint` | im Authoring enthalten (`proofVerified`) |
-        | SET | `authorIliSetConstraint` fuer `OBJECT_COUNT` oder `BOOLEAN_EXPRESSION` | im Authoring enthalten (`proofVerified`) |
+        | MANDATORY | `authorIliMandatoryConstraint` | im Authoring enthalten (`constraintProofs`) |
+        | UNIQUE | `authorIliUniqueConstraint` | im Authoring enthalten (`constraintProofs`) |
+        | EXISTENCE | `authorIliExistenceConstraint` | im Authoring enthalten (`constraintProofs`) |
+        | PLAUSIBILITY | `authorIliPlausibilityConstraint` | im Authoring enthalten (`constraintProofs`) |
+        | SET | `authorIliSetConstraint` fuer `OBJECT_COUNT` oder `BOOLEAN_EXPRESSION` | im Authoring enthalten (`constraintProofs`) |
 
         Freie Mandatory-/Existence-/Set-Snippet-Helper sind nicht Teil der MCP-Oberflaeche. Wenn ein typed Authoring einen Fall
         nicht ausdruecken kann, bearbeitet der Agent den Modelltext gezielt und schliesst mit dem passenden Review und Proof ab.

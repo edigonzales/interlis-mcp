@@ -112,7 +112,7 @@ class ConstraintOrderedSemanticsTest {
           MODEL.formatted(version, ""), "Ordered.Data.Item", spec, null, null);
       assertThat(calls.get()).isEqualTo(2);
       assertThat(result.status).as(result.toString()).isEqualTo(IliAuthoringResult.Status.GENERATED);
-      assertThat(result.proofVerified).isTrue();
+      assertThat(result.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
       assertThat(result.updatedModelText).contains("NOT(", " OR ").doesNotContain(" IMPLIES ", "=>");
       assertThat(result.constraintProofs.getFirst().coverageComplete).isTrue();
       var ir = new Not(new Implies(A, new Implies(B, C)));
@@ -132,7 +132,7 @@ class ConstraintOrderedSemanticsTest {
     assertThat(blocked.get("reasonCode")).isEqualTo(ConstraintValidatorCompatibility.NATIVE_IMPLICATION);
     assertThat(blocked.get("generationVerified")).isEqualTo(false);
     assertThat(blocked.get("coverageComplete")).isEqualTo(false);
-    var typed = IliAuthoringResult.constraintProof("Ordered.Data.Item.Rule", false, blocked);
+    var typed = IliAuthoringResult.constraintProof("Ordered.Data.Item.Rule", IliAuthoringResult.ProofStatus.INCOMPLETE, blocked);
     assertThat(typed.reasonCode).isEqualTo(ConstraintValidatorCompatibility.NATIVE_IMPLICATION);
     var test = new ConstraintTestTools.TestCase(); test.name = "false antecedent"; test.expectedConstraintValid = false;
     var object = new ConstraintTestTools.TestObject(); object.classFqn = "Ordered.Data.Item";

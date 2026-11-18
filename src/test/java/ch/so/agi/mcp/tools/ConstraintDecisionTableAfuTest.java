@@ -78,8 +78,8 @@ class ConstraintDecisionTableAfuTest {
         "GewichtungSumme100_Wald",
         List.of(withSecondary, withoutSecondary));
 
-    assertEquals(true, result.generated, String.valueOf(result));
-    assertEquals(true, result.proofVerified, String.valueOf(result));
+    assertEquals(IliAuthoringResult.Status.GENERATED, result.status, String.valueOf(result));
+    assertEquals(IliAuthoringResult.ProofStatus.PASSED, result.constraintProofs.getFirst().status, String.valueOf(result));
     var coverage = result.constraintProofs.getFirst();
     assertEquals(coverage.coverageGoalCount, coverage.coverageSolvedCount);
     assertEquals(coverage.coverageExcludedGoals.size(), coverage.coverageExcludedCount);
@@ -99,34 +99,34 @@ class ConstraintDecisionTableAfuTest {
 
     IliAuthoringResult.ProofCase noSecondary = cases.stream()
         .filter(item -> "UNDEFINED".equals(String.valueOf(
-            map(item.get("values")).get("Nebenauspraegung->Gewichtung"))))
-        .filter(item -> "100".equals(String.valueOf(map(item.get("values")).get("Gewichtung"))))
+            map(item.values).get("Nebenauspraegung->Gewichtung"))))
+        .filter(item -> "100".equals(String.valueOf(map(item.values).get("Gewichtung"))))
         .findFirst()
         .orElseThrow();
-    assertEquals(true, noSecondary.get("expectedConstraintValid"));
-    assertEquals(1, ((Number) noSecondary.get("objectCount")).intValue());
-    assertEquals(0, ((Number) noSecondary.get("associationLinkCount")).intValue());
+    assertEquals(true, noSecondary.expectedConstraintValid);
+    assertEquals(1, ((Number) noSecondary.objectCount).intValue());
+    assertEquals(0, ((Number) noSecondary.associationLinkCount).intValue());
 
     IliAuthoringResult.ProofCase definedWitness = cases.stream()
         .filter(item -> !"UNDEFINED".equals(String.valueOf(
-            map(item.get("values")).get("Nebenauspraegung->Gewichtung"))))
-        .filter(item -> Boolean.TRUE.equals(item.get("expectedConstraintValid")))
-        .filter(item -> ((Number) item.get("associationLinkCount")).intValue() > 0)
+            map(item.values).get("Nebenauspraegung->Gewichtung"))))
+        .filter(item -> Boolean.TRUE.equals(item.expectedConstraintValid))
+        .filter(item -> ((Number) item.associationLinkCount).intValue() > 0)
         .findFirst()
         .orElseThrow();
-    Map<String, Object> witnessValues = map(definedWitness.get("values"));
+    Map<String, Object> witnessValues = map(definedWitness.values);
     BigDecimal sum = new BigDecimal(String.valueOf(witnessValues.get("Nebenauspraegung->Gewichtung")));
     BigDecimal main = new BigDecimal(String.valueOf(witnessValues.get("Gewichtung")));
     assertEquals(0, sum.add(main).compareTo(BigDecimal.valueOf(100)));
 
     assertTrue(cases.stream().anyMatch(item ->
-        Boolean.FALSE.equals(item.get("expectedConstraintValid"))
-            && ((Number) item.get("associationLinkCount")).intValue() > 0));
+        Boolean.FALSE.equals(item.expectedConstraintValid)
+            && ((Number) item.associationLinkCount).intValue() > 0));
 
     IliAuthoringResult.ProofVerification verification =
         result.constraintProofs.getFirst().verification;
-    assertEquals(true, verification.allPassed);
-    assertEquals(verification.caseCount, verification.passedCount);
+    assertTrue(verification.cases.stream().allMatch(c -> Boolean.TRUE.equals(c.passed)));
+
   }
 
   private ConstraintDecisionTableTools.DecisionRow row(

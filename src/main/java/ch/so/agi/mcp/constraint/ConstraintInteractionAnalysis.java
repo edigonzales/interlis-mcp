@@ -5,7 +5,6 @@ import ch.so.agi.mcp.constraint.ConstraintExpression.*;
 import ch.so.agi.mcp.constraint.ConstraintExpressionEngine.EvaluationContext;
 import ch.so.agi.mcp.constraint.ConstraintExpressionEngine.Undefined;
 import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer.ReferenceBinding;
-import ch.so.agi.mcp.model.EvidenceSummary;
 import java.math.BigDecimal;
 import java.util.*;
 import org.jspecify.annotations.Nullable;
@@ -21,18 +20,7 @@ public final class ConstraintInteractionAnalysis {
       List<Gap> unsupported, List<Domain> domains, int examinedStates,
       Map<String,Object> scalarAssignment, List<String> undefinedAttributes, String reasonCode) {}
   public record Result(boolean analyzed, int stateBudget, int examinedStates, List<ContextResult> contexts,
-      String scope, String limitation) {
-    public EvidenceSummary.Check evidence() {
-      long contradictions = contexts.stream().filter(c -> c.status == Status.CONTRADICTION_PROVEN).count();
-      boolean incomplete = contexts.stream().anyMatch(c -> c.status == Status.UNKNOWN || !c.unsupported.isEmpty());
-      boolean applicable = contexts.stream().anyMatch(c -> c.status != Status.NOT_APPLICABLE);
-      return EvidenceSummary.check(!analyzed ? EvidenceSummary.Status.NOT_RUN
-          : contradictions > 0 ? EvidenceSummary.Status.FAILED : incomplete ? EvidenceSummary.Status.INCOMPLETE
-          : applicable ? EvidenceSummary.Status.PASSED : EvidenceSummary.Status.NOT_APPLICABLE,
-          scope, "EXHAUSTIVE_SCALAR_PARTITIONS", (int) contexts.stream().filter(c -> c.examinedStates > 0).count(), (int) contradictions, 0,
-          "NOT_A_VALIDATED_OBJECT_GRAPH_OR_WHOLE_MODEL_PROOF");
-    }
-  }
+      String scope, String limitation) {}
   private record Rule(String fqn, ConstraintExpression expression) {}
   private ConstraintInteractionAnalysis() {}
 

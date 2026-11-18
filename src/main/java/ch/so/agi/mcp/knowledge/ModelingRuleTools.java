@@ -70,7 +70,7 @@ public class ModelingRuleTools {
 
   @McpTool(
       name = "reviewIliModel",
-      description = "Standard-Tool fuer Baseline- und Abschlussreview eines vollstaendigen aktuellen INTERLIS-Modells. Kompiliert genau einmal und kombiniert Compilerdiagnostik, Struktur, automatisierte Modellierungsregeln, manuelle Checks und offene fachliche Fragen. evidence und constraintInteractions zeigen zusätzliche Prüfnachweise und begrenzte skalare Wechselwirkungen; sie ändern keine Freigaben. Nicht routinemaessig zusaetzlich analyzeIliModel, checkModelingRules oder validateIliModel aufrufen; diese nur fuer gezielte Detaildiagnosen.",
+      description = "Standard-Tool fuer Baseline- und Abschlussreview eines vollstaendigen aktuellen INTERLIS-Modells. Kompiliert genau einmal und kombiniert Compilerdiagnostik, Struktur, automatisierte Modellierungsregeln, manuelle Checks und offene fachliche Fragen. constraintInteractions zeigt beratende Befunde zu skalaren Wechselwirkungen. Nicht routinemaessig zusaetzlich analyzeIliModel, checkModelingRules oder validateIliModel aufrufen; diese nur fuer gezielte Detaildiagnosen.",
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> reviewIliModel(
@@ -112,7 +112,7 @@ public class ModelingRuleTools {
         Map.entry("ruleFindings", review.get("ruleFindings")),
         Map.entry("manualChecks", review.get("manualChecks")),
         Map.entry("openQuestions", review.get("openQuestions")),
-        Map.entry("evidence", review.get("evidence")),
+        Map.entry("automatedRuleCount", review.get("automatedRuleCount")),
         Map.entry("constraintInteractions", review.get("constraintInteractions"))
     );
   }
@@ -150,11 +150,7 @@ public class ModelingRuleTools {
         Map.entry("manualChecks", ruleReview.get("manualChecks")),
         Map.entry("openQuestions", openQuestions),
         Map.entry("constraintInteractions", interactions),
-        Map.entry("evidence", ch.so.agi.mcp.model.EvidenceSummary.review(
-            Boolean.TRUE.equals(analysis.get("valid")), (List<?>) analysis.getOrDefault("messages", List.of()),
-            (List<?>) ruleReview.get("findings"), profile.wireName()).withRuleCount(Boolean.TRUE.equals(analysis.get("valid"))
-                ? (int) ruleLoader.rules(profile).stream().filter(r -> r.checkKind() == ModelingRule.CheckKind.AUTOMATED && applies(r, purpose)).count() : 0)
-            .withInteractions(interactions.evidence())));
+        Map.entry("automatedRuleCount", ruleReview.get("automatedRuleCount")));
   }
 
   private Map<String, Object> checkAnalyzedModel(
@@ -172,6 +168,7 @@ public class ModelingRuleTools {
       rulesById.put(rule.id(), rule);
     }
 
+    int automatedRuleCount = 0;
     for (ModelingRule rule : activeRules) {
       if (!selectedRuleIds.isEmpty() && !selectedRuleIds.contains(rule.id())) {
         continue;
@@ -181,6 +178,8 @@ public class ModelingRuleTools {
       }
       if (rule.checkKind() == ModelingRule.CheckKind.MANUAL) {
         manualChecks.add(ruleFinding(rule, rule.rationale(), null));
+      } else {
+        automatedRuleCount++;
       }
     }
 
@@ -225,6 +224,7 @@ public class ModelingRuleTools {
         "profile", profile.wireName(),
         "validForAutomatedRules", validForAutomatedRules,
         "findings", findings,
+        "automatedRuleCount", Boolean.TRUE.equals(analysis.get("valid")) ? automatedRuleCount : 0,
         "manualChecks", manualChecks
     );
   }

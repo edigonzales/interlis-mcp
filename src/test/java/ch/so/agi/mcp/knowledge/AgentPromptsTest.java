@@ -51,7 +51,7 @@ class AgentPromptsTest {
         .contains("authorIliExistenceConstraint")
         .contains("authorIliPlausibilityConstraint")
         .contains("authorIliSetConstraint")
-        .contains("proofVerified=true")
+        .contains("PASSED")
         .contains("generationVerified=true")
         .contains("semantischen Diff und `afterReview`")
         .contains("kein redundantes")
@@ -87,7 +87,7 @@ class AgentPromptsTest {
         .contains("afterReview")
         .contains("kein weiteres")
         .contains("readModelExample")
-        .contains("proofVerified=true");
+        .contains("PASSED");
   }
 
   @Test
@@ -106,7 +106,7 @@ class AgentPromptsTest {
         .contains("authorIliPlausibilityConstraint")
         .contains("authorIliSetConstraint")
         .contains("generateIliConstraintCases")
-        .contains("proofVerified=true")
+        .contains("PASSED")
         .contains("generationVerified=true")
         .contains("coverageUnsolved")
         .contains("afterReview")
@@ -150,7 +150,7 @@ class AgentPromptsTest {
         .contains("authorIliPlausibilityConstraint")
         .contains("authorIliSetConstraint")
         .contains("generateIliConstraintCases")
-        .contains("proofVerified")
+        .contains("constraintProofs")
         .contains("generateIliConstraintCases")
         .contains("afterReview")
         .contains("Reason-Codes");

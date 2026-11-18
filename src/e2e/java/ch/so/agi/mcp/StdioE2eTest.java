@@ -178,7 +178,7 @@ public class StdioE2eTest {
 
         String createResp = callTool(3, "authorIliModel", argsJson);
         assertSuccessfulToolResponse(
-                createResp, "authorIliModel", "GENERATED", "INTERLIS 2.4", "MODEL DemoModel (de)", "!!@ title=", "Demo", "evidence", "NOT_APPLICABLE", "businessAcceptance", "constraintInteractions");
+                createResp, "authorIliModel", "GENERATED", "INTERLIS 2.4", "MODEL DemoModel (de)", "!!@ title=", "Demo", "afterCompilation", "constraintProofs", "constraintInteractions");
     }
 
     @Test
@@ -210,7 +210,7 @@ public class StdioE2eTest {
                 "APPLIED",
                 "ziel",
                 "REFERENCE TO",
-                "Demo.Topic.Target", "evidence", "ADDED_CONSTRAINTS", "constraintInteractions");
+                "Demo.Topic.Target", "beforeCompilation", "afterCompilation", "constraintProofs", "constraintInteractions");
     }
 
     @Test

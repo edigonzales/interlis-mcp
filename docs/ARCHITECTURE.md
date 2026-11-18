@@ -232,7 +232,7 @@ XTF
 ilivalidator
 ```
 
-Der interne Evaluator ist ein Hilfsmittel, nicht die finale Instanz. `generationVerified` oder `proofVerified` wird nur auf Grundlage der echten Validatorergebnisse freigegeben.
+Der interne Evaluator ist ein Hilfsmittel, nicht die finale Instanz. `generationVerified` oder `constraintProofs[].status` wird nur auf Grundlage der echten Validatorergebnisse freigegeben.
 
 ## Source-preserving Constraint-Authoring
 

@@ -54,7 +54,9 @@ public class ConstraintContextService {
     }
 
     TransferDescription td = compilation.transferDescription();
-    List<Constraint> matches = findConstraints(td, requested);
+    List<Constraint> matches = declaredConstraints(td).stream()
+        .filter(constraint -> requested.equals(constraint.getName()) || requested.equals(constraint.getScopedName()))
+        .toList();
     if (matches.isEmpty()) {
       return new Resolution(
           compilation,
@@ -97,28 +99,23 @@ public class ConstraintContextService {
         null);
   }
 
-  private List<Constraint> findConstraints(TransferDescription td, String requestedName) {
-    List<Constraint> matches = new ArrayList<>();
-    for (Model model : td.getModelsFromLastFile()) {
-      collectConstraints(model, requestedName, matches);
-    }
-    return matches;
+  public static List<String> declaredConstraintNames(TransferDescription td) {
+    return declaredConstraints(td).stream().map(Constraint::getScopedName).toList();
   }
 
-  private void collectConstraints(
-      Container<?> container,
-      String requestedName,
-      List<Constraint> sink) {
-    Iterator<?> iterator = container.iterator();
-    while (iterator.hasNext()) {
+  private static List<Constraint> declaredConstraints(TransferDescription td) {
+    List<Constraint> constraints = new ArrayList<>();
+    for (Model model : td.getModelsFromLastFile()) collectConstraints(model, constraints);
+    return constraints;
+  }
+
+  private static void collectConstraints(Container<?> container, List<Constraint> constraints) {
+    for (Iterator<?> iterator = container.iterator(); iterator.hasNext();) {
       Object child = iterator.next();
       if (child instanceof Constraint constraint) {
-        if (requestedName.equals(constraint.getName())
-            || requestedName.equals(constraint.getScopedName())) {
-          sink.add(constraint);
-        }
+        constraints.add(constraint);
       } else if (child instanceof Container<?> nested) {
-        collectConstraints(nested, requestedName, sink);
+        collectConstraints(nested, constraints);
       }
     }
   }

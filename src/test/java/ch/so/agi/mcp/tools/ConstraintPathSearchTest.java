@@ -221,7 +221,7 @@ class ConstraintPathSearchTest {
           Map.of("kind", "COMPARE", "operator", ">=", "children", List.of(expression, Map.of("kind", "NUMERIC", "value", 2)))), IliConstraintSpec.Mandatory.class);
       var result = engine.author(model, "Paths.T.Root", spec, null, null);
       assertThat(result.status).as(test + ": " + mapper.writeValueAsString(result)).isEqualTo(IliAuthoringResult.Status.GENERATED);
-      assertThat(result.proofVerified).isTrue();
+      assertThat(result.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
     }
   }
 

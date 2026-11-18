@@ -75,8 +75,6 @@ class ConstraintInteractionAnalysisTest {
       assertThat(context.unsupported()).hasSize(2);
       assertThat(context.status()).isEqualTo(upper.equals("5") ? ConstraintInteractionAnalysis.Status.CONTRADICTION_PROVEN
           : ConstraintInteractionAnalysis.Status.SCALAR_ASSIGNMENT_FOUND);
-      assertThat(result.evidence().status()).isEqualTo(upper.equals("5")
-          ? ch.so.agi.mcp.model.EvidenceSummary.Status.FAILED : ch.so.agi.mcp.model.EvidenceSummary.Status.INCOMPLETE);
     }
   }
   @Test void budgetIsSharedAndExhaustionIsNeverAContradiction() {
@@ -112,6 +110,6 @@ class ConstraintInteractionAnalysisTest {
     assertThat(results.stream().filter(c -> c.contextFqn().endsWith(".Derived")).findFirst().orElseThrow().reasonCode()).isEqualTo("INHERITANCE_UNSUPPORTED");
     assertThat(results.stream().filter(c -> c.contextFqn().endsWith(".S")).findFirst().orElseThrow().reasonCode()).isEqualTo("STRUCTURE_CONTEXT_UNSUPPORTED");
     assertThat(results.stream().filter(c -> c.contextFqn().endsWith(".Empty")).findFirst().orElseThrow().status()).isEqualTo(ConstraintInteractionAnalysis.Status.NOT_APPLICABLE);
-    assertThat(ConstraintInteractionAnalysis.analyze(null).evidence().status()).isEqualTo(ch.so.agi.mcp.model.EvidenceSummary.Status.NOT_RUN);
+    assertThat(ConstraintInteractionAnalysis.analyze(null).analyzed()).isFalse();
   }
 }

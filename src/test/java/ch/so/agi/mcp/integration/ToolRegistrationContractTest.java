@@ -60,6 +60,11 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
     }
   }
 
+  private void assertPassedProofs(Map<String, Object> result) {
+    assertThat((List<?>) result.get("constraintProofs")).isNotEmpty().allSatisfy(
+        proof -> assertThat(((Map<?, ?>) proof).get("status")).isEqualTo("PASSED"));
+  }
+
   @Test
   @SuppressWarnings("unchecked")
   void expressionSchemasExposeUsableKindSpecificContractsAndDiagnosticFields() throws Exception {
@@ -85,7 +90,7 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
     assertThat("#Drainage".matches(enumValue.get("pattern").toString())).isTrue();
     assertThat("##Drainage".matches(enumValue.get("pattern").toString())).isFalse();
     assertThat(mapper.writeValueAsString(tool.inputSchema())).contains("Regel42","COLLECTION_SUM","NUMERIC_ADD","threshold");
-    assertThat(mapper.writeValueAsString(tool.outputSchema())).contains("specDiagnostics","code","path","message","hint", "evidence", "businessAcceptance", "constraintInteractions", "NOT_APPLICABLE");
+    assertThat(mapper.writeValueAsString(tool.outputSchema())).contains("specDiagnostics","code","path","message","hint", "afterCompilation", "constraintInteractions", "targetViolationCount");
   }
 
   @Test
@@ -110,8 +115,9 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
             "includeSuccessfulTestXtf", false)));
     assertThat(response.isError()).isFalse();
     var result = extractStructuredContent(response);
-    assertThat(result).containsEntry("status", "GENERATED").containsEntry("proofVerified", true)
-        .containsEntry("requiresUserDecision", true);
+    assertThat(result).containsEntry("status", "GENERATED");
+    assertPassedProofs(result);
+    assertThat((List<?>) result.get("openQuestions")).anySatisfy(q -> assertThat(((Map<?, ?>) q).get("decisionImpact")).isEqualTo("ADVISORY"));
     assertThat(result.get("updatedModelText").toString()).contains("DEFINED(value)");
     assertThat(mapper.writeValueAsString(result.get("openQuestions"))).contains("intended model purpose");
   }
@@ -176,7 +182,7 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
       assertThat(response.isError()).as(entry.getKey()).isNotEqualTo(true);
       var result=extractStructuredContent(response);
       assertThat(result.get("status")).as(result.toString()).isIn("GENERATED","APPLIED");
-      assertThat(result.get("proofVerified")).isEqualTo(true);
+      assertPassedProofs(result);
       assertThat(result.get("updatedModelText").toString()).contains("value >= 7");
     }
   }
@@ -189,7 +195,7 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
         "modelText","INTERLIS 2.3;","contextFqn","Demo.Data.Item","spec",Map.of("kind","MANDATORY","name","Rule","condition",expression))));
     assertThat(response.isError()).isFalse();
     Map<String,Object> result=extractStructuredContent(response);
-    assertThat(result).containsEntry("status","INVALID_SPEC").containsEntry("reasonCode","INVALID_SPEC");
+    assertThat(result).containsEntry("status","INVALID_SPEC").doesNotContainKey("afterCompilation");
     assertThat(mapper.writeValueAsString(result.get("specDiagnostics"))).contains("UNKNOWN_STANDARD_FUNCTION","/spec/condition/name","COLLECTION_SUM","functionOrigin=STANDARD");
     assertThat(result.get("updatedModelText")).isNull();
   }
@@ -268,15 +274,13 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
 
     Map<String, Object> structured = extractStructuredContent(response);
     assertThat(structured.get("status")).isEqualTo("GENERATED");
-    assertThat(structured.get("complete")).isEqualTo(true);
     assertThat(structured.get("updatedModelText").toString())
         .contains("MODEL TestModel (de)")
         .contains("code : TEXT*20;");
-    assertThat(structured).containsKeys("derivedImports", "afterReview", "constraintProofs", "evidence");
-    assertThat(structured).doesNotContainKey("compilerEvidence");
-    Map<?,?> evidence = (Map<?,?>) structured.get("evidence");
-    assertThat(((Map<?,?>) evidence.get("constraintTests")).get("status")).isEqualTo("NOT_APPLICABLE");
-    assertThat(((Map<?,?>) evidence.get("businessAcceptance")).get("status")).isEqualTo("NOT_RUN");
+    assertThat(structured).containsKeys("derivedImports", "afterReview", "constraintProofs", "afterCompilation")
+        .doesNotContainKeys("evidence", "complete", "generated", "beforeCompilation", "candidateModelText");
+    assertThat((List<?>) structured.get("constraintProofs")).isEmpty();
+    assertThat(((Map<?, ?>) structured.get("afterCompilation")).get("valid")).isEqualTo(true);
     assertThat(((Map<?,?>) structured.get("afterReview")).containsKey("constraintInteractions")).isTrue();
   }
 
@@ -294,8 +298,7 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
     assertThat(response.isError()).isNotEqualTo(true);
     var result = extractStructuredContent(response);
     assertThat(result).containsEntry("status", "PROOF_INCOMPLETE")
-        .containsEntry("reasonCode", "STRUCTURE_OWNER_NOT_FOUND")
-        .containsEntry("generated", false).containsEntry("proofVerified", false);
+        .containsEntry("reasonCode", "STRUCTURE_OWNER_NOT_FOUND");
     assertThat(result.get("candidateModelText")).isNotNull();
     assertThat(result.get("updatedModelText")).isNull();
   }
@@ -400,7 +403,8 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
     assertThat(structured.get("status")).isEqualTo("APPLIED");
     assertThat(structured.get("updatedModelText").toString())
         .contains("egid : MANDATORY TEXT*14;");
-    assertThat(structured).containsKeys("sourceEdits", "afterReview", "potentiallyBreakingChanges");
+    assertThat(structured).containsKeys("sourceEdits", "afterReview", "semanticDiff");
+    assertThat(((Map<?, ?>) structured.get("semanticDiff")).containsKey("potentiallyBreakingChanges")).isTrue();
   }
 
   @Test
@@ -442,9 +446,11 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
       Map<String, Object> properties = schemaProperties(
           specifications.get(toolName).tool().outputSchema());
       assertThat(properties).as("typed output properties for %s", toolName)
-          .containsKeys("status", "complete", "updatedModelText", "candidateModelText",
-              "compilerDiagnostics", "sourceEdits", "derivedImports", "semanticDiff",
-              "afterReview", "constraintProofs", "openQuestions", "requiresUserDecision");
+          .containsKeys("status", "updatedModelText", "candidateModelText", "beforeCompilation",
+              "afterCompilation", "sourceEdits", "derivedImports", "semanticDiff",
+              "afterReview", "constraintProofs", "openQuestions")
+          .doesNotContainKeys("complete", "generated", "applied", "proofVerified", "requiresUserDecision",
+              "compilerDiagnostics", "beforeDiagnostics", "afterDiagnostics", "evidence", "added", "removed", "changed", "impact");
     }
   }
 
@@ -463,11 +469,11 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
     String schema = mapper.writeValueAsString(
         specsByName().get("authorIliUniqueConstraint").tool().outputSchema());
     assertThat(schema)
-        .contains("beforeDiagnostics", "afterDiagnostics", "sourceEdits", "semanticDiff")
+        .contains("beforeCompilation", "afterCompilation", "sourceEdits", "semanticDiff")
         .contains("afterReview", "constraintProofs", "coverageGaps", "generatedCases")
         .contains("coverageExcludedCount", "coverageExcludedGoals", "justification", "coveredGoals")
         .contains("ownerClassFqn", "structurePath", "subjectCount", "constraintExercised", "fixtureValid", "fixturePreparationReasonCode", "fixtureErrors")
-        .contains("openQuestions", "CompilerDiagnostic", "startOffset", "constraintFqn")
+        .contains("openQuestions", "diagnostics", "sourceExcerpt", "startOffset", "constraintFqn")
         .contains(
             "GENERATED",
             "APPLIED",
@@ -541,8 +547,8 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
                     Map.of("viewableFqn", "ExistDemo.Data.TargetB", "attributePath", "code"))))));
 
     Map<String, Object> structured = extractStructuredContent(response);
-    assertThat(structured.get("generated")).isEqualTo(true);
-    assertThat(structured.get("proofVerified")).isEqualTo(true);
+    assertThat(structured.get("status")).isEqualTo("GENERATED");
+    assertPassedProofs(structured);
     assertThat(structured.get("updatedModelText").toString())
         .contains("EXISTENCE CONSTRAINT")
         .contains("ExistDemo.Data.TargetA : code")
@@ -583,8 +589,8 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
             "spec", spec)));
 
     Map<String, Object> structured = extractStructuredContent(response);
-    assertThat(structured.get("generated")).isEqualTo(true);
-    assertThat(structured.get("proofVerified")).isEqualTo(true);
+    assertThat(structured.get("status")).isEqualTo("GENERATED");
+    assertPassedProofs(structured);
     assertThat(structured.get("updatedModelText").toString())
         .contains("!!@ name=\"UsuallyHigh\"")
         .contains(">= 80%")
@@ -626,8 +632,8 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
             "spec", setSpec)));
 
     Map<String, Object> structured = extractStructuredContent(response);
-    assertThat(structured.get("generated")).as("%s", structured).isEqualTo(true);
-    assertThat(structured.get("proofVerified")).as("%s", structured).isEqualTo(true);
+    assertThat(structured.get("status")).isEqualTo("GENERATED");
+    assertPassedProofs(structured);
     assertThat(structured.get("updatedModelText").toString())
         .contains("SET CONSTRAINT WHERE (value >= 5):")
         .contains("INTERLIS.objectCount(ALL) >= 2;");

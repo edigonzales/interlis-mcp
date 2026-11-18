@@ -44,14 +44,14 @@ class ConstraintSpecContractTest {
         new IliSpecRenderer(new AttributeTools(), new DomainTools()), null, null);
     var result = engine.author("INTERLIS 2.4;", "Demo.Data.Item", mandatory(function), null, null);
     assertThat(result.status).isEqualTo(IliAuthoringResult.Status.INVALID_SPEC);
-    assertThat(result.reasonCode).isEqualTo("INVALID_SPEC");
+    assertThat(result.beforeCompilation).isNull();
+    assertThat(result.afterCompilation).isNull();
     assertThat(result.specDiagnostics).singleElement().satisfies(d -> {
       assertThat(d.code()).isEqualTo("INVALID_FIELD");
       assertThat(d.path()).isEqualTo("/spec/condition/objects");
       assertThat(d.hint()).contains("children");
     });
     assertThat(result.candidateModelText).isNull(); assertThat(result.updatedModelText).isNull();
-    assertThat(result.generated).isFalse(); assertThat(result.proofVerified).isFalse();
     assertThat(function.objects).isInstanceOf(AllObjectsSpec.class);
     verifyNoInteractions(workflow);
   }

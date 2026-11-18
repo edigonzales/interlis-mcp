@@ -37,7 +37,7 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
   request.allowPotentiallyBreaking = true;
   var original = model().replace("other : TEXT*10;", "other : TEXT*10;\n!!@ name=\"NamedRule\"\nMANDATORY CONSTRAINT DEFINED(other);");
   var result = service(compiler).apply(original, request, null, null, null);
-  assertThat(result.status).as("%s %s", result.reason, result.changed.stream().map(c -> c.changedFields + " before=" + c.before + " after=" + c.after).toList()).isEqualTo(IliAuthoringResult.Status.APPLIED);
+  assertThat(result.status).as("%s %s", result.reason, result.semanticDiff.changed.stream().map(c -> c.changedFields + " before=" + c.before + " after=" + c.after).toList()).isEqualTo(IliAuthoringResult.Status.APPLIED);
   assertThat(IliComments.spans(result.updatedModelText)).isEmpty();
   assertThat(result.sourceEdits).isNotEmpty();
   assertThat(result.updatedModelText).contains("name :", "other :");
@@ -56,13 +56,14 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     assertThat(held.status).isEqualTo(IliAuthoringResult.Status.BREAKING_CHANGE_REQUIRES_CONFIRMATION);
     assertThat(held.updatedModelText).isNull();
     assertThat(held.candidateModelText).contains("name : MANDATORY TEXT*20;");
-    assertThat(held.requiresUserDecision).isTrue();
+    assertThat(held.openQuestions).anySatisfy(q -> assertThat(q.decisionImpact).isEqualTo("BLOCKING"));
 
     request.allowPotentiallyBreaking = true;
     IliAuthoringResult released = service.apply(model(), request, null, null, null);
     assertThat(compiler.calls).isEqualTo(4);
     assertThat(released.status).isEqualTo(IliAuthoringResult.Status.APPLIED);
     assertThat(released.updatedModelText).contains("name : MANDATORY TEXT*20;");
+    assertThat(released.constraintProofs).isEmpty();
   }
 
   @Test
@@ -176,7 +177,7 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     assertThat(result.status).isEqualTo(IliAuthoringResult.Status.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED);
     assertThat(result.updatedModelText).isNull();
     assertThat(result.candidateModelText).contains("Demo.custom(name)");
-    assertThat(result.proofVerified).isFalse();
+    assertThat(result.updatedModelText).isNull();
   }
 
   @Test
@@ -283,7 +284,7 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
   @Test
   void addConstraintReusesAfterCompileForItsProofAndReview() {
     CountingCompiler compiler = new CountingCompiler();
-    IliModelChangesService service = serviceWithProof(compiler);
+    IliModelChangesService service = service(compiler);
     IliConstraintSpec.ExpressionSpec attribute = new IliConstraintSpec.ExpressionSpec();
     attribute.kind = IliConstraintSpec.ExpressionKind.ATTRIBUTE;
     attribute.name = "other";
@@ -306,7 +307,7 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
 
     assertThat(compiler.calls).isEqualTo(2);
     assertThat(result.status).as("%s", result.reason).isEqualTo(IliAuthoringResult.Status.APPLIED);
-    assertThat(result.proofVerified).isTrue();
+    assertThat(result.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
     assertThat(result.constraintProofs).hasSize(1);
     assertThat(result.afterReview).isNotNull();
     assertThat(result.updatedModelText)
@@ -318,6 +319,94 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     var twice = service.apply(model(), batch(List.of(operation, operation), true), null, null, null);
     assertThat(twice.status).isEqualTo(IliAuthoringResult.Status.INVALID_SPEC);
     assertThat(twice.reason).contains("DUPLICATE_CONSTRAINT_NAME");
+  }
+
+  @Test
+  void batchKeepsActualBeforeAndAfterDiagnostics() {
+    var compiler = new CountingCompiler();
+    var service = service(compiler);
+    var request = batch(addAttribute("extension", 20), true);
+    var invalidBefore = service.apply("INTERLIS 2.4; broken", request, null, null, null);
+    assertThat(invalidBefore.status).isEqualTo(IliAuthoringResult.Status.BEFORE_MODEL_INVALID);
+    assertThat(invalidBefore.beforeCompilation.valid()).isFalse();
+    assertThat(invalidBefore.beforeCompilation.diagnostics()).isNotEmpty();
+    assertThat(invalidBefore.afterCompilation).isNull();
+    assertThat(invalidBefore.constraintProofs).isNull();
+    assertThat(invalidBefore.updatedModelText).isNull();
+
+    var clazz = new IliModelSpec.ClassSpec();
+    clazz.name = "Broken";
+    clazz.extendsFqn = "Demo.Data.Missing";
+    var invalidAfter = service.apply(model(), batch(operation(IliModelChangeOperation.ADD_CLASS, change -> {
+      var add = new IliModelChangeRequest.AddClassChange();
+      add.topicFqn = "Demo.Data";
+      add.clazz = clazz;
+      change.setAddClass(add);
+    }), true), null, null, null);
+    assertThat(invalidAfter.status).isEqualTo(IliAuthoringResult.Status.CANDIDATE_MODEL_INVALID);
+    assertThat(invalidAfter.beforeCompilation.valid()).isTrue();
+    assertThat(invalidAfter.afterCompilation.valid()).isFalse();
+    assertThat(invalidAfter.afterCompilation.diagnostics()).anySatisfy(d -> assertThat(d.message).contains("Missing"));
+    assertThat(invalidAfter.constraintProofs).isNull();
+    assertThat(invalidAfter.candidateModelText).contains("Demo.Data.Missing");
+    assertThat(invalidAfter.updatedModelText).isNull();
+    assertThat(compiler.calls).isEqualTo(3);
+  }
+
+  @Test
+  void nestedConstraintsAreAllConsideredAndMissingProofBlocksRelease() throws Exception {
+    var mapper = new tools.jackson.databind.ObjectMapper();
+    var constraint = """
+        {"kind":"MANDATORY","name":"ValuePresent","condition":{"kind":"DEFINED","children":[{"kind":"ATTRIBUTE","name":"value"}]}}
+        """;
+    var item = """
+        {"name":"%s","attributes":[{"name":"value","typeSpec":{"baseType":{"kind":"TEXT","length":20}}}],"constraints":[%s]}
+        """;
+    var clazz = item.formatted("AddedClass", constraint);
+    var structure = item.formatted("Orphan", constraint);
+    var association = """
+        {"name":"Relation","roles":[
+          {"name":"left","classFqn":"Demo.Data.Thing","cardinality":{"min":0,"max":"*"}},
+          {"name":"right","classFqn":"Demo.Data.Thing","cardinality":{"min":0,"max":"*"}}],
+          "attributes":[{"name":"value","typeSpec":{"baseType":{"kind":"TEXT","length":20}}}],"constraints":[%s]}
+        """.formatted(constraint);
+    var topic = """
+        {"name":"Extra","classes":[%s],"structures":[%s]}
+        """.formatted(item.formatted("NestedClass", constraint), item.formatted("NestedOrphan", constraint));
+    var request = mapper.readValue("""
+        {"allowPotentiallyBreaking":true,"changes":[
+          {"operation":"ADD_CLASS","addClass":{"topicFqn":"Demo.Data","clazz":%s}},
+          {"operation":"ADD_ASSOCIATION","addAssociation":{"topicFqn":"Demo.Data","association":%s}},
+          {"operation":"ADD_STRUCTURE","addStructure":{"topicFqn":"Demo.Data","structure":%s}},
+          {"operation":"ADD_TOPIC","addTopic":{"modelFqn":"Demo","topic":%s}}]}
+        """.formatted(clazz, association, structure, topic), IliModelChangesRequest.class);
+    var compiler = new CountingCompiler();
+    var result = service(compiler).apply(model(), request, null, null, null);
+    assertThat(compiler.calls).isEqualTo(2);
+    assertThat(result.status).as("%s", result).isIn(
+        IliAuthoringResult.Status.PROOF_INCOMPLETE, IliAuthoringResult.Status.PROOF_FAILED);
+    assertThat(result.afterCompilation.valid()).isTrue();
+    assertThat(result.updatedModelText).isNull();
+    assertThat(result.candidateModelText).contains("CLASS NestedClass", "ASSOCIATION Relation");
+    assertThat(result.constraintProofs).extracting(proof -> proof.constraintFqn).containsExactlyInAnyOrder(
+        "Demo.Data.AddedClass.ValuePresent", "Demo.Data.Relation.ValuePresent", "Demo.Data.Orphan.ValuePresent",
+        "Demo.Extra.NestedClass.ValuePresent", "Demo.Extra.NestedOrphan.ValuePresent");
+    assertThat(result.constraintProofs).filteredOn(proof -> proof.constraintFqn.contains("Orphan"))
+        .allSatisfy(proof -> {
+          assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.INCOMPLETE);
+          assertThat(proof.reasonCode).isEqualTo("STRUCTURE_OWNER_NOT_FOUND");
+        });
+    assertThat(result.constraintProofs).filteredOn(proof -> proof.constraintFqn.contains("Class"))
+        .allSatisfy(proof -> {
+          assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED);
+          assertThat(proof.verification.cases).anySatisfy(test -> {
+            assertThat(test.expectedConstraintValid).isFalse();
+            assertThat(test.actualConstraintValid).isFalse();
+            assertThat(test.constraintExercised).isTrue();
+            assertThat(test.fixtureValid).isTrue();
+            assertThat(test.targetViolationCount).isPositive();
+          });
+        });
   }
 
   @Test
@@ -485,14 +574,6 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
   }
 
   private IliModelChangesService service(IliCompilerService compiler) {
-    ModelAnalysisTools analysis = new ModelAnalysisTools(compiler);
-    ModelingRuleTools rules = new ModelingRuleTools(new KnowledgeRuleLoader(), analysis, compiler);
-    ModelChangeReviewService review = new ModelChangeReviewService(analysis, rules);
-    IliSpecRenderer renderer = new IliSpecRenderer(new AttributeTools(), new DomainTools());
-    return new IliModelChangesService(compiler, review, renderer);
-  }
-
-  private IliModelChangesService serviceWithProof(IliCompilerService compiler) {
     ModelAnalysisTools analysis = new ModelAnalysisTools(compiler);
     ModelingRuleTools rules = new ModelingRuleTools(new KnowledgeRuleLoader(), analysis, compiler);
     ModelChangeReviewService review = new ModelChangeReviewService(analysis, rules);

@@ -105,13 +105,7 @@ public class ConstraintDecisionTableTools {
       normalizedRows = normalizeRows(rows);
       semanticExpression = decisionTableExpression(normalizedRows);
     } catch (IllegalArgumentException ex) {
-      IliAuthoringResult failure = new IliAuthoringResult();
-      failure.status = IliAuthoringResult.Status.INVALID_SPEC;
-      failure.reasonCode = failure.status.name();
-      failure.reason = ex.getMessage();
-      failure.complete = false;
-      failure.generated = false;
-      failure.proofVerified = false;
+      var failure = new IliAuthoringResult().reject(IliAuthoringResult.Status.INVALID_SPEC, ex.getMessage(), null);
       return SpecValidationException.attach(failure, ex);
     }
 
@@ -133,6 +127,7 @@ public class ConstraintDecisionTableTools {
 
   private void normalizeDecisionProof(
       IliAuthoringResult result, List<NormalizedRow> rows) {
+    if (result.constraintProofs == null) return;
     for (IliAuthoringResult.ConstraintProof proof : result.constraintProofs) {
       for (IliAuthoringResult.ProofCase proofCase : proof.generatedCases) {
         if (proofCase.reason != null) {

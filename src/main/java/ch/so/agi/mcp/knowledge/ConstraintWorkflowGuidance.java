@@ -46,7 +46,7 @@ public final class ConstraintWorkflowGuidance {
       7. explanation und entscheidende Fälle zeigen; PARTIAL/UNAVAILABLE sowie
          CONTRADICTION_PROVEN und andere relevante Interaktionsgrenzen sichtbar berichten.
          constraintInteractions bleiben advisory; technische Statuswerte und Freigaben unverändert.
-         Bei requiresUserDecision=true die konkrete Frage und den Umgang damit in der
+         Bei Einträgen in openQuestions die konkrete Frage und den Umgang damit in der
          Abschlussantwort nennen. Ist eine allgemeine Frage anhand des vorhandenen Auftrags
          für die konkrete Änderung unerheblich, diese Beurteilung dort begründen; das Flag
          bleibt unverändert. Kein Modellzweck wird erfunden, keine pauschale Ausnahme erteilt.

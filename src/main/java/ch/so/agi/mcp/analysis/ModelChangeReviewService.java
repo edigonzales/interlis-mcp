@@ -40,7 +40,7 @@ public class ModelChangeReviewService {
       return notComparableResponse(
           beforeCompilation,
           afterCompilation,
-          unavailableAfterReview(purpose, profile, afterCompilation.messages()));
+          unavailableAfterReview(purpose, profile));
     }
 
     ModelAnalysisTools.AnalysisData after =
@@ -94,9 +94,6 @@ public class ModelChangeReviewService {
         Map.entry("potentiallyBreakingChanges", potentiallyBreaking),
         Map.entry("impact", impact),
         Map.entry("afterReview", afterReview),
-        Map.entry("evidence", ch.so.agi.mcp.model.EvidenceSummary.changeReview(
-            beforeCompilation.valid(), beforeCompilation.messages(), afterCompilation.valid(), afterCompilation.messages(),
-            (ch.so.agi.mcp.model.EvidenceSummary) afterReview.get("evidence"))),
         Map.entry("summary", summary(added.size(), removed.size(), changed.size(), potentiallyBreaking.size())),
         Map.entry("limitations", limitations()));
   }
@@ -112,7 +109,6 @@ public class ModelChangeReviewService {
       return Map.of(
           "available", false,
           "constraintInteractions", ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis.analyze(null),
-          "evidence", ch.so.agi.mcp.model.EvidenceSummary.review(false, compilation.messages(), List.of(), profile.wireName()),
           "modelPurpose", purpose.name(),
           "ruleProfile", profile.wireName(),
           "reason", "The authored model must compile before it can be reviewed.");
@@ -141,18 +137,14 @@ public class ModelChangeReviewService {
         Map.entry("potentiallyBreakingChanges", List.of()),
         Map.entry("impact", "UNKNOWN"),
         Map.entry("afterReview", afterReview),
-        Map.entry("evidence", ch.so.agi.mcp.model.EvidenceSummary.changeReview(
-            beforeCompilation.valid(), beforeCompilation.messages(), afterCompilation.valid(), afterCompilation.messages(),
-            (ch.so.agi.mcp.model.EvidenceSummary) afterReview.get("evidence"))),
         Map.entry("summary", summary(0, 0, 0, 0)),
         Map.entry("limitations", limitations()));
   }
 
-  private Map<String, Object> unavailableAfterReview(ModelPurpose purpose, ModelingRuleProfile profile, List<?> diagnostics) {
+  private Map<String, Object> unavailableAfterReview(ModelPurpose purpose, ModelingRuleProfile profile) {
     return Map.of(
         "available", false,
           "constraintInteractions", ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis.analyze(null),
-        "evidence", ch.so.agi.mcp.model.EvidenceSummary.review(false, diagnostics, List.of(), profile.wireName()),
         "modelPurpose", purpose.name(),
         "ruleProfile", profile.wireName(),
         "reason", "The after model must compile before modeling rules can be reviewed.");

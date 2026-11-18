@@ -31,7 +31,7 @@ class SlimAgentOutputTest {
     var nested = Map.of("xtfText", "unrelated");
     var cases = List.of(success, negative, testCase(false, true, true, 0), testCase(true, false, true, 0),
         testCase(true, true, false, 0), testCase(true, true, true, 1), missing);
-    Map<String,Object> full = Map.of("cases", cases, "details", nested, "allPassed", false, "evidence", EvidenceSummary.empty());
+    Map<String,Object> full = Map.of("cases", cases, "details", nested, "allPassed", false);
     String original = mapper.writeValueAsString(full);
     assertThat(TestXtfOutput.prepare(full, null)).isSameAs(full);
     assertThat(TestXtfOutput.prepare(full, true)).isSameAs(full);
@@ -42,7 +42,6 @@ class SlimAgentOutputTest {
     assertThat(((Map<?,?>)projected.get(1)).containsKey("xtfText")).isFalse();
     for (int i = 2; i < projected.size(); i++) assertThat(((Map<?,?>)projected.get(i)).containsKey("xtfText")).isTrue();
     assertThat(compact.get("details")).isSameAs(nested);
-    assertThat(compact.get("evidence")).isSameAs(full.get("evidence"));
     assertThat(mapper.writeValueAsString(full)).isEqualTo(original);
     assertThat(TestXtfOutput.prepare(Map.of("cases", List.of(missing)), false)).doesNotContainKey("omittedSuccessfulTestXtfCount");
   }
@@ -57,12 +56,10 @@ class SlimAgentOutputTest {
     assertThat(result.modelHashes.candidate()).isNull();
     var snapshot = mapper.valueToTree(result);
     var hashes = result.modelHashes;
-    var evidence = result.evidence;
     TestXtfOutput.prepare(result, false);
     assertThat(compiler.calls).isEqualTo(2);
     assertThat(result.omittedSuccessfulTestXtfCount).isPositive();
     assertThat(result.modelHashes).isSameAs(hashes);
-    assertThat(result.evidence).isSameAs(evidence);
     var reduced = mapper.valueToTree(result);
     var restored = reduced.deepCopy();
     ((tools.jackson.databind.node.ObjectNode)restored).remove("omittedSuccessfulTestXtfCount");
@@ -72,7 +69,7 @@ class SlimAgentOutputTest {
       ((tools.jackson.databind.node.ObjectNode)newCases.get(i)).set("xtfText",oldCases.get(i).get("xtfText"));
     assertThat(restored).isEqualTo(snapshot);
     assertThat(result.constraintProofs.getFirst().verification.cases).anySatisfy(c -> {
-      assertThat(c.expectedValid).isFalse(); assertThat(c.passed).isTrue(); assertThat(c.xtfText).isNull();
+      assertThat(c.expectedConstraintValid).isFalse(); assertThat(c.passed).isTrue(); assertThat(c.xtfText).isNull();
     });
   }
 
@@ -120,7 +117,6 @@ class SlimAgentOutputTest {
       int fullBytes=mapper.writeValueAsBytes(full).length, compactBytes=mapper.writeValueAsBytes(compact).length;
       assertThat(compactBytes).isLessThan(fullBytes);
       assertThat(compiler.calls).isEqualTo(calls);
-      assertThat(compact.get("evidence")).isEqualTo(full.get("evidence"));
     }
   }
 

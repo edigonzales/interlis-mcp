@@ -39,7 +39,7 @@ class ConstraintStructureFixtureTest {
   @ValueSource(strings = {"s : S;", "s : BAG {0..3} OF S;", "s : LIST {2..3} OF S;"})
   void embedsDirectScalarBagAndListContexts(String attribute) {
     var proof = proof(model(STRUCTURE + "CLASS Owner = " + attribute + " END Owner;"));
-    assertThat(proof.generationVerified).isTrue();
+    assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED);
     int count = attribute.contains("{2") ? 2 : 1;
     assertThat(proof.verification.cases).allSatisfy(c -> {
       assertThat(c.subjectCount).isEqualTo(count);
@@ -56,7 +56,7 @@ class ConstraintStructureFixtureTest {
         CLASS Base (ABSTRACT) = wrappers : BAG {2..3} OF Wrapper; END Base;
         CLASS Owner EXTENDS Base = END Owner;
         """));
-    assertThat(proof.generationVerified).as(proof.toString()).isTrue();
+    assertThat(proof.status).as(proof.toString()).isEqualTo(IliAuthoringResult.ProofStatus.PASSED);
     assertThat(proof.generatedCases).allSatisfy(c -> {
       assertThat(c.ownerClassFqn).isEqualTo("StructureProof.Data.Owner");
       assertThat(c.structurePath).isEqualTo("wrappers->s");
@@ -91,7 +91,7 @@ class ConstraintStructureFixtureTest {
         CLASS A = s : S; date : MANDATORY INTERLIS.XMLDate; END A;
         CLASS B = s : S; END B;
         """));
-    assertThat(proof.generationVerified).isTrue();
+    assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED);
     assertThat(proof.generatedCases).allSatisfy(c -> assertThat(c.ownerClassFqn).endsWith(".B"));
   }
 
@@ -210,7 +210,7 @@ class ConstraintStructureFixtureTest {
     assertThat(result.constraintProofs.getFirst().verification.cases).allSatisfy(c -> {
       assertThat(c.subjectCount).isEqualTo(1);
       assertThat(c.fixtureValid).isTrue();
-      assertThat(c.expectedValid).isEqualTo(c.actualValid);
+      assertThat(c.expectedConstraintValid).isEqualTo(c.actualConstraintValid);
     });
   }
 
@@ -317,7 +317,7 @@ class ConstraintStructureFixtureTest {
     owners.append("CLASS Z = s : S; END Z;");
     var response = generator.generateIliConstraintCases(model(STRUCTURE + owners), "StructureProof.Data.S.Rule");
     assertThat(response.get("generationVerified")).isEqualTo(false);
-    var proof = IliAuthoringResult.constraintProof("StructureProof.Data.S.Rule", false, response);
+    var proof = IliAuthoringResult.constraintProof("StructureProof.Data.S.Rule", IliAuthoringResult.ProofStatus.INCOMPLETE, response);
     assertThat(proof.generatedCases).allSatisfy(c -> assertThat(c.ownerClassFqn).endsWith(".A7"));
     assertThat(proof.verification.cases).allSatisfy(c -> {
       assertThat(c.fixturePreparationReasonCode).isEqualTo("FIXTURE_MATERIALIZATION_FAILED");
@@ -329,7 +329,7 @@ class ConstraintStructureFixtureTest {
   private IliAuthoringResult.ConstraintProof proof(String model) {
     var response = generator.generateIliConstraintCases(model, "StructureProof.Data.S.Rule");
     assertThat(response.get("generationVerified")).as(response.toString()).isEqualTo(true);
-    return IliAuthoringResult.constraintProof("StructureProof.Data.S.Rule", true, response);
+    return IliAuthoringResult.constraintProof("StructureProof.Data.S.Rule", IliAuthoringResult.ProofStatus.PASSED, response);
   }
 
   private List<Map<String,Object>> verify(String model, List<ConstraintTestTools.TestCase> cases) {

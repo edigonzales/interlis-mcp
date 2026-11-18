@@ -62,7 +62,7 @@ public class AgentPrompts {
         - Für neue Constraints verwende den Prompt `author-interlis-constraint` bzw. das höchste passende Constraint-Tool:
           `authorIliMandatoryConstraint`, `authorIliUniqueConstraint`, `authorIliExistenceConstraint`,
           `authorIliPlausibilityConstraint` oder `authorIliSetConstraint`.
-        - `proofVerified=true` eines Authoring-Tools bzw. `generationVerified=true` von `generateIliConstraintCases` ist das
+        - `constraintProofs[].status = PASSED` eines Authoring-Tools bzw. `generationVerified=true` von `generateIliConstraintCases` ist das
           technische Proof-Gate für genau diesen Constraint. Wiederhole automatisch abgeleitete Fälle nicht nochmals
           routinemässig mit `testIliConstraint` oder `validateXtf`. Vorab festgelegte Fachfälle sind bei Prosa-Authoring zusätzlich erforderlich.
         - Erfolgreiches Constraint-Authoring enthält bereits semantischen Diff und `afterReview`; kein redundantes
@@ -128,7 +128,7 @@ public class AgentPrompts {
            `afterDiagnostics` und `afterReview` das Abschlussgate; führe für denselben unveränderten Stand kein weiteres
            `reviewIliChange` oder `reviewIliModel` aus.
         4. Wenn die Änderung ein neuer Constraint ist, verwende das höchste passende Constraint-Authoring-Tool. Bei
-           `proofVerified=true` ist keine Wiederholung automatisch abgeleiteter Tests erforderlich. Fachliche Erwartungsfälle sind zusätzlich mit `testIliConstraint` zu prüfen. Das Authoring liefert bereits Diff und `afterReview`; kein zusätzliches `reviewIliChange` für denselben Stand.
+           `constraintProofs[].status = PASSED` ist keine Wiederholung automatisch abgeleiteter Tests erforderlich. Fachliche Erwartungsfälle sind zusätzlich mit `testIliConstraint` zu prüfen. Das Authoring liefert bereits Diff und `afterReview`; kein zusätzliches `reviewIliChange` für denselben Stand.
         5. Wenn die Änderung sonst noch nicht unterstützt wird, mache nur die geforderte Erweiterung im Modelltext und vergleiche
            Vorher und Nachher mit `reviewIliChange`. Beachte `potentiallyBreakingChanges` und `impact`.
         6. Liefere den neuen Modelltext, die semantische Änderung, Compiler-/Regelbefunde und offene fachliche Entscheide.
@@ -163,7 +163,7 @@ public class AgentPrompts {
           `BOOLEAN_EXPRESSION`-Condition; Objektmengen sind `ALL` oder ein typisierter navigierter Pfad.
 
         Proof-Vertrag:
-        1. Bei einem typisierten Authoring-Tool muss `proofVerified=true` sein. Wenn `coverageUnsolved` oder ein Safety-Reason-Code
+        1. Bei einem typisierten Authoring-Tool muss `constraintProofs[].status = PASSED` sein. Wenn `coverageUnsolved` oder ein Safety-Reason-Code
            geliefert wird, berichte diese Grenze und erfinde keinen Ersatzbeweis.
         2. Bei einem bereits vorhandenen Constraint verwende `generateIliConstraintCases`; für den unterstützten
            Umfang muss `generationVerified=true` sein. Das Tool deckt MANDATORY, UNIQUE, EXISTENCE, PLAUSIBILITY und SET ab.

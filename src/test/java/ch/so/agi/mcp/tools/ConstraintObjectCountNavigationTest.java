@@ -218,7 +218,7 @@ class ConstraintObjectCountNavigationTest {
     assertThat(result.constraintProofs.getFirst().verification.cases).allSatisfy(c->assertThat(c.objectCounts).isNotEmpty());
     ((IliConstraintSpec.PathObjectsSpec)spec.condition.children.get(1).children.getFirst().children.getFirst().objects).path="mids->roots->mids->roots->mids->roots->mids->roots->mids";
     result=new ConstraintAuthoringTools(engine).authorIliMandatoryConstraint(model(version,""),"Objects.T.Root",spec,null,null);
-    assertThat(result.generated).isFalse();assertThat(result.proofVerified).isFalse();assertThat(result.candidateModelText).isNotBlank();assertThat(result.updatedModelText).isNull();
+    assertThat(result.updatedModelText).isNull();assertThat(result.updatedModelText).isNull();assertThat(result.candidateModelText).isNotBlank();assertThat(result.updatedModelText).isNull();
   }
 
   @Test void sharedScalarAssignmentsAreSolvedWithCounts() {
