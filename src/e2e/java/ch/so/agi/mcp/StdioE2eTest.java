@@ -4,6 +4,7 @@ import org.junit.jupiter.api.*;
 import java.io.*;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -11,6 +12,7 @@ import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -186,6 +188,31 @@ public class StdioE2eTest {
                 "ziel",
                 "REFERENCE TO",
                 "Demo.Topic.Target", "evidence", "ADDED_CONSTRAINTS", "constraintInteractions");
+    }
+
+    @Test
+    void reviewIliChangeReportsAddedAttributeOverStdio() throws Exception {
+        initializeSession();
+
+        String before = minimalRenameModel();
+        String after = before.replace("END Target;", "label : TEXT*20; END Target;");
+        String arguments = JSON.writeValueAsString(Map.of("beforeModelText", before, "afterModelText", after));
+        String response = callTool(2, "reviewIliChange", arguments);
+        var result = JSON.readTree(response).path("result");
+        assertFalse(result.path("isError").asBoolean(), response);
+        var change = JSON.readTree(result.path("content").path(0).path("text").asString());
+        assertTrue(change.path("comparable").asBoolean(), response);
+        assertEquals("Demo.Topic.Target.label", change.path("added").path(0).path("scopedName").asString(), response);
+    }
+
+    @Test
+    void readModelExampleRejectsPathOutsideConfiguredCorpusOverStdio() throws Exception {
+        initializeSession();
+
+        String response = callTool(2, "readModelExample", "{\"path\":\"../does-not-exist.ili\"}");
+        var result = JSON.readTree(response).path("result");
+        assertTrue(result.path("isError").asBoolean(), response);
+        assertTrue(result.path("content").path(0).path("text").asString().contains("Unable to read model example"), response);
     }
 
     @Test
