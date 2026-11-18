@@ -7,6 +7,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -15,6 +17,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("e2e")
 public class StdioE2eTest {
     private static final String EXPECTED_PROJECT_VERSION = System.getProperty("expectedProjectVersion", "0.0.LOCALBUILD");
+    private static final JsonMapper JSON = JsonMapper.builder()
+            .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+            .build();
 
     private Process proc;
     private BufferedWriter toServer;
@@ -108,6 +113,9 @@ public class StdioE2eTest {
                 "MCP server should terminate after initialize, a fully drained tools/list response, and EOF");
         assertTrue(proc.exitValue() == 0,
                 "MCP server should terminate cleanly after EOF; exit code was " + proc.exitValue());
+        stdoutPump.join(1000);
+        assertFalse(stdoutPump.isAlive(), "STDOUT should close when the process exits");
+        stdoutLines.forEach(this::rpcResponseId);
     }
 
     @Test
@@ -725,42 +733,28 @@ public class StdioE2eTest {
             return pending;
         }
         long deadline = System.currentTimeMillis() + timeoutMillis;
-        String needle = "\"id\":" + id;
         while (System.currentTimeMillis() < deadline) {
             long remaining = Math.max(1, deadline - System.currentTimeMillis());
             String line = stdoutLines.poll(remaining, TimeUnit.MILLISECONDS);
             if (line == null) continue; // timeout slice; loop again
-            // Ignore notifications and unrelated messages; look for our id
-            if (line.contains("\"jsonrpc\":\"2.0\"") && line.contains(needle)
-                    && (line.contains("\"result\"") || line.contains("\"error\""))) {
-                return line;
-            }
-            if (line.contains("\"jsonrpc\":\"2.0\"")
-                    && (line.contains("\"result\"") || line.contains("\"error\""))) {
-                Integer responseId = responseId(line);
-                if (responseId != null) {
-                    pendingResponses.put(responseId, line);
-                }
+            Integer responseId = rpcResponseId(line);
+            if (responseId != null) {
+                if (responseId == id) return line;
+                pendingResponses.put(responseId, line);
             }
             // Otherwise keep waiting; other messages (e.g., pings/notifications) may arrive.
         }
         return null;
     }
 
-    private Integer responseId(String line) {
-        int marker = line.indexOf("\"id\":");
-        if (marker < 0) {
-            return null;
-        }
-        int start = marker + "\"id\":".length();
-        int end = start;
-        while (end < line.length() && Character.isDigit(line.charAt(end))) {
-            end++;
-        }
-        if (start == end) {
-            return null;
-        }
-        return Integer.valueOf(line.substring(start, end));
+    private Integer rpcResponseId(String line) {
+        var message = JSON.readTree(line);
+        assertTrue("2.0".equals(message.path("jsonrpc").asString()), () -> "Unexpected STDOUT: " + line);
+        if (message.has("method")) return null;
+        var id = message.path("id");
+        assertTrue(id.isInt() && (message.has("result") ^ message.has("error")),
+                () -> "Invalid JSON-RPC response: " + line);
+        return id.asInt();
     }
 
     private String jsonString(String raw) {

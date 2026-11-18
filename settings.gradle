@@ -1,3 +1,1 @@
 rootProject.name = 'interlis-mcp'
-include 'interlis-mcp-module'
-project(':interlis-mcp-module').projectDir = file('module')

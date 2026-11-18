@@ -7,9 +7,9 @@ Dieses Handbuch beschreibt, wie `interlis-mcp` gebaut, getestet und erweitert wi
 Der aktuelle Build verwendet:
 
 - Java Toolchain 21
-- Gradle Wrapper 8.14.3
-- Spring Boot 4.1.0
-- Spring AI 2.0.0
+- Gradle Wrapper 9.5.1
+- Spring Boot 4.1.1
+- Spring AI 2.0.1
 - ili2c 5.6.8
 - iox-ili 1.24.4
 - ilivalidator 1.14.3
@@ -21,7 +21,7 @@ Verbindliche Laufzeitquelle für diese Versionen ist `build.gradle`. Es gibt bew
 Die wichtigsten Bereiche sind:
 
 ```text
-module/src/main/java/ch/so/agi/mcp/
+src/main/java/ch/so/agi/mcp/
   Application.java
   analysis/      Modellanalyse und Vorher-/Nachher-Review
   change/        typisierte semantische Modelländerungen
@@ -61,7 +61,12 @@ Für lokale Entwicklung:
 ./gradlew bootRun
 ```
 
-Die Anwendung ist kein Webserver. `spring.main.web-application-type=none` deaktiviert den Web-Stack.
+Das JAR verwendet standardmässig STDIO. Für Streamable HTTP unter `/mcp`
+das Profil `http` aktivieren.
+
+```bash
+java -jar build/libs/interlis-mcp.jar --spring.profiles.active=http
+```
 
 Der Standalone-Start beendet den Spring-Kontext, sobald der MCP-Client STDIN
 schliesst oder EOF liefert. Ein Client soll deshalb zuerst seine letzte
@@ -109,13 +114,12 @@ interlis.mcp.model-repositories=
 ```
 
 `interlis.mcp.stdio.shutdown-on-eof` wird beim Standalone-JAR-Start intern auf
-`true` gesetzt. In eingebetteten Spring-Test- oder Anwendungskontexten bleibt
-der Wert standardmässig `false`, damit ein EOF des Test-Streams nicht den
-gesamten Kontext beendet.
+`true` gesetzt. In Spring-Tests bleibt der Wert standardmässig `false`, damit ein EOF des
+Test-Streams den gemeinsam verwendeten Kontext offen lässt.
 
 `interlis.mcp.model-repositories` konfiguriert die ili2c-/ilivalidator-Repositories einmal pro Server. Öffentliche Tools nehmen keinen Repository-Override pro Aufruf entgegen. Per Environment kann die Property als `INTERLIS_MCP_MODEL_REPOSITORIES` gesetzt werden.
 
-Die Serverversion wird beim `processResources` aus `project.version` in `application.properties` eingesetzt. Lokale Builds verwenden typischerweise `0.0.LOCALBUILD`; CI-Builds verwenden die vom vorhandenen Versionierungsskript berechnete Version.
+Die Serverversion wird beim `processResources` aus `project.version` in `application.properties` eingesetzt. Lokale Builds verwenden `0.0.LOCALBUILD`. In GitHub Actions legt `IMAGE_VERSION` die Serverversion und den Image-Tag fest.
 
 ## Tests
 
@@ -185,13 +189,18 @@ Damit werden unter anderem geprüft:
 
 ### CI
 
-Der geheimnisfreie Test-Job läuft für Pushes, Pull Requests, manuelle Starts und reine Dokumentationsänderungen:
+Der Workflow prüft Pull Requests, Pushes nach `main` und manuelle Läufe.
 
-```text
-./gradlew clean test e2eTest --no-daemon
+```bash
+./gradlew --no-daemon clean check e2eTest bootJar
 ```
 
-Erst nach erfolgreichem Test veröffentlicht ein separater Job auf `main` das Multi-Arch-Image. Registry-Secrets stehen nur diesem Publish-Job zur Verfügung. Externe Actions und das Container-Basisimage sind auf Commits beziehungsweise Digest gepinnt.
+Die HTTP-Probe startet Container für `linux/amd64` und `linux/arm64`, prüft
+`/mcp` und führt parallele Toolaufrufe mit unterschiedlichen Ergebnissen aus.
+Nach erfolgreicher Prüfung verwendet der Publish-Job das JAR aus diesem Lauf.
+Nur Main-Pushes und manuelle Läufe auf `main` veröffentlichen via Buildx
+Versions- und `latest`-Tags für beide Architekturen auf Docker Hub und GHCR.
+Registry-Zugangsdaten stehen ausschliesslich diesem Job zur Verfügung.
 
 ## Neues Tool hinzufügen
 
@@ -205,7 +214,7 @@ Empfohlener Ablauf:
 4. Optionalität im Java-Typ und im MCP-Schema konsistent ausdrücken.
 5. Fachliche Unsicherheit als Ergebniszustand modellieren; keine fehlende Semantik erfinden.
 6. Fokussierte Tests ergänzen.
-7. Bei öffentlichem Schema `ToolRegistrationContractTest` aktualisieren und in `tools/test-mcp-stdio.py` einen Probeaufruf mit aussagekräftigen Ergebniserwartungen ergänzen. Die Probe verlangt Abdeckung jedes über `tools/list` registrierten Tools.
+7. Bei Änderungen am öffentlichen Schema `ToolRegistrationContractTest` aktualisieren.
 8. Wenn der vorgesehene Agentenablauf betroffen ist, Prompt/Resource und Golden Scenario prüfen.
 9. Benutzer- oder Referenzdokumentation aktualisieren.
 
@@ -302,8 +311,8 @@ Constraint-Fixtures dürfen spezifischer sein, müssen aber Nebenfehler sauber v
 Regeln liegen unter:
 
 ```text
-module/src/main/resources/knowledge/modeling-rules.core.yml
-module/src/main/resources/knowledge/modeling-rules.so.yml
+src/main/resources/knowledge/modeling-rules.core.yml
+src/main/resources/knowledge/modeling-rules.so.yml
 ```
 
 - `CORE`: portable Regeln.
@@ -338,67 +347,18 @@ STDOUT ist Teil des MCP-Transports. Normale Logs gehören deshalb auf STDERR.
 
 `logback-spring.xml` hält Framework-Noise klein. Neue Bibliotheken sollten nicht unkontrolliert auf STDOUT schreiben.
 
-## Container-Images und Module
+## Container-Image
 
-Das Root-Projekt bleibt die Standalone-Anwendung; Fachcode und fachliche Ressourcen
-liegen in `module/src/main/`. `InterlisMcpModuleConfiguration` exportiert die
-MCP-Funktionen ohne Transport oder globale Logging-Vorgaben. Die Suite importiert
-sie zusammen mit NETLs Konfiguration. Die Schema-Normalisierung wird nur auf die
-INTERLIS-Tools angewendet.
-
-`./gradlew buildImage` baut zuerst `build/libs/interlis-mcp.jar`, anschliessend das
-Java-21-Image. `buildJvmImage` bleibt als Alias erhalten. Docker verwendet das Profil
-`http` (WebMVC, SYNC, Streamable HTTP, `/mcp`, Port 8080). Das Profil `stdio` bleibt
-der Standard bei lokalen JAR-Aufrufen. Beide verwenden eine Stunde Request-Timeout.
+`./gradlew buildImage` baut das ausführbare JAR und das lokale Image
+`sogis/interlis-mcp:latest`. Der Container startet als Nicht-Root-Benutzer
+mit dem Profil `http`. Für STDIO beim Start `-i -e SPRING_PROFILES_ACTIVE=stdio`
+übergeben.
 
 ```bash
 docker run --rm -p 127.0.0.1:8080:8080 sogis/interlis-mcp:latest
-docker run --rm -i -e SPRING_PROFILES_ACTIVE=stdio sogis/interlis-mcp:latest
+# Aus einem zweiten Terminal
+python3 tools/mcp-smoke.py http://127.0.0.1:8080/mcp
 ```
-
-Der Workflow `.github/workflows/main.yml` prüft Fachtests, Benchmarkprüfungen und
-STDIO-E2E, baut kanonische Artefakte einmal und verwendet dasselbe JAR auf nativen
-amd64-/arm64-Runnern. Bereits vor den Image-Builds ruft die vollständige STDIO-Probe
-alle registrierten Tools gegen das kanonische JAR auf. `verifyIliModel` wird dabei
-mit einer XMLDate-UNIQUE-Regel auf `VERIFIED` geprüft. Beide Images werden über HTTP und STDIO geprüft; erst nach
-Erfolg beider Architekturen werden die getesteten Artefakte veröffentlicht.
-Pull Requests veröffentlichen nichts. Main-Pushes und manuelle Main-Läufe veröffentlichen
-Module auf `jars.interlis.guru/snapshots/` sowie Images auf Docker Hub und GHCR.
-Details und Secrets: [Modularer Betrieb](MODULES.md).
-
-## Java und deaktivierte Native-Builds
-
-Syntax, Bytecode, Toolchain und Laufzeit verwenden Java 21; Gradle ist 9.5.1.
-`options.release=21` gilt auch für das Modul. GraalVM-Plugin, Native-Tasks,
-Native-Dockerstufen und Native-CI-Veröffentlichung sind deaktiviert. Die nachfolgenden
-Reflection-Metadaten dokumentieren den erhaltenen Stand für eine spätere Wiederaufnahme.
-
-### Reflection-Metadaten pflegen
-
-Jackson wandelt MCP-Tool-Argumente und -Ergebnisse reflektiv um. Ein Native Image
-behält nur, was über einen Hint erreichbar ist. Deshalb registriert
-`McpDtoReflectionHints` die Payload-Typen aus
-
-```
-module/src/main/resources/META-INF/native-image/ch.so.agi/interlis-mcp/reachability-metadata.json
-```
-
-mit allen öffentlichen Membern, damit Record-Accessoren unabhängig vom jeweiligen
-Aufrufpfad funktionieren. Die Typenliste wurde mit dem GraalVM-Tracing-Agent
-gesammelt, während `tools/test-mcp-stdio.py` alle Tools ausgeführt hat. Die Datei
-ist reine Datenhaltung und wird nicht von Hand gepflegt, sondern bei Bedarf neu
-erzeugt:
-
-```bash
-export JAVA_HOME="$HOME/.sdkman/candidates/java/25.0.3-graal"
-./gradlew bootJar
-java -agentlib:native-image-agent=config-output-dir=/tmp/agent-config \
-     -jar build/libs/interlis-mcp.jar     # mit tools/test-mcp-stdio.py als Client
-```
-
-Danach die `reflection`-Einträge für `ch.so.agi.*` in die Datei übernehmen.
-Zeigt ein Tool im Native Image `MissingReflectionRegistrationError`, fehlt der
-Typ in dieser Liste.
 
 ## Dokumentation pflegen
 
@@ -429,37 +389,6 @@ Bei jeder Änderung an einer öffentlichen Fähigkeit prüfen:
 
 Codebeschreibung, maschinenwirksamer Agentenvertrag und menschliche Dokumentation sollen dieselbe Wahrheit ausdrücken.
 
-## Abnahme der ergänzenden Ergebnisnachweise (26. September 2026)
-
-Der Arbeitsstand mit `evidence`, automatischer XTF-Beispielvalidierung und
-`constraintInteractions` wurde unter Java 21 mit `./gradlew check e2eTest` geprüft:
-
-| Prüfung | Ergebnis |
-| --- | --- |
-| Java-Tests einschliesslich Schema-, Handler- und Differentialtests | 544 bestanden, keine ausgelassen |
-| STDIO-E2E gegen das gebaute JAR | 19 bestanden, keine ausgelassen |
-| Python-Benchmark-Prüfer und Recorder | 32 bestanden |
-| `git diff --check` | Keine Whitespace-Fehler |
-
-Die Regressionen prüfen insbesondere unabhängige Altersgrenzen (17/18/19), getrennte
-Mandatory-Auswertung bei UNDEFINED, numerische Präzision, Enum-Widersprüche, nicht
-unterstützte Regeln, das echte 50.000-Zustände-Budget sowie den unveränderten
-Ein-/Zwei-Compile-Vertrag. Ein zusätzlicher Befund darf weder die bestehende Freigabe
-noch `requiresUserDecision` verändern. Diese Ergänzung verändert keine bestehenden
-Eingabeparameter; die vorhandenen Schema-Grössenlimits werden eingehalten.
-
-Bei Constraint-Tests zählt `evidence.constraintTests.errorCount` fehlgeschlagene Testerwartungen,
-nicht die erwarteten Validatorverletzungen erfolgreicher negativer Testfälle.
-Warnungen der ausgeführten Fälle werden separat zusammengezählt.
-
-Die skalare Analyse ist kein vollständiger Erfüllbarkeitstest für Objektgraphen.
-Ein validierter Beispieltransfer prüft nur die tatsächlich übertragenen Daten.
-Fachliche Akzeptanz und die Herkunft expliziter Erwartungen werden nicht behauptet.
-
-Die eingefrorenen Benchmark-Suiten und Referenzanforderungen wurden nicht verändert;
-ein neuer freier Agentenbenchmark über einen nativen Connector wurde nicht ausgeführt.
-Die obigen technischen Testzahlen sind keine Agentenerfolgsquote.
-
 ## Prosa-Authoring-Workflow
 
 `analyzeIliModel` besitzt den optionalen Parameter `contextFqn`. Der klassische Aufruf bleibt
@@ -482,15 +411,6 @@ mit `check` geprüft. Ihre unabhängigen Referenzfälle werden gegen den echten 
 Ein freier nativer Agentenlauf ist mangels Connector ausstehend; synthetische Prüfer-Tests oder
 Java-/STDIO-Tests dürfen nicht als Agentenerfolgsquote ausgegeben werden.
 
-### Technische Abnahme vom 26. September 2026
-
-Mit Java 21.0.10 wurde `./gradlew check e2eTest --console=plain` erfolgreich ausgeführt:
-554 Java-Tests, 20 STDIO-E2E-Tests, 32 bestehende Benchmark-/Recorder-Tests und 6 neue
-Workflow-Prüfertests; keine Fehler oder übersprungenen Java-/E2E-Tests. Native Verträge für
-27 Tools, Deklarationen unter 50.000 Bytes und bestehende Compileranzahlen bestehen.
-`git diff --check` ist sauber; eingefrorene Rekonstruktions-Suiten und Automation bleiben
-unverändert. Diese technische Abnahme enthält keinen freien Agentenlauf.
-
 ## Schlanke Ausgabegrenzen für Agenten
 
 `ModelHashes` berechnet SHA-256 des unveränderten UTF-8-Texts und ergänzt die jeweiligen
@@ -511,25 +431,6 @@ kompatibel; `omittedSuccessfulTestXtfCount` erscheint nur bei tatsächlichen Aus
 `SlimAgentOutputTest` misst serialisierte Antworten derselben vollständig geprüften Fixtures
 vor und nach der Projektion und schreibt `build/reports/slim-response-sizes.txt`.
 Diese Bytes sind keine Tokenmessung und belegen keine höhere Agentenerfolgsquote.
-
-### Abnahme der schlanken Ausgabe vom 26. September 2026
-
-Unter Java 21.0.10 besteht `./gradlew check e2eTest --console=plain`: 559 Java-Tests,
-20 STDIO-E2E-Tests und 38 Python-Prüfertests (32 bestehende, 6 Workflow-Prüfertests).
-Keine Java-/E2E-Fehler oder übersprungenen Tests; `git diff --check` ist sauber.
-27 Tools, Schema-Grössenlimits und Compileranzahl-Verträge bleiben erhalten.
-
-Gemessen an denselben vollständig geprüften Constraint-Fixtures, jeweils inklusive Modellhash:
-
-| Fixture | Vollständiges JSON | Reduziertes JSON | Ersparnis | Entfernte XTF-Texte |
-| --- | ---: | ---: | ---: | ---: |
-| `age >= 18` | 9.136 Bytes | 7.866 Bytes | 13,9 % | 2 |
-| `age > 18 AND age < 90` | 14.609 Bytes | 11.410 Bytes | 21,9 % | 5 |
-
-Die Projektion selbst führt keine Kompilierung oder Validierung aus. Diese Fixture-Messung
-ist keine allgemeine Grössengarantie und keine Agentenerfolgsquote. Ein freier nativer
-Agentenlauf bleibt mangels Connector ausstehend; bestehende eingefrorene Suiten und Automation
-wurden nicht verändert.
 
 ### Sichtbarer Mandatory-Eingabevertrag und Freigabehinweise
 
@@ -581,8 +482,6 @@ Der Recorder ist kein Runner und trifft keine fachlichen oder Freigabeentscheidu
 
 ## Modellbasierte Pfadsuche
 
-`findConstraintPaths` erweitert den aktuellen MCP-Vertrag auf 28 Tools. Die bisherigen
-Signaturen bleiben erhalten; historische Abnahmen oben dokumentieren ihren damaligen Umfang.
 `ConstraintPathSearch` kompiliert nicht selbst: Der Tool-Handler übergibt die einmal kompilierte
 `TransferDescription`. `ConstraintPathAnalysis` teilt Parserprüfung, Typ-/Kardinalitätsfakten
 und Verwendungshinweise mit `resolveConstraintPath`.
@@ -608,5 +507,4 @@ CORE/SO-GIS verwenden weiterhin das bisherige Rendering.
 
 `SoDataTest`, die Authoring-/Änderungstests und `ToolRegistrationContractTest`
 prüfen Regeln, Quellerhaltung, fünf Constraint-Arten und reale MCP-Schemas.
-[Benutzervertrag](USER_GUIDE.md#so-data-csv-validierungsmodelle) und
-[Abnahmestand](SO_DATA_ACCEPTANCE.md) beschreiben Nutzung und Auslieferungsgrenzen.
+Die Nutzung ist im [Benutzerhandbuch](USER_GUIDE.md#so-data-csv-validierungsmodelle) beschrieben.
