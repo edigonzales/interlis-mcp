@@ -1,0 +1,29 @@
+{
+  "contextFqn": "SO_ARP_Nutzungsplanung_Nachfuehrung_20221118_Validierung_20221118.Nutzungsplanung_Validierung.v_Grundnutzung",
+  "spec": {
+    "kind": "MANDATORY",
+    "name": "ReconstructedRule",
+    "condition": {
+      "kind": "COMPARE",
+      "operator": ">",
+      "children": [
+        {
+          "kind": "FUNCTION",
+          "name": "SO_FunctionsExt.area",
+          "functionOrigin": "MODEL",
+          "children": [
+            {
+              "kind": "PATH",
+              "name": "Geometrie"
+            }
+          ]
+        },
+        {
+          "kind": "NUMERIC",
+          "value": 0.01
+        }
+      ]
+    },
+    "iliDoc": "Die Fläche der Geometrie jedes Grundnutzungsobjekts muss strikt grösser als 0.01 m² sein; die Flächenberechnung ist externe Funktionssemantik."
+  }
+}

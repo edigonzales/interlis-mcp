@@ -7,7 +7,6 @@ import ch.so.agi.mcp.knowledge.*;
 import ch.so.agi.mcp.model.*;
 import ch.so.agi.mcp.service.IliCompilerService;
 import ch.so.agi.mcp.tools.*;
-import java.nio.file.*;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
@@ -113,20 +112,16 @@ class SlimAgentOutputTest {
     assertThat(checked.get("omittedSuccessfulTestXtfCount")).isEqualTo(3);
     assertThat(ModelHashes.sha256(authored.updatedModelText+"\n")).isNotEqualTo(authored.modelHashes.after());
     var generator = new ConstraintCaseGenerationTools(new ConstraintContextService(compiler), tests);
-    var sizes = new ArrayList<String>();
-    for (var fixture : List.of(Map.entry("age", ProseConstraintWorkflowTest.simple("age >= 18")),
-        Map.entry("ordered", ProseConstraintWorkflowTest.simple("age > 18 AND age < 90")))) {
-      var full = generator.generateIliConstraintCases(fixture.getValue(), "Simple.Data.Person.Rule");
+    for (var fixture : List.of(ProseConstraintWorkflowTest.simple("age >= 18"),
+        ProseConstraintWorkflowTest.simple("age > 18 AND age < 90"))) {
+      var full = generator.generateIliConstraintCases(fixture, "Simple.Data.Person.Rule");
       int calls = compiler.calls;
       var compact = TestXtfOutput.prepare(full,false);
       int fullBytes=mapper.writeValueAsBytes(full).length, compactBytes=mapper.writeValueAsBytes(compact).length;
       assertThat(compactBytes).isLessThan(fullBytes);
       assertThat(compiler.calls).isEqualTo(calls);
       assertThat(compact.get("evidence")).isEqualTo(full.get("evidence"));
-      sizes.add(fixture.getKey()+": "+fullBytes+" -> "+compactBytes+" bytes; omitted="+compact.get("omittedSuccessfulTestXtfCount"));
     }
-    Files.createDirectories(Path.of("build/reports"));
-    Files.write(Path.of("build/reports/slim-response-sizes.txt"), sizes);
   }
 
   static String before() { return ProseConstraintWorkflowTest.simple("age >= 18").replace("MANDATORY CONSTRAINT Rule: age >= 18;", ""); }

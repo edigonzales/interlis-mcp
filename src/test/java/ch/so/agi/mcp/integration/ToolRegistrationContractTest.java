@@ -44,18 +44,20 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
 }
 
 @Test
-
-  void exportVerifiedBenchmarkToolCatalog() throws Exception {
-    Set<String> names = Set.of("validateIliModel", "reviewIliConstraint", "generateIliConstraintCases",
-        "authorIliMandatoryConstraint", "authorIliPlausibilityConstraint", "authorIliExistenceConstraint",
-        "authorIliSetConstraint", "authorIliUniqueConstraint", "generateIliConstraintFromDecisionTable",
-        "listConstraintFunctions", "resolveConstraintPath");
-    var selected = toolSpecifications.stream().filter(s -> names.contains(s.tool().name()))
-        .map(SyncToolSpecification::tool).sorted(java.util.Comparator.comparing(McpSchema.Tool::name)).toList();
-    assertThat(selected).hasSize(names.size());
-    var path = java.nio.file.Path.of("build/benchmark/tool-catalog.json");
-    java.nio.file.Files.createDirectories(path.getParent());
-    java.nio.file.Files.writeString(path, mapper.writeValueAsString(selected));
+  void functionCatalogReturnsLanguageAndVersionedFunctions() throws Exception {
+    var tool = specsByName().get("listConstraintFunctions");
+    for (String version : List.of("2.3", "2.4")) {
+      var response = tool.callHandler().apply(null,
+          new McpSchema.CallToolRequest("listConstraintFunctions", Map.of("iliVersion", version)));
+      assertThat(response.isError()).isFalse();
+      var result = response.structuredContent() instanceof Map<?, ?> content ? mapper.valueToTree(content)
+          : mapper.readTree(((McpSchema.TextContent) response.content().getFirst()).text());
+      assertThat(result.path("iliVersion").asText()).isEqualTo(version);
+      assertThat(result.path("functions")).isNotEmpty();
+      assertThat(result.path("constraintLanguage")).isNotEmpty();
+      assertThat(result.path("originKinds").has("STANDARD_FUNCTION_MODEL")).isTrue();
+      assertThat(result.has("runtimeIdentity")).isFalse();
+    }
   }
 
   @Test

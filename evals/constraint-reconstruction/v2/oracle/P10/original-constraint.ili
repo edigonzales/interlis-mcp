@@ -1,3 +1,0 @@
-      !!@ name = 19901
-      !!@ ilivalid.msg = "Bauwerkskomponente wird ignoriert"
-      SET CONSTRAINT INTERLIS.objectCount(ALL)==0;

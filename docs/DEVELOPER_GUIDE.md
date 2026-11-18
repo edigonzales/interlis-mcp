@@ -411,10 +411,18 @@ Der native Vertrag behält das Limit von 50.000 Bytes je Tooldeklaration.
 `expectationSource` ist eine optionale Herkunftsangabe des Aufrufers, kein Sicherheitsnachweis.
 Die strengere Schreibregel lebt im Agentenworkflow, nicht in serverseitigen Freigabefeldern.
 
-Die zusätzliche Suite unter `evals/constraint-authoring-workflow` und ihr Offline-Prüfer werden
-mit `check` geprüft. Ihre unabhängigen Referenzfälle werden gegen den echten Validator getestet.
-Ein freier nativer Agentenlauf ist mangels Connector ausstehend; synthetische Prüfer-Tests oder
-Java-/STDIO-Tests dürfen nicht als Agentenerfolgsquote ausgegeben werden.
+## Fachliche Constraint-Regressionen
+
+Die Rekonstruktionsfälle liegen unter `src/test/resources/constraint/reconstruction`.
+Die sechs INTERLIS-Modelle enthalten die Originalregeln. Markierungen grenzen die Regel ein,
+die `ConstraintReconstructionTest` für den jeweiligen Authoring-Aufruf entfernt. Die JSON-Dateien
+enthalten die MCP-Eingaben. Die importierten Modelle liegen unter `src/test/resources/constraint/imports`
+und werden als lokales Modellrepository verwendet.
+
+Die JUnit-Tests führen die registrierten MCP-Handler aus und kompilieren die Kandidaten mit ili2c.
+Feste Sollwerte für XTF-Fälle prüfen mit ilivalidator die Zielregel und die Gültigkeit der Fixtures.
+`ProseConstraintWorkflowTest` prüft die Altersgrenzen, undefinierte Werte und die gemeinsame
+Wirkung zweier Regeln. `./gradlew check` führt diese Tests aus.
 
 ## Schlanke Ausgabegrenzen für Agenten
 
@@ -433,9 +441,8 @@ Es entstehen keine Tools, Aktionszustände, Caches, Sitzungen oder Detailabruf-M
 Bei fehlendem `warningCount` wird konservativ kein XTF entfernt. Die Standards bleiben
 kompatibel; `omittedSuccessfulTestXtfCount` erscheint nur bei tatsächlichen Auslassungen.
 
-`SlimAgentOutputTest` misst serialisierte Antworten derselben vollständig geprüften Fixtures
-vor und nach der Projektion und schreibt `build/reports/slim-response-sizes.txt`.
-Diese Bytes sind keine Tokenmessung und belegen keine höhere Agentenerfolgsquote.
+`SlimAgentOutputTest` vergleicht beide Ausgabeformen vollständig geprüfter Fixtures und
+prüft, dass die Projektion keine zusätzliche Kompilierung auslöst.
 
 ### Sichtbarer Mandatory-Eingabevertrag und Freigabehinweise
 
@@ -466,7 +473,7 @@ für die konkrete Änderung unerheblich, muss er dies sichtbar begründen. Das F
 bleibt unverändert; weder ein erfundener Modellzweck noch erfolgreiche Proofs ersetzen
 diese Beurteilung. Es gibt keine pauschale Ausnahme für Modellzweckfragen.
 
-### Gezielte Schemadiagnosen und verlustfreie Laufprotokolle
+### Gezielte Schemadiagnosen
 
 `ConstraintSpecSchema` wählt die 15 rekursiven Ausdrucksformen mit `allOf` und
 `if`/`then` anhand des erforderlichen `kind` aus. Die bisherigen Feld-, Typ- und
@@ -475,15 +482,6 @@ So werden Kinder nicht nochmals unter allen unpassenden Ausdrucksformen geprüft
 Die Diagnose bleibt ein vorgelagerter Schemafehler. Das Deklarationslimit von
 50.000 Bytes ist keine allgemeine Grenze für Fehlerantworten; Regressionen begrenzen
 die repräsentativen verschachtelten Einzel- und Batchdiagnosen auf unter 8 KiB.
-
-Der Workflow-Recorder unter `evals/constraint-authoring-workflow/tools` verwendet
-native Tools und den vorhandenen `store`. Er archiviert Requests vor dem Aufruf,
-sichert Antworten vor Dateizugriffen und schreibt höchstens 8 KiB UTF-8 je Block.
-JSON und Blockhashes werden vor der abschliessenden Umbenennung geprüft. Seine
-`persist`-Funktion wiederholt nur die Archivierung; sie ruft kein MCP-Tool auf.
-Ein ausstehendes Archiv sperrt weitere Aufrufe. Toolausnahmen stehen separat in
-`*-tool-exception.json`; sie ersetzen niemals eine empfangene Antwort.
-Der Recorder ist kein Runner und trifft keine fachlichen oder Freigabeentscheidungen.
 
 ## Modellbasierte Pfadsuche
 

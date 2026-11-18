@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.so.agi.mcp.constraint.CompiledConstraintContext;
 import ch.so.agi.mcp.constraint.ConstraintAuthoringWorkflow;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
+import ch.so.agi.mcp.constraint.ConstraintFixtures;
 import ch.so.agi.mcp.model.IliAuthoringResult;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.ArrayList;
@@ -213,28 +214,27 @@ class ConstraintStructureFixtureTest {
     });
   }
 
-  record DecisionRequest(String contextFqn, String constraintName,
+  record DecisionRequest(String context, String constraintName,
       List<ConstraintDecisionTableTools.DecisionRow> rows) {}
 
   @Test
   void publicP06WithExplicitPresenceGuardsProvesEmptyRelationship() throws Exception {
-    DecisionRequest request;
-    try (var input = getClass().getResourceAsStream("/constraint/p06-weighting.json")) {
-      request = new tools.jackson.databind.ObjectMapper().readValue(input, DecisionRequest.class);
-    }
-    String model = java.nio.file.Files.readString(java.nio.file.Path.of(
-        "evals/constraint-reconstruction/v1/public/P06/model.ili"));
-    var tools = new ConstraintDecisionTableTools(new ConstraintAuthoringWorkflow(compiler), generator);
-    var result = tools.generateIliConstraintFromDecisionTable(model, request.contextFqn(), request.constraintName(), request.rows());
+    var request = ConstraintFixtures.arguments("P06", DecisionRequest.class);
+    String model = ConstraintFixtures.withoutRule("P06");
+    var localCompiler = new IliCompilerService(ConstraintFixtures.repositories());
+    var localVerifier = new ConstraintTestTools(localCompiler);
+    var tools = new ConstraintDecisionTableTools(new ConstraintAuthoringWorkflow(localCompiler),
+        new ConstraintCaseGenerationTools(new ConstraintContextService(localCompiler), localVerifier));
+    var result = tools.generateIliConstraintFromDecisionTable(model, request.context(), request.constraintName(), request.rows());
     assertThat(result.status).as(result.toString()).isEqualTo(IliAuthoringResult.Status.GENERATED);
     var cases = new ArrayList<ConstraintTestTools.TestCase>();
     for (int weight : List.of(100, 99)) {
       var c = testCase("no secondary " + weight, weight == 100, Map.of("Gewichtung", weight));
-      c.objects.getFirst().classFqn = request.contextFqn();
+      c.objects.getFirst().classFqn = request.context();
       cases.add(c);
     }
-    var verification = verifier.testIliConstraint(result.updatedModelText,
-        request.contextFqn()+"."+request.constraintName(), cases);
+    var verification = localVerifier.testIliConstraint(result.updatedModelText,
+        request.context()+"."+request.constraintName(), cases);
     assertThat(verification.get("allPassed")).as(verification.toString()).isEqualTo(true);
   }
 

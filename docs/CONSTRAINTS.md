@@ -153,15 +153,6 @@ kompiliert bei diesen Formfehlern kein Modell und liefert keinen Kandidaten. Der
 kann bereits das unveränderte Eingabemodell kompiliert haben. Fehler, die der Client oder die native
 Schema-Prüfung vor dem Handler erkennt, bleiben Schema-/Transportfehler.
 
-### Benchmark-Kompatibilität
-
-Diese Erweiterung verändert native Tooldeklarationen und Schemas. Die eingefrorene Benchmark-v2,
-ihr aktiver Zeiger, Scheduled Task und historische Ergebnisse werden nicht angepasst. Vor einem
-weiteren gewerteten Lauf gegen diesen Server ist eine neue geprüfte Benchmark-Revision erforderlich.
-Die bestehende Katalogprüfung muss die Abweichung weiterhin erkennen und den Lauf sperren.
-Technische Regressionstests ersetzen keine native Abnahme; ein besserer End-to-End-Score ist damit
-noch nicht nachgewiesen.
-
 ## Gemeinsame technische Pipeline
 
 Vereinfacht:

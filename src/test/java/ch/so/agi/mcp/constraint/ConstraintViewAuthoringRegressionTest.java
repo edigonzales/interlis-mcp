@@ -19,10 +19,8 @@ import ch.so.agi.mcp.tools.DomainTools;
 import ch.so.agi.mcp.tools.UniqueConstraintAuthoringTools;
 import ch.so.agi.mcp.tools.SetConstraintAuthoringTools;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
@@ -34,25 +32,25 @@ import tools.jackson.databind.ObjectMapper;
  * These test insertion and lookup, not reconstruction quality or proof coverage.
  */
 class ConstraintViewAuthoringRegressionTest {
-  private static final String MODEL_REPOSITORY =
-      Path.of("evals/constraint-reconstruction/v2/dependencies").toAbsolutePath().toString();
-
   record ViewCase(String caseId, String contextFqn, IliConstraintSpec spec) {
     @Override public String toString() { return caseId; }
   }
 
+  record ViewArguments(String contextFqn, IliConstraintSpec spec) {}
+
   static Stream<ViewCase> cases() throws IOException {
-    try (var input = ConstraintViewAuthoringRegressionTest.class.getResourceAsStream(
-        "/constraint/view-authoring-cases.json")) {
-      assertThat(input).isNotNull();
-      return Arrays.stream(new ObjectMapper().readValue(input, ViewCase[].class));
+    var cases = new java.util.ArrayList<ViewCase>();
+    for (String id : List.of("P04", "P05", "P07", "P08", "P10", "N11")) {
+      var arguments = ConstraintFixtures.arguments(id, ViewArguments.class);
+      cases.add(new ViewCase(id, arguments.contextFqn(), arguments.spec()));
     }
+    return cases.stream();
   }
 
   @ParameterizedTest(name = "{0}: view insertion compiles and resolves")
   @MethodSource("cases")
-  void benchmarkConstraintCompilesInItsOriginalView(ViewCase fixture) throws IOException {
-    String source = source(fixture);
+  void constraintCompilesInItsOriginalView(ViewCase fixture) throws IOException {
+    String source = ConstraintFixtures.withoutRule(fixture.caseId());
     CountingCompiler compiler = new CountingCompiler();
     ConstraintAuthoringWorkflow workflow = new ConstraintAuthoringWorkflow(compiler);
     var before = workflow.compileBefore(source, "view_regression_before_");
@@ -85,14 +83,14 @@ class ConstraintViewAuthoringRegressionTest {
         renderer(), new ConstraintCaseGenerationTools(new ConstraintContextService(compiler),
             new ConstraintTestTools(compiler)), review);
     IliAuthoringResult result = new ConstraintAuthoringTools(engine).authorIliMandatoryConstraint(
-        source(fixture), fixture.contextFqn(), (IliConstraintSpec.Mandatory) fixture.spec(), null, null);
+        ConstraintFixtures.withoutRule(fixture.caseId()), fixture.contextFqn(), (IliConstraintSpec.Mandatory) fixture.spec(), null, null);
     assertThat(compiler.calls).as(new ObjectMapper().writeValueAsString(result)).isEqualTo(2);
     assertThat(result.status).isEqualTo(IliAuthoringResult.Status.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED);
     assertThat(result.candidateModelText).isNotBlank();
     assertThat(result.updatedModelText).isNull();
     assertThat(result.generated).isFalse();
     assertThat(result.proofVerified).isFalse();
-    var compiled = new IliCompilerService(MODEL_REPOSITORY).compile(result.candidateModelText, null);
+    var compiled = new IliCompilerService(ConstraintFixtures.repositories()).compile(result.candidateModelText, null);
     assertThat(compiled.valid()).as(compiled.messages().toString()).isTrue();
   }
 
@@ -109,10 +107,10 @@ class ConstraintViewAuthoringRegressionTest {
         new ConstraintCaseGenerationTools(new ConstraintContextService(compiler), new ConstraintTestTools(compiler)),
         new ModelChangeReviewService(analysis, new ModelingRuleTools(new KnowledgeRuleLoader(), analysis, compiler)));
     var result = switch (fixture.spec()) {
-      case IliConstraintSpec.Mandatory spec -> new ConstraintAuthoringTools(engine).authorIliMandatoryConstraint(source(fixture), fixture.contextFqn(), spec, null, null);
-      case IliConstraintSpec.Plausibility spec -> new ConstraintAuthoringTools(engine).authorIliPlausibilityConstraint(source(fixture), fixture.contextFqn(), spec, null, null);
-      case IliConstraintSpec.Unique spec -> new UniqueConstraintAuthoringTools(engine).authorIliUniqueConstraint(source(fixture), fixture.contextFqn(), spec, null, null);
-      case IliConstraintSpec.Set spec -> new SetConstraintAuthoringTools(engine).authorIliSetConstraint(source(fixture), fixture.contextFqn(), spec, null, null);
+      case IliConstraintSpec.Mandatory spec -> new ConstraintAuthoringTools(engine).authorIliMandatoryConstraint(ConstraintFixtures.withoutRule(fixture.caseId()), fixture.contextFqn(), spec, null, null);
+      case IliConstraintSpec.Plausibility spec -> new ConstraintAuthoringTools(engine).authorIliPlausibilityConstraint(ConstraintFixtures.withoutRule(fixture.caseId()), fixture.contextFqn(), spec, null, null);
+      case IliConstraintSpec.Unique spec -> new UniqueConstraintAuthoringTools(engine).authorIliUniqueConstraint(ConstraintFixtures.withoutRule(fixture.caseId()), fixture.contextFqn(), spec, null, null);
+      case IliConstraintSpec.Set spec -> new SetConstraintAuthoringTools(engine).authorIliSetConstraint(ConstraintFixtures.withoutRule(fixture.caseId()), fixture.contextFqn(), spec, null, null);
       default -> throw new AssertionError("Unexpected fixture kind");
     };
     assertThat(compiler.calls).as(new ObjectMapper().writeValueAsString(result)).isEqualTo(2);
@@ -154,11 +152,6 @@ class ConstraintViewAuthoringRegressionTest {
     }
   }
 
-  private static String source(ViewCase fixture) throws IOException {
-    return Files.readString(Path.of("evals/constraint-reconstruction/v1/public",
-        fixture.caseId(), "model.ili"));
-  }
-
   private static IliSpecRenderer renderer() {
     return new IliSpecRenderer(new AttributeTools(), new DomainTools());
   }
@@ -167,7 +160,7 @@ class ConstraintViewAuthoringRegressionTest {
     private int calls;
 
     CountingCompiler() {
-      super(MODEL_REPOSITORY);
+      super(ConstraintFixtures.repositories());
     }
 
     @Override

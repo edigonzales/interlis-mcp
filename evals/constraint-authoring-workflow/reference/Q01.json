@@ -1,9 +1,0 @@
-{
-  "id": "Q01",
-  "requiredQuestions": [
-    "missing_value_policy"
-  ],
-  "rules": [],
-  "expectations": [],
-  "referenceConstraints": {}
-}

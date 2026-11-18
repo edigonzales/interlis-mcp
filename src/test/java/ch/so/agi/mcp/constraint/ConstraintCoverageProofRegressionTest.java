@@ -15,8 +15,6 @@ import ch.so.agi.mcp.tools.ConstraintAuthoringTools;
 import ch.so.agi.mcp.tools.ConstraintCaseGenerationTools;
 import ch.so.agi.mcp.tools.ConstraintTestTools;
 import ch.so.agi.mcp.tools.DomainTools;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
 
@@ -25,13 +23,9 @@ class ConstraintCoverageProofRegressionTest {
 
   @Test
   void p02AuthorsUnchangedConditionWithVerifiedCoverageAndExplicitImpossibleBranch() throws Exception {
-    Request request;
-    try (var input = getClass().getResourceAsStream("/constraint/p02-coverage.json")) {
-      assertThat(input).isNotNull();
-      request = new ObjectMapper().readValue(input, Request.class);
-    }
-    String source = Files.readString(Path.of("evals/constraint-reconstruction/v1/public/P02/model.ili"));
-    IliCompilerService compiler = new IliCompilerService();
+    Request request = ConstraintFixtures.arguments("P02", Request.class);
+    String source = ConstraintFixtures.withoutRule("P02");
+    IliCompilerService compiler = new IliCompilerService(ConstraintFixtures.repositories());
     IliAuthoringResult result = new ConstraintAuthoringTools(engine(compiler)).authorIliMandatoryConstraint(
         source, request.contextFqn(), (IliConstraintSpec.Mandatory) request.spec(), null, null);
     assertThat(result.status).as(new ObjectMapper().writeValueAsString(result)).isEqualTo(IliAuthoringResult.Status.GENERATED);
@@ -69,11 +63,8 @@ class ConstraintCoverageProofRegressionTest {
 
   @Test
   void p01ProvesEmbeddedStructureIncludingEveryTextureBoundary() throws Exception {
-    Request request;
-    try (var input = getClass().getResourceAsStream("/constraint/p01-structure.json")) {
-      request = new ObjectMapper().readValue(input, Request.class);
-    }
-    String source = Files.readString(Path.of("evals/constraint-reconstruction/v1/public/P01/model.ili"));
+    Request request = ConstraintFixtures.arguments("P01", Request.class);
+    String source = ConstraintFixtures.withoutRule("P01");
     var compiler = new CountingCompiler();
     var result = new ConstraintAuthoringTools(engine(compiler)).authorIliMandatoryConstraint(
         source, request.contextFqn(), (IliConstraintSpec.Mandatory) request.spec(), null, null);
@@ -116,7 +107,7 @@ class ConstraintCoverageProofRegressionTest {
         c.name = textures[i] + " at " + value;
         c.expectedConstraintValid = value >= ranges[i][0] && value <= ranges[i][1];
         var o = new ConstraintTestTools.TestObject();
-        o.classFqn = proof.generatedCases.getFirst().ownerClassFqn;
+        o.classFqn = "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.BodeneinheitHauptauspraegung_Landwirtschaft";
         o.values = java.util.Map.of("Unterboden", java.util.Map.of("Koernungsklasse", textures[i], "Tongehalt", value));
         c.objects = java.util.List.of(o);
         cases.add(c);
@@ -209,6 +200,11 @@ class ConstraintCoverageProofRegressionTest {
 
   private static class CountingCompiler extends IliCompilerService {
     int calls;
+
+    CountingCompiler() {
+      super(ConstraintFixtures.repositories());
+    }
+
     @Override public CompilationResult compile(String text, String repositories, String prefix) {
       calls++;
       return super.compile(text, repositories, prefix);

@@ -48,7 +48,6 @@ public class ConstraintKnowledgeTools {
     appendStandardFunctions(functions, StandardFunctionRegistry.functions(Family.TEXT), version);
 
     return Map.of(
-        "runtimeIdentity", ch.so.agi.mcp.service.RuntimeIdentity.current(),
         "iliVersion", version.text(),
         "functions", functions,
         "constraintLanguage", List.of(
