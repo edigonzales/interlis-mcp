@@ -458,7 +458,8 @@ den Status, etwa mit dem Code einer fehlgeschlagenen Teilprüfung.
 Ein fehlendes Feld `constraintProofs` bedeutet, dass die Proof-Phase noch nicht
 erreicht wurde. Ein leeres Array bedeutet, dass in diesem Workflow kein Constraint
 geprüft werden musste. Andernfalls nennt jeder Eintrag den Constraint, seinen
-Proof-Status und die vorliegenden Coverage- und Validatorresultate. `PASSED`
+Proof-Status und die vorliegenden Coverage- und Validatorresultate. `coverageGaps`
+nennt offene Coverage-Ziele. `PASSED`
 setzt ausgeführte Fälle mit gültigen Fixtures und vollständiger vorgesehener
 Coverage voraus. `INCOMPLETE` zeigt fehlende Prüffälle, Fixture-Grenzen oder offene Coverage-Ziele.
 `FAILED` zeigt einen fehlgeschlagenen Validatorfall oder einen technischen Ausführungsfehler.
@@ -600,7 +601,8 @@ Bei Einträgen in `openQuestions` nennt der Agent die konkrete Frage und seinen 
 damit in der Abschlussantwort. Tatsächlich offene Fachentscheide verhindern das
 Schreiben. Beurteilt er eine allgemeine Frage anhand des vorhandenen Auftrags als
 für die konkrete Änderung unerheblich, begründet er das in der Abschlussantwort. Eine Frage mit
-`decisionImpact=BLOCKING` klärt er mit dem Nutzer.
+`decisionImpact=BLOCKING` klärt er mit dem Nutzer. Fragen mit `decisionImpact=ADVISORY`
+bleiben als Hinweise sichtbar.
 
 ## SO-DATA: CSV-Validierungsmodelle
 

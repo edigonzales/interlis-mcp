@@ -108,11 +108,10 @@ public class ConstraintCaseGenerationTools {
     } else if (proof.verification != null && !proof.verification.cases.isEmpty()) {
       var cases = proof.verification.cases;
       boolean proofIncomplete = Boolean.TRUE.equals(generated.get("proofIncomplete"));
-      boolean failedCase = cases.stream().anyMatch(test ->
-          Boolean.FALSE.equals(test.fixtureValid) && (!proofIncomplete || test.fixturePreparationReasonCode == null)
-              || Boolean.TRUE.equals(test.fixtureValid) && Boolean.TRUE.equals(test.constraintExercised)
-                  && !Boolean.TRUE.equals(test.passed));
-      if (failedCase) {
+      // The uncompressed case gets XTF only after the validator returns.
+      if (cases.stream().anyMatch(test -> !Boolean.TRUE.equals(test.passed)
+          && (Boolean.TRUE.equals(test.constraintExercised)
+              || test.xtfText != null && Boolean.FALSE.equals(test.fixtureValid)))) {
         proof.status = ProofStatus.FAILED;
       } else if (!proofIncomplete && Boolean.TRUE.equals(generated.get("generationVerified"))
           && Boolean.TRUE.equals(proof.coverageComplete) && cases.stream().allMatch(test ->
@@ -121,10 +120,20 @@ public class ConstraintCaseGenerationTools {
         proof.status = ProofStatus.PASSED;
       }
     }
-    if (proof.status == ProofStatus.INCOMPLETE && proof.reasonCode == null && !proof.coverageGaps.isEmpty()) {
-      var gap = proof.coverageGaps.getFirst();
-      proof.reasonCode = gap.reasonCode;
-      proof.reason = gap.reason;
+    if (proof.status == ProofStatus.INCOMPLETE && proof.reasonCode == null) {
+      if (proof.verification != null) {
+        for (var test : proof.verification.cases) {
+          if (test.fixturePreparationReasonCode == null) continue;
+          proof.reasonCode = test.fixturePreparationReasonCode;
+          proof.reason = test.reason;
+          break;
+        }
+      }
+      if (proof.reasonCode == null && !proof.coverageGaps.isEmpty()) {
+        var gap = proof.coverageGaps.getFirst();
+        proof.reasonCode = gap.reasonCode;
+        proof.reason = gap.reason;
+      }
     }
     return proof;
   }

@@ -163,8 +163,8 @@ public class AgentPrompts {
           `BOOLEAN_EXPRESSION`-Condition; Objektmengen sind `ALL` oder ein typisierter navigierter Pfad.
 
         Proof-Vertrag:
-        1. Bei einem typisierten Authoring-Tool muss jeder Proof den Status `PASSED` haben.
-           Berichte Einträge in `coverageGaps` und Safety-Reason-Codes.
+        1. Eine Freigabe setzt für alle erforderlichen Proofs den Status `PASSED` voraus.
+           Berichte blockierende Proof-Status, Einträge in `coverageGaps` und Safety-Reason-Codes.
         2. Bei einem bereits vorhandenen Constraint verwende `generateIliConstraintCases`. Prüfe
            `generationVerified=true` und `coverageComplete=true`. `coverageUnsolved` zeigt offene Ziele.
            Das Tool deckt MANDATORY, UNIQUE, EXISTENCE, PLAUSIBILITY und SET ab.

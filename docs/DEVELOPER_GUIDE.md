@@ -470,7 +470,8 @@ Bei Einträgen in `openQuestions` nennt der Agent die konkrete Frage und seinen 
 damit in der Abschlussantwort. Tatsächlich offene Fachentscheide verhindern das
 Schreiben. Beurteilt er eine allgemeine Frage anhand des vorhandenen Auftrags als
 für die konkrete Änderung unerheblich, begründet er das in der Abschlussantwort. Eine Frage mit
-`decisionImpact=BLOCKING` klärt er mit dem Nutzer.
+`decisionImpact=BLOCKING` klärt er mit dem Nutzer. Fragen mit `decisionImpact=ADVISORY`
+bleiben als Hinweise sichtbar.
 
 ### Gezielte Schemadiagnosen
 
