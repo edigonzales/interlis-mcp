@@ -64,10 +64,6 @@ public final class SerializedStdioServerTransportProvider
     }
   }
 
-  public SerializedStdioServerTransportProvider(McpJsonMapper jsonMapper) {
-    this(jsonMapper, System.in, System.out, false);
-  }
-
   public SerializedStdioServerTransportProvider(
       McpJsonMapper jsonMapper,
       InputStream inputStream,
@@ -81,7 +77,7 @@ public final class SerializedStdioServerTransportProvider
     this(jsonMapper, System.in, System.out, shutdownApplicationOnEof);
   }
 
-  public SerializedStdioServerTransportProvider(
+  private SerializedStdioServerTransportProvider(
       McpJsonMapper jsonMapper,
       InputStream inputStream,
       OutputStream outputStream,

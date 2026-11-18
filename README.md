@@ -38,25 +38,11 @@ Dockerimages stehen unter `sogis/interlis-mcp` und
 
 ```bash
 ./gradlew buildImage                       # baut zuerst das ausführbare JAR
-./gradlew buildJvmImage                    # weiterhin verfügbarer Alias
 # Streamable HTTP: http://127.0.0.1:8080/mcp
 docker run --rm -p 127.0.0.1:8080:8080 sogis/interlis-mcp:latest
 # STDIO: ohne TTY, mit offenem STDIN
 docker run --rm -i -e SPRING_PROFILES_ACTIVE=stdio sogis/interlis-mcp:latest
 ```
-
-`interlis-mcp-jvm` bleibt in beiden Registries ein Alias desselben JVM-Images.
-Native-Builds sind lokal und in CI deaktiviert; vorhandene Reflection-Metadaten bleiben erhalten.
-
-Das Fachmodul liegt unter `module/` und wird als
-`ch.so.agi:interlis-mcp-module:0.1.0-SNAPSHOT` mit POM, Sources und Javadoc
-auf [jars.interlis.guru](https://jars.interlis.guru/snapshots/) veröffentlicht.
-Es enthält Fachcode, Tools, Resources und Prompts, keine Startklasse oder globale
-Transport-/Logging-Konfiguration. Eine Hostanwendung importiert ausdrücklich
-`ch.so.agi.mcp.InterlisMcpModuleConfiguration`.
-Die [MCP-Suite](https://github.com/edigonzales/mcp-suite) kombiniert dieses Modul
-und NETL in einer Java-21-JVM und einem Spring-Kontext.
-Build, Veröffentlichung und Tests: [Modularer Betrieb](docs/MODULES.md).
 
 ## Typische Aufgaben
 
@@ -141,12 +127,7 @@ im [Benutzerhandbuch](docs/USER_GUIDE.md#constraints-aus-prosa-mit-fachlichen-er
 `SO-DATA` ist das Profil für kommentarfreie CSV-Validierungsmodelle mit passendem
 Modellnamenssuffix und VERSION-Datum. CORE und SO-GIS bleiben unverändert verfügbar.
 [Regeln und Umstellung vorhandener Modelle](docs/USER_GUIDE.md#so-data-csv-validierungsmodelle)
-stehen im Benutzerhandbuch; [lokale Abnahme und Auslieferungsgrenzen](docs/SO_DATA_ACCEPTANCE.md)
-sind separat ausgewiesen.
-
-## Executable Maven artifact
-
-In addition to the reusable module and existing container images, CI publishes the tested `bootJar` as `ch.so.agi:interlis-mcp:<version>:boot@jar` to `https://jars.interlis.guru/snapshots/`. It uses `MAVEN_USERNAME` and `MAVEN_PASSWORD`, downloads the published bytes and checks stdio startup, tools and EOF shutdown on JDK 21.
+stehen im Benutzerhandbuch.
 
 ### Numeric bounds and decimal places
 

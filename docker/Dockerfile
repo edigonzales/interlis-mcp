@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Build the canonical JAR first: ./gradlew bootJar (or use buildImage).
-FROM eclipse-temurin:21-jre-ubi9-minimal AS jvm-runtime
+FROM eclipse-temurin:21-jre-ubi9-minimal@sha256:eb20f00087c18daa66a42fe0ff8d3e7e78425d342af601451b357f2ea6fab3f1
 ARG SOURCE_REPOSITORY=https://github.com/edigonzales/interlis-mcp
 ARG IMAGE_VERSION=local
 ARG GIT_COMMIT=unknown

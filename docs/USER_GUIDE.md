@@ -4,7 +4,7 @@ Dieses Handbuch zeigt, wie `interlis-mcp` gestartet, mit einem MCP-Client verbun
 
 ## Grundidee
 
-`interlis-mcp` ist ein **STDIO-MCP-Server**. Er arbeitet mit Text und strukturierten Payloads, nicht direkt mit Dateien im Workspace.
+`interlis-mcp` ist ein **MCP-Server mit STDIO und Streamable HTTP**. Er arbeitet mit Text und strukturierten Payloads, nicht direkt mit Dateien im Workspace.
 
 Ein typischer Ablauf sieht so aus:
 
@@ -58,8 +58,6 @@ Wenn das Standard-`java` nicht Java 21 ist, verwende den vollständigen Pfad zum
 
 Die Java-21-Images `sogis/interlis-mcp:latest` und
 `ghcr.io/edigonzales/interlis-mcp:latest` unterstützen `linux/amd64` und `linux/arm64`.
-`interlis-mcp-jvm` ist ein Alias desselben Images. Native-Builds sind momentan deaktiviert.
-
 HTTP startet standardmässig; der MCP-Endpunkt ist `http://127.0.0.1:8080/mcp`:
 
 ```bash

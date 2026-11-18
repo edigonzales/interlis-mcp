@@ -2,6 +2,7 @@ name: mirror
 
 on:
   push:
+    branches: [main]
 
 jobs:
   mirror:

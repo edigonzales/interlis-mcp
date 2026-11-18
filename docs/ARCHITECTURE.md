@@ -16,7 +16,7 @@ flowchart LR
     Knowledge["Regeln, Resources, Prompts, Modellkorpus"]
 
     Workspace <--> Agent
-    Agent <--> |STDIO JSON-RPC| MCP
+    Agent <--> |STDIO oder Streamable HTTP| MCP
     MCP --> Ili2c
     MCP --> Validator
     MCP --> Knowledge
@@ -26,14 +26,14 @@ Der Agent besitzt den Workspace. Er liest Dateien, übergibt vollständigen Mode
 
 ## Laufzeit
 
-Die Anwendung ist eine nicht-webbasierte Spring-Boot-Anwendung.
+Die eigenständige Spring-Boot-Anwendung verwendet lokal standardmässig STDIO.
+Das Profil `http` aktiviert Streamable HTTP unter `/mcp`.
 
 Wichtige Eigenschaften:
 
 - Java 21
-- Spring Boot 4.1.0
-- Spring AI 2.0.0
-- STDIO-Transport
+- Spring Boot 4.1.1
+- Spring AI 2.0.1
 - synchroner MCP-Server
 - Tools, Resources und Prompts aktiviert
 - MCP-Completions deaktiviert
