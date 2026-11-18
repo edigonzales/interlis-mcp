@@ -219,7 +219,11 @@ class ConstraintWorkflowGoldenScenariosTest {
     assertThat(result.status).isEqualTo(IliAuthoringResult.Status.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED);
     assertThat(result.updatedModelText).isNull();
     assertThat(result.candidateModelText).contains("ConstraintWorkflow.custom(value)");
-    assertThat(result.updatedModelText).isNull();
+    assertThat(result.constraintProofs).singleElement().satisfies(proof -> {
+      assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED);
+      assertThat(proof.reasonCode).isEqualTo("EXTERNAL_FUNCTION_SEMANTICS_REQUIRED");
+      assertThat(proof.verification).isNull();
+    });
   }
 
   @Test

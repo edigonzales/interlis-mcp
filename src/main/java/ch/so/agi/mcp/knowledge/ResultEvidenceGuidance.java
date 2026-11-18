@@ -1,6 +1,6 @@
 package ch.so.agi.mcp.knowledge;
 
-/** Shared interpretation guidance; advisory evidence never changes existing release gates. */
+/** Shared guidance for interpreting compiler, proof and interaction results. */
 final class ResultEvidenceGuidance {
   private ResultEvidenceGuidance() {}
   static final String TEXT = """

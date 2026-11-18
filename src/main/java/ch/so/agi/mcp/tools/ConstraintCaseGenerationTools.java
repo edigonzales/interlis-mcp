@@ -79,9 +79,9 @@ public class ConstraintCaseGenerationTools {
   }
 
   public ConstraintProof prove(String fqn, ConstraintContextService.Resolution resolution, boolean declaredExternal) {
-    if (declaredExternal && (resolution.available()
-        || !"CONSTRAINT_LOOKUP_FAILED".equals(resolution.reasonCode())
-            && !"CONSTRAINT_LOOKUP_AMBIGUOUS".equals(resolution.reasonCode()))) {
+    boolean lookupFailed = "CONSTRAINT_LOOKUP_FAILED".equals(resolution.reasonCode())
+        || "CONSTRAINT_LOOKUP_AMBIGUOUS".equals(resolution.reasonCode());
+    if (declaredExternal && !lookupFailed) {
       var proof = IliAuthoringResult.constraintProof(fqn, ProofStatus.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED, null);
       proof.reasonCode = "EXTERNAL_FUNCTION_SEMANTICS_REQUIRED";
       proof.reason = "Executable semantics for model-defined or validator-extension functions are unavailable.";
@@ -107,10 +107,14 @@ public class ConstraintCaseGenerationTools {
       proof.status = ProofStatus.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED;
     } else if (proof.verification != null && !proof.verification.cases.isEmpty()) {
       var cases = proof.verification.cases;
-      if (cases.stream().anyMatch(test -> Boolean.FALSE.equals(test.fixtureValid)
-          || Boolean.TRUE.equals(test.constraintExercised) && !Boolean.TRUE.equals(test.passed))) {
+      boolean proofIncomplete = Boolean.TRUE.equals(generated.get("proofIncomplete"));
+      boolean failedCase = cases.stream().anyMatch(test ->
+          Boolean.FALSE.equals(test.fixtureValid) && (!proofIncomplete || test.fixturePreparationReasonCode == null)
+              || Boolean.TRUE.equals(test.fixtureValid) && Boolean.TRUE.equals(test.constraintExercised)
+                  && !Boolean.TRUE.equals(test.passed));
+      if (failedCase) {
         proof.status = ProofStatus.FAILED;
-      } else if (Boolean.TRUE.equals(generated.get("generationVerified"))
+      } else if (!proofIncomplete && Boolean.TRUE.equals(generated.get("generationVerified"))
           && Boolean.TRUE.equals(proof.coverageComplete) && cases.stream().allMatch(test ->
           Boolean.TRUE.equals(test.passed) && Boolean.TRUE.equals(test.fixtureValid)
               && Boolean.TRUE.equals(test.constraintExercised))) {

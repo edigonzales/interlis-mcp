@@ -452,15 +452,16 @@ und Änderungsreviews liefern ihre Compilerdiagnosen direkt.
 freigegebene Text in `updatedModelText`. Bei einer zurückgehaltenen Änderung
 enthält `candidateModelText` den vorliegenden Kandidaten. `VERIFIED` bezieht
 sich auf den eingereichten Text und dessen Hash. `openQuestions` kennzeichnet
-Entscheidungen mit `BLOCKING` oder `ADVISORY`.
+Entscheidungen mit `BLOCKING` oder `ADVISORY`. Ein optionaler `reasonCode` präzisiert
+den Status, etwa mit dem Code einer fehlgeschlagenen Teilprüfung.
 
 Ein fehlendes Feld `constraintProofs` bedeutet, dass die Proof-Phase noch nicht
 erreicht wurde. Ein leeres Array bedeutet, dass in diesem Workflow kein Constraint
 geprüft werden musste. Andernfalls nennt jeder Eintrag den Constraint, seinen
 Proof-Status und die vorliegenden Coverage- und Validatorresultate. `PASSED`
 setzt ausgeführte Fälle mit gültigen Fixtures und vollständiger vorgesehener
-Coverage voraus. `INCOMPLETE` zeigt fehlende Prüffälle oder Coverage-Ziele.
-`FAILED` zeigt einen fehlgeschlagenen Validatorfall oder eine ungültige Fixture.
+Coverage voraus. `INCOMPLETE` zeigt fehlende Prüffälle, Fixture-Grenzen oder offene Coverage-Ziele.
+`FAILED` zeigt einen fehlgeschlagenen Validatorfall oder einen technischen Ausführungsfehler.
 Externe Funktionssemantik hat den Status `EXTERNAL_FUNCTION_SEMANTICS_REQUIRED`.
 
 ### Unabhängige Erwartungen
@@ -542,8 +543,10 @@ und offene Fachentscheide verhindern das Schreiben im Agentenablauf. Diese Regel
 MCP-Statuswerte und kann vom Server gegenüber anderen Clients nicht erzwungen werden.
 
 `explanation` in Constraint-Reviews und den `constraintProofs` beschreibt die tatsächlich
-kompilierte Regel. `COMPLETE` bedeutet vollständige Unterstützung durch den Erklärer,
-`PARTIAL` nennt Erklärungslücken und `UNAVAILABLE` bezeichnet eine fehlende Erklärung.
+kompilierte Regel, wenn eine Erklärung verfügbar ist. `COMPLETE` bedeutet vollständige
+Unterstützung durch den Erklärer, `PARTIAL` nennt Erklärungslücken. Ein Proof ohne
+ausgeführte Regelanalyse kann das Feld weglassen. Ein eigenständiges Constraint-Review
+meldet eine fehlende Erklärung mit `UNAVAILABLE`.
 Keiner dieser Werte bestätigt fachliche Akzeptanz. Nicht vollständig unterstützte Funktionen
 oder Views werden ausdrücklich begrenzt erklärt. Widerspruchsbefunde aus `constraintInteractions`
 bleiben advisory und müssen sichtbar berichtet werden. Einzeltests isolieren den ausgewählten

@@ -181,6 +181,7 @@ public class IliAuthoringResult {
     public @Nullable String impact;
     public @Nullable String kind;
     public @Nullable String modelName;
+    public @Nullable Boolean astGenerated;
     public @Nullable Boolean astRoundTripVerified;
   }
 
@@ -363,7 +364,7 @@ public class IliAuthoringResult {
     return result;
   }
 
-  public void attachReview(Map<?, ?> map, boolean purposeBlocks) {
+  public void attachReview(Map<?, ?> map, boolean questionsBlock) {
     ModelReview review = new ModelReview();
     if (map.get("constraintInteractions") instanceof ConstraintInteractionAnalysis.Result interactions) {
       review.constraintInteractions = interactions;
@@ -375,7 +376,7 @@ public class IliAuthoringResult {
     review.ruleFindings = reviewFindings(map.get("ruleFindings"));
     review.manualChecks = reviewFindings(map.get("manualChecks"));
     afterReview = review;
-    openQuestions = openQuestions(map.get("openQuestions"), purposeBlocks ? "BLOCKING" : "ADVISORY");
+    openQuestions = openQuestions(map.get("openQuestions"), questionsBlock ? "BLOCKING" : "ADVISORY");
   }
 
   public static ConstraintProof constraintProof(

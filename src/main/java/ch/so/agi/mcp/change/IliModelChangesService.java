@@ -207,7 +207,7 @@ public final class IliModelChangesService {
     for (String fqn : ConstraintContextService.declaredConstraintNames(Objects.requireNonNull(after.transferDescription()))) {
       if (existing.merge(fqn, -1, Integer::sum) < 0) required.add(fqn);
     }
-    // A declared request is still required if its constraint cannot be found in the compiled candidate.
+    // Explicit proof targets remain required even when absent from the compiled candidate.
     required.addAll(requestedConstraints.keySet());
     var proofs = required.stream()
         .map(fqn -> caseGenerationTools.prove(fqn, constraintContextService.resolveCompiled(

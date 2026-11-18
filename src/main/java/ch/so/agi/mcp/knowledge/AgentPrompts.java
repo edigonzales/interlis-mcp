@@ -163,10 +163,11 @@ public class AgentPrompts {
           `BOOLEAN_EXPRESSION`-Condition; Objektmengen sind `ALL` oder ein typisierter navigierter Pfad.
 
         Proof-Vertrag:
-        1. Bei einem typisierten Authoring-Tool muss jeder erforderliche Proof den Status `PASSED` haben. Wenn `coverageGaps` oder ein Safety-Reason-Code
-           geliefert wird, berichte diese Grenze und erfinde keinen Ersatzbeweis.
-        2. Bei einem bereits vorhandenen Constraint verwende `generateIliConstraintCases`; für den unterstützten
-           Umfang muss `generationVerified=true` sein. Das Tool deckt MANDATORY, UNIQUE, EXISTENCE, PLAUSIBILITY und SET ab.
+        1. Bei einem typisierten Authoring-Tool muss jeder Proof den Status `PASSED` haben.
+           Berichte Einträge in `coverageGaps` und Safety-Reason-Codes.
+        2. Bei einem bereits vorhandenen Constraint verwende `generateIliConstraintCases`. Prüfe
+           `generationVerified=true` und `coverageComplete=true`. `coverageUnsolved` zeigt offene Ziele.
+           Das Tool deckt MANDATORY, UNIQUE, EXISTENCE, PLAUSIBILITY und SET ab.
         3. `reviewIliConstraint` dient zur Erklärung und AST-Diagnose, `testIliConstraint` für zuvor aus der Anforderung festgehaltene
            Erwartungsfälle. Erwartungsfälle sind bei Prosa-Authoring zusätzlich erforderlich; automatisch abgeleitete Tests nicht wiederholen.
         4. Die Constraint-Authoring-Tools liefern zusätzlich semantischen Diff und `afterReview` aus ihren vorhandenen

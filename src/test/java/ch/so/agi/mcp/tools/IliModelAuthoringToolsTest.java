@@ -73,6 +73,8 @@ void soDataKeepsAllFiveConstraintNamesWithoutMetadataComments() throws Exception
 
     assertThat(compiler.calls).isEqualTo(1);
     assertThat(result.status).as("%s", result).isEqualTo(IliAuthoringResult.Status.GENERATED);
+    assertThat(result.semanticDiff.astGenerated).isTrue();
+    assertThat(result.semanticDiff.astRoundTripVerified).isNull();
     assertThat(result.constraintProofs).hasSize(5)
         .allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
     assertThat(result.derivedImports).containsExactly("GeometryCHLV95_V2");

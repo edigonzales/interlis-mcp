@@ -39,6 +39,8 @@ Vergleicht `beforeModelText` und `afterModelText` semantisch. Views sowie die de
 ## `authorIliModel`
 
 Erzeugt ein vollständiges Modell aus einer typisierten `IliModelSpec`. Name, URI, Modellversion und INTERLIS-Version sind explizit. Units, Domains, Topics, Klassen, Strukturen, Assoziationen, Attribute, Geometrien und alle fünf Constraint-Arten werden in einem Compile geprüft; AST-Generierung, Constraint-Proofs und `afterReview` verwenden denselben kompilierten Kontext.
+`semanticDiff.astGenerated` bestätigt die Regenerierung aus dem Modell-AST.
+Einzelconstraint-Authoring meldet den strukturellen Abgleich mit `semanticDiff.astRoundTripVerified`.
 
 ## `applyIliModelChanges`
 

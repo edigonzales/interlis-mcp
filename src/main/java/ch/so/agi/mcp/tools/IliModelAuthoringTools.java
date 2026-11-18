@@ -104,9 +104,8 @@ public final class IliModelAuthoringTools {
       return result.reject(Status.CANDIDATE_MODEL_INVALID, "The typed model candidate did not compile.", rendered.modelText());
     }
 
-    String astText;
     try {
-      astText = compilerService.generateModelsFromLastFile(compilation.transferDescription());
+      String astText = compilerService.generateModelsFromLastFile(compilation.transferDescription());
       if (astText == null || astText.isBlank() || !astText.contains("MODEL " + spec.name.trim())) {
         return result.reject(Status.AST_ROUND_TRIP_FAILED,
             "ili2c could not regenerate the submitted model from its AST.", rendered.modelText());
@@ -118,7 +117,7 @@ public final class IliModelAuthoringTools {
     result.semanticDiff = new IliAuthoringResult.SemanticDiff();
     result.semanticDiff.kind = "NEW_MODEL";
     result.semanticDiff.modelName = spec.name.trim();
-    result.details = Map.of("astGeneratedModelText", astText);
+    result.semanticDiff.astGenerated = true;
     Map<String, Boolean> requestedConstraints = new LinkedHashMap<>();
     if (spec.topics != null) spec.topics.forEach(topic -> topic.collectConstraints(spec.name.trim(), requestedConstraints));
     if (!reviewAndProve(result, rendered.modelText(), compilation, modelPurpose, ruleProfile, requestedConstraints)) return result;

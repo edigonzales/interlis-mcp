@@ -315,9 +315,11 @@ class ConstraintStructureFixtureTest {
     for (int i = 0; i < 8; i++) owners.append("CLASS A").append(i)
         .append(" = s : S; date : MANDATORY INTERLIS.XMLDate; END A").append(i).append(";\n");
     owners.append("CLASS Z = s : S; END Z;");
-    var response = generator.generateIliConstraintCases(model(STRUCTURE + owners), "StructureProof.Data.S.Rule");
-    assertThat(response.get("generationVerified")).isEqualTo(false);
-    var proof = IliAuthoringResult.constraintProof("StructureProof.Data.S.Rule", IliAuthoringResult.ProofStatus.INCOMPLETE, response);
+    String fqn = "StructureProof.Data.S.Rule";
+    var resolution = new ConstraintContextService(compiler).compileAndResolve(
+        model(STRUCTURE + owners), fqn, null, "ili2c_structure_route_budget_");
+    var proof = generator.prove(fqn, resolution, false);
+    assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.INCOMPLETE);
     assertThat(proof.generatedCases).allSatisfy(c -> assertThat(c.ownerClassFqn).endsWith(".A7"));
     assertThat(proof.verification.cases).allSatisfy(c -> {
       assertThat(c.fixturePreparationReasonCode).isEqualTo("FIXTURE_MATERIALIZATION_FAILED");
