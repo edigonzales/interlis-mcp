@@ -1,7 +1,9 @@
 package ch.so.agi.mcp;
 
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.io.TempDir;
 import java.io.*;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -206,13 +208,15 @@ public class StdioE2eTest {
     }
 
     @Test
-    void readModelExampleRejectsPathOutsideConfiguredCorpusOverStdio() throws Exception {
+    void readModelExampleRejectsPathOutsideConfiguredCorpusOverStdio(@TempDir Path directory) throws Exception {
         initializeSession();
 
-        String response = callTool(2, "readModelExample", "{\"path\":\"../does-not-exist.ili\"}");
+        Path example = Files.writeString(directory.resolve("outside.ili"), minimalRenameModel());
+        String arguments = JSON.writeValueAsString(Map.of("path", example.toString()));
+        String response = callTool(2, "readModelExample", arguments);
         var result = JSON.readTree(response).path("result");
         assertTrue(result.path("isError").asBoolean(), response);
-        assertTrue(result.path("content").path(0).path("text").asString().contains("Unable to read model example"), response);
+        assertTrue(result.path("content").path(0).path("text").asString().contains("outside the configured corpus"), response);
     }
 
     @Test
