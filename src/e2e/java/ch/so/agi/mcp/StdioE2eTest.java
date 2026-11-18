@@ -32,10 +32,14 @@ public class StdioE2eTest {
     private final LinkedBlockingQueue<String> stdoutLines = new LinkedBlockingQueue<>();
     private final LinkedBlockingQueue<String> stderrLines = new LinkedBlockingQueue<>();
     private final ConcurrentHashMap<Integer, String> pendingResponses = new ConcurrentHashMap<>();
-    
+
+    @TempDir
+    Path corpusDirectory;
+
     @BeforeEach
     void startServer() throws Exception {
-        ProcessBuilder pb = new ProcessBuilder(currentJavaBinary(), "-jar", "build/libs/interlis-mcp.jar");
+        ProcessBuilder pb = new ProcessBuilder(currentJavaBinary(), "-jar", "build/libs/interlis-mcp.jar",
+                "--interlis.knowledge.model-paths=" + corpusDirectory);
         pb.redirectErrorStream(false);
         proc = pb.start();
 
@@ -88,21 +92,15 @@ public class StdioE2eTest {
 
     @Test
     void stdinEofShutsDownServerProcess() throws Exception {
-        toServer.close();
-
-        assertTrue(proc.waitFor(10, TimeUnit.SECONDS),
-                "MCP server should terminate after the STDIO input reaches EOF");
+        assertCleanEof();
     }
 
     @Test
-    void initialize_largeToolsList_fullDrain_thenEofShutsDownWithExitCodeZero() throws Exception {
+    void initialize_toolsList_fullDrain_thenEofShutsDownWithExitCodeZero() throws Exception {
         initializeSession();
 
         String toolsResponse = listTools(2);
-        int responseBytes = toolsResponse.getBytes(StandardCharsets.UTF_8).length;
-        assertTrue(responseBytes > 64 * 1024,
-                "tools/list response must remain large enough to exercise stdout pipe backpressure; got "
-                        + responseBytes + " bytes");
+        assertTrue(JSON.readTree(toolsResponse).path("result").path("tools").isArray(), toolsResponse);
         assertContainsAll(toolsResponse,
                 "\"tools\"",
                 "validateIliModel",
@@ -110,11 +108,34 @@ public class StdioE2eTest {
                 "authorIliMandatoryConstraint",
                 "generateIliConstraintFromDecisionTable");
 
+        assertCleanEof();
+    }
+
+    @Test
+    void largeModelExampleReturnsCompleteResponseAndShutsDownAfterEof() throws Exception {
+        String commentLine = "!! " + "0123456789".repeat(13) + "\n";
+        String model = minimalRenameModel() + commentLine.repeat(4096) + "!! End of synthetic fixture\n";
+        Path example = Files.writeString(corpusDirectory.resolve("large.ili"), model);
+        initializeSession();
+
+        String arguments = JSON.writeValueAsString(Map.of("path", example.toString()));
+        String response = callTool(2, "readModelExample", arguments);
+        assertTrue(response.getBytes(StandardCharsets.UTF_8).length > 512 * 1024,
+                "Synthetic response must exceed the STDOUT pipe buffer");
+        var result = JSON.readTree(response).path("result");
+        assertFalse(result.path("isError").asBoolean(), "readModelExample reported an error");
+        var payload = JSON.readTree(result.path("content").path(0).path("text").asString());
+        assertTrue(model.equals(payload.path("modelText").asString()),
+                "readModelExample must return the entire model unchanged");
+        assertCleanEof();
+    }
+
+    private void assertCleanEof() throws Exception {
         toServer.close();
         toServer = null;
 
         assertTrue(proc.waitFor(10, TimeUnit.SECONDS),
-                "MCP server should terminate after initialize, a fully drained tools/list response, and EOF");
+                "MCP server should terminate after the STDIO input reaches EOF");
         assertTrue(proc.exitValue() == 0,
                 "MCP server should terminate cleanly after EOF; exit code was " + proc.exitValue());
         stdoutPump.join(1000);

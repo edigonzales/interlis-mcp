@@ -11,6 +11,10 @@ AUTHOR = ['authorIli'+k+'Constraint' for k in ['Mandatory','Plausibility','Exist
 TOOLS = AUTHOR+['validateIliModel','reviewIliConstraint','generateIliConstraintCases','listConstraintFunctions','resolveConstraintPath']
 PREFIX = 'mcp__interlis_mcp_eval__'
 IDENTITY = ['buildId','jarSha256','dependencySnapshotSha256','compilerVersion','validatorVersion','ioxIliVersion']
+STDIO_LIFECYCLE_TESTS = (
+    'initialize_toolsList_fullDrain_thenEofShutsDownWithExitCodeZero',
+    'largeModelExampleReturnsCompleteResponseAndShutsDownAfterEof',
+)
 class InvalidEvidence(ValueError): pass
 
 def read(path): return json.loads(pathlib.Path(path).read_text())
@@ -47,7 +51,9 @@ def preflight(run):
     version=subprocess.run([str(java),'-version'],capture_output=True,text=True)
     require(version.returncode==0 and re.search(r'version "21[."]',version.stderr),'Java 21 required')
     (directory/'java-version.txt').write_text(version.stdout+version.stderr)
-    commands=[['./gradlew','test','check','benchmarkClasspath'],['./gradlew','e2eTest','--tests','ch.so.agi.mcp.StdioE2eTest.initialize_largeToolsList_fullDrain_thenEofShutsDownWithExitCodeZero']]
+    commands=[['./gradlew','test','check','benchmarkClasspath'],['./gradlew','e2eTest']]
+    for name in STDIO_LIFECYCLE_TESTS:
+        commands[1].extend(['--tests',f'ch.so.agi.mcp.StdioE2eTest.{name}'])
     records=[]
     for i,command in enumerate(commands):
         log=directory/('gradle-%d.log'%i);started=now()
@@ -511,7 +517,8 @@ def finalize(suite,run):
     junit=list((run/'preflight/test-results').rglob('TEST-*.xml'));require(junit,'JUnit evidence missing')
     xml=[ET.parse(p).getroot() for p in junit]
     require(all(int(r.get('failures',0))==0 and int(r.get('errors',0))==0 for r in xml),'JUnit failure in archived evidence')
-    require(any(t.get('name')=='initialize_largeToolsList_fullDrain_thenEofShutsDownWithExitCodeZero()' and t.find('skipped') is None for r in xml for t in r.findall('testcase')),'Lifecycle test evidence missing')
+    executed_tests={t.get('name') for r in xml for t in r.findall('testcase') if t.find('skipped') is None}
+    require({f'{name}()' for name in STDIO_LIFECYCLE_TESTS} <= executed_tests,'Lifecycle test evidence missing')
     qa=read(run/'score/input-qa.json')
     require(qa['status']=='INPUT_VALID' and qa.get('suiteManifestSha256')==state['suiteManifestSha256'] and set(qa.get('cases',{}))==set(CASES),'Input QA failed')
     audit_isolation(run)
