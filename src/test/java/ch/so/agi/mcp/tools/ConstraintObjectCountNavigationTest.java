@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.*;
 import ch.so.agi.mcp.constraint.*;
 import ch.so.agi.mcp.model.*;
 import ch.so.agi.mcp.service.IliCompilerService;
+import java.nio.file.Path;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -142,7 +143,8 @@ class ConstraintObjectCountNavigationTest {
     String source=java.nio.file.Files.readString(java.nio.file.Path.of("evals/constraint-reconstruction/v1/public/P05/model.ili"))
         .replace("END v_Drainageleitung;","!!@ name = \"counted\"\n MANDATORY CONSTRAINT INTERLIS.objectCount(Knoten_vonRef) == 1;\n END v_Drainageleitung;");
     String target="VSADSSMINI_2020_LV95_Validierung_Drainage_20250311.VSADSSMini_Validierung.v_Drainageleitung.counted";
-    var resolution=new ConstraintContextService(compiler).compileAndResolve(source,target,null,"p05_count_");
+    String repositories = Path.of("evals/constraint-reconstruction/v2/dependencies").toAbsolutePath().toString();
+    var resolution=new ConstraintContextService(compiler).compileAndResolve(source,target,repositories,"p05_count_");
     assertThat(resolution.context()).as(resolution.toString()).isNotNull();
     var context=resolution.context();
     String base="VSADSSMINI_2020_LV95.VSADSSMini.";

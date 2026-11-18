@@ -34,6 +34,9 @@ import tools.jackson.databind.ObjectMapper;
  * These test insertion and lookup, not reconstruction quality or proof coverage.
  */
 class ConstraintViewAuthoringRegressionTest {
+  private static final String MODEL_REPOSITORY =
+      Path.of("evals/constraint-reconstruction/v2/dependencies").toAbsolutePath().toString();
+
   record ViewCase(String caseId, String contextFqn, IliConstraintSpec spec) {
     @Override public String toString() { return caseId; }
   }
@@ -89,7 +92,7 @@ class ConstraintViewAuthoringRegressionTest {
     assertThat(result.updatedModelText).isNull();
     assertThat(result.generated).isFalse();
     assertThat(result.proofVerified).isFalse();
-    var compiled = new IliCompilerService().compile(result.candidateModelText, null);
+    var compiled = new IliCompilerService(MODEL_REPOSITORY).compile(result.candidateModelText, null);
     assertThat(compiled.valid()).as(compiled.messages().toString()).isTrue();
   }
 
@@ -162,6 +165,10 @@ class ConstraintViewAuthoringRegressionTest {
 
   private static class CountingCompiler extends IliCompilerService {
     private int calls;
+
+    CountingCompiler() {
+      super(MODEL_REPOSITORY);
+    }
 
     @Override
     public CompilationResult compile(String source, @Nullable String repositories, String prefix) {
