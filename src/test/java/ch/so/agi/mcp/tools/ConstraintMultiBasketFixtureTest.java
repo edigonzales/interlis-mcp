@@ -3,9 +3,15 @@ package ch.so.agi.mcp.tools;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.so.agi.mcp.service.IliCompilerService;
+import java.io.StringReader;
 import java.util.List;
 import java.util.Map;
+import javax.xml.parsers.DocumentBuilderFactory;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.w3c.dom.Element;
+import org.xml.sax.InputSource;
 
 class ConstraintMultiBasketFixtureTest {
 
@@ -26,6 +32,68 @@ class ConstraintMultiBasketFixtureTest {
   private static final String ITEM = "BasketFixture.Data.Item";
 
   private final ConstraintTestTools tools = new ConstraintTestTools(new IliCompilerService());
+
+  private static final String ASSOCIATION_MODEL = """
+      INTERLIS 2.4;
+      MODEL BasketFixture (en) AT "https://example.org" VERSION "2026-08-19" =
+        TOPIC Data =
+          CLASS Item =
+            code : MANDATORY TEXT*20;
+            MANDATORY CONSTRAINT ValidCode: code == "A";
+          END Item;
+          CLASS Target =
+          END Target;
+          ASSOCIATION Relation %s =
+            %s
+            item -- {0..*} Item;
+            target -- {0..*} Target;
+          END Relation;
+        END Data;
+      END BasketFixture.
+      """;
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void validatesStandaloneAssociationAndCountsItsTransferType(boolean identifiable) throws Exception {
+    String model = ASSOCIATION_MODEL.formatted(
+        identifiable ? "(OID)" : "", identifiable ? "OID AS INTERLIS.UUIDOID;" : "");
+    var target = new ConstraintTestTools.TestObject();
+    target.classFqn = "BasketFixture.Data.Target";
+    target.oid = "target1";
+    var testCase = testCase("standalone relation", true, object("item1", "A", null), target);
+    var link = new ConstraintTestTools.TestLink();
+    link.associationFqn = "BasketFixture.Data.Relation";
+    link.roles = Map.of("item", "item1", "target", "target1");
+    testCase.links = List.of(link);
+
+    var result = tools.testIliConstraint(model, "ValidCode", List.of(testCase), true);
+    assertThat(result).as(result.toString()).containsEntry("allPassed", true);
+    var fixture = caseResult(result);
+    assertThat(fixture).containsEntry("fixtureValid", true)
+        .containsEntry("validatorValid", true)
+        .containsEntry("constraintExercised", true)
+        .containsEntry("baskets", List.of(Map.of("topic", "BasketFixture.Data", "basketId", "b1",
+            "objectCount", 2L, "associationObjectCount", 1L)));
+
+    var factory = DocumentBuilderFactory.newInstance();
+    factory.setNamespaceAware(true);
+    var xtf = factory.newDocumentBuilder().parse(new InputSource(new StringReader((String) fixture.get("xtfText"))));
+    assertThat(xtf.getElementsByTagNameNS("*", "Item").getLength()).isEqualTo(1);
+    assertThat(xtf.getElementsByTagNameNS("*", "Target").getLength()).isEqualTo(1);
+    var relations = xtf.getElementsByTagNameNS("*", "Relation");
+    assertThat(relations.getLength()).isEqualTo(1);
+    var relation = (Element) relations.item(0);
+    String tid = relation.getAttributeNS(relation.lookupNamespaceURI("ili"), "tid");
+    if (identifiable) {
+      assertThat(tid).matches("[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}");
+    } else {
+      assertThat(tid).isEmpty();
+    }
+    for (var role : link.roles.entrySet()) {
+      var ref = (Element) relation.getElementsByTagNameNS("*", role.getKey()).item(0);
+      assertThat(ref.getAttributeNS(ref.lookupNamespaceURI("ili"), "ref")).isEqualTo(role.getValue());
+    }
+  }
 
   @Test
   void perBasketUniqueRejectsDuplicateInsideOneBasket() {

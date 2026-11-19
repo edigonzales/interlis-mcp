@@ -22,6 +22,7 @@ import ch.interlis.ili2c.metamodel.NumericalType;
 import ch.interlis.ili2c.metamodel.ReferenceType;
 import ch.interlis.ili2c.metamodel.RoleDef;
 import ch.interlis.ili2c.metamodel.Table;
+import ch.interlis.ili2c.metamodel.TextOIDType;
 import ch.interlis.ili2c.metamodel.TextType;
 import ch.interlis.ili2c.metamodel.Topic;
 import ch.interlis.ili2c.metamodel.TransferDescription;
@@ -45,6 +46,7 @@ import ch.interlis.iox_j.StartBasketEvent;
 import ch.interlis.iox_j.StartTransferEvent;
 import ch.interlis.iox_j.logging.LogEventFactory;
 import ch.interlis.iox_j.validator.ValidationConfig;
+import ch.interlis.iox_j.validator.Validator;
 import ch.so.agi.mcp.service.IliCompilerService;
 import ch.so.agi.mcp.constraint.CompiledConstraintContext;
 import ch.so.agi.mcp.constraint.ViewProofScope;
@@ -131,6 +133,7 @@ public class ConstraintTestTools {
   public static class TestLink {
     public String associationFqn;
     public @Nullable String basketId;
+    public @Nullable String oid;
     public Map<String, String> roles;
 
     static TestLink fromGraph(GraphLink link) {
@@ -261,21 +264,21 @@ public class ConstraintTestTools {
     try {
       viewScope = ViewProofScope.resolve(td, target);
       prepared = prepareCase(td, testCase, caseIndex);
-      iomObjects = buildCaseObjects(prepared);
+      iomObjects = buildCaseObjects(td, prepared, caseIndex);
       transferOrder = orderBaskets(iomObjects.keySet());
       baskets = new ArrayList<>();
       for (BasketKey basket : transferOrder) {
-        baskets.add(basketSummary(basket, iomObjects.get(basket)));
+        baskets.add(basketSummary(td, basket, iomObjects.get(basket)));
       }
       if (viewScope != null && target instanceof ch.interlis.ili2c.metamodel.SetConstraint) {
         if (iomObjects.isEmpty()) {
           var base = new BasketKey((Topic) viewScope.base().getContainer(), "view_base_" + caseIndex);
           iomObjects.put(base, new ArrayList<>());
-          baskets.add(basketSummary(base, List.of()));
+          baskets.add(basketSummary(td, base, List.of()));
         }
         var scope = new BasketKey((Topic) viewScope.view().getContainer(), "view_scope_" + caseIndex);
         if (iomObjects.put(scope, new ArrayList<>()) == null) {
-          baskets.add(basketSummary(scope, List.of()));
+          baskets.add(basketSummary(td, scope, List.of()));
         }
         transferOrder = orderBaskets(iomObjects.keySet());
       }
@@ -445,7 +448,7 @@ public class ConstraintTestTools {
               + "': basketId is not applicable to lightweight association " + association.getScopedName(null)
               + "; its embedded reference belongs to the owner object's basket.");
         }
-        links.add(new PreparedLink(association, requestedBasketId, Map.copyOf(spec.roles)));
+        links.add(new PreparedLink(association, requestedBasketId, normalizeBasketId(spec.oid), Map.copyOf(spec.roles)));
       }
     }
 
@@ -459,7 +462,7 @@ public class ConstraintTestTools {
         object.values(), object.references()));
     links.replaceAll(link -> link.association().isLightweight() ? link : new PreparedLink(
         link.association(), resolveBasketId(topicOf(link.association()), link.basketId(), defaultBasketIds),
-        link.roles()));
+        link.oid(), link.roles()));
     Map<Table, List<PreparedObject>> objectsByClass = new LinkedHashMap<>();
     for (PreparedObject object : objectsByOid.values()) {
       objectsByClass.computeIfAbsent(object.table(), key -> new ArrayList<>()).add(object);
@@ -541,23 +544,78 @@ public class ConstraintTestTools {
           Map<String, String> roles = new LinkedHashMap<>();
           roles.put(sourceRole.getName(), source.oid());
           roles.put(targetRole.getName(), Objects.requireNonNull(target).oid());
-          links.add(new PreparedLink(association, null, Map.copyOf(roles)));
+          links.add(new PreparedLink(association, null, null, Map.copyOf(roles)));
           generatedElements++;
         }
       }
     }
   }
 
-  private String generatedObjectOid(Table table, int caseIndex, int objectIndex) {
-    String seed = table.getScopedName(null) + ":" + caseIndex + ":" + objectIndex;
-    Domain oidDomain = table.getOid();
+  private String generatedObjectOid(AbstractClassDef<?> type, int caseIndex, int objectIndex) {
+    String seed = type.getScopedName(null) + ":" + caseIndex + ":" + objectIndex;
+    Domain oidDomain = type.getOid();
     if (usesUuidOid(oidDomain)) {
       return UUID.nameUUIDFromBytes(seed.getBytes(StandardCharsets.UTF_8)).toString();
     }
-    if (oidDomain != null && oidDomain.getType() instanceof ch.interlis.ili2c.metamodel.TextOIDType) {
-      return String.format("mcp%013d", caseIndex * 1000L + objectIndex);
+    if (oidDomain != null && oidDomain.getType() instanceof TextOIDType) {
+      return String.format(Locale.ROOT, "mcp%013d", caseIndex * 1000L + objectIndex);
     }
     return "case" + caseIndex + "_mandatory_" + objectIndex;
+  }
+
+  private @Nullable String associationOid(
+      TransferDescription td, PreparedLink link, Set<String> usedOids, int caseIndex, int linkIndex) {
+    AssociationDef association = link.association();
+    Domain domain = association.getOid();
+    String explicit = link.oid();
+    if (!association.isIdentifiable() && domain == null) {
+      if (explicit == null) return null;
+      throw new ConstraintFixtureException("ASSOCIATION_OID_NOT_ALLOWED",
+          association.getScopedName() + " does not allow an association OID.");
+    }
+    if (association.isLightweight()) {
+      throw new ConstraintFixtureException("ASSOCIATION_OID_TRANSFER_UNSUPPORTED",
+          "The installed INTERLIS libraries classify " + association.getScopedName()
+              + " as embedded despite its OID requirement.");
+    }
+    if (domain != null && domain != td.INTERLIS.ANYOID && domain != td.INTERLIS.I32OID
+        && !(domain.getType() instanceof TextOIDType)) {
+      throw new ConstraintFixtureException("ASSOCIATION_OID_DOMAIN_UNSUPPORTED",
+          "Unsupported association OID domain " + domain.getScopedName() + ".");
+    }
+    if (explicit != null) {
+      if (!validAssociationOid(td, domain, explicit)) {
+        throw new ConstraintFixtureException("ASSOCIATION_OID_INVALID",
+            "The supplied OID does not match the OID domain of " + association.getScopedName() + ".");
+      }
+      return explicit;
+    }
+    for (int sequence = linkIndex; sequence < linkIndex + usedOids.size() + 1; sequence++) {
+      String candidate = domain == td.INTERLIS.I32OID
+          ? Integer.toString(caseIndex * 1000 + sequence)
+          : generatedObjectOid(association, caseIndex, sequence);
+      if (!validAssociationOid(td, domain, candidate)) break;
+      if (usedOids.add(candidate)) return candidate;
+    }
+    throw new ConstraintFixtureException("ASSOCIATION_OID_REQUIRED",
+        "Supply an OID in the domain of " + association.getScopedName() + ".");
+  }
+
+  private boolean validAssociationOid(TransferDescription td, @Nullable Domain domain, String value) {
+    if (usesUuidOid(domain)) {
+      return value.matches("[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}");
+    }
+    if (domain == td.INTERLIS.I32OID) {
+      return value.matches("[0-9]{1,10}") && Long.parseLong(value) <= Integer.MAX_VALUE;
+    }
+    if (domain == td.INTERLIS.STANDARDOID) {
+      return value.length() == 16 && value.matches(Validator.REGEX_FOR_STANDARTOID_VALIDATION);
+    }
+    if (domain != null && domain.getType() instanceof TextOIDType textOid) {
+      int maximum = ((TextType) textOid.getOIDType()).getMaxLength();
+      return (maximum < 0 || value.length() <= maximum) && value.matches(Validator.REGEX_FOR_TEXTOID_VALIDATION);
+    }
+    return value.matches(Validator.REGEX_FOR_ID_VALIDATION);
   }
 
   private boolean usesUuidOid(@Nullable Domain oidDomain) {
@@ -809,9 +867,16 @@ public class ConstraintTestTools {
     return false;
   }
 
-  private Map<String, Object> basketSummary(BasketKey basket, List<Iom_jObject> objects) {
-    // Only top-level class objects have TIDs. Heavyweight links are emitted without a TID.
-    long objectCount = objects.stream().filter(object -> object.getobjectoid() != null).count();
+  private Map<String, Object> basketSummary(TransferDescription td, BasketKey basket, List<Iom_jObject> objects) {
+    long objectCount = 0;
+    for (Iom_jObject object : objects) {
+      Element type = td.getElement(object.getobjecttag());
+      if (type instanceof Table) {
+        objectCount++;
+      } else if (!(type instanceof AssociationDef)) {
+        throw new IllegalStateException("Unexpected top-level fixture type " + object.getobjecttag());
+      }
+    }
     return Map.of(
         "topic", basket.topic().getScopedName(null),
         "basketId", basket.basketId(),
@@ -819,7 +884,8 @@ public class ConstraintTestTools {
         "associationObjectCount", objects.size() - objectCount);
   }
 
-  private Map<BasketKey, List<Iom_jObject>> buildCaseObjects(PreparedCase prepared) {
+  private Map<BasketKey, List<Iom_jObject>> buildCaseObjects(
+      TransferDescription td, PreparedCase prepared, int caseIndex) {
     FixtureBudget budget = new FixtureBudget();
     Map<BasketKey, List<Iom_jObject>> objectsByBasket = new LinkedHashMap<>();
     Map<String, Iom_jObject> iomObjectsByOid = new LinkedHashMap<>();
@@ -852,13 +918,21 @@ public class ConstraintTestTools {
       iomObjectsByOid.put(preparedObject.oid(), object);
     }
 
+    Set<String> usedOids = new LinkedHashSet<>(prepared.objectsByOid().keySet());
     for (PreparedLink link : prepared.links()) {
+      if (link.oid() != null && !usedOids.add(link.oid())) {
+        throw new ConstraintFixtureException("ASSOCIATION_OID_DUPLICATE", "Duplicate transfer OID " + link.oid() + ".");
+      }
+    }
+    int linkIndex = 0;
+    for (PreparedLink link : prepared.links()) {
+      String oid = associationOid(td, link, usedOids, caseIndex, ++linkIndex);
       if (link.association().isLightweight()) {
         applyEmbeddedLink(link, prepared, iomObjectsByOid);
         continue;
       }
       String associationBasketId = Objects.requireNonNull(link.basketId());
-      Iom_jObject associationObject = new Iom_jObject(link.association().getScopedName(null), null);
+      Iom_jObject associationObject = new Iom_jObject(link.association().getScopedName(null), oid);
       Topic associationTopic = topicOf(link.association());
       for (Map.Entry<String, String> role : link.roles().entrySet()) {
         PreparedObject target = prepared.objectsByOid().get(role.getValue().trim());
@@ -1566,6 +1640,7 @@ public class ConstraintTestTools {
   private record PreparedLink(
       AssociationDef association,
       @Nullable String basketId,
+      @Nullable String oid,
       Map<String, String> roles) {
   }
 
