@@ -270,7 +270,9 @@ Der Modelltext wird kompiliert und das übergebene XTF mit dem Validator geprüf
 
 ## Constraint-Fixtures
 
-Constraint-Tests verwenden `TypedValueFixtureFactory` und `NavigationGraphSynthesizer` für skalare Werte, Referenz-OIDs, COORD, Linien-/Flächen-/Multigeometrien, eingebettete Strukturen, Association-Links und mehrere Baskets. Diese Infrastruktur erlaubt es, Proof-Fälle exakt auf eine erwartete Constraint-Verletzung auszurichten und andere Fixture-Fehler davon zu unterscheiden. Kann der installierte Validator eine Wertgleichheit nicht ausführen oder würde die Fixture bereits eine andere Modellregel verletzen, bleibt der Kandidat mit präzisem Reason-Code zurückgehalten.
+Für generierte Proof-Fälle bindet `ConstraintModelSynthesizer` Ausdrücke und Pfade an das kompilierte Modell und synthetisiert aus den Belegungen einen Objektgraphen. `ObjectPathRoutes` ermittelt konkrete Navigationsrouten für Objektzählungen. `TypedValueFixtureFactory` liefert für unterstützte Typen Vergleichswerte, darunter skalare Werte, Referenzen, Geometrien und Strukturwerte.
+
+`ConstraintTestTools` materialisiert die Objekte, eingebetteten Strukturen und Assoziationslinks eines Testfalls als IOM-Objekte. Es ordnet sie den Baskets zu, schreibt den XTF-Transfer und unterscheidet bei der Prüfung mit ilivalidator Zielconstraint-Verletzungen von anderen Fixture-Fehlern. Kann der Validator eine erforderliche Wertgleichheit nicht auswerten oder meldet er einen Fixture-Fehler, bleibt der Proof aus.
 
 # Multi-Basket-Semantik
 
@@ -430,9 +432,9 @@ von Fehlermeldungen. Typisierte Proof-Resultate übernehmen die View-Diagnostik.
 
 ### Objektzählungen über mehrstufige Pfade
 
-`ConstraintExpression.ObjectCount` trägt einen Objektmengenpfad als eigenes IR-Element. Der strukturelle Roundtrip erhält ihn auch innerhalb verschachtelter boolescher Ausdrücke. `ConstraintModelSynthesizer` bindet jeden Schritt an das kompilierte Rollen-, Referenz- oder Composition-Modell und materialisiert Klassenobjekte direkt, auch ohne skalare Attribute. `NavigationGraphSynthesizer` verwendet diese gemeinsame Implementierung für SET.
+`ConstraintExpression.ObjectCount` trägt einen Objektmengenpfad als eigenes IR-Element. Der strukturelle Roundtrip erhält ihn auch innerhalb verschachtelter boolescher Ausdrücke. `ConstraintModelSynthesizer` bindet jeden Schritt an das kompilierte Rollen-, Referenz- oder Composition-Modell und erzeugt Klassenobjekte im Graphen auch ohne skalare Attribute. `SetConstraintCasePlanner` nutzt diese Bindung und Graph-Synthese für navigierte Objektzählungen in SET-Constraints.
 
-`ObjectPathRoutes` ermittelt konkrete Klassenrouten nach Pfadposition, berücksichtigt gemeinsame Präfixe und prüft alle Routen. `ObjectCountTopologyPlanner` ergänzt Solverziele für leere optionale Zwischenstufen, Verzweigungen, gemeinsame Zielidentitäten und gemischte konkrete Typen. Die Graph-Synthese prüft nach allen Belegungen die Zählungen erneut; inverse Rollen und überlappende Pfade dürfen keine Belegung unbemerkt verändern. Pro Solverziel teilen sich erste Suche und numerische Nachsuche weiterhin 50.000 Versuche. Das Modell begründet Kardinalitätsausschlüsse unabhängig von dieser Suche.
+`ObjectPathRoutes` ermittelt konkrete Klassenrouten nach Pfadposition und berücksichtigt gemeinsame Präfixe. `ObjectCountTopologyPlanner` ergänzt Solverziele für leere optionale Zwischenstufen, Verzweigungen, gemeinsame Zielidentitäten und gemischte konkrete Typen. Die Graph-Synthese prüft nach allen Belegungen die Zählungen erneut; inverse Rollen und überlappende Pfade dürfen keine Belegung unbemerkt verändern. Pro Solverziel teilen sich erste Suche und numerische Nachsuche weiterhin 50.000 Versuche. Das Modell begründet Kardinalitätsausschlüsse unabhängig von dieser Suche.
 
 Nach Fixture-Ergänzung und Aufbau des echten Validator-Pools wertet `ObjectCountVerification` die ursprünglichen kompilierten Zählausdrücke und ihre Pfadpräfixe aus. `objectCounts` in Rohresultat und typisierter Fallverifikation enthält geplante und tatsächliche Anzahl, unterschiedliche Zielidentitäten, konkrete Typen je Schritt sowie geprüfte Topologiepflichten. Die Zählpolitik `PINNED_VALIDATOR_PATH_OCCURRENCES` bezeichnet ausdrücklich das Verhalten des installierten Validators: zwei Wege zu derselben OID zählen zweimal. Abweichungen sperren den Proof.
 
