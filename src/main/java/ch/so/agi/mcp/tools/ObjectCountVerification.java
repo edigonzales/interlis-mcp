@@ -11,7 +11,7 @@ final class ObjectCountVerification {
   private ObjectCountVerification() {}
 
   static List<Map<String,Object>> verify(TransferDescription td, Constraint target, Validator validator,
-      List<? extends IomObject> objects, Map<String,Map<String,Integer>> planned,
+      java.util.stream.Stream<? extends IomObject> objects, Map<String,Map<String,Integer>> planned,
       Map<String,Map<String,ch.so.agi.mcp.constraint.ConstraintModelSynthesizer.CountShape>> shapes, Consumer<String> error) {
     var calls = new ArrayList<FunctionCall>();
     collect(target.getCondition(), calls, Collections.newSetFromMap(new IdentityHashMap<>()));
@@ -19,7 +19,8 @@ final class ObjectCountVerification {
     if (calls.isEmpty()) return results;
     Viewable<?> context = (Viewable<?>)target.getContainer();
     Viewable<?> base = context instanceof Projection view ? view.getSelected().getAliasing() : context;
-    for (var object : objects) {
+    for (var iterator = objects.iterator(); iterator.hasNext();) {
+      var object = iterator.next();
       if (!(td.getElement(object.getobjecttag()) instanceof Table type) || !(type == base || type.isExtending(base))) continue;
       for (var call : calls) {
         var path = (ObjectPath)call.getArguments()[0];

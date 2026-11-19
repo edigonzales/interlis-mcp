@@ -15,13 +15,18 @@ import ch.interlis.ili2c.metamodel.Domain;
 import ch.interlis.ili2c.metamodel.Element;
 import ch.interlis.ili2c.metamodel.EnumTreeValueType;
 import ch.interlis.ili2c.metamodel.EnumerationType;
+import ch.interlis.ili2c.metamodel.ExistenceConstraint;
 import ch.interlis.ili2c.metamodel.Extendable;
 import ch.interlis.ili2c.metamodel.Model;
 import ch.interlis.ili2c.metamodel.NumericType;
 import ch.interlis.ili2c.metamodel.NumericalType;
+import ch.interlis.ili2c.metamodel.PredefinedModel;
+import ch.interlis.ili2c.metamodel.Projection;
 import ch.interlis.ili2c.metamodel.ReferenceType;
 import ch.interlis.ili2c.metamodel.RoleDef;
+import ch.interlis.ili2c.metamodel.SetConstraint;
 import ch.interlis.ili2c.metamodel.Table;
+import ch.interlis.ili2c.metamodel.TextOIDType;
 import ch.interlis.ili2c.metamodel.TextType;
 import ch.interlis.ili2c.metamodel.Topic;
 import ch.interlis.ili2c.metamodel.TransferDescription;
@@ -45,6 +50,7 @@ import ch.interlis.iox_j.StartBasketEvent;
 import ch.interlis.iox_j.StartTransferEvent;
 import ch.interlis.iox_j.logging.LogEventFactory;
 import ch.interlis.iox_j.validator.ValidationConfig;
+import ch.interlis.iox_j.validator.Validator;
 import ch.so.agi.mcp.service.IliCompilerService;
 import ch.so.agi.mcp.constraint.CompiledConstraintContext;
 import ch.so.agi.mcp.constraint.ViewProofScope;
@@ -55,10 +61,10 @@ import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer.GraphObject;
 import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer.ObjectGraph;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -70,6 +76,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
@@ -131,6 +138,7 @@ public class ConstraintTestTools {
   public static class TestLink {
     public String associationFqn;
     public @Nullable String basketId;
+    public @Nullable String oid;
     public Map<String, String> roles;
 
     static TestLink fromGraph(GraphLink link) {
@@ -151,14 +159,16 @@ public class ConstraintTestTools {
       @McpToolParam(description = "Constraint-Name oder vollqualifizierter Constraint-Name", required = true) String constraint,
       @McpToolParam(description = "Testfälle mit expectedConstraintValid, Objekten und optionalen Links. expectationSource gibt die Herkunft der Erwartung an.", required = true) List<TestCase> cases,
       @McpToolParam(description = TestXtfOutput.PARAMETER, required = false) @org.jspecify.annotations.Nullable Boolean includeSuccessfulTestXtf) {
-    return TestXtfOutput.prepare(ModelHashes.attach(testIliConstraintFull(modelText, constraint, cases), ModelHashes.model(modelText)), includeSuccessfulTestXtf);
+    return ModelHashes.attach(testIliConstraintFull(modelText, constraint, cases,
+        Boolean.TRUE.equals(includeSuccessfulTestXtf)), ModelHashes.model(modelText));
   }
 
   public Map<String, Object> testIliConstraint(String modelText, String constraint, List<TestCase> cases) {
     return testIliConstraint(modelText, constraint, cases, null);
   }
 
-  private Map<String, Object> testIliConstraintFull(String modelText, String constraint, List<TestCase> cases) {
+  private Map<String, Object> testIliConstraintFull(
+      String modelText, String constraint, List<TestCase> cases, boolean includeSuccessfulTestXtf) {
     McpInputLimits.requireConstraintCases(cases);
 
     IliCompilerService.CompilationResult compilation =
@@ -185,12 +195,13 @@ public class ConstraintTestTools {
     }
 
     TransferDescription td = compilation.transferDescription();
-    Constraint target = findConstraint(td, constraint);
+    List<Constraint> constraints = collectConstraints(td);
+    Constraint target = findConstraint(td, constraints, constraint);
     if (target == null) {
       throw new IllegalArgumentException("Constraint not found: " + constraint);
     }
 
-    Map<String, Object> response = testResolvedConstraint(td, target, cases);
+    Map<String, Object> response = testResolvedConstraint(td, target, constraints, cases, includeSuccessfulTestXtf);
     response.put("messages", compilation.messages());
     return response;
   }
@@ -200,27 +211,31 @@ public class ConstraintTestTools {
       List<TestCase> cases) {
     Objects.requireNonNull(context, "context");
     McpInputLimits.requireConstraintCases(cases);
-    return testResolvedConstraint(context.transferDescription(), context.constraint(), cases);
+    var td = context.transferDescription();
+    return testResolvedConstraint(td, context.constraint(), collectConstraints(td), cases, true);
   }
 
   private Map<String, Object> testResolvedConstraint(
       TransferDescription td,
       Constraint target,
-      List<TestCase> cases) {
+      List<Constraint> constraints,
+      List<TestCase> cases,
+      boolean includeSuccessfulTestXtf) {
     String targetQName = constraintQName(target);
     String context = target.getContainer() != null ? target.getContainer().getScopedName(null) : "";
-    List<Constraint> allConstraints = new ArrayList<>();
-    collectConstraints(td, allConstraints);
+    ValidationConfig config = validationConfig(target, targetQName, constraints);
     List<Map<String, Object>> results = new ArrayList<>();
     int passedCount = 0;
+    int omittedXtfCount = 0;
 
     for (int i = 0; i < cases.size(); i++) {
       TestCase testCase = requireCase(cases.get(i), i, target);
-      Map<String, Object> result = runCase(td, target, targetQName, allConstraints, testCase, i + 1);
+      Map<String, Object> result = runCase(td, target, targetQName, config, testCase, i + 1, includeSuccessfulTestXtf);
       result.put("expectationSource", testCase.expectationSource == null ? ExpectationSource.UNSPECIFIED : testCase.expectationSource);
       results.add(result);
       if (Boolean.TRUE.equals(result.get("passed"))) {
         passedCount++;
+        if (!result.containsKey("xtfText")) omittedXtfCount++;
       }
     }
 
@@ -236,6 +251,7 @@ public class ConstraintTestTools {
     response.put("passedCount", passedCount);
     response.put("allPassed", passedCount == results.size());
     response.put("cases", results);
+    if (omittedXtfCount > 0) response.put("omittedSuccessfulTestXtfCount", omittedXtfCount);
     response.put("automaticCasesGenerated", false);
     response.put("limitations", List.of(
         "Test cases are supplied explicitly by the agent; no witness or counterexample generation is performed.",
@@ -249,80 +265,68 @@ public class ConstraintTestTools {
       TransferDescription td,
       Constraint target,
       String targetQName,
-      List<Constraint> allConstraints,
+      ValidationConfig config,
       TestCase testCase,
-      int caseIndex) {
+      int caseIndex,
+      boolean includeSuccessfulTestXtf) {
     PreparedCase prepared;
     Map<BasketKey, List<Iom_jObject>> iomObjects;
     int subjectCount;
-    List<BasketKey> transferOrder;
-    List<Map<String, Object>> baskets;
     ViewProofScope viewScope;
     try {
       viewScope = ViewProofScope.resolve(td, target);
       prepared = prepareCase(td, testCase, caseIndex);
-      iomObjects = buildCaseObjects(prepared);
-      transferOrder = orderBaskets(iomObjects.keySet());
-      baskets = new ArrayList<>();
-      for (BasketKey basket : transferOrder) {
-        baskets.add(basketSummary(basket, iomObjects.get(basket)));
-      }
-      if (viewScope != null && target instanceof ch.interlis.ili2c.metamodel.SetConstraint) {
+      iomObjects = buildCaseObjects(td, prepared, caseIndex);
+      if (viewScope != null && target instanceof SetConstraint) {
         if (iomObjects.isEmpty()) {
-          var base = new BasketKey((Topic) viewScope.base().getContainer(), "view_base_" + caseIndex);
-          iomObjects.put(base, new ArrayList<>());
-          baskets.add(basketSummary(base, List.of()));
+          iomObjects.put(new BasketKey((Topic) viewScope.base().getContainer(), "view_base_" + caseIndex), List.of());
         }
-        var scope = new BasketKey((Topic) viewScope.view().getContainer(), "view_scope_" + caseIndex);
-        if (iomObjects.put(scope, new ArrayList<>()) == null) {
-          baskets.add(basketSummary(scope, List.of()));
+        Topic scopeTopic = (Topic) viewScope.view().getContainer();
+        String scopeBid = "view_scope_" + caseIndex;
+        Set<String> usedBids = new LinkedHashSet<>();
+        iomObjects.keySet().forEach(key -> usedBids.add(key.basketId()));
+        while (usedBids.contains(scopeBid)) {
+          scopeBid += "_";
         }
-        transferOrder = orderBaskets(iomObjects.keySet());
+        iomObjects.put(new BasketKey(scopeTopic, scopeBid), List.of());
       }
-      subjectCount = countSubjects(td, target, prepared, iomObjects);
+      subjectCount = viewScope == null ? countSubjects(td, target, prepared, iomObjects) : 0;
     } catch (IllegalArgumentException ex) {
       String reasonCode = ex instanceof ConstraintFixtureException known
           ? known.reasonCode() : ex instanceof ViewProofScope.ScopeException scopeError ? scopeError.reasonCode() : "FIXTURE_MATERIALIZATION_FAILED";
-      var result = fixtureFailure(testCase.name.trim(), testCase, 0, reasonCode, ex.getMessage());
-      result.put("basketCount", 0);
-      result.put("baskets", List.of());
-      result.put("validatorValid", false);
-      result.put("targetViolationCount", 0);
-      result.put("errorCount", 1);
-      result.put("warningCount", 0);
-      result.put("messages", result.get("fixtureErrors"));
-      return result;
+      return fixtureFailure(testCase, 0, reasonCode, ex.getMessage());
     }
     Path xtfFile = null;
     try {
       xtfFile = Files.createTempFile("interlis-mcp-constraint-case-", ".xtf");
-      writeCaseXtf(td, iomObjects, transferOrder, xtfFile);
-      String xtfText = Files.readString(xtfFile, StandardCharsets.UTF_8);
-      ValidationOutcome validation = validateCase(td, target, targetQName, allConstraints, xtfFile, viewScope, iomObjects, testCase.plannedObjectCounts, testCase.plannedObjectShapes);
+      var baskets = writeCaseXtf(td, iomObjects, xtfFile);
+      ValidationOutcome validation = validateCase(td, target, targetQName, config, xtfFile, viewScope,
+          iomObjects, testCase.plannedObjectCounts, testCase.plannedObjectShapes);
 
-      int targetViolationCount = (int) validation.messages().stream()
-          .filter(message -> String.valueOf(message.getOrDefault("message", "")).contains(TARGET_VIOLATION_MARKER))
-          .count();
-      List<Map<String, Object>> fixtureErrors = validation.messages().stream()
-          .filter(message -> "ERROR".equals(message.get("severity")))
-          .filter(message -> !String.valueOf(message.getOrDefault("message", "")).contains(TARGET_VIOLATION_MARKER))
-          .toList();
+      int targetViolationCount = 0;
+      var fixtureErrors = new ArrayList<Map<String, Object>>();
+      for (var message : validation.messages()) {
+        if (TARGET_VIOLATION_MARKER.equals(message.get("message"))) {
+          targetViolationCount++;
+        } else if ("ERROR".equals(message.get("severity"))) {
+          fixtureErrors.add(message);
+        }
+      }
 
       boolean actualConstraintValid = targetViolationCount == 0;
       boolean fixtureValid = fixtureErrors.isEmpty();
       if (viewScope != null) subjectCount = ((Number)validation.viewDiagnostics().getOrDefault("subjectCount",0)).intValue();
-      boolean exercised = subjectCount > 0 || viewScope != null
-          && target instanceof ch.interlis.ili2c.metamodel.SetConstraint && validation.setExecuted();
+      boolean setExecuted = target instanceof SetConstraint && validation.targetExecuted();
+      boolean exercised = validation.targetExecuted() && (subjectCount > 0 || viewScope != null && setExecuted);
       boolean expected = testCase.expectedConstraintValid;
       boolean passed = exercised && fixtureValid && actualConstraintValid == expected;
 
-      var result = caseOutcome(testCase.name.trim(), testCase, actualConstraintValid, passed, exercised, subjectCount);
+      var result = caseOutcome(testCase, actualConstraintValid, passed, exercised, subjectCount);
       if (viewScope != null) {
-        result.putAll(validation.viewDiagnostics());
-        result.put("setExecuted", validation.setExecuted());
+        result.put("setExecuted", setExecuted);
       }
-      result.put("objectCounts", validation.viewDiagnostics().getOrDefault("objectCounts", List.of()));
-      result.put("basketCount", iomObjects.size());
+      result.putAll(validation.viewDiagnostics());
+      result.put("basketCount", baskets.size());
       result.put("baskets", baskets);
       result.put("fixtureValid", fixtureValid);
       result.put("validatorValid", validation.errorCount() == 0);
@@ -331,18 +335,20 @@ public class ConstraintTestTools {
       result.put("warningCount", validation.warningCount());
       result.put("messages", validation.messages());
       result.put("fixtureErrors", fixtureErrors);
-      result.put("xtfText", xtfText);
-      if (!exercised) {
-        result.put("reason", "The test case contains no exercised instance of the constraint context.");
-        if (viewScope != null) result.put("fixturePreparationReasonCode", target instanceof ch.interlis.ili2c.metamodel.SetConstraint
-            ? "VIEW_SET_NOT_EXECUTED" : "VIEW_SCOPE_NOT_EXERCISED");
-      } else if (!fixtureValid) {
+      if (includeSuccessfulTestXtf || !passed || validation.warningCount() > 0) {
+        result.put("xtfText", Files.readString(xtfFile, StandardCharsets.UTF_8));
+      }
+      if (!fixtureValid) {
         result.put("reason", "The generated fixture has non-target validation errors.");
         for(var error : fixtureErrors) {
           String message = String.valueOf(error.getOrDefault("message", ""));
           for(String code : List.of("OBJECT_PATH_COUNT_MISMATCH", "OBJECT_PATH_TOPOLOGY_MISMATCH", "OBJECT_PATH_VERIFICATION_FAILED"))
             if(message.contains(code)) result.put("fixturePreparationReasonCode", code);
         }
+      } else if (!exercised) {
+        result.put("reason", "The validator did not exercise the selected constraint in this fixture.");
+        if (viewScope != null) result.put("fixturePreparationReasonCode", target instanceof SetConstraint
+            ? "VIEW_SET_NOT_EXECUTED" : "VIEW_SCOPE_NOT_EXERCISED");
       } else if (actualConstraintValid != expected) {
         result.put("reason", "Observed target constraint result differs from expectedConstraintValid.");
       }
@@ -353,7 +359,7 @@ public class ConstraintTestTools {
       while (cause.getCause() != null) cause = cause.getCause();
       String reason = cause.getMessage() == null ? e.toString() : cause.getMessage();
       if (reason.contains("max one reference") || reason.contains("cardinality")) code = "OBJECT_PATH_CARDINALITY_VIOLATION";
-      return fixtureFailure(testCase.name, testCase, subjectCount, code, reason);
+      return fixtureFailure(testCase, subjectCount, code, reason);
     } finally {
       if (xtfFile != null) {
         try {
@@ -366,9 +372,9 @@ public class ConstraintTestTools {
   }
 
   private Map<String, Object> caseOutcome(
-      String name, TestCase testCase, boolean actual, boolean passed, boolean exercised, int subjectCount) {
+      TestCase testCase, boolean actual, boolean passed, boolean exercised, int subjectCount) {
     var result = new LinkedHashMap<String, Object>();
-    result.put("name", name);
+    result.put("name", testCase.name.trim());
     result.put("expectedConstraintValid", testCase.expectedConstraintValid);
     result.put("actualConstraintValid", actual);
     result.put("passed", passed);
@@ -378,12 +384,19 @@ public class ConstraintTestTools {
   }
 
   private Map<String, Object> fixtureFailure(
-      String name, TestCase testCase, int subjectCount, String code, String reason) {
-    var result = caseOutcome(name, testCase, false, false, false, subjectCount);
+      TestCase testCase, int subjectCount, String code, String reason) {
+    var result = caseOutcome(testCase, false, false, false, subjectCount);
     result.put("fixtureValid", false);
     result.put("fixturePreparationReasonCode", code);
     result.put("fixtureErrors", List.of(Map.of("severity", "ERROR", "code", code, "message", reason)));
     result.put("reason", reason);
+    result.put("basketCount", 0);
+    result.put("baskets", List.of());
+    result.put("validatorValid", false);
+    result.put("targetViolationCount", 0);
+    result.put("errorCount", 1);
+    result.put("warningCount", 0);
+    result.put("messages", result.get("fixtureErrors"));
     return result;
   }
 
@@ -391,7 +404,8 @@ public class ConstraintTestTools {
       TransferDescription td,
       TestCase testCase,
       int caseIndex) {
-    if(testCase.objects.size() + (testCase.links == null ? 0 : testCase.links.size()) > 64)
+    List<TestLink> explicitLinks = testCase.links == null ? List.of() : testCase.links;
+    if (testCase.objects.size() + explicitLinks.size() > 64)
       throw new ConstraintFixtureException("OBJECT_PATH_FIXTURE_BUDGET_EXCEEDED", "A fixture permits at most 64 explicit class objects and relationships.");
     Map<String, PreparedObject> objectsByOid = new LinkedHashMap<>();
 
@@ -413,58 +427,75 @@ public class ConstraintTestTools {
       objectsByOid.put(oid, new PreparedObject(
           table,
           oid,
-          normalizeBasketId(spec.basketId),
-          spec.values != null ? spec.values : Map.of(),
-          spec.references != null ? spec.references : Map.of()));
+          optionalId(spec.basketId),
+          fixtureValues(spec)));
     }
 
     List<PreparedLink> links = new ArrayList<>();
-    if (testCase.links != null) {
-      for (TestLink spec : testCase.links) {
-        if (spec == null || spec.associationFqn == null || spec.associationFqn.isBlank()) {
-          throw new IllegalArgumentException("Case '" + testCase.name + "': link associationFqn is required.");
-        }
-        Element element = td.getElement(spec.associationFqn.trim());
-        if (!(element instanceof AssociationDef association)) {
-          throw new IllegalArgumentException("Case '" + testCase.name + "': associationFqn is not an association: " + spec.associationFqn);
-        }
-        if (spec.roles == null || spec.roles.size() < 2) {
-          throw new IllegalArgumentException("Case '" + testCase.name + "': association link needs at least two role references.");
-        }
-        for (Map.Entry<String, String> role : spec.roles.entrySet()) {
-          if (role.getKey() == null || role.getKey().isBlank() || role.getValue() == null || role.getValue().isBlank()) {
-            throw new IllegalArgumentException("Case '" + testCase.name + "': link role names and OIDs must be non-empty.");
-          }
-          if (!objectsByOid.containsKey(role.getValue().trim())) {
-            throw new IllegalArgumentException("Case '" + testCase.name + "': link role '" + role.getKey() + "' references unknown OID " + role.getValue());
-          }
-        }
-        String requestedBasketId = normalizeBasketId(spec.basketId);
-        if (association.isLightweight() && requestedBasketId != null) {
-          throw new IllegalArgumentException("Case '" + testCase.name
-              + "': basketId is not applicable to lightweight association " + association.getScopedName(null)
-              + "; its embedded reference belongs to the owner object's basket.");
-        }
-        links.add(new PreparedLink(association, requestedBasketId, Map.copyOf(spec.roles)));
+    for (TestLink spec : explicitLinks) {
+      if (spec == null || spec.associationFqn == null || spec.associationFqn.isBlank()) {
+        throw new IllegalArgumentException("Case '" + testCase.name + "': link associationFqn is required.");
       }
+      Element element = td.getElement(spec.associationFqn.trim());
+      if (!(element instanceof AssociationDef association)) {
+        throw new IllegalArgumentException("Case '" + testCase.name + "': associationFqn is not an association: " + spec.associationFqn);
+      }
+      if (spec.roles == null || spec.roles.size() < 2) {
+        throw new IllegalArgumentException("Case '" + testCase.name + "': association link needs at least two role references.");
+      }
+      var roles = new LinkedHashMap<String, String>();
+      for (var role : spec.roles.entrySet()) {
+        String name = optionalId(role.getKey());
+        String oid = optionalId(role.getValue());
+        if (name == null || oid == null) {
+          throw new IllegalArgumentException("Case '" + testCase.name + "': link role names and OIDs must be non-empty.");
+        }
+        if (!objectsByOid.containsKey(oid)) {
+          throw new IllegalArgumentException("Case '" + testCase.name + "': link role '" + name + "' references unknown OID " + oid);
+        }
+        if (association.findRole(name) == null || roles.putIfAbsent(name, oid) != null) {
+          throw fixturePreparationFailure("FIXTURE_ASSOCIATION_ROLE_INVALID", testCase,
+              "Unknown or repeated role '" + name + "' of " + association.getScopedName() + ".");
+        }
+      }
+      for (var it = association.getAttributesAndRoles(); it.hasNext();) {
+        if (it.next() instanceof RoleDef role && !roles.containsKey(role.getName())) {
+          throw fixturePreparationFailure("FIXTURE_ASSOCIATION_ROLE_INVALID", testCase,
+              "Missing role '" + role.getName() + "' of " + association.getScopedName() + ".");
+        }
+      }
+      String requestedBasketId = optionalId(spec.basketId);
+      RoleDef embeddedEnd = association.getRoleWhereEmbedded();
+      if (embeddedEnd != null && requestedBasketId != null) {
+        throw new IllegalArgumentException("Case '" + testCase.name
+            + "': basketId is not applicable to lightweight association " + association.getScopedName(null)
+            + "; its embedded reference belongs to the owner object's basket.");
+      }
+      links.add(new PreparedLink(association, embeddedEnd, requestedBasketId, optionalId(spec.oid), roles));
     }
 
     completeMandatoryAssociations(testCase, caseIndex, objectsByOid, links);
-    validateReferenceTargets(testCase, objectsByOid);
-    validateExplicitBasketIds(testCase, objectsByOid.values(), links);
-    Map<Topic, String> defaultBasketIds = allocateDefaultBasketIds(objectsByOid.values(), links);
+    Map<Topic, String> defaults = allocateDefaultBasketIds(testCase, objectsByOid.values(), links);
+    objectsByOid.replaceAll((oid, object) -> object.basketId() != null ? object : new PreparedObject(
+        object.table(), oid, defaults.get(topicOf(object.table())), object.values()));
+    return new PreparedCase(links, objectsByOid, defaults);
+  }
 
-    objectsByOid.replaceAll((oid, object) -> new PreparedObject(
-        object.table(), oid, resolveBasketId(topicOf(object.table()), object.basketId(), defaultBasketIds),
-        object.values(), object.references()));
-    links.replaceAll(link -> link.association().isLightweight() ? link : new PreparedLink(
-        link.association(), resolveBasketId(topicOf(link.association()), link.basketId(), defaultBasketIds),
-        link.roles()));
-    Map<Table, List<PreparedObject>> objectsByClass = new LinkedHashMap<>();
-    for (PreparedObject object : objectsByOid.values()) {
-      objectsByClass.computeIfAbsent(object.table(), key -> new ArrayList<>()).add(object);
-    }
-    return new PreparedCase(links, objectsByOid, objectsByClass);
+  private Map<String, Object> fixtureValues(TestObject spec) {
+    Map<String, Object> values = spec.values == null ? Map.of() : spec.values;
+    if (spec.references == null || spec.references.isEmpty()) return values;
+    var merged = new LinkedHashMap<>(values);
+    spec.references.forEach((name, oid) -> {
+      if (name == null || name.isBlank() || oid == null || oid.isBlank()) {
+        throw new IllegalArgumentException("Fixture reference names and target OIDs must be non-empty.");
+      }
+      String attribute = name.trim();
+      if (merged.containsKey(attribute) && merged.get(attribute) != null) {
+        throw new IllegalArgumentException("Duplicate fixture assignment for reference '" + attribute + "'.");
+      }
+      merged.put(attribute, new TypedValueFixtureFactory.ReferenceValue(oid.trim()));
+    });
+    return merged;
   }
 
   private void completeMandatoryAssociations(
@@ -472,25 +503,15 @@ public class ConstraintTestTools {
       int caseIndex,
       Map<String, PreparedObject> objectsByOid,
       List<PreparedLink> links) {
-    List<PreparedObject> objects = new ArrayList<>(objectsByOid.values());
+    var pending = new ArrayDeque<>(objectsByOid.values());
     int generatedElements = 0;
     int generatedObjectIndex = 1;
-    Set<String> visitedRolePaths = new LinkedHashSet<>();
-
-    for (int objectIndex = 0; objectIndex < objects.size(); objectIndex++) {
-      PreparedObject source = objects.get(objectIndex);
-      List<RoleDef> navigationRoles = new ArrayList<>();
-      Iterator<RoleDef> iterator = source.table().getOpposideRoles();
-      while (iterator.hasNext()) {
-        navigationRoles.add(iterator.next());
-      }
-      navigationRoles.sort(Comparator.comparing(role -> role.getScopedName(null)));
-
-      for (RoleDef targetRole : navigationRoles) {
-        String visitedRolePath = source.oid() + "\u0000" + targetRole.getScopedName(null);
-        if (!visitedRolePaths.add(visitedRolePath)) {
-          continue;
-        }
+    while (!pending.isEmpty()) {
+      PreparedObject source = pending.removeFirst();
+      var navigationRoles = new TreeMap<String, RoleDef>();
+      source.table().getOpposideRoles().forEachRemaining(role ->
+          navigationRoles.putIfAbsent(role.getScopedName(), role));
+      for (RoleDef targetRole : navigationRoles.values()) {
         if (!(targetRole.getContainer() instanceof AssociationDef association)
             || targetRole.getOppEnd() == null
             || targetRole.getDestination() == null) {
@@ -510,8 +531,8 @@ public class ConstraintTestTools {
         }
 
         RoleDef sourceRole = targetRole.getOppEnd();
-        while (countLinksForSource(links, association, sourceRole, source.oid()) < minimum) {
-          PreparedObject target = reusableTarget(objects, links, targetRole, source);
+        for (long count = countLinksForSource(links, association, sourceRole, source.oid()); count < minimum; count++) {
+          PreparedObject target = reusableTarget(objectsByOid.values(), links, targetRole, source);
           boolean createsObject = target == null;
           int requiredElements = createsObject ? 2 : 1;
           if (generatedElements + requiredElements > MAX_AUTOMATIC_ASSOCIATION_ELEMENTS) {
@@ -532,39 +553,92 @@ public class ConstraintTestTools {
                     && !targetRole.isExternal()
                 ? source.basketId()
                 : null;
-            target = new PreparedObject(targetTable, oid, targetBasketId, Map.of(), Map.of());
-            objects.add(target);
+            target = new PreparedObject(targetTable, oid, targetBasketId, Map.of());
+            pending.addLast(target);
             objectsByOid.put(oid, target);
             generatedElements++;
           }
 
-          Map<String, String> roles = new LinkedHashMap<>();
-          roles.put(sourceRole.getName(), source.oid());
-          roles.put(targetRole.getName(), Objects.requireNonNull(target).oid());
-          links.add(new PreparedLink(association, null, Map.copyOf(roles)));
+          links.add(new PreparedLink(association, association.getRoleWhereEmbedded(), null, null,
+              Map.of(sourceRole.getName(), source.oid(), targetRole.getName(), target.oid())));
           generatedElements++;
         }
       }
     }
   }
 
-  private String generatedObjectOid(Table table, int caseIndex, int objectIndex) {
-    String seed = table.getScopedName(null) + ":" + caseIndex + ":" + objectIndex;
-    Domain oidDomain = table.getOid();
+  private String generatedObjectOid(AbstractClassDef<?> type, int caseIndex, int objectIndex) {
+    String seed = type.getScopedName(null) + ":" + caseIndex + ":" + objectIndex;
+    Domain oidDomain = type.getOid();
     if (usesUuidOid(oidDomain)) {
       return UUID.nameUUIDFromBytes(seed.getBytes(StandardCharsets.UTF_8)).toString();
     }
-    if (oidDomain != null && oidDomain.getType() instanceof ch.interlis.ili2c.metamodel.TextOIDType) {
-      return String.format("mcp%013d", caseIndex * 1000L + objectIndex);
+    if (oidDomain != null && oidDomain.getType() instanceof TextOIDType) {
+      return String.format(Locale.ROOT, "mcp%013d", caseIndex * 1000L + objectIndex);
     }
     return "case" + caseIndex + "_mandatory_" + objectIndex;
+  }
+
+  private @Nullable String associationOid(
+      TransferDescription td, PreparedLink link, Set<String> usedOids, int caseIndex, int linkIndex) {
+    AssociationDef association = link.association();
+    Domain domain = association.getOid();
+    String explicit = link.oid();
+    if (!association.isIdentifiable() && domain == null) {
+      if (explicit == null) return null;
+      throw new ConstraintFixtureException("ASSOCIATION_OID_NOT_ALLOWED",
+          association.getScopedName() + " does not allow an association OID.");
+    }
+    if (link.embeddedEnd() != null) {
+      throw new ConstraintFixtureException("ASSOCIATION_OID_TRANSFER_UNSUPPORTED",
+          "The installed INTERLIS libraries classify " + association.getScopedName()
+              + " as embedded despite its OID requirement.");
+    }
+    if (domain != null && domain != td.INTERLIS.ANYOID && domain != td.INTERLIS.I32OID
+        && !(domain.getType() instanceof TextOIDType)) {
+      throw new ConstraintFixtureException("ASSOCIATION_OID_DOMAIN_UNSUPPORTED",
+          "Unsupported association OID domain " + domain.getScopedName() + ".");
+    }
+    if (explicit != null) {
+      if (!validAssociationOid(td, domain, explicit)) {
+        throw new ConstraintFixtureException("ASSOCIATION_OID_INVALID",
+            "The supplied OID does not match the OID domain of " + association.getScopedName() + ".");
+      }
+      return explicit;
+    }
+    for (int sequence = linkIndex; sequence < linkIndex + usedOids.size() + 1; sequence++) {
+      String candidate = domain == td.INTERLIS.I32OID
+          ? Integer.toString(caseIndex * 1000 + sequence)
+          : generatedObjectOid(association, caseIndex, sequence);
+      if (!validAssociationOid(td, domain, candidate)) break;
+      if (usedOids.add(candidate)) return candidate;
+    }
+    throw new ConstraintFixtureException("ASSOCIATION_OID_REQUIRED",
+        "Supply an OID in the domain of " + association.getScopedName() + ".");
+  }
+
+  private boolean validAssociationOid(TransferDescription td, @Nullable Domain domain, String value) {
+    if (usesUuidOid(domain)) {
+      return value.matches("[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}");
+    }
+    if (domain == td.INTERLIS.I32OID) {
+      return value.matches("[0-9]{1,10}") && Long.parseLong(value) <= Integer.MAX_VALUE;
+    }
+    if (domain == td.INTERLIS.STANDARDOID) {
+      return value.length() == 16 && value.matches(Validator.REGEX_FOR_STANDARTOID_VALIDATION);
+    }
+    if (domain != null && domain.getType() instanceof TextOIDType textOid) {
+      int maximum = ((TextType) textOid.getOIDType()).getMaxLength();
+      return (maximum < 0 || value.length() <= maximum) && value.matches(Validator.REGEX_FOR_TEXTOID_VALIDATION);
+    }
+    return value.matches(Validator.REGEX_FOR_ID_VALIDATION);
   }
 
   private boolean usesUuidOid(@Nullable Domain oidDomain) {
     Set<Domain> visited = new LinkedHashSet<>();
     Domain current = oidDomain;
     while (current != null && visited.add(current)) {
-      if (current.getScopedName(null).endsWith(".UUIDOID")) {
+      if (current == PredefinedModel.getInstance().UUIDOID) {
         return true;
       }
       current = current.getExtending();
@@ -584,7 +658,7 @@ public class ConstraintTestTools {
   }
 
   private @Nullable PreparedObject reusableTarget(
-      List<PreparedObject> objects,
+      Collection<PreparedObject> objects,
       List<PreparedLink> links,
       RoleDef targetRole,
       PreparedObject source) {
@@ -610,8 +684,7 @@ public class ConstraintTestTools {
                 .filter(link -> link.association() == targetRole.getContainer())
                 .filter(link -> candidate.oid().equals(link.roles().get(targetRole.getName())))
                 .count() < maximumBackReferences)
-        .sorted(Comparator.comparing(PreparedObject::oid))
-        .findFirst()
+        .min(Comparator.comparing(PreparedObject::oid))
         .orElse(null);
   }
 
@@ -631,9 +704,10 @@ public class ConstraintTestTools {
       return declared;
     }
 
-    List<Table> candidates = new ArrayList<>();
-    collectConcreteExtensions(declared, candidates);
-    candidates.sort(Comparator.comparing(table -> table.getScopedName(null)));
+    var candidates = declared.getExtensions().stream()
+        .filter(Table.class::isInstance).map(Table.class::cast)
+        .filter(table -> !table.isAbstract() && table.isIdentifiable())
+        .toList();
     if (candidates.size() != 1) {
       throw fixturePreparationFailure(
           "MANDATORY_ASSOCIATION_TARGET_AMBIGUOUS",
@@ -645,18 +719,6 @@ public class ConstraintTestTools {
     return candidates.getFirst();
   }
 
-  private void collectConcreteExtensions(Table parent, List<Table> result) {
-    for (Object extension : parent.getExtensions()) {
-      if (!(extension instanceof Table child) || child == parent) {
-        continue;
-      }
-      if (!child.isAbstract() && child.isIdentifiable() && !result.contains(child)) {
-        result.add(child);
-      }
-      collectConcreteExtensions(child, result);
-    }
-  }
-
   private ConstraintFixtureException fixturePreparationFailure(
       String reasonCode,
       TestCase testCase,
@@ -666,116 +728,47 @@ public class ConstraintTestTools {
         "Case '" + testCase.name + "': " + reason);
   }
 
-  private void validateReferenceTargets(
-      TestCase testCase,
-      Map<String, PreparedObject> objectsByOid) {
-    for (PreparedObject object : objectsByOid.values()) {
-      for (Map.Entry<String, String> reference : object.references().entrySet()) {
-        if (reference.getValue() == null
-            || reference.getValue().isBlank()
-            || !objectsByOid.containsKey(reference.getValue().trim())) {
-          throw new IllegalArgumentException("Case '" + testCase.name + "': reference '"
-              + reference.getKey() + "' points to unknown OID " + reference.getValue());
-        }
-      }
-    }
-  }
-
-  private void validateExplicitBasketIds(
-      TestCase testCase,
-      Collection<PreparedObject> objects,
-      List<PreparedLink> links) {
-    Map<String, Topic> topicsByBasketId = new LinkedHashMap<>();
-    for (PreparedObject object : objects) {
-      registerExplicitBasketId(
-          testCase.name,
-          topicsByBasketId,
-          object.basketId(),
-          topicOf(object.table()));
-    }
-    for (PreparedLink link : links) {
-      if (!link.association().isLightweight()) {
-        registerExplicitBasketId(
-            testCase.name,
-            topicsByBasketId,
-            link.basketId(),
-            topicOf(link.association()));
-      }
-    }
-  }
-
-  private void registerExplicitBasketId(
-      String caseName,
-      Map<String, Topic> topicsByBasketId,
-      @Nullable String basketId,
-      Topic topic) {
-    if (basketId == null) {
-      return;
-    }
-    Topic previous = topicsByBasketId.putIfAbsent(basketId, topic);
-    if (previous != null && previous != topic) {
-      throw new IllegalArgumentException("Case '" + caseName + "': basketId '" + basketId
-          + "' is used for more than one topic (" + previous.getScopedName(null)
-          + " and " + topic.getScopedName(null) + "). Basket IDs must be unique across topics.");
-    }
-  }
-
   private Map<Topic, String> allocateDefaultBasketIds(
-      Collection<PreparedObject> objects,
-      List<PreparedLink> links) {
-    Set<String> explicitIds = new LinkedHashSet<>();
-    Set<Topic> topicsNeedingDefault = new LinkedHashSet<>();
+      TestCase testCase, Collection<PreparedObject> objects, List<PreparedLink> links) {
+    Map<String, Topic> explicit = new LinkedHashMap<>();
+    Set<Topic> implicit = new LinkedHashSet<>();
     for (PreparedObject object : objects) {
-      if (object.basketId() == null) {
-        topicsNeedingDefault.add(topicOf(object.table()));
-      } else {
-        explicitIds.add(object.basketId());
-      }
+      registerBasket(testCase, explicit, implicit, topicOf(object.table()), object.basketId());
     }
     for (PreparedLink link : links) {
-      if (link.association().isLightweight()) {
-        continue;
-      }
-      if (link.basketId() == null) {
-        topicsNeedingDefault.add(topicOf(link.association()));
-      } else {
-        explicitIds.add(link.basketId());
+      if (link.embeddedEnd() == null) {
+        registerBasket(testCase, explicit, implicit, topicOf(link.association()), link.basketId());
       }
     }
 
-    List<Topic> sortedTopics = topicsNeedingDefault.stream()
-        .sorted(Comparator.comparing(topic -> topic.getScopedName(null)))
-        .toList();
-    Map<Topic, String> result = new LinkedHashMap<>();
-    int candidateIndex = 1;
-    for (Topic topic : sortedTopics) {
+    var defaults = new LinkedHashMap<Topic, String>();
+    int next = 1;
+    for (Topic topic : implicit.stream().sorted(Comparator.comparing(Topic::getScopedName)).toList()) {
       String candidate;
       do {
-        candidate = "b" + candidateIndex++;
-      } while (explicitIds.contains(candidate));
-      result.put(topic, candidate);
-      explicitIds.add(candidate);
+        candidate = "b" + next++;
+      } while (explicit.containsKey(candidate));
+      defaults.put(topic, candidate);
     }
-    return result;
+    return defaults;
   }
 
-  private String resolveBasketId(
-      Topic topic,
-      @Nullable String requestedBasketId,
-      Map<Topic, String> defaultBasketIds) {
-    if (requestedBasketId != null) {
-      return requestedBasketId;
+  private void registerBasket(
+      TestCase testCase, Map<String, Topic> explicit, Set<Topic> implicit, Topic topic, @Nullable String bid) {
+    if (bid == null) {
+      implicit.add(topic);
+    } else {
+      Topic previous = explicit.putIfAbsent(bid, topic);
+      if (previous != null && previous != topic) {
+        throw new IllegalArgumentException("Case '" + testCase.name + "': basketId '" + bid
+            + "' is used for more than one topic (" + previous.getScopedName() + " and "
+            + topic.getScopedName() + "). Basket IDs must be unique across topics.");
+      }
     }
-    String basketId = defaultBasketIds.get(topic);
-    if (basketId == null) {
-      throw new IllegalStateException("No implicit basket allocated for topic " + topic.getScopedName(null) + ".");
-    }
-    return basketId;
   }
 
-  private List<BasketKey> orderBaskets(Iterable<BasketKey> baskets) {
-    List<BasketKey> remaining = new ArrayList<>();
-    baskets.forEach(remaining::add);
+  private List<BasketKey> orderBaskets(Set<BasketKey> baskets) {
+    List<BasketKey> remaining = new ArrayList<>(baskets);
     List<BasketKey> ordered = new ArrayList<>();
     Comparator<BasketKey> stableOrder = Comparator
         .comparing((BasketKey key) -> key.topic().getScopedName(null))
@@ -809,147 +802,98 @@ public class ConstraintTestTools {
     return false;
   }
 
-  private Map<String, Object> basketSummary(BasketKey basket, List<Iom_jObject> objects) {
-    // Only top-level class objects have TIDs. Heavyweight links are emitted without a TID.
-    long objectCount = objects.stream().filter(object -> object.getobjectoid() != null).count();
-    return Map.of(
-        "topic", basket.topic().getScopedName(null),
-        "basketId", basket.basketId(),
-        "objectCount", objectCount,
-        "associationObjectCount", objects.size() - objectCount);
-  }
-
-  private Map<BasketKey, List<Iom_jObject>> buildCaseObjects(PreparedCase prepared) {
+  private Map<BasketKey, List<Iom_jObject>> buildCaseObjects(
+      TransferDescription td, PreparedCase prepared, int caseIndex) {
     FixtureBudget budget = new FixtureBudget();
     Map<BasketKey, List<Iom_jObject>> objectsByBasket = new LinkedHashMap<>();
     Map<String, Iom_jObject> iomObjectsByOid = new LinkedHashMap<>();
     int objectIndex = 1;
     for (PreparedObject preparedObject : prepared.objectsByOid().values()) {
-      Table table = preparedObject.table();
-      Iom_jObject object = new Iom_jObject(table.getScopedName(null), preparedObject.oid());
-      Set<String> explicitNames = new LinkedHashSet<>(preparedObject.values().keySet());
-      explicitNames.addAll(preparedObject.references().keySet());
-      int currentObjectIndex = objectIndex++;
-      fillMandatoryAttributes(
-          object,
-          table,
-          preparedObject.basketId(),
-          currentObjectIndex,
-          explicitNames,
-          prepared.objectsByClass(), prepared.objectsByOid(), budget);
-      applyValues(
-          object,
-          table,
-          preparedObject.basketId(),
-          preparedObject.values(),
-          currentObjectIndex,
-          prepared.objectsByClass(),
-          prepared.objectsByOid(), budget);
-      applyReferences(object, preparedObject, prepared.objectsByOid());
-      Topic topic = topicOf(table);
-      BasketKey basket = new BasketKey(topic, preparedObject.basketId());
+      BasketKey basket = new BasketKey(topicOf(preparedObject.table()), preparedObject.basketId());
+      Iom_jObject object = materializeObject(preparedObject.table(), preparedObject.oid(), preparedObject.values(),
+          basket, objectIndex++, prepared.objectsByOid(), budget);
       objectsByBasket.computeIfAbsent(basket, key -> new ArrayList<>()).add(object);
       iomObjectsByOid.put(preparedObject.oid(), object);
     }
 
+    Set<String> usedOids = new LinkedHashSet<>(prepared.objectsByOid().keySet());
     for (PreparedLink link : prepared.links()) {
-      if (link.association().isLightweight()) {
-        applyEmbeddedLink(link, prepared, iomObjectsByOid);
+      if (link.oid() != null && !usedOids.add(link.oid())) {
+        throw new ConstraintFixtureException("ASSOCIATION_OID_DUPLICATE", "Duplicate transfer OID " + link.oid() + ".");
+      }
+    }
+    int linkIndex = 0;
+    for (PreparedLink link : prepared.links()) {
+      String oid = associationOid(td, link, usedOids, caseIndex, ++linkIndex);
+      RoleDef embeddedEnd = link.embeddedEnd();
+      if (embeddedEnd != null) {
+        var owner = prepared.objectsByOid().get(link.roles().get(embeddedEnd.getName()));
+        String role = embeddedEnd.getOppEnd().getName();
+        addReference(iomObjectsByOid.get(owner.oid()), role, new BasketKey(topicOf(owner.table()), owner.basketId()),
+            prepared.objectsByOid().get(link.roles().get(role)));
         continue;
       }
-      String associationBasketId = Objects.requireNonNull(link.basketId());
-      Iom_jObject associationObject = new Iom_jObject(link.association().getScopedName(null), null);
-      Topic associationTopic = topicOf(link.association());
-      for (Map.Entry<String, String> role : link.roles().entrySet()) {
-        PreparedObject target = prepared.objectsByOid().get(role.getValue().trim());
-        IomObject ref = associationObject.addattrobj(role.getKey().trim(), Iom_jObject.REF);
-        ref.setobjectrefoid(target.oid());
-        setReferenceBasketIfNeeded(ref, associationTopic, associationBasketId, target);
-      }
-      BasketKey basket = new BasketKey(associationTopic, associationBasketId);
+      Topic topic = topicOf(link.association());
+      BasketKey basket = new BasketKey(topic, link.basketId() != null ? link.basketId() : prepared.defaults().get(topic));
+      Iom_jObject associationObject = new Iom_jObject(link.association().getScopedName(), oid);
+      link.roles().forEach((role, targetOid) ->
+          addReference(associationObject, role, basket, prepared.objectsByOid().get(targetOid)));
       objectsByBasket.computeIfAbsent(basket, key -> new ArrayList<>()).add(associationObject);
     }
 
     return objectsByBasket;
   }
 
-  private void writeCaseXtf(
-      TransferDescription td, Map<BasketKey, List<Iom_jObject>> objectsByBasket,
-      List<BasketKey> baskets, Path xtfFile) throws IOException {
-    try (OutputStream outputStream = Files.newOutputStream(xtfFile)) {
-      XtfWriter writer = new XtfWriter(outputStream, td);
-      try {
+  private List<Map<String, Object>> writeCaseXtf(
+      TransferDescription td, Map<BasketKey, List<Iom_jObject>> objectsByBasket, Path xtfFile) throws IOException {
+    var summaries = new ArrayList<Map<String, Object>>();
+    try (OutputStream output = Files.newOutputStream(xtfFile)) {
+      XtfWriter writer = new XtfWriter(output, td);
+      try (java.io.Closeable closeWriter = () -> {
+        try {
+          writer.close();
+        } catch (IoxException e) {
+          throw new IOException("Unable to close the fixture writer.", e);
+        }
+      }) {
         StartTransferEvent start = new StartTransferEvent();
         start.setVersion(td.getLastModel().isIli23() ? "2.3" : "2.4");
         start.setSender("interlis-mcp");
         start.setComment("testIliConstraint");
         writer.write(start);
-        for (BasketKey basket : baskets) {
-          writer.write(new StartBasketEvent(basket.topic().getScopedName(null), basket.basketId()));
+        for (BasketKey basket : orderBaskets(objectsByBasket.keySet())) {
+          String topic = basket.topic().getScopedName();
+          writer.write(new StartBasketEvent(topic, basket.basketId()));
+          long classCount = 0;
+          long associationCount = 0;
           for (Iom_jObject object : objectsByBasket.get(basket)) {
+            switch (td.getElement(object.getobjecttag())) {
+              case Table table when table.isIdentifiable() -> classCount++;
+              case AssociationDef association -> associationCount++;
+              case null, default -> throw new IllegalStateException("Unexpected top-level fixture type " + object.getobjecttag());
+            }
             writer.write(new ObjectEvent(object));
           }
           writer.write(new EndBasketEvent());
+          summaries.add(Map.of("topic", topic, "basketId", basket.basketId(),
+              "objectCount", classCount, "associationObjectCount", associationCount));
         }
         writer.write(new EndTransferEvent());
         writer.flush();
-      } catch (IoxException e) {
-        throw new IOException("Unable to write explicit constraint test XTF.", e);
-      } finally {
-        try {
-          writer.close();
-        } catch (Exception ignore) {
-        }
       }
+      return summaries;
     } catch (IoxException e) {
-      throw new IOException("Unable to create XTF writer for explicit constraint test.", e);
+      throw new IOException("Unable to write explicit constraint test XTF.", e);
     }
   }
 
-  private void applyEmbeddedLink(
-      PreparedLink link,
-      PreparedCase prepared,
-      Map<String, Iom_jObject> iomObjectsByOid) {
-    RoleDef embeddedEnd = link.association().getRoleWhereEmbedded();
-    if (embeddedEnd == null) {
-      throw new IllegalStateException("Lightweight association has no embedded role: "
-          + link.association().getScopedName(null));
-    }
-    RoleDef referenceRole = embeddedEnd.getOppEnd();
-    PreparedObject owner = linkedObject(link, embeddedEnd, prepared);
-    PreparedObject target = linkedObject(link, referenceRole, prepared);
-    Iom_jObject ownerObject = iomObjectsByOid.get(owner.oid());
-    IomObject ref = ownerObject.addattrobj(referenceRole.getName(), Iom_jObject.REF);
-    ref.setobjectrefoid(target.oid());
-    setReferenceBasketIfNeeded(ref, topicOf(owner.table()), owner.basketId(), target);
-  }
-
-  private PreparedObject linkedObject(PreparedLink link, RoleDef role, PreparedCase prepared) {
-    String oid = link.roles().get(role.getName());
-    if (oid == null || oid.isBlank()) {
-      throw new IllegalArgumentException("Association link for '"
-          + link.association().getScopedName(null) + "' requires role '" + role.getName() + "'.");
-    }
-    PreparedObject object = prepared.objectsByOid().get(oid.trim());
-    if (object == null) {
-      throw new IllegalArgumentException("Association link role '" + role.getName()
-          + "' references unknown OID " + oid + ".");
-    }
-    return object;
-  }
-
-  private ValidationOutcome validateCase(
-      TransferDescription td, Constraint target,
-      String targetQName,
-      List<Constraint> allConstraints,
-      Path xtfFile, @Nullable ViewProofScope viewScope,
-      Map<BasketKey,List<Iom_jObject>> objectsByBasket, Map<String,Map<String,Integer>> plannedCounts,
-      Map<String,Map<String,CountShape>> plannedShapes) {
+  private ValidationConfig validationConfig(Constraint target, String targetQName, List<Constraint> constraints) {
     ValidationConfig config = new ValidationConfig();
     config.setConfigValue(ValidationConfig.PARAMETER, ValidationConfig.ALL_OBJECTS_ACCESSIBLE, ValidationConfig.TRUE);
-    if (viewScope != null) config.setConfigValue(ValidationConfig.PARAMETER, ValidationConfig.ADDITIONAL_MODELS,
-        viewScope.view().getContainer().getContainer().getName());
-    for (Constraint constraint : allConstraints) {
+    if (target.getContainer() instanceof Projection projection && projection.getContainer(Model.class) instanceof Model model) {
+      config.setConfigValue(ValidationConfig.PARAMETER, ValidationConfig.ADDITIONAL_MODELS, model.getName());
+    }
+    for (Constraint constraint : constraints) {
       String qName = constraintQName(constraint);
       if (targetQName.equals(qName)) {
         config.setConfigValue(qName, ValidationConfig.MSG, TARGET_VIOLATION_MARKER);
@@ -957,16 +901,32 @@ public class ConstraintTestTools {
         config.setConfigValue(qName, ValidationConfig.CHECK, ValidationConfig.OFF);
       }
     }
+    return config;
+  }
 
-    CollectingIoxLogging logging = new CollectingIoxLogging();
-    ch.interlis.iox_j.validator.Validator validator = new ch.interlis.iox_j.validator.Validator(
-        td,
-        config,
-        logging,
-        new LogEventFactory(),
-        new PipelinePool(),
-        new Settings());
+  private ValidationOutcome validateCase(
+      TransferDescription td, Constraint target, String targetQName, ValidationConfig config,
+      Path xtfFile, @Nullable ViewProofScope viewScope, Map<BasketKey, List<Iom_jObject>> objectsByBasket,
+      Map<String, Map<String, Integer>> plannedCounts, Map<String, Map<String, CountShape>> plannedShapes) {
+    CollectingIoxLogging logging = new CollectingIoxLogging(xtfFile, targetQName);
+    Validator validator = new Validator(td, config, logging, new LogEventFactory(), new PipelinePool(), new Settings());
+    try {
+      boolean completed = validateTransfer(td, target, xtfFile, validator, logging);
+      var diagnostics = viewDiagnostics(td, viewScope, objectsByBasket, validator, logging);
+      diagnostics.put("objectCounts", ObjectCountVerification.verify(td, target, validator,
+          objectsByBasket.values().stream().flatMap(List::stream), plannedCounts, plannedShapes, logging::addSyntheticError));
+      // ilivalidator skips its EXISTENCE trace for an object with no attributes.
+      // An omitted optional value is legal and needs no REQUIRED IN match.
+      boolean executed = completed && !logging.unsupportedCheck
+          && (logging.targetStarted || target instanceof ExistenceConstraint);
+      return new ValidationOutcome(logging.messages, logging.errors, logging.warnings, diagnostics, executed);
+    } finally {
+      validator.close();
+    }
+  }
 
+  private boolean validateTransfer(
+      TransferDescription td, Constraint target, Path xtfFile, Validator validator, CollectingIoxLogging logging) {
     IoxReader reader = null;
     try {
       // The current default XTF 2.3 reader ignores the normative EXTREF attribute.
@@ -981,26 +941,42 @@ public class ConstraintTestTools {
       while ((event = reader.read()) != null) {
         validator.validate(event);
         if (event instanceof EndTransferEvent) {
-          break;
+          return true;
         }
       }
-    } catch (Exception e) {
+      logging.addSyntheticError("Constraint test validation failed: no end of transfer.");
+    } catch (IoxException e) {
+      logging.addSyntheticError("Constraint test validation failed: " + e.getMessage());
+    } catch (NullPointerException e) {
+      // iox-ili 1.24.4 compares some complex EXISTENCE values through a null scalar accessor.
+      StackTraceElement[] trace = e.getStackTrace();
+      if (!(target instanceof ExistenceConstraint) || trace.length == 0
+          || !trace[0].getClassName().equals(Validator.class.getName())
+          || !trace[0].getMethodName().equals("validateExistenceConstraint")) {
+        throw e;
+      }
       logging.addSyntheticError("Constraint test validation failed: " + e.getMessage());
     } finally {
       if (reader != null) {
         try {
           reader.close();
-        } catch (Exception ignore) {
+        } catch (IoxException e) {
+          logging.addSyntheticError("Constraint test reader failed to close: " + e.getMessage());
         }
       }
     }
+    return false;
+  }
 
+  private Map<String, Object> viewDiagnostics(
+      TransferDescription td, @Nullable ViewProofScope viewScope,
+      Map<BasketKey, List<Iom_jObject>> objectsByBasket, Validator validator, CollectingIoxLogging logging) {
     Map<String,Object> viewDiagnostics = new LinkedHashMap<>();
     if (viewScope != null) {
       viewDiagnostics.putAll(viewScope.diagnostics());
       int baseCount=0, selected=0, skipped=0;
-      try {
-        for (var basket : objectsByBasket.values()) for (var object : basket) {
+      for (var basket : objectsByBasket.values()) {
+        for (var object : basket) {
           var type = td.getElement(object.getobjecttag());
           if (!(type instanceof Table table) || !(table == viewScope.base() || table.isExtending(viewScope.base()))) continue;
           baseCount++;
@@ -1009,107 +985,55 @@ public class ConstraintTestTools {
             var element=iterator.next();
             if (!(element instanceof ch.interlis.ili2c.metamodel.ExpressionSelection selection)) continue;
             var value=validator.evaluateExpression(null,null,viewScope.view().getScopedName(),object,selection.getCondition(),null);
-            if (value.isNotYetImplemented()) throw new IllegalArgumentException("View filter is not implemented by validator.");
+            if (value.isNotYetImplemented()) {
+              logging.addSyntheticError("VIEW_SCOPE_VERIFICATION_FAILED: View filter is not implemented by validator.");
+              return viewDiagnostics;
+            }
             if (value.skipEvaluation()) { skipped++; continue; }
             if (!value.isTrue()) { included=false; break; }
           }
           if (included) selected++;
         }
-      } catch (Exception ex) { logging.addSyntheticError("VIEW_SCOPE_VERIFICATION_FAILED: " + ex.getMessage()); }
+      }
       viewDiagnostics.put("baseSubjectCount",baseCount);
       viewDiagnostics.put("subjectCount",selected);
       viewDiagnostics.put("excludedSubjectCount",baseCount-selected);
       viewDiagnostics.put("skippedFilterCount",skipped);
     }
-    var counts = ObjectCountVerification.verify(td, target, validator, objectsByBasket.values().stream().flatMap(List::stream).toList(), plannedCounts, plannedShapes, logging::addSyntheticError);
-    viewDiagnostics.put("objectCounts", counts);
-    validator.close();
-    List<Map<String, Object>> normalizedMessages = normalizeFixtureDiagnostics(logging.messages(), xtfFile);
-    int errors = 0;
-    int warnings = 0;
-    for (Map<String, Object> message : normalizedMessages) {
-      if ("ERROR".equals(message.get("severity"))) {
-        errors++;
-      } else if ("WARNING".equals(message.get("severity"))) {
-        warnings++;
-      }
-    }
-    return new ValidationOutcome(normalizedMessages, errors, warnings, viewDiagnostics, logging.executedSets.contains(targetQName));
+    return viewDiagnostics;
   }
 
-  private List<Map<String, Object>> normalizeFixtureDiagnostics(
-      List<Map<String, Object>> messages,
-      Path xtfFile) {
-    List<Map<String, Object>> normalized = new ArrayList<>(messages.size());
-    for (Map<String, Object> original : messages) {
-      Map<String, Object> message = new LinkedHashMap<>(original);
-      Object file = message.get("file");
-      if (file != null && samePath(file.toString(), xtfFile)) {
-        message.put("file", "<generated-constraint-fixture>");
-      }
-      Object text = message.get("message");
-      if (text != null) {
-        message.put("message", text.toString().replace(
-            xtfFile.toString(), "<generated-constraint-fixture>"));
-      }
-      normalized.add(message);
-    }
-    return normalized;
-  }
-
-  private boolean samePath(String value, Path expected) {
-    try {
-      return Path.of(value).toAbsolutePath().normalize().equals(expected.toAbsolutePath().normalize());
-    } catch (RuntimeException e) {
-      return value.equals(expected.toString());
-    }
-  }
-
-  private void fillMandatoryAttributes(
-      Iom_jObject object,
-      Table table,
-      String sourceBasketId,
-      int objectIndex,
-      Set<String> explicitNames,
-      Map<Table, List<PreparedObject>> objectsByClass,
+  private Iom_jObject materializeObject(
+      Table table, @Nullable String oid, Map<?, ?> values, BasketKey basket, int objectIndex,
       Map<String, PreparedObject> objectsByOid, FixtureBudget budget) {
+    Iom_jObject object = new Iom_jObject(table.getScopedName(), oid);
     Iterator<Extendable> attributes = table.getAttributes();
     while (attributes.hasNext()) {
-      Extendable extendable = attributes.next();
-      if (!(extendable instanceof AttributeDef attribute) || explicitNames.contains(attribute.getName())) {
-        continue;
-      }
-      Type declaredType = attribute.getDomainOrDerivedDomain();
-      Type type = Type.findReal(declaredType);
-      int minimum = requiredMultiplicity(declaredType);
-      for (int occurrence = 0; occurrence < minimum; occurrence++) {
-        applyDefaultMandatoryValue(
-            object,
-            table,
-            sourceBasketId,
-            attribute,
-            type,
-            objectIndex,
-            occurrence,
-            objectsByClass, objectsByOid, budget);
+      if (attributes.next() instanceof AttributeDef attribute && !values.containsKey(attribute.getName())) {
+        Type declared = attribute.getDomainOrDerivedDomain();
+        int minimum = requiredMultiplicity(declared);
+        for (int occurrence = 0; occurrence < minimum; occurrence++) {
+          applyDefaultMandatoryValue(object, table, basket, attribute, Type.findReal(declared),
+              objectIndex, occurrence, objectsByOid, budget);
+        }
       }
     }
+    applyValues(object, table, basket, values, objectIndex, objectsByOid, budget);
+    return object;
   }
 
   private void applyDefaultMandatoryValue(
       Iom_jObject object,
       Table table,
-      String sourceBasketId,
+      BasketKey basket,
       AttributeDef attribute,
       Type type,
       int objectIndex,
       int occurrence,
-      Map<Table, List<PreparedObject>> objectsByClass,
       Map<String, PreparedObject> objectsByOid, FixtureBudget budget) {
     String name = attribute.getName();
     if (type instanceof CompositionType composition) {
-      applyCompositionValue(object, name, composition, sourceBasketId, Map.of(), objectIndex,
-          objectsByClass, objectsByOid, budget);
+      applyCompositionValue(object, name, composition, basket, Map.of(), objectIndex, objectsByOid, budget);
       return;
     }
     if (type instanceof TextType textType) {
@@ -1153,12 +1077,7 @@ public class ConstraintTestTools {
           throw unsupportedMandatory(table, attribute, type);
         }
         String value = numeric.getMinimum().toString();
-        switch (index) {
-          case 0 -> coord.setattrvalue(Iom_jObject.COORD_C1, value);
-          case 1 -> coord.setattrvalue(Iom_jObject.COORD_C2, value);
-          case 2 -> coord.setattrvalue(Iom_jObject.COORD_C3, value);
-          default -> throw unsupportedMandatory(table, attribute, type);
-        }
+        coord.setattrvalue(coordinateAxis(index), value);
       }
       return;
     }
@@ -1167,15 +1086,13 @@ public class ConstraintTestTools {
       if (!(referred instanceof Table targetTable)) {
         throw unsupportedMandatory(table, attribute, type);
       }
-      List<PreparedObject> targets = objectsByClass.getOrDefault(targetTable, List.of());
+      var targets = objectsByOid.values().stream().filter(candidate -> candidate.table() == targetTable).toList();
       if (targets.isEmpty()) {
         throw new IllegalArgumentException("Explicit constraint case cannot auto-fill mandatory reference '"
             + table.getScopedName(null) + "." + name + "' because no target object was supplied.");
       }
       PreparedObject target = targets.get((objectIndex - 1 + occurrence) % targets.size());
-      IomObject ref = object.addattrobj(name, Iom_jObject.REF);
-      ref.setobjectrefoid(target.oid());
-      setReferenceBasketIfNeeded(ref, topicOf(table), sourceBasketId, target);
+      addReference(object, name, basket, target);
       return;
     }
     throw unsupportedMandatory(table, attribute, type);
@@ -1190,32 +1107,21 @@ public class ConstraintTestTools {
   private void applyValues(
       Iom_jObject object,
       Table table,
-      String sourceBasketId,
-      Map<String, Object> values,
+      BasketKey basket,
+      Map<?, ?> values,
       int objectIndex,
-      Map<Table, List<PreparedObject>> objectsByClass,
       Map<String, PreparedObject> objectsByOid, FixtureBudget budget) {
-    for (Map.Entry<String, Object> entry : values.entrySet()) {
-      if (entry.getKey() == null || entry.getKey().isBlank() || entry.getValue() == null) {
-        continue;
-      }
-      String name = entry.getKey().trim();
+    for (var entry : values.entrySet()) {
+      if (!(entry.getKey() instanceof String key) || key.isBlank() || entry.getValue() == null) continue;
+      String name = key.trim();
       AttributeDef attribute = findAttribute(table, name);
       Type type = attribute != null ? Type.findReal(attribute.getDomainOrDerivedDomain()) : null;
       if (entry.getValue() instanceof TypedValueFixtureFactory.GeometryValue geometry) {
         applyGeometryValue(object, name, geometry);
       } else if (type instanceof CompositionType composition) {
-        applyCompositionValue(
-            object,
-            name,
-            composition,
-            sourceBasketId,
-            entry.getValue(),
-            objectIndex,
-            objectsByClass,
-            objectsByOid, budget);
+        applyCompositionValue(object, name, composition, basket, entry.getValue(), objectIndex, objectsByOid, budget);
       } else if (type instanceof ReferenceType) {
-        applyReferenceValue(object, table, sourceBasketId, name, entry.getValue(), objectsByOid);
+        applyReferenceValue(object, basket, name, entry.getValue(), objectsByOid);
       } else if (entry.getValue() instanceof List<?> list) {
         for (Object value : list) {
           if (value != null) {
@@ -1232,10 +1138,9 @@ public class ConstraintTestTools {
       Iom_jObject owner,
       String attributeName,
       CompositionType composition,
-      String sourceBasketId,
+      BasketKey basket,
       Object raw,
       int objectIndex,
-      Map<Table, List<PreparedObject>> objectsByClass,
       Map<String, PreparedObject> objectsByOid, FixtureBudget budget) {
     List<?> occurrences = raw instanceof List<?> list ? list : List.of(raw);
     Table component = composition.getComponentType();
@@ -1248,26 +1153,14 @@ public class ConstraintTestTools {
         throw new IllegalArgumentException(
             "STRUCTURE assignment for '" + attributeName + "' requires a map or list of maps.");
       }
-      Map<String, Object> nestedValues = stringKeyedMap(rawValues, attributeName);
+      if (rawValues.keySet().stream().anyMatch(key -> !(key instanceof String name) || name.isBlank())) {
+        throw new IllegalArgumentException(
+            "STRUCTURE assignment for '" + attributeName + "' requires non-empty string attribute names.");
+      }
       budget.enter();
       try {
-        Iom_jObject nested = new Iom_jObject(component.getScopedName(null), null);
-        fillMandatoryAttributes(
-            nested,
-            component,
-            sourceBasketId,
-            objectIndex,
-            nestedValues.keySet(),
-            objectsByClass, objectsByOid, budget);
-        applyValues(
-            nested,
-            component,
-            sourceBasketId,
-            nestedValues,
-            objectIndex,
-            objectsByClass,
-            objectsByOid, budget);
-        owner.addattrobj(attributeName, nested);
+        owner.addattrobj(attributeName, materializeObject(component, null, rawValues, basket,
+            objectIndex, objectsByOid, budget));
       } finally {
         budget.exit();
       }
@@ -1276,8 +1169,7 @@ public class ConstraintTestTools {
 
   private void applyReferenceValue(
       Iom_jObject owner,
-      Table sourceTable,
-      String sourceBasketId,
+      BasketKey basket,
       String attributeName,
       Object raw,
       Map<String, PreparedObject> objectsByOid) {
@@ -1292,9 +1184,7 @@ public class ConstraintTestTools {
       throw new IllegalArgumentException(
           "REFERENCE assignment for '" + attributeName + "' points to unknown OID " + raw + ".");
     }
-    IomObject ref = owner.addattrobj(attributeName, Iom_jObject.REF);
-    ref.setobjectrefoid(target.oid());
-    setReferenceBasketIfNeeded(ref, topicOf(sourceTable), sourceBasketId, target);
+    addReference(owner, attributeName, basket, target);
   }
 
   private void applyGeometryValue(
@@ -1304,10 +1194,7 @@ public class ConstraintTestTools {
     switch (geometry) {
       case TypedValueFixtureFactory.CoordinateValue coordinate ->
           addCoordinate(owner, attributeName, coordinate);
-      case TypedValueFixtureFactory.PolylineValue polyline -> {
-        IomObject target = owner.addattrobj(attributeName, Iom_jObject.POLYLINE);
-        fillPolyline(target, polyline);
-      }
+      case TypedValueFixtureFactory.PolylineValue polyline -> addPolyline(owner, attributeName, polyline);
       case TypedValueFixtureFactory.SurfaceValue surface -> {
         IomObject target = owner.addattrobj(attributeName, Iom_jObject.MULTISURFACE);
         addSurface(target, surface);
@@ -1321,9 +1208,7 @@ public class ConstraintTestTools {
       case TypedValueFixtureFactory.MultiPolylineValue multi -> {
         IomObject target = owner.addattrobj(attributeName, Iom_jObject.MULTIPOLYLINE);
         for (TypedValueFixtureFactory.PolylineValue polyline : multi.polylines()) {
-          IomObject child = target.addattrobj(
-              Iom_jObject.MULTIPOLYLINE_POLYLINE, Iom_jObject.POLYLINE);
-          fillPolyline(child, polyline);
+          addPolyline(target, Iom_jObject.MULTIPOLYLINE_POLYLINE, polyline);
         }
       }
       case TypedValueFixtureFactory.MultiSurfaceValue multi -> {
@@ -1341,19 +1226,24 @@ public class ConstraintTestTools {
       TypedValueFixtureFactory.CoordinateValue coordinate) {
     IomObject target = owner.addattrobj(attributeName, Iom_jObject.COORD);
     for (int index = 0; index < coordinate.ordinates().size(); index++) {
-      String name = switch (index) {
-        case 0 -> Iom_jObject.COORD_C1;
-        case 1 -> Iom_jObject.COORD_C2;
-        case 2 -> Iom_jObject.COORD_C3;
-        default -> throw new IllegalArgumentException("Coordinate fixture has too many axes.");
-      };
-      target.setattrvalue(name, coordinate.ordinates().get(index).stripTrailingZeros().toPlainString());
+      target.setattrvalue(coordinateAxis(index), coordinate.ordinates().get(index).stripTrailingZeros().toPlainString());
     }
   }
 
-  private void fillPolyline(
-      IomObject polyline,
+  private String coordinateAxis(int index) {
+    return switch (index) {
+      case 0 -> Iom_jObject.COORD_C1;
+      case 1 -> Iom_jObject.COORD_C2;
+      case 2 -> Iom_jObject.COORD_C3;
+      default -> throw new IllegalArgumentException("Coordinate fixture has too many axes.");
+    };
+  }
+
+  private void addPolyline(
+      IomObject owner,
+      String attributeName,
       TypedValueFixtureFactory.PolylineValue value) {
+    IomObject polyline = owner.addattrobj(attributeName, Iom_jObject.POLYLINE);
     IomObject sequence = polyline.addattrobj(
         Iom_jObject.POLYLINE_SEQUENCE, Iom_jObject.SEGMENTS);
     for (TypedValueFixtureFactory.CoordinateValue coordinate : value.points()) {
@@ -1369,22 +1259,8 @@ public class ConstraintTestTools {
     for (TypedValueFixtureFactory.PolylineValue boundaryValue : value.boundaries()) {
       IomObject boundary = surface.addattrobj(
           Iom_jObject.SURFACE_BOUNDARY, Iom_jObject.BOUNDARY);
-      IomObject polyline = boundary.addattrobj(
-          Iom_jObject.BOUNDARY_POLYLINE, Iom_jObject.POLYLINE);
-      fillPolyline(polyline, boundaryValue);
+      addPolyline(boundary, Iom_jObject.BOUNDARY_POLYLINE, boundaryValue);
     }
-  }
-
-  private Map<String, Object> stringKeyedMap(Map<?, ?> values, String attributeName) {
-    Map<String, Object> result = new LinkedHashMap<>();
-    for (Map.Entry<?, ?> entry : values.entrySet()) {
-      if (!(entry.getKey() instanceof String key) || key.isBlank()) {
-        throw new IllegalArgumentException(
-            "STRUCTURE assignment for '" + attributeName + "' requires non-empty string attribute names.");
-      }
-      result.put(key, entry.getValue());
-    }
-    return result;
   }
 
   private @Nullable AttributeDef findAttribute(Table table, String name) {
@@ -1406,25 +1282,10 @@ public class ConstraintTestTools {
         "Explicit constraint test scalar values must be string, number or boolean; STRUCTURE values use nested maps.");
   }
 
-  private void applyReferences(
-      Iom_jObject object,
-      PreparedObject source,
-      Map<String, PreparedObject> objectsByOid) {
-    for (Map.Entry<String, String> reference : source.references().entrySet()) {
-      PreparedObject target = objectsByOid.get(reference.getValue().trim());
-      IomObject ref = object.addattrobj(reference.getKey().trim(), Iom_jObject.REF);
-      ref.setobjectrefoid(target.oid());
-      setReferenceBasketIfNeeded(ref, topicOf(source.table()), source.basketId(), target);
-    }
-  }
-
-  private void setReferenceBasketIfNeeded(
-      IomObject ref,
-      Topic sourceTopic,
-      String sourceBasketId,
-      PreparedObject target) {
-    Topic targetTopic = topicOf(target.table());
-    if (sourceTopic != targetTopic || !sourceBasketId.equals(target.basketId())) {
+  private void addReference(Iom_jObject owner, String name, BasketKey basket, PreparedObject target) {
+    IomObject ref = owner.addattrobj(name, Iom_jObject.REF);
+    ref.setobjectrefoid(target.oid());
+    if (basket.topic() != topicOf(target.table()) || !basket.basketId().equals(target.basketId())) {
       ref.setobjectrefbid(target.basketId());
     }
   }
@@ -1441,23 +1302,15 @@ public class ConstraintTestTools {
     return minimum;
   }
 
-  private Topic topicOf(Table table) {
-    Topic topic = (Topic) table.getContainer(Topic.class);
+  private Topic topicOf(AbstractClassDef<?> type) {
+    Topic topic = (Topic) type.getContainer(Topic.class);
     if (topic == null) {
-      throw new IllegalArgumentException("Fixture class is not contained in a topic: " + table.getScopedName(null));
+      throw new IllegalArgumentException("Fixture type is not contained in a topic: " + type.getScopedName());
     }
     return topic;
   }
 
-  private Topic topicOf(AssociationDef association) {
-    Topic topic = (Topic) association.getContainer(Topic.class);
-    if (topic == null) {
-      throw new IllegalArgumentException("Fixture association is not contained in a topic: " + association.getScopedName(null));
-    }
-    return topic;
-  }
-
-  private @Nullable String normalizeBasketId(@Nullable String basketId) {
+  private @Nullable String optionalId(@Nullable String basketId) {
     return basketId == null || basketId.isBlank() ? null : basketId.trim();
   }
 
@@ -1513,14 +1366,16 @@ public class ConstraintTestTools {
       throw new IllegalArgumentException("Case '" + testCase.name + "' requires expectedConstraintValid.");
     }
     if (testCase.objects == null || testCase.objects.isEmpty()
-        && !(target instanceof ch.interlis.ili2c.metamodel.SetConstraint && target.getContainer() instanceof ch.interlis.ili2c.metamodel.Projection)) {
+        && !(target instanceof SetConstraint && target.getContainer() instanceof Projection)) {
       throw new IllegalArgumentException("Case '" + testCase.name + "' requires at least one object.");
     }
     return testCase;
   }
 
-  private Constraint findConstraint(TransferDescription td, String requestedName) {
-    List<Constraint> matches = collectConstraints(td).stream()
+  private Constraint findConstraint(TransferDescription td, List<Constraint> constraints, String requestedName) {
+    Set<Model> sourceModels = Set.of(td.getModelsFromLastFile());
+    List<Constraint> matches = constraints.stream()
+        .filter(constraint -> sourceModels.contains(constraint.getContainer(Model.class)))
         .filter(constraint -> requestedName.trim().equals(constraint.getName())
             || requestedName.trim().equals(constraint.getScopedName(null)))
         .toList();
@@ -1532,9 +1387,7 @@ public class ConstraintTestTools {
 
   private List<Constraint> collectConstraints(TransferDescription td) {
     List<Constraint> result = new ArrayList<>();
-    for (Model model : td.getModelsFromLastFile()) {
-      collectConstraints(model, result);
-    }
+    collectConstraints(td, result);
     return result;
   }
 
@@ -1559,13 +1412,14 @@ public class ConstraintTestTools {
       Table table,
       String oid,
       @Nullable String basketId,
-      Map<String, Object> values,
-      Map<String, String> references) {
+      Map<String, Object> values) {
   }
 
   private record PreparedLink(
       AssociationDef association,
+      @Nullable RoleDef embeddedEnd,
       @Nullable String basketId,
+      @Nullable String oid,
       Map<String, String> roles) {
   }
 
@@ -1581,37 +1435,55 @@ public class ConstraintTestTools {
   private record PreparedCase(
       List<PreparedLink> links,
       Map<String, PreparedObject> objectsByOid,
-      Map<Table, List<PreparedObject>> objectsByClass) {
+      Map<Topic, String> defaults) {
   }
 
   private record ValidationOutcome(List<Map<String, Object>> messages, int errorCount, int warningCount,
-      Map<String,Object> viewDiagnostics, boolean setExecuted) {
+      Map<String,Object> viewDiagnostics, boolean targetExecuted) {
   }
 
   private static final class CollectingIoxLogging implements IoxLogging {
     private final List<Map<String, Object>> messages = new ArrayList<>();
-    private final java.util.Set<String> executedSets = new java.util.HashSet<>();
+    private final String xtfPath;
+    private final String validationTraceSuffix;
+    private boolean targetStarted;
+    private boolean unsupportedCheck;
+    private int errors;
+    private int warnings;
+
+    private CollectingIoxLogging(Path xtfFile, String targetQName) {
+      xtfPath = xtfFile.toString();
+      validationTraceSuffix = " constraint " + targetQName + "...";
+    }
 
     @Override
     public void addEvent(IoxLogEvent event) {
       String full = event.getEventMsg();
-      String prefix = "validate set constraint ";
-      if (full != null && full.startsWith(prefix) && full.endsWith("..."))
-        executedSets.add(full.substring(prefix.length(),full.length()-3));
+      if (full != null && full.startsWith("validate ") && full.endsWith(validationTraceSuffix)) {
+        targetStarted = true;
+      }
       String severity;
       if (event.getEventKind() == IoxLogEvent.ERROR) {
         severity = "ERROR";
+        errors++;
       } else if (event.getEventKind() == IoxLogEvent.WARNING) {
         severity = "WARNING";
+        warnings++;
       } else {
         return;
       }
-      Map<String, Object> message = new LinkedHashMap<>();
+      var message = new LinkedHashMap<String, Object>();
       message.put("severity", severity);
       String raw = event.getRawEventMsg();
-      message.put("message", raw != null && !raw.isBlank() ? raw : event.getEventMsg());
-      if (event.getDataSource() != null && !event.getDataSource().isBlank()) {
-        message.put("file", event.getDataSource());
+      String text = raw != null && !raw.isBlank() ? raw : Objects.toString(full, "");
+      // Only the target constraint is enabled in this validator run.
+      if (event.getEventKind() == IoxLogEvent.WARNING && text.endsWith("is not yet implemented.")) {
+        unsupportedCheck = true;
+      }
+      message.put("message", text.replace(xtfPath, "<generated-constraint-fixture>"));
+      String source = event.getDataSource();
+      if (source != null && !source.isBlank()) {
+        message.put("file", source.equals(xtfPath) ? "<generated-constraint-fixture>" : source);
       }
       Integer sourceLine = event.getSourceLineNr();
       if (sourceLine != null && sourceLine > 0) {
@@ -1621,11 +1493,8 @@ public class ConstraintTestTools {
     }
 
     private void addSyntheticError(String text) {
-      messages.add(Map.of("severity", "ERROR", "message", text != null ? text : "Constraint test validation failed."));
-    }
-
-    private List<Map<String, Object>> messages() {
-      return messages;
+      errors++;
+      messages.add(Map.of("severity", "ERROR", "message", text.replace(xtfPath, "<generated-constraint-fixture>")));
     }
   }
 }

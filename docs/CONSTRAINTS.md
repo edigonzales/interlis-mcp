@@ -766,6 +766,19 @@ Die Constraint-Fixture-Infrastruktur unterstützt mehrere Baskets desselben Topi
 
 Diese Infrastruktur ist insbesondere für `UNIQUE (BASKET)` und `SET CONSTRAINT (BASKET)` relevant.
 
+Für eine eigenständige identifizierbare Assoziation kann das optionale Feld
+`TestLink.oid` eine explizite OID angeben. Fehlt eine erforderliche OID,
+versucht die Fixture-Implementierung, eine gültige OID deterministisch zu
+erzeugen. Die OID muss zur kompilierten OID-Domain passen und im Transfer
+eindeutig sein. Ungültige und doppelte OIDs werden zurückgewiesen.
+Die Basket-Statistik unterscheidet Klassen- und Assoziationsobjekte anhand
+ihres kompilierten INTERLIS-Typs.
+
+Stuft das gepinnte Metamodell eine OID-pflichtige Assoziation als eingebettet
+ein, hält die Fixture-Implementierung den Testfall wegen der unzuverlässigen
+OID-Übertragung mit `ASSOCIATION_OID_TRANSFER_UNSUPPORTED` und
+`fixtureValid=false` zurück. Der Constraint bleibt ungeprüft.
+
 # Der endliche Solver und seine Grenzen
 
 Der Solver ist bewusst deterministisch und endlich. Er leitet Kandidaten unter anderem aus folgenden Quellen ab:

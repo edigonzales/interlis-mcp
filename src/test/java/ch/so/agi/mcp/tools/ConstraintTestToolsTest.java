@@ -139,6 +139,41 @@ class ConstraintTestToolsTest {
   }
 
   @Test
+  void rejectsReversedExpectationsForEmptySecondaryAssociation() {
+    var wrongAt100 = testCase("100 falsely expected invalid", false,
+        List.of(object(MAIN, "main100", 100)), List.of());
+    var wrongAt99 = testCase("99 falsely expected valid", true,
+        List.of(object(MAIN, "main99", 99)), List.of());
+    var result = tools.testIliConstraint(AFU_GOLDEN_MODEL, "GewichtungSumme100_Wald",
+        List.of(wrongAt100, wrongAt99));
+    assertEquals(false, result.get("allPassed"));
+    var cases = castList(result.get("cases"));
+    for (var fixture : cases) {
+      assertEquals(false, fixture.get("passed"));
+      assertEquals(true, fixture.get("fixtureValid"));
+      assertEquals(true, fixture.get("constraintExercised"));
+    }
+    assertEquals(true, cases.get(0).get("actualConstraintValid"));
+    assertEquals(false, cases.get(1).get("actualConstraintValid"));
+    assertEquals(1, cases.get(1).get("targetViolationCount"));
+  }
+
+  @Test
+  void validatorCannotProveAnExternalFunctionWithoutExecutableSemantics() {
+    String model = MANDATORY_BOOLEAN_MODEL
+        .replace("MODEL ConstraintFixtureModel", "CONTRACTED MODEL ConstraintFixtureModel")
+        .replace("TOPIC Data =", "FUNCTION externalCheck(a: NUMERIC): BOOLEAN;\n  TOPIC Data =")
+        .replace("value >= 10", "externalCheck(value)");
+    var fixture = testCase("unimplemented external function", true,
+        List.of(object("ConstraintFixtureModel.Data.Item", "item1", 10)), List.of());
+    fixture.objects.getFirst().values = Map.of("value", 10);
+    var result = tools.testIliConstraint(model, "ValueAtLeast10", List.of(fixture));
+    assertEquals(true, result.get("compilerValid"), result.toString());
+    assertEquals(false, result.get("allPassed"), result.toString());
+    assertEquals(false, castList(result.get("cases")).getFirst().get("constraintExercised"));
+  }
+
+  @Test
   void autoFillsMandatoryBooleanAliasInFixture() {
     ConstraintTestTools.TestObject object = new ConstraintTestTools.TestObject();
     object.classFqn = "ConstraintFixtureModel.Data.Item";
