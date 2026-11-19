@@ -151,6 +151,7 @@ public class ConstraintCaseGenerationTools {
     return result;
   }
 
+  /** Returns the mutable response that the caller augments with its explanation. */
   private Map<String, Object> generateCompiledCases(CompiledConstraintContext context) {
     try {
       var result=generateScopedConstraintCases(context);
@@ -320,7 +321,7 @@ public class ConstraintCaseGenerationTools {
           context, context.compilation().messages());
     }
 
-    return verifyPlan(context, "UNIQUE", "UNIQUE_SEMANTIC_PROOF", "UNIQUE proof",
+    return verifyPlan(context, "UNIQUE_SEMANTIC_PROOF", "UNIQUE proof",
         plan.cases(), plan.summaries(), plan.cases().size(), plan.unsolved());
   }
 
@@ -337,7 +338,7 @@ public class ConstraintCaseGenerationTools {
           context, context.compilation().messages());
     }
 
-    return verifyPlan(context, "EXISTENCE", "EXISTENCE_SEMANTIC_PROOF", "EXISTENCE proof",
+    return verifyPlan(context, "EXISTENCE_SEMANTIC_PROOF", "EXISTENCE proof",
         plan.cases(), plan.summaries(), plan.cases().size(), plan.unsolved());
   }
 
@@ -354,7 +355,7 @@ public class ConstraintCaseGenerationTools {
           context, context.compilation().messages());
     }
 
-    var response = verifyPlan(context, "PLAUSIBILITY", "PLAUSIBILITY_POPULATION_PROOF", "PLAUSIBILITY population",
+    var response = verifyPlan(context, "PLAUSIBILITY_POPULATION_PROOF", "PLAUSIBILITY population",
         plan.cases(), plan.summaries(), plan.cases().size(), plan.unsolved());
     if (!plan.cases().isEmpty()) {
       response.put("plausibility", Map.of(
@@ -378,7 +379,7 @@ public class ConstraintCaseGenerationTools {
           context, context.compilation().messages());
     }
 
-    var response = verifyPlan(context, "SET", "SET_OBJECT_COUNT_PROOF", "SET objectCount",
+    var response = verifyPlan(context, "SET_OBJECT_COUNT_PROOF", "SET objectCount",
         plan.cases(), plan.summaries(), plan.solvedGoalCount(), plan.unsolved());
     if (!plan.cases().isEmpty()) {
       response.put("set", setSummary(set));
@@ -390,7 +391,6 @@ public class ConstraintCaseGenerationTools {
 
   private Map<String, Object> verifyPlan(
       CompiledConstraintContext context,
-      String kind,
       String pattern,
       String description,
       List<ConstraintTestTools.TestCase> cases,
@@ -400,7 +400,7 @@ public class ConstraintCaseGenerationTools {
     if (cases.isEmpty()) {
       var first = unsolved.isEmpty() ? Map.of() : unsolved.getFirst();
       return unavailable(
-          String.valueOf(first.getOrDefault("reasonCode", "NO_" + kind + "_PROOF_CASES")),
+          String.valueOf(first.getOrDefault("reasonCode", "NO_" + context.semantics().kind().name() + "_PROOF_CASES")),
           String.valueOf(first.getOrDefault(
               "reason",
               "No validator-backed " + description + " case could be synthesized for this model shape.")),
