@@ -196,7 +196,7 @@ public class ConstraintTestTools {
 
     TransferDescription td = compilation.transferDescription();
     List<Constraint> constraints = collectConstraints(td);
-    Constraint target = findConstraint(constraints, constraint);
+    Constraint target = findConstraint(td, constraints, constraint);
     if (target == null) {
       throw new IllegalArgumentException("Constraint not found: " + constraint);
     }
@@ -1372,8 +1372,10 @@ public class ConstraintTestTools {
     return testCase;
   }
 
-  private Constraint findConstraint(List<Constraint> constraints, String requestedName) {
+  private Constraint findConstraint(TransferDescription td, List<Constraint> constraints, String requestedName) {
+    Set<Model> sourceModels = Set.of(td.getModelsFromLastFile());
     List<Constraint> matches = constraints.stream()
+        .filter(constraint -> sourceModels.contains(constraint.getContainer(Model.class)))
         .filter(constraint -> requestedName.trim().equals(constraint.getName())
             || requestedName.trim().equals(constraint.getScopedName(null)))
         .toList();
@@ -1385,9 +1387,7 @@ public class ConstraintTestTools {
 
   private List<Constraint> collectConstraints(TransferDescription td) {
     List<Constraint> result = new ArrayList<>();
-    for (Model model : td.getModelsFromLastFile()) {
-      collectConstraints(model, result);
-    }
+    collectConstraints(td, result);
     return result;
   }
 
