@@ -272,7 +272,7 @@ Der Modelltext wird kompiliert und das übergebene XTF mit dem Validator geprüf
 
 Für generierte Proof-Fälle bindet `ConstraintModelSynthesizer` Ausdrücke und Pfade an das kompilierte Modell und synthetisiert aus den Belegungen einen Objektgraphen. `ObjectPathRoutes` ermittelt konkrete Navigationsrouten für Objektzählungen. `TypedValueFixtureFactory` liefert für unterstützte Typen Vergleichswerte, darunter skalare Werte, Referenzen, Geometrien und Strukturwerte.
 
-`ConstraintTestTools` materialisiert die Objekte, eingebetteten Strukturen und Assoziationslinks eines Testfalls als IOM-Objekte. Es ordnet sie den Baskets zu, schreibt den XTF-Transfer und unterscheidet bei der Prüfung mit ilivalidator Zielconstraint-Verletzungen von anderen Fixture-Fehlern. Kann der Validator eine erforderliche Wertgleichheit nicht auswerten oder meldet er einen Fixture-Fehler, bleibt der Proof aus.
+`ConstraintTestTools` materialisiert die Objekte, eingebetteten Strukturen und Assoziationslinks eines Testfalls als IOM-Objekte. Es ordnet sie den Baskets zu, schreibt den XTF-Transfer und unterscheidet bei der Prüfung mit ilivalidator Zielconstraint-Verletzungen von anderen Fixture-Fehlern. Ein bestandener Test setzt eine gültige Fixture, einen ausgeübten Zielconstraint und das erwartete Prüfergebnis voraus.
 
 # Multi-Basket-Semantik
 

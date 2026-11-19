@@ -775,9 +775,9 @@ Die Basket-Statistik unterscheidet Klassen- und Assoziationsobjekte anhand
 ihres kompilierten INTERLIS-Typs.
 
 Stuft das gepinnte Metamodell eine OID-pflichtige Assoziation als eingebettet
-ein, ist eine zuverlässige Übertragung mit den installierten Bibliotheken
-nicht möglich. Die Fixture wird mit `ASSOCIATION_OID_TRANSFER_UNSUPPORTED`
-und `fixtureValid=false` zurückgehalten. Der Constraint bleibt ungeprüft.
+ein, hält die Fixture-Implementierung den Testfall wegen der unzuverlässigen
+OID-Übertragung mit `ASSOCIATION_OID_TRANSFER_UNSUPPORTED` und
+`fixtureValid=false` zurück. Der Constraint bleibt ungeprüft.
 
 # Der endliche Solver und seine Grenzen
 
