@@ -55,11 +55,7 @@ docker run --rm -i -e SPRING_PROFILES_ACTIVE=stdio sogis/interlis-mcp:latest
 | Passendes Modellbeispiel finden | `findSimilarModels` → `readModelExample` |
 | Bestehenden Constraint verstehen | `reviewIliConstraint` |
 | Bestehenden Constraint automatisch beweisen | `generateIliConstraintCases` |
-| Neuen MANDATORY Constraint erstellen | `authorIliMandatoryConstraint` |
-| Neuen EXISTENCE Constraint erstellen | `authorIliExistenceConstraint` |
-| Neuen PLAUSIBILITY Constraint erstellen | `authorIliPlausibilityConstraint` |
-| Neuen SET-Constraint erstellen | `authorIliSetConstraint` |
-| UNIQUE-Constraint erstellen | `authorIliUniqueConstraint` |
+| Neuen Constraint erstellen | `authorIliConstraint` mit `spec.kind` |
 | Geometrie modellieren | `GeometryTypeSpec` in `authorIliModel` oder `applyIliModelChanges` |
 | XTF erzeugen bzw. prüfen | `generateExampleXtf` / `validateXtf` |
 
@@ -69,9 +65,9 @@ Die wichtigste Regel lautet: **Das höchste Tool verwenden, das die Aufgabe voll
 
 Beispiele:
 
-- Ein vollständiges Modell wird mit `reviewIliModel` geprüft. Ein zusätzlicher Standarddurchlauf von `validateIliModel`, `analyzeIliModel` und `checkModelingRules` wäre redundant.
+- Ein vollständiges Modell wird mit `reviewIliModel` geprüft. Für reine Compilerdiagnostik steht `validateIliModel` zur Verfügung.
 - Eine unterstützte Änderung wird als Batch mit `applyIliModelChanges` ausgeführt. Ein erfolgreiches `APPLIED`-Resultat enthält bereits semantischen Diff, Constraint-Proofs und `afterReview` für den unveränderten Nachher-Stand.
-- Die `authorIli...Constraint`-Tools enthalten bereits Proof, Diff und `afterReview`. Nur bei einer separat vorgenommenen Quelltextänderung ist zusätzlich `reviewIliChange` nötig.
+- `authorIliConstraint` liefert bereits Proof, Diff und `afterReview`. Nur bei einer separat vorgenommenen Quelltextänderung ist zusätzlich `reviewIliChange` nötig.
 - Fachliche Semantik wird nicht erfunden. Fehlende Kardinalitäten, Rollen, Schlüssel oder Constraints werden als offene Fragen behandelt.
 
 Die MCP-Resource `interlis://knowledge/agent-workflow` und der Prompt `interlis-modeling-agent` stellen diese Regeln direkt einem Agenten zur Verfügung.
@@ -118,8 +114,8 @@ Der Agent bereitet mit `analyzeIliModel(..., contextFqn)` den Modellkontext vor 
 Erwartungen vor dem Authoring fest. Diese werden zusätzlich zum automatischen Proof mit
 `testIliConstraint` geprüft, bevor der Agent das Modell schreibt. `expectationSource` kennzeichnet
 die angegebene Herkunft, `explanation` beschreibt die kompilierte Regel. `modelHashes` bindet
-Prüfungen an den genauen Modelltext; `includeSuccessfulTestXtf=false` verkürzt erfolgreiche
-Testausgaben ohne Verlust von Diagnosen. Details und Grenzen stehen
+Prüfungen an den genauen Modelltext. Für erfolgreiche, ausgeübte und warnungsfreie Tests
+liefert `includeSuccessfulTestXtf=true` auch den XTF-Text. Details und Grenzen stehen
 im [Benutzerhandbuch](docs/USER_GUIDE.md#constraints-aus-prosa-mit-fachlichen-erwartungen).
 
 ## SO-DATA: CSV-Validierungsmodelle
@@ -135,5 +131,4 @@ stehen im Benutzerhandbuch.
 decimal places are significant: `"0.00"` / `"100.00"` renders `0.00 .. 100.00`,
 including without a unit. Both bounds must have the same number of decimal
 places. No rounding or removal of trailing zeros is performed. The same contract
-applies to typed attribute changes. Tool input schemas advertise
-`x-interlis-decimal-bounds: strings-v1` for capability detection.
+applies to typed attribute changes.

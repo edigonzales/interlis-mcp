@@ -33,7 +33,7 @@ class SlimAgentOutputTest {
         testCase(true, true, false, 0), testCase(true, true, true, 1), missing);
     Map<String,Object> full = Map.of("cases", cases, "details", nested, "allPassed", false);
     String original = mapper.writeValueAsString(full);
-    assertThat(TestXtfOutput.prepare(full, null)).isSameAs(full);
+    assertThat(TestXtfOutput.prepare(full, null)).isEqualTo(TestXtfOutput.prepare(full, false));
     assertThat(TestXtfOutput.prepare(full, true)).isSameAs(full);
     var compact = TestXtfOutput.prepare(full, false);
     assertThat(compact.get("omittedSuccessfulTestXtfCount")).isEqualTo(2);
@@ -48,7 +48,7 @@ class SlimAgentOutputTest {
 
   @Test void typedProjectionPreservesAllOtherEvidenceAndIncludesCounterexamples() throws Exception {
     var compiler = new ProseConstraintWorkflowTest.Counter();
-    var result = author(compiler).authorIliMandatoryConstraint(before(), "Simple.Data.Person", spec(), null, null);
+    var result = author(compiler).authorIliConstraint(before(), "Simple.Data.Person", spec(), null, null, true);
     assertThat(compiler.calls).isEqualTo(2);
     assertThat(result.status).isEqualTo(IliAuthoringResult.Status.GENERATED);
     assertThat(result.modelHashes.before()).isEqualTo(ModelHashes.sha256(before()));
@@ -56,7 +56,7 @@ class SlimAgentOutputTest {
     assertThat(result.modelHashes.candidate()).isNull();
     var snapshot = mapper.valueToTree(result);
     var hashes = result.modelHashes;
-    TestXtfOutput.prepare(result, false);
+    TestXtfOutput.prepare(result, null);
     assertThat(compiler.calls).isEqualTo(2);
     assertThat(result.omittedSuccessfulTestXtfCount).isPositive();
     assertThat(result.modelHashes).isSameAs(hashes);
@@ -86,7 +86,7 @@ class SlimAgentOutputTest {
     var changed = new ModelChangeTools(compiler, new ModelChangeReviewService(analysis, rules)).reviewIliChange("INVALID", before(), null, null);
     assertThat(changed.get("modelHashes")).isEqualTo(ModelHashes.change("INVALID", before()));
     var invalid = spec(); invalid.name="1Invalid";
-    var rejected = author(compiler).authorIliMandatoryConstraint(before(), "Simple.Data.Person", invalid, null, null, false);
+    var rejected = author(compiler).authorIliConstraint(before(), "Simple.Data.Person", invalid, null, null, false);
     assertThat(rejected.modelHashes.before()).isEqualTo(ModelHashes.sha256(before()));
     assertThat(rejected.modelHashes.after()).isNull();
     assertThat(rejected.modelHashes.candidate()).isNull();
@@ -101,7 +101,7 @@ class SlimAgentOutputTest {
 
   @Test void realFixtureMeasurementsAndHashBinding() throws Exception {
     var compiler = new ProseConstraintWorkflowTest.Counter();
-    var authored = author(compiler).authorIliMandatoryConstraint(before(), "Simple.Data.Person", spec(), null, null, false);
+    var authored = author(compiler).authorIliConstraint(before(), "Simple.Data.Person", spec(), null, null, false);
     var tests = new ConstraintTestTools(compiler);
     var checked = tests.testIliConstraint(authored.updatedModelText, "Simple.Data.Person.Adult", List.of(
         ProseConstraintWorkflowTest.age(17,false,null), ProseConstraintWorkflowTest.age(18,true,null), ProseConstraintWorkflowTest.age(19,true,null)), false);
@@ -111,7 +111,7 @@ class SlimAgentOutputTest {
     var generator = new ConstraintCaseGenerationTools(new ConstraintContextService(compiler), tests);
     for (var fixture : List.of(ProseConstraintWorkflowTest.simple("age >= 18"),
         ProseConstraintWorkflowTest.simple("age > 18 AND age < 90"))) {
-      var full = generator.generateIliConstraintCases(fixture, "Simple.Data.Person.Rule");
+      var full = generator.generateIliConstraintCases(fixture, "Simple.Data.Person.Rule", true);
       int calls = compiler.calls;
       var compact = TestXtfOutput.prepare(full,false);
       int fullBytes=mapper.writeValueAsBytes(full).length, compactBytes=mapper.writeValueAsBytes(compact).length;

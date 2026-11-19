@@ -20,12 +20,10 @@ class ModelCorpusToolsTest {
   void indexesConfiguredIliFiles() throws Exception {
     Files.writeString(tempDir.resolve("demo.ili"), modelText("DemoModel", "Building"));
     Files.writeString(tempDir.resolve("ignored.txt"), "not an ili file");
-    ModelCorpusTools tools = new ModelCorpusTools(new ModelCorpusService(tempDir.toString(), 1_048_576, 10));
-
-    Map<String, Object> response = tools.indexConfiguredModels();
-
-    assertThat(response.get("indexedCount")).isEqualTo(1);
-    assertThat(response.get("models").toString()).contains("DemoModel");
+    var corpus = new ModelCorpusService(tempDir.toString(), 1_048_576, 10);
+    var resources = new KnowledgeResources(new KnowledgeRuleLoader(), corpus);
+    assertThat(resources.modelCorpusIndex().contents().getFirst().toString())
+        .contains("indexedCount: 1", "demo.ili", "DemoModel").doesNotContain("ignored.txt");
   }
 
   @Test

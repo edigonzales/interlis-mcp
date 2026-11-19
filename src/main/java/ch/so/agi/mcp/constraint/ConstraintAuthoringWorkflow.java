@@ -34,10 +34,6 @@ public final class ConstraintAuthoringWorkflow {
     return compilerService.compile(modelText, null, tempPrefix);
   }
 
-  public IliCompilerService compilerService() {
-    return compilerService;
-  }
-
   public PreparedConstraint insertAndResolve(
       String modelText,
       IliCompilerService.CompilationResult beforeCompilation,

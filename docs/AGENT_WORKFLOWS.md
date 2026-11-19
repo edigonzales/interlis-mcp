@@ -28,7 +28,7 @@ interlis-mcp
   - schreibt selbst keine Workspace-Dateien
 ```
 
-Diese Grenze ist absichtlich. Ein MCP-Tool wie `applyIliModelChanges` oder `authorIliSetConstraint` liefert `updatedModelText`; der Agent entscheidet, ob und wo dieser Text in eine Datei geschrieben wird.
+Diese Grenze ist absichtlich. Ein MCP-Tool wie `applyIliModelChanges` oder `authorIliConstraint` liefert `updatedModelText`; der Agent entscheidet, ob und wo dieser Text in eine Datei geschrieben wird.
 
 ## Leitprinzip: das höchste passende Tool verwenden
 
@@ -40,31 +40,14 @@ Ein Agent soll nicht mehrere Low-Level-Werkzeuge kombinieren, wenn ein High-Leve
 | Vorher/Nachher-Modell prüfen | `reviewIliChange` |
 | neues vollständiges Modell erstellen | `authorIliModel` |
 | unterstützte semantische Änderungen ausführen | `applyIliModelChanges` |
-| neuen unterstützten Constraint erstellen | passendes `authorIli...Constraint`-Tool |
+| neuen unterstützten Constraint erstellen | `authorIliConstraint` mit passendem `spec.kind` |
 | bestehenden Constraint automatisch beweisen | `generateIliConstraintCases` |
 | einzelnen Compilerfehler untersuchen | `validateIliModel` |
 | einzelne Strukturfrage beantworten | `analyzeIliModel` |
-| einzelne Modellierungsregel prüfen | `checkModelingRules` |
 | bestehenden Constraint erklären | `reviewIliConstraint` |
 | explizit vorgegebene Constraint-Testdaten prüfen | `testIliConstraint` |
 
-### Warum das wichtig ist
-
-`reviewIliModel` kompiliert das Modell bereits und kombiniert Compilerdiagnostik, Struktur und Regelcheck. Folgender Ablauf wäre deshalb unnötig:
-
-```text
-validateIliModel
--> analyzeIliModel
--> checkModelingRules
--> reviewIliModel
-```
-
-Der normale Ablauf ist stattdessen:
-
-```text
-reviewIliModel
-```
-
+`reviewIliModel` kombiniert Compilerdiagnostik, Struktur und Regelcheck in einem Aufruf.
 Low-Level-Tools kommen nur hinzu, wenn danach eine **konkrete Detailfrage** offen ist.
 
 ## Fachliche Semantik niemals erfinden
@@ -201,11 +184,8 @@ Der Constraint-Proof weist die erwartete Validator-Semantik nach. Diff und `afte
 
 ### Toolwahl
 
-- MANDATORY → `authorIliMandatoryConstraint`
-- EXISTENCE → `authorIliExistenceConstraint`
-- PLAUSIBILITY → `authorIliPlausibilityConstraint`
-- SET mit `OBJECT_COUNT` oder `BOOLEAN_EXPRESSION` → `authorIliSetConstraint`
-- UNIQUE → `authorIliUniqueConstraint`
+Verwende `authorIliConstraint` mit `spec.kind` und den Feldern der gewählten Variante.
+Die [Tool-Referenz](TOOL_REFERENCE.md#authoriliconstraint) beschreibt den Vertrag.
 
 Bei einem typisierten Authoring-Tool muss `constraintProofs[].status = PASSED` sein. Bei einem bestehenden oder separat integrierten Constraint ist `generationVerified=true` zusammen mit `coverageComplete=true` aus `generateIliConstraintCases` das Proof-Gate.
 
@@ -298,19 +278,11 @@ Bei einer Geometrieanforderung darf der Agent weder CRS noch Achsgrenzen erraten
 
 Wenn die genaue Geometrieart unklar ist, kann vorher `listGeometryTypes` verwendet werden.
 
-## Entscheidungstabellen
+## Fachregeln aus erlaubten Kombinationen
 
-Wenn eine fachliche Regel bereits als explizite Entscheidungstabelle vorliegt, ist `generateIliConstraintFromDecisionTable` passender als das freie Formulieren einer booleschen Expression.
-
-Beispielhafte Fachvorgabe:
-
-| Status | Typ | erlaubt |
-| --- | --- | --- |
-| `#aktiv` | `#A` | ja |
-| `#aktiv` | `#B` | ja |
-| `#inaktiv` | beliebig | nein |
-
-Der Agent überführt nur die **gegebenen** erlaubten Zeilen in den strukturierten Tool-Payload. Das Tool erzeugt daraus den Constraint und Validator-Proofs. Es erfindet keine fehlenden Fachkombinationen.
+Für einen Mandatory Constraint können erlaubte Kombinationen als `OR` aus Zeilen
+formuliert werden. Die Bedingungen einer Zeile bilden ein `AND`. Prüfe die
+gegebenen positiven und negativen Grenzfälle unabhängig mit `testIliConstraint`.
 
 ## Ergebnis eines agentischen Modellierungsauftrags
 
@@ -336,9 +308,8 @@ Agenten müssen diese Regeln nicht aus einer externen Promptdatei duplizieren. D
 ### Resources
 
 - `interlis://knowledge/agent-workflow`
-- `interlis://knowledge/tool-guide`
-- `interlis://knowledge/constraint-workflow`
 - `interlis://knowledge/handbook-rules`
+- `interlis://knowledge/so-data-rules`
 - `interlis://knowledge/model-corpus-index`
 
 Diese Schnittstellen werden durch Tests abgesichert. Client-spezifische, kopierte Mega-Prompts sollen deshalb nicht als parallele zweite Wahrheit gepflegt werden.

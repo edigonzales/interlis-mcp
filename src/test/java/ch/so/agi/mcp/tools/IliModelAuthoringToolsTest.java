@@ -6,6 +6,7 @@ import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.analysis.ModelChangeReviewService;
 import ch.so.agi.mcp.analysis.ModelPurpose;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
+import ch.so.agi.mcp.constraint.ConstraintFixtures;
 import ch.so.agi.mcp.knowledge.KnowledgeRuleLoader;
 import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
 import ch.so.agi.mcp.knowledge.ModelingRuleTools;
@@ -38,14 +39,14 @@ class IliModelAuthoringToolsTest {
         END DateProof.
         """;
     var compiler = new CountingCompiler();
-    var result = tools(compiler).verifyIliModel(text, ModelPurpose.VALIDATION, ModelingRuleProfile.CORE);
+    var result = tools(compiler).verifyIliModel(text, ModelPurpose.VALIDATION, ModelingRuleProfile.CORE, null);
     assertThat(result.status).isEqualTo(IliAuthoringResult.Status.VERIFIED);
     assertThat(result.updatedModelText).isNull();
     assertThat(result.modelHashes).isEqualTo(ch.so.agi.mcp.model.ModelHashes.model(text));
     assertThat(result.constraintProofs).hasSize(1);
     assertThat(result.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
     assertThat(compiler.calls).isEqualTo(1);
-    var duplicate = tools(compiler).verifyIliModel(text.replace("UNIQUE UniqueDay: day;", "UNIQUE UniqueDay: day;\n UNIQUE UniqueDay: day;"), ModelPurpose.VALIDATION, ModelingRuleProfile.CORE);
+    var duplicate = tools(compiler).verifyIliModel(text.replace("UNIQUE UniqueDay: day;", "UNIQUE UniqueDay: day;\n UNIQUE UniqueDay: day;"), ModelPurpose.VALIDATION, ModelingRuleProfile.CORE, null);
     assertThat(duplicate.updatedModelText).isNull();
   }
 
@@ -72,7 +73,7 @@ void soDataKeepsAllFiveConstraintNamesWithoutMetadataComments() throws Exception
         completeSpec(), ModelPurpose.CAPTURE, ModelingRuleProfile.CORE);
 
     assertThat(compiler.calls).isEqualTo(1);
-    assertThat(result.status).as("%s", result).isEqualTo(IliAuthoringResult.Status.GENERATED);
+    assertThat(result.status).as("%s (%s)", result, result.afterCompilation).isEqualTo(IliAuthoringResult.Status.GENERATED);
     assertThat(result.semanticDiff.astGenerated).isTrue();
     assertThat(result.semanticDiff.astRoundTripVerified).isNull();
     assertThat(result.constraintProofs).hasSize(5)
@@ -286,6 +287,10 @@ void soDataKeepsAllFiveConstraintNamesWithoutMetadataComments() throws Exception
 
   private static final class CountingCompiler extends IliCompilerService {
     private int calls;
+
+    CountingCompiler() {
+      super(ConstraintFixtures.repositories());
+    }
 
     @Override
     public CompilationResult compile(String text, String repositories, String prefix) {

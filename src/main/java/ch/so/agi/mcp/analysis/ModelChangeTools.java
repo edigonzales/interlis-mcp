@@ -34,14 +34,14 @@ public class ModelChangeTools {
 
   @McpTool(
       name = "reviewIliChange",
-      description = "Standard-Tool, wenn ein Vorher- und ein Nachher-Stand eines vollstaendigen INTERLIS-Modells vorliegen. Vergleicht beide semantisch, kompiliert jede Version genau einmal und prueft das After-Modell gegen die Modellierungsregeln. Rueckgabe: added, removed, changed, potentiallyBreakingChanges und afterReview mit ergänzender constraintInteractions-Analyse. Nicht fuer einen einzelnen Modellstand verwenden; dafuer reviewIliModel.",
+      description = "Vergleicht zwei Modellstände semantisch und prüft den Nachher-Stand. Meldet potenziell brechende Änderungen.",
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> reviewIliChange(
       @McpToolParam(description = "INTERLIS-2 Modelltext vor der Aenderung", required = true) String beforeModelText,
       @McpToolParam(description = "INTERLIS-2 Modelltext nach der Aenderung", required = true) String afterModelText,
-      @McpToolParam(description = "Modellzweck fuer das Review des After-Modells: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false) @Nullable ModelPurpose modelPurpose,
-      @McpToolParam(description = "Regelprofil fuer das Review des After-Modells: CORE, SO-GIS oder SO-DATA (Default CORE)", required = false) @Nullable ModelingRuleProfile ruleProfile
+      @McpToolParam(description = "Modellzweck", required = false) @Nullable ModelPurpose modelPurpose,
+      @McpToolParam(description = "Regelprofil, Standard CORE", required = false) @Nullable ModelingRuleProfile ruleProfile
   ) {
     return ModelHashes.attach(reviewIliChangeFull(beforeModelText, afterModelText, modelPurpose, ruleProfile), ModelHashes.change(beforeModelText, afterModelText));
   }

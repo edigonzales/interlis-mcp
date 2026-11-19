@@ -26,8 +26,8 @@ class ConstraintCoverageProofRegressionTest {
     Request request = ConstraintFixtures.arguments("P02", Request.class);
     String source = ConstraintFixtures.withoutRule("P02");
     IliCompilerService compiler = new IliCompilerService(ConstraintFixtures.repositories());
-    IliAuthoringResult result = new ConstraintAuthoringTools(engine(compiler)).authorIliMandatoryConstraint(
-        source, request.contextFqn(), (IliConstraintSpec.Mandatory) request.spec(), null, null);
+    IliAuthoringResult result = new ConstraintAuthoringTools(engine(compiler)).authorIliConstraint(
+        source, request.contextFqn(), (IliConstraintSpec.Mandatory) request.spec(), null, null, null);
     assertThat(result.status).as(new ObjectMapper().writeValueAsString(result)).isEqualTo(IliAuthoringResult.Status.GENERATED);
     assertThat(result.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
     var proof = result.constraintProofs.getFirst();
@@ -66,8 +66,8 @@ class ConstraintCoverageProofRegressionTest {
     Request request = ConstraintFixtures.arguments("P01", Request.class);
     String source = ConstraintFixtures.withoutRule("P01");
     var compiler = new CountingCompiler();
-    var result = new ConstraintAuthoringTools(engine(compiler)).authorIliMandatoryConstraint(
-        source, request.contextFqn(), (IliConstraintSpec.Mandatory) request.spec(), null, null);
+    var result = new ConstraintAuthoringTools(engine(compiler)).authorIliConstraint(
+        source, request.contextFqn(), (IliConstraintSpec.Mandatory) request.spec(), null, null, null);
     assertThat(compiler.calls).isEqualTo(2);
     assertThat(result.status).as(new ObjectMapper().writeValueAsString(result)).isEqualTo(IliAuthoringResult.Status.GENERATED);
     assertThat(result.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
@@ -161,8 +161,8 @@ class ConstraintCoverageProofRegressionTest {
           }
         }
         var compiler = new CountingCompiler();
-        var result = new ConstraintAuthoringTools(engine(compiler)).authorIliMandatoryConstraint(
-            source, "TextPresence.Data.Item", spec, null, null);
+        var result = new ConstraintAuthoringTools(engine(compiler)).authorIliConstraint(
+            source, "TextPresence.Data.Item", spec, null, null, null);
         assertThat(compiler.calls).isEqualTo(2);
         assertThat(result.status).as(mapper.writeValueAsString(result)).isEqualTo(IliAuthoringResult.Status.GENERATED);
         assertThat(result.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));

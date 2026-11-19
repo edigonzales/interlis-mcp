@@ -99,7 +99,7 @@ public class GeometryAttributeTools {
 
   @McpTool(
       name = "listGeometryTypes",
-      description = "Liste alle unterstützten Geometrietypen für die gewünschte INTERLIS-Sprachversion und Modell (INTERLIS/CHBase).",
+      description = "Listet Geometrietypen aus INTERLIS und CHBase für die gewählte Sprachversion.",
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = false)
   )
   public Map<String, Object> listGeometryTypes(

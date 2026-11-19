@@ -38,39 +38,8 @@ public class ModelingRuleTools {
   }
 
   @McpTool(
-      name = "listModelingRules",
-      description = "Katalog-Tool fuer die kuratierten INTERLIS-Modellierungsregeln mit id, title, severity, appliesTo und checkKind. Verwenden, um verfuegbare Regeln oder Regel-IDs zu verstehen. Nicht zum Pruefen eines Modells verwenden; dafuer reviewIliModel oder fuer gezielte Regelpruefungen checkModelingRules.",
-      annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = false)
-  )
-  public Map<String, Object> listModelingRules(
-      @McpToolParam(description = "Regelprofil: CORE, SO-GIS oder SO-DATA (Default CORE)", required = false) @Nullable ModelingRuleProfile profile
-  ) {
-    ModelingRuleProfile normalizedProfile = ModelingRuleProfile.normalize(profile);
-    return Map.of(
-        "profile", normalizedProfile.wireName(),
-        "rules", ruleLoader.rules(normalizedProfile).stream().map(this::ruleSummary).toList());
-  }
-
-  @McpTool(
-      name = "checkModelingRules",
-      description = "Low-Level-Tool fuer gezielte Modellierungsregel-Diagnosen, insbesondere einzelne ruleIds oder wenn nur Regel-Findings benoetigt werden. Automatisierte Findings und manuelle Checks werden getrennt ausgewiesen. Nicht als Standardreview eines vollstaendigen Modells verwenden; dafuer reviewIliModel.",
-      annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
-  )
-  public Map<String, Object> checkModelingRules(
-      @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
-      @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false) @Nullable ModelPurpose modelPurpose,
-      @McpToolParam(description = "Optionale Regel-IDs, die geprueft werden sollen", required = false) @Nullable List<String> ruleIds,
-      @McpToolParam(description = "Regelprofil: CORE, SO-GIS oder SO-DATA (Default CORE)", required = false) @Nullable ModelingRuleProfile profile
-  ) {
-    ModelPurpose purpose = ModelPurpose.normalize(modelPurpose);
-    ModelingRuleProfile normalizedProfile = ModelingRuleProfile.normalize(profile);
-    Map<String, Object> analysis = analysisTools.analyzeIliModel(modelText, purpose);
-    return checkAnalyzedModel(modelText, purpose, analysis, ruleIds, normalizedProfile);
-  }
-
-  @McpTool(
       name = "reviewIliModel",
-      description = "Standard-Tool fuer Baseline- und Abschlussreview eines vollstaendigen aktuellen INTERLIS-Modells. Kompiliert genau einmal und kombiniert Compilerdiagnostik, Struktur, automatisierte Modellierungsregeln, manuelle Checks und offene fachliche Fragen. constraintInteractions zeigt beratende Befunde zu skalaren Wechselwirkungen. Nicht routinemaessig zusaetzlich analyzeIliModel, checkModelingRules oder validateIliModel aufrufen; diese nur fuer gezielte Detaildiagnosen.",
+      description = "Modellreview mit Compilerdiagnostik, Struktur, Modellierungsregeln und manuellen Checks. Modellzweck klären, wenn er die Befunde beeinflusst.",
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> reviewIliModel(
@@ -131,7 +100,7 @@ public class ModelingRuleTools {
     ModelPurpose purpose = ModelPurpose.normalize(modelPurpose);
     ModelingRuleProfile profile = ModelingRuleProfile.normalize(ruleProfile);
     var interactions = ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis.analyze(td);
-    Map<String, Object> ruleReview = checkAnalyzedModel(modelText, purpose, analysis, null, profile);
+    Map<String, Object> ruleReview = checkAnalyzedModel(modelText, purpose, analysis, profile);
 
     List<Map<String, Object>> openQuestions = new ArrayList<>();
     if (purpose == ModelPurpose.UNKNOWN) {
@@ -157,11 +126,9 @@ public class ModelingRuleTools {
       String modelText,
       ModelPurpose purpose,
       Map<String, Object> analysis,
-      @Nullable List<String> ruleIds,
       ModelingRuleProfile profile) {
     List<Map<String, Object>> findings = new ArrayList<>();
     List<Map<String, Object>> manualChecks = new ArrayList<>();
-    Set<String> selectedRuleIds = normalizeRuleIds(ruleIds);
     List<ModelingRule> activeRules = ruleLoader.rules(profile);
     Map<String, ModelingRule> rulesById = new LinkedHashMap<>();
     for (ModelingRule rule : activeRules) {
@@ -170,9 +137,6 @@ public class ModelingRuleTools {
 
     int automatedRuleCount = 0;
     for (ModelingRule rule : activeRules) {
-      if (!selectedRuleIds.isEmpty() && !selectedRuleIds.contains(rule.id())) {
-        continue;
-      }
       if (!applies(rule, purpose)) {
         continue;
       }
@@ -184,44 +148,41 @@ public class ModelingRuleTools {
     }
 
     if (profile == ModelingRuleProfile.SO_DATA) {
-      if (isSelected(selectedRuleIds, "DATA-001") && !ch.so.agi.mcp.change.IliComments.spans(modelText).isEmpty()) {
+      if (!ch.so.agi.mcp.change.IliComments.spans(modelText).isEmpty()) {
         findings.add(ruleFinding(rulesById.get("DATA-001"), "Comments are not permitted in SO-DATA.", null));
       }
-      if (isSelected(selectedRuleIds, "DATA-002")) {
-        for (Object item : listValue(analysis, "models")) {
-          if (item instanceof Map<?, ?> model) {
-            boolean valid = false;
-            try {
-              String version = String.valueOf(model.get("version"));
-              var date = java.time.LocalDate.parse(version);
-              valid = version.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}")
-                  && String.valueOf(model.get("scopedName")).endsWith("_" + date.format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE))
-                  && java.net.URI.create(String.valueOf(model.get("issuer"))).isAbsolute();
-            } catch (IllegalArgumentException | java.time.DateTimeException ignored) {}
-            if (!valid) findings.add(ruleFinding(rulesById.get("DATA-002"), "Model name, VERSION and absolute AT URI must be consistent.", null));
-          }
+      for (Object item : listValue(analysis, "models")) {
+        if (item instanceof Map<?, ?> model) {
+          boolean valid = false;
+          try {
+            String version = String.valueOf(model.get("version"));
+            var date = java.time.LocalDate.parse(version);
+            valid = version.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}")
+                && String.valueOf(model.get("scopedName")).endsWith("_" + date.format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE))
+                && java.net.URI.create(String.valueOf(model.get("issuer"))).isAbsolute();
+          } catch (IllegalArgumentException | java.time.DateTimeException ignored) {}
+          if (!valid) findings.add(ruleFinding(rulesById.get("DATA-002"), "Model name, VERSION and absolute AT URI must be consistent.", null));
         }
       }
     }
-    addCompilerFindings(findings, selectedRuleIds, analysis, rulesById);
+    addCompilerFindings(findings, analysis, rulesById);
 
-    addPublicationAssociationFinding(findings, selectedRuleIds, purpose, analysis, rulesById);
-    addGeometryConventionFinding(findings, selectedRuleIds, analysis, rulesById);
-    addMetaAttributeFinding(findings, selectedRuleIds, analysis, rulesById);
-    addTabCharacterFinding(findings, selectedRuleIds, modelText, rulesById);
-    addModelVersionFindings(findings, selectedRuleIds, modelText, analysis, rulesById);
-    addDocumentationFindings(findings, selectedRuleIds, analysis, rulesById, "MDE-209", "attributes", "Attribute");
-    addDocumentationFindings(findings, selectedRuleIds, analysis, rulesById, "MDE-210", "classes", "Class");
-    addNameLengthFindings(findings, selectedRuleIds, analysis, rulesById);
-    addViewPurposeFindings(findings, selectedRuleIds, purpose, analysis, rulesById);
-    addTextLengthFindings(findings, selectedRuleIds, analysis, rulesById);
-    addRoleCardinalityFindings(findings, selectedRuleIds, analysis, rulesById);
-    addObjectIdentificationFindings(findings, selectedRuleIds, analysis, rulesById);
+    addPublicationAssociationFinding(findings, purpose, analysis, rulesById);
+    addGeometryConventionFinding(findings, analysis, rulesById);
+    addMetaAttributeFinding(findings, analysis, rulesById);
+    addTabCharacterFinding(findings, modelText, rulesById);
+    addModelVersionFindings(findings, modelText, analysis, rulesById);
+    addDocumentationFindings(findings, analysis, rulesById, "MDE-209", "attributes", "Attribute");
+    addDocumentationFindings(findings, analysis, rulesById, "MDE-210", "classes", "Class");
+    addNameLengthFindings(findings, analysis, rulesById);
+    addViewPurposeFindings(findings, purpose, analysis, rulesById);
+    addTextLengthFindings(findings, analysis, rulesById);
+    addRoleCardinalityFindings(findings, analysis, rulesById);
+    addObjectIdentificationFindings(findings, analysis, rulesById);
 
     boolean validForAutomatedRules = findings.stream()
         .noneMatch(finding -> "ERROR".equals(finding.get("severity")) || "WARNING".equals(finding.get("severity")));
     return Map.of(
-        "profile", profile.wireName(),
         "validForAutomatedRules", validForAutomatedRules,
         "findings", findings,
         "automatedRuleCount", Boolean.TRUE.equals(analysis.get("valid")) ? automatedRuleCount : 0,
@@ -229,10 +190,7 @@ public class ModelingRuleTools {
     );
   }
 
-  private void addCompilerFindings(List<Map<String, Object>> findings, Set<String> selectedRuleIds, Map<String, Object> analysis, Map<String, ModelingRule> rulesById) {
-    if (!isSelected(selectedRuleIds, "MDE-020")) {
-      return;
-    }
+  private void addCompilerFindings(List<Map<String, Object>> findings, Map<String, Object> analysis, Map<String, ModelingRule> rulesById) {
     ModelingRule rule = rule("MDE-020", rulesById);
     if (rule == null) {
       return;
@@ -250,11 +208,10 @@ public class ModelingRuleTools {
 
   private void addPublicationAssociationFinding(
       List<Map<String, Object>> findings,
-      Set<String> selectedRuleIds,
       ModelPurpose purpose,
       Map<String, Object> analysis,
       Map<String, ModelingRule> rulesById) {
-    if (!isSelected(selectedRuleIds, "MDE-010") || purpose != ModelPurpose.PUBLICATION) {
+    if (purpose != ModelPurpose.PUBLICATION) {
       return;
     }
     List<?> associations = listValue(analysis, "associations");
@@ -271,12 +228,8 @@ public class ModelingRuleTools {
 
   private void addGeometryConventionFinding(
       List<Map<String, Object>> findings,
-      Set<String> selectedRuleIds,
       Map<String, Object> analysis,
       Map<String, ModelingRule> rulesById) {
-    if (!isSelected(selectedRuleIds, "MDE-030")) {
-      return;
-    }
     ModelingRule rule = rule("MDE-030", rulesById);
     if (rule == null) {
       return;
@@ -297,12 +250,8 @@ public class ModelingRuleTools {
 
   private void addMetaAttributeFinding(
       List<Map<String, Object>> findings,
-      Set<String> selectedRuleIds,
       Map<String, Object> analysis,
       Map<String, ModelingRule> rulesById) {
-    if (!isSelected(selectedRuleIds, "MDE-060")) {
-      return;
-    }
     ModelingRule rule = rule("MDE-060", rulesById);
     if (rule == null) {
       return;
@@ -339,12 +288,8 @@ public class ModelingRuleTools {
 
   private void addTabCharacterFinding(
       List<Map<String, Object>> findings,
-      Set<String> selectedRuleIds,
       String modelText,
       Map<String, ModelingRule> rulesById) {
-    if (!isSelected(selectedRuleIds, "MDE-206")) {
-      return;
-    }
     ModelingRule rule = rule("MDE-206", rulesById);
     if (rule == null) {
       return;
@@ -372,13 +317,9 @@ public class ModelingRuleTools {
 
   private void addModelVersionFindings(
       List<Map<String, Object>> findings,
-      Set<String> selectedRuleIds,
       String modelText,
       Map<String, Object> analysis,
       Map<String, ModelingRule> rulesById) {
-    if (!isSelected(selectedRuleIds, "MDE-208")) {
-      return;
-    }
     ModelingRule rule = rule("MDE-208", rulesById);
     if (rule == null) {
       return;
@@ -403,15 +344,11 @@ public class ModelingRuleTools {
 
   private void addDocumentationFindings(
       List<Map<String, Object>> findings,
-      Set<String> selectedRuleIds,
       Map<String, Object> analysis,
       Map<String, ModelingRule> rulesById,
       String ruleId,
       String category,
       String label) {
-    if (!isSelected(selectedRuleIds, ruleId)) {
-      return;
-    }
     ModelingRule rule = rule(ruleId, rulesById);
     if (rule == null) {
       return;
@@ -427,12 +364,8 @@ public class ModelingRuleTools {
 
   private void addNameLengthFindings(
       List<Map<String, Object>> findings,
-      Set<String> selectedRuleIds,
       Map<String, Object> analysis,
       Map<String, ModelingRule> rulesById) {
-    if (!isSelected(selectedRuleIds, "MDE-302")) {
-      return;
-    }
     ModelingRule rule = rule("MDE-302", rulesById);
     if (rule == null) {
       return;
@@ -453,12 +386,10 @@ public class ModelingRuleTools {
 
   private void addViewPurposeFindings(
       List<Map<String, Object>> findings,
-      Set<String> selectedRuleIds,
       ModelPurpose purpose,
       Map<String, Object> analysis,
       Map<String, ModelingRule> rulesById) {
-    if (!isSelected(selectedRuleIds, "MDE-501")
-        || purpose == ModelPurpose.VALIDATION
+    if (purpose == ModelPurpose.VALIDATION
         || purpose == ModelPurpose.UNKNOWN) {
       return;
     }
@@ -477,12 +408,8 @@ public class ModelingRuleTools {
 
   private void addTextLengthFindings(
       List<Map<String, Object>> findings,
-      Set<String> selectedRuleIds,
       Map<String, Object> analysis,
       Map<String, ModelingRule> rulesById) {
-    if (!isSelected(selectedRuleIds, "MDE-502")) {
-      return;
-    }
     ModelingRule rule = rule("MDE-502", rulesById);
     if (rule == null) {
       return;
@@ -503,12 +430,8 @@ public class ModelingRuleTools {
 
   private void addRoleCardinalityFindings(
       List<Map<String, Object>> findings,
-      Set<String> selectedRuleIds,
       Map<String, Object> analysis,
       Map<String, ModelingRule> rulesById) {
-    if (!isSelected(selectedRuleIds, "MDE-601")) {
-      return;
-    }
     ModelingRule rule = rule("MDE-601", rulesById);
     if (rule == null) {
       return;
@@ -535,12 +458,8 @@ public class ModelingRuleTools {
 
   private void addObjectIdentificationFindings(
       List<Map<String, Object>> findings,
-      Set<String> selectedRuleIds,
       Map<String, Object> analysis,
       Map<String, ModelingRule> rulesById) {
-    if (!isSelected(selectedRuleIds, "MDE-603")) {
-      return;
-    }
     ModelingRule rule = rule("MDE-603", rulesById);
     if (rule == null) {
       return;
@@ -606,22 +525,6 @@ public class ModelingRuleTools {
     return rule.appliesTo() == ModelPurpose.ANY
         || purpose == ModelPurpose.UNKNOWN
         || rule.appliesTo() == purpose;
-  }
-
-  private Set<String> normalizeRuleIds(@Nullable List<String> ruleIds) {
-    Set<String> selected = new LinkedHashSet<>();
-    if (ruleIds != null) {
-      for (String ruleId : ruleIds) {
-        if (ruleId != null && !ruleId.isBlank()) {
-          selected.add(ruleId.trim());
-        }
-      }
-    }
-    return selected;
-  }
-
-  private boolean isSelected(Set<String> selectedRuleIds, String ruleId) {
-    return selectedRuleIds.isEmpty() || selectedRuleIds.contains(ruleId);
   }
 
   private List<?> listValue(Map<String, Object> map, String key) {

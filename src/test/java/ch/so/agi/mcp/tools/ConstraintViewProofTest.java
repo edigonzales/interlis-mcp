@@ -1,5 +1,8 @@
 package ch.so.agi.mcp.tools;
 
+import ch.so.agi.mcp.constraint.ConstraintFixtures;
+import ch.so.agi.mcp.model.IliConstraintSpec;
+import tools.jackson.databind.ObjectMapper;
 import static org.assertj.core.api.Assertions.*;
 
 import ch.so.agi.mcp.constraint.*;
@@ -51,7 +54,7 @@ class ConstraintViewProofTest {
     var t=new ConstraintTestTools.TestCase();t.name=name;t.expectedConstraintValid=valid;t.objects=List.of(objects);return t;
   }
   private List<Map<String,Object>> check(String source,String constraint,ConstraintTestTools.TestCase...cases) {
-    var r=tests.testIliConstraint(source,"ViewProof.Checks.Selected."+constraint,List.of(cases));
+    var r=tests.testIliConstraint(source,"ViewProof.Checks.Selected."+constraint,List.of(cases), true);
     assertThat(r.get("compilerValid")).as(r.toString()).isEqualTo(true);
     return (List<Map<String,Object>>)r.get("cases");
   }
@@ -96,15 +99,17 @@ class ConstraintViewProofTest {
   }
 
   @ParameterizedTest @ValueSource(strings={"2.3","2.4"})
-  void scalarUniqueAndDecisionTableShareViewScope(String version) {
+  void scalarUniqueAndMandatoryAuthoringShareViewScope(String version) {
     String source=model(version,"WHERE K->A;","UNIQUE key: Label;");
     var unique=generation.generateIliConstraintCases(source,"ViewProof.Checks.Selected.key");
     assertThat(unique.get("generationVerified")).as(unique.toString()).isEqualTo(true);
     assertThat(unique.get("coverageComplete")).isEqualTo(true);
-    var decision=new ConstraintDecisionTableTools(new ConstraintAuthoringWorkflow(compiler),generation);
-    var condition=new ConstraintDecisionTableTools.DecisionCondition();condition.attribute="Value";condition.operator=">";condition.value=0;
-    var row=new ConstraintDecisionTableTools.DecisionRow();row.name="positive";row.conditions=List.of(condition);
-    var result=decision.generateIliConstraintFromDecisionTable(source,"ViewProof.Checks.Selected","decision",List.of(row));
+    var spec = new ObjectMapper().readValue("""
+        {"kind":"MANDATORY","name":"positive","condition":{"kind":"COMPARE","operator":">",
+         "children":[{"kind":"ATTRIBUTE","name":"Value"},{"kind":"NUMERIC","value":0}]}}
+        """, IliConstraintSpec.class);
+    var result = ConstraintFixtures.authoring(compiler).authorIliConstraint(
+        source, "ViewProof.Checks.Selected", spec, null, null, null);
     assertThat(result.status).as(result.toString()).isEqualTo(IliAuthoringResult.Status.GENERATED);
   }
 

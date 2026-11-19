@@ -33,7 +33,7 @@ public class ConstraintKnowledgeTools {
 
   @McpTool(
       name = "listConstraintFunctions",
-      description = "Listet bekannte Constraint-Funktionen mit Herkunft, stabiler semantischer ID, Parametern und semantischen Parametertypen. Math/Text stammen aus INTERLIS-Funktionsmodellen; Validator-Extensions und Modellfunktionen werden als eigene Herkunftskategorien unterschieden.",
+      description = "Listet bekannte Constraint-Funktionen, ihre Herkunft und Standard-Semantik-IDs für die gewählte INTERLIS-Version.",
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = false)
   )
   public Map<String, Object> listConstraintFunctions(
@@ -65,7 +65,7 @@ public class ConstraintKnowledgeTools {
 
   @McpTool(
       name = "resolveConstraintPath",
-      description = "Loest einen bekannten String-Objekt-/Attributpfad im Kontext einer Klasse, Struktur, Association oder View exakt mit dem ili2c-Ili23Parser auf. Geeignet insbesondere fuer attributePath-Parameter wie Math_V2.sum(\"Rolle->Attribut\"). Gibt Pfadschritte, Kardinalitaeten, Optionalitaet, Zieltyp, technische Verwendungshinweise und bei Fehlern moegliche Elemente zurueck. Fuer die Suche nach einem noch unbekannten Pfad findConstraintPaths nutzen.",
+      description = "Prüft einen bekannten Objekt- oder Attributpfad im kompilierten Modell und liefert Zieltyp, Kardinalität und Verwendungshinweise.",
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> resolveConstraintPath(
@@ -82,7 +82,7 @@ public class ConstraintKnowledgeTools {
 
   @McpTool(
       name = "findConstraintPaths",
-      description = "Findet compilergepruefte Pfade vom Constraint-Kontext zu einem bekannten Ziel-FQN (Attribut oder Objekttyp). Liefert nach Laenge/Name sortierte Alternativen, Kardinalitaeten, Optionalitaet und Ausdrucksbausteine fuer Einzelwerte, SUM und OBJECT_COUNT. Erst Pfad suchen, dann Ausdruck erstellen und mit bestehendem Authoring/Validator pruefen. Keine fachliche Pfadauswahl und kein Proof; Suchgrenzen und nicht unterstuetzte Formen bleiben sichtbar. Einen bereits bekannten Pfad mit resolveConstraintPath pruefen.",
+      description = "Sucht Pfade vom angegebenen Kontext zu einem bekannten Ziel-FQN. Liefert Kardinalitäten und Ausdrucksbausteine innerhalb der Suchgrenzen.",
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true))
   public Map<String, Object> findConstraintPaths(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,

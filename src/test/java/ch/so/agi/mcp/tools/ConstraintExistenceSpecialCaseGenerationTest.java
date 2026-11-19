@@ -156,7 +156,7 @@ class ConstraintExistenceSpecialCaseGenerationTest {
         END Entity;
         """);
     var result = authoring.verifyIliModel(source, ch.so.agi.mcp.analysis.ModelPurpose.VALIDATION,
-        ch.so.agi.mcp.knowledge.ModelingRuleProfile.CORE);
+        ch.so.agi.mcp.knowledge.ModelingRuleProfile.CORE, null);
     assertThat(compiler.calls).isEqualTo(1);
     assertThat(result.status).as("%s", result).isEqualTo(ch.so.agi.mcp.model.IliAuthoringResult.Status.PROOF_FAILED);
     assertThat(result.updatedModelText).isNull();

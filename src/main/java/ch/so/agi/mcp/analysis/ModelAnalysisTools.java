@@ -61,12 +61,12 @@ public class ModelAnalysisTools {
 
   @McpTool(
       name = "analyzeIliModel",
-      description = "Low-Level-Tool fuer gezielte strukturelle und semantische Inspektion eines vollstaendigen INTERLIS-Modells, z. B. Vererbung, Topic-Abhaengigkeiten, Association-Rollen, Constraints, Units, Metaattribute oder Typdetails. Nicht als allgemeines Qualitaetsgate oder Standardreview verwenden; dafuer reviewIliModel.",
+      description = "Untersucht die kompilierte Modellstruktur, insbesondere Rollen, Typen, Vererbung und den angegebenen Constraint-Kontext.",
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> analyzeIliModel(
       @McpToolParam(description = "INTERLIS-2 Modelltext", required = true) String modelText,
-      @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false) @Nullable ModelPurpose modelPurpose,
+      @McpToolParam(description = "Modellzweck", required = false) @Nullable ModelPurpose modelPurpose,
       @McpToolParam(description = "Optionaler exakter FQN einer Klasse, Struktur, Association oder View; liefert gezielten Authoring-Kontext", required = false) @Nullable String contextFqn
   ) {
     return ModelHashes.attach(analyzeIliModelFull(modelText, modelPurpose, contextFqn), ModelHashes.model(modelText));

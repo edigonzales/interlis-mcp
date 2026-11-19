@@ -113,13 +113,13 @@ public class ConstraintTestTools {
 
   @McpTool(
       name = "testIliConstraint",
-      description = "Prueft einen bestehenden INTERLIS-Constraint mit explizit vom Agenten definierten Testfaellen. Erzeugt fuer jeden Fall ein minimales XTF, unterstuetzt mehrere Objekte und optional mehrere Baskets pro Topic ueber object.basketId bzw. bei heavyweight Associations link.basketId, deaktiviert andere Constraints, validiert mit iox-ili/ilivalidator und vergleicht das beobachtete Ergebnis mit expectedConstraintValid. Erzeugt selbst noch keine Witnesses oder Counterexamples. expectationSource dokumentiert die vom Aufrufer angegebene Herkunft je Fall.",
+      description = "Prüft einen bestehenden Constraint mit ilivalidator gegen unabhängig festgelegte erwartete Ergebnisse.",
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> testIliConstraint(
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,
       @McpToolParam(description = "Constraint-Name oder vollqualifizierter Constraint-Name", required = true) String constraint,
-      @McpToolParam(description = "expectationSource ist optional: USER_PROVIDED, USER_CONFIRMED, AGENT_DERIVED oder UNSPECIFIED (Standard); Herkunft wird nicht verifiziert. Explizite Testfaelle. Jeder Fall enthaelt name, expectedConstraintValid, objects und optional links. Object basketId ist optional; ohne Angabe wird wie bisher ein impliziter Basket pro Topic verwendet. Object values sind skalare Werte, Listen skalarer Werte oder verschachtelte Maps/Listen fuer STRUCTURE-Attribute; references und link roles enthalten Ziel-OIDs. Heavyweight Association links koennen optional basketId setzen.", required = true) List<TestCase> cases,
+      @McpToolParam(description = "Testfälle mit expectedConstraintValid, Objekten und optionalen Links. expectationSource gibt die Herkunft der Erwartung an.", required = true) List<TestCase> cases,
       @McpToolParam(description = TestXtfOutput.PARAMETER, required = false) @org.jspecify.annotations.Nullable Boolean includeSuccessfulTestXtf) {
     return TestXtfOutput.prepare(ModelHashes.attach(testIliConstraintFull(modelText, constraint, cases), ModelHashes.model(modelText)), includeSuccessfulTestXtf);
   }

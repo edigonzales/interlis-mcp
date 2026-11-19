@@ -51,7 +51,6 @@ public class IliAuthoringResult {
   public List<OpenQuestion> openQuestions = List.of();
   public @Nullable String reasonCode;
   public @Nullable String reason;
-  public @Nullable Map<String, Object> details;
 
   public record Compilation(boolean valid, List<CompilerDiagnostic> diagnostics) {
     public static Compilation from(IliCompilerService.CompilationResult compilation) {
@@ -260,7 +259,6 @@ public class IliAuthoringResult {
     public @Nullable String name;
     public @Nullable String purpose;
     public @Nullable String reason;
-    public @Nullable String outcome;
     public @Nullable Boolean expectedConstraintValid;
     public @Nullable Integer expectedViolationCount;
     public @Nullable Integer objectCount;
@@ -542,7 +540,6 @@ public class IliAuthoringResult {
       proofCase.name = nullableString(map.get("name"));
       proofCase.purpose = nullableString(map.get("purpose"));
       proofCase.reason = nullableString(map.get("reason"));
-      proofCase.outcome = nullableString(map.get("outcome"));
       proofCase.expectedConstraintValid = bool(map.get("expectedConstraintValid"));
       proofCase.expectedViolationCount = nullableInteger(map.get("expectedViolationCount"));
       proofCase.objectCount = nullableInteger(map.get("objectCount"));

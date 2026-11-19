@@ -1,18 +1,18 @@
 package ch.so.agi.mcp.tools;
 
-import ch.so.agi.mcp.model.ModelHashes;
-import ch.so.agi.mcp.model.TestXtfOutput;
 import ch.so.agi.mcp.analysis.ModelPurpose;
 import ch.so.agi.mcp.constraint.ConstraintAuthoringEngine;
 import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
 import ch.so.agi.mcp.model.IliAuthoringResult;
 import ch.so.agi.mcp.model.IliConstraintSpec;
+import ch.so.agi.mcp.model.ModelHashes;
+import ch.so.agi.mcp.model.TestXtfOutput;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
-/** Typed MCP entry points for expression-based constraint kinds. */
+/** Adds a single typed constraint to an existing model. */
 @Component
 public final class ConstraintAuthoringTools {
   private final ConstraintAuthoringEngine engine;
@@ -22,42 +22,20 @@ public final class ConstraintAuthoringTools {
   }
 
   @McpTool(
-      name = "authorIliMandatoryConstraint",
-      description = ch.so.agi.mcp.model.ConstraintAuthoringGuidance.MANDATORY_INPUT + " Erzeugt einen Mandatory Constraint aus einer rekursiven typisierten semantischen Node-Liste (ATTRIBUTE, PATH, FUNCTION, COMPARE usw.). Die Einfügung ist source-preserving; Before und After kompiliert die Pipeline je genau einmal und beweist per AST->IR-Roundtrip, Coverage-Planer, Solver, Object-Graph-Synthese und ilivalidator. Diff und afterReview stammen aus denselben Compilations. Externe Funktionen ohne ausführbare Semantik halten den Kandidaten zurück. Das Tool schreibt keine Datei.",
+      name = "authorIliConstraint",
+      description = "Ergänzt und prüft einen Constraint im bestehenden Modell quelltexttreu. "
+          + "spec.kind wählt MANDATORY, UNIQUE, EXISTENCE, PLAUSIBILITY oder SET. "
+          + "Offene Nachweise oder externe Funktionssemantik halten den Kandidaten zurück.",
       generateOutputSchema = true,
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true))
-  public IliAuthoringResult authorIliMandatoryConstraint(
-      @McpToolParam(description = "Vollständiger INTERLIS-Modelltext vor der Ergänzung", required = true) String modelText,
+  public IliAuthoringResult authorIliConstraint(
+      @McpToolParam(description = "Vollständiger Modelltext", required = true) String modelText,
       @McpToolParam(description = "Vollqualifizierter Constraint-Kontext", required = true) String contextFqn,
-      @McpToolParam(description = "Typisierte MANDATORY-Spezifikation" + " " + ch.so.agi.mcp.model.ConstraintAuthoringGuidance.INPUT, required = true) IliConstraintSpec.Mandatory spec,
+      @McpToolParam(description = "Constraint mit kind und technischem Namen, z.B. Regel42. COMPARE erhält zwei geordnete children. OBJECT_COUNT als Ausdruck ist ein Zahlenoperand.", required = true) IliConstraintSpec spec,
       @McpToolParam(description = "Modellzweck", required = false) @Nullable ModelPurpose modelPurpose,
-      @McpToolParam(description = "Regelprofil CORE, SO-GIS oder SO-DATA", required = false) @Nullable ModelingRuleProfile ruleProfile,
-      @McpToolParam(description = TestXtfOutput.PARAMETER, required = false) @org.jspecify.annotations.Nullable Boolean includeSuccessfulTestXtf) {
-    return TestXtfOutput.prepare(ModelHashes.attach(engine.author(modelText, contextFqn, spec, modelPurpose, ruleProfile), modelText), includeSuccessfulTestXtf);
+      @McpToolParam(description = "Regelprofil", required = false) @Nullable ModelingRuleProfile ruleProfile,
+      @McpToolParam(description = TestXtfOutput.PARAMETER, required = false) @Nullable Boolean includeSuccessfulTestXtf) {
+    var result = engine.author(modelText, contextFqn, spec, modelPurpose, ruleProfile);
+    return TestXtfOutput.prepare(ModelHashes.attach(result, modelText), includeSuccessfulTestXtf);
   }
-
-  public IliAuthoringResult authorIliMandatoryConstraint(String modelText, String contextFqn, IliConstraintSpec.Mandatory spec, @Nullable ModelPurpose modelPurpose, @Nullable ModelingRuleProfile ruleProfile) {
-    return authorIliMandatoryConstraint(modelText, contextFqn, spec, modelPurpose, ruleProfile, null);
-  }
-
-
-  @McpTool(
-      name = "authorIliPlausibilityConstraint",
-      description = ch.so.agi.mcp.model.ConstraintAuthoringGuidance.SCALAR_INPUT + " Erzeugt einen PLAUSIBILITY Constraint mit direction, percentage und rekursiver typisierter semantischen Node-Liste. Die Einfügung ist source-preserving; Before/After je genau einmal kompiliert; der Proof verwendet constraint-level IR, echte Mehrfachobjekt-Populationen an der Prozentgrenze und ilivalidator. Diff und afterReview verwenden dieselben Compilations. Das Tool schreibt keine Datei.",
-      generateOutputSchema = true,
-      annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true))
-  public IliAuthoringResult authorIliPlausibilityConstraint(
-      @McpToolParam(description = "Vollständiger INTERLIS-Modelltext vor der Ergänzung", required = true) String modelText,
-      @McpToolParam(description = "Vollqualifizierter Constraint-Kontext", required = true) String contextFqn,
-      @McpToolParam(description = "Typisierte PLAUSIBILITY-Spezifikation" + " " + ch.so.agi.mcp.model.ConstraintAuthoringGuidance.INPUT, required = true) IliConstraintSpec.Plausibility spec,
-      @McpToolParam(description = "Modellzweck", required = false) @Nullable ModelPurpose modelPurpose,
-      @McpToolParam(description = "Regelprofil CORE, SO-GIS oder SO-DATA", required = false) @Nullable ModelingRuleProfile ruleProfile,
-      @McpToolParam(description = TestXtfOutput.PARAMETER, required = false) @org.jspecify.annotations.Nullable Boolean includeSuccessfulTestXtf) {
-    return TestXtfOutput.prepare(ModelHashes.attach(engine.author(modelText, contextFqn, spec, modelPurpose, ruleProfile), modelText), includeSuccessfulTestXtf);
-  }
-
-  public IliAuthoringResult authorIliPlausibilityConstraint(String modelText, String contextFqn, IliConstraintSpec.Plausibility spec, @Nullable ModelPurpose modelPurpose, @Nullable ModelingRuleProfile ruleProfile) {
-    return authorIliPlausibilityConstraint(modelText, contextFqn, spec, modelPurpose, ruleProfile, null);
-  }
-
 }

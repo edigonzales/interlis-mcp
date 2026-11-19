@@ -53,7 +53,7 @@ Tools führen deterministische Arbeit aus oder liefern strukturierte Analyseerge
 - `authorIliModel`
 - `applyIliModelChanges`
 - `generateIliConstraintCases`
-- `authorIliMandatoryConstraint`
+- `authorIliConstraint`
 - `generateExampleXtf`
 
 ### Resources
@@ -430,7 +430,7 @@ von Fehlermeldungen. Typisierte Proof-Resultate übernehmen die View-Diagnostik.
 
 ### Objektzählungen über mehrstufige Pfade
 
-`ConstraintExpression.ObjectCount` trägt einen Objektmengenpfad als eigenes IR-Element. Der strukturelle Roundtrip erhält ihn auch innerhalb verschachtelter boolescher Ausdrücke. `ConstraintModelSynthesizer` bindet jeden Schritt an das kompilierte Rollen-, Referenz- oder Composition-Modell und materialisiert Klassenobjekte direkt, auch ohne skalare Attribute. `NavigationGraphSynthesizer` verwendet diese gemeinsame Implementierung für SET. Decision Table übersetzt `aggregate=OBJECT_COUNT` in die vorhandene typisierte Mandatory-Spezifikation.
+`ConstraintExpression.ObjectCount` trägt einen Objektmengenpfad als eigenes IR-Element. Der strukturelle Roundtrip erhält ihn auch innerhalb verschachtelter boolescher Ausdrücke. `ConstraintModelSynthesizer` bindet jeden Schritt an das kompilierte Rollen-, Referenz- oder Composition-Modell und materialisiert Klassenobjekte direkt, auch ohne skalare Attribute. `NavigationGraphSynthesizer` verwendet diese gemeinsame Implementierung für SET.
 
 `ObjectPathRoutes` ermittelt konkrete Klassenrouten nach Pfadposition, berücksichtigt gemeinsame Präfixe und prüft alle Routen. `ObjectCountTopologyPlanner` ergänzt Solverziele für leere optionale Zwischenstufen, Verzweigungen, gemeinsame Zielidentitäten und gemischte konkrete Typen. Die Graph-Synthese prüft nach allen Belegungen die Zählungen erneut; inverse Rollen und überlappende Pfade dürfen keine Belegung unbemerkt verändern. Pro Solverziel teilen sich erste Suche und numerische Nachsuche weiterhin 50.000 Versuche. Das Modell begründet Kardinalitätsausschlüsse unabhängig von dieser Suche.
 

@@ -50,34 +50,167 @@ class ConstraintReconstructionTest {
 
   private final ObjectMapper mapper = new ObjectMapper();
 
-  @ParameterizedTest(name = "{0}: {2}")
+  @SuppressWarnings("unchecked")
+  private Map<String, Object> author(Map<String, Object> arguments) {
+    String name = "authorIliConstraint";
+    var tool = tools.stream().filter(s -> name.equals(s.tool().name())).findFirst().orElseThrow();
+    var response = tool.callHandler().apply(null, new McpSchema.CallToolRequest(name, arguments));
+    assertThat(response.isError()).as("%s", response.content()).isFalse();
+    assertThat(response.structuredContent()).isInstanceOf(Map.class);
+    return (Map<String, Object>) response.structuredContent();
+  }
+
+  @Test
+  void provesNumericUnionAndBooleanLiterals() {
+    String model = """
+        INTERLIS 2.3;
+        MODEL ScalarDemo (en) AT "https://example.org" VERSION "1" =
+          TOPIC Data =
+            CLASS Item =
+              value : MANDATORY 0..100;
+              enabled : MANDATORY BOOLEAN;
+            END Item;
+          END Data;
+        END ScalarDemo.
+        """;
+    var range = authorCondition(model, "ScalarDemo.Data.Item", node("OR", List.of(
+        node("AND", List.of(compare(attribute("value"), ">=", 10), compare(attribute("value"), "<=", 20))),
+        node("AND", List.of(compare(attribute("value"), ">=", 90), compare(attribute("value"), "<=", 95))))));
+    assertCases(range, "value", Map.of(9, false, 10, true, 20, true, 21, false, 89, false, 90, true, 95, true, 96, false));
+
+    var bool = authorCondition(model, "ScalarDemo.Data.Item", Map.of(
+        "kind", "COMPARE", "operator", "==",
+        "children", List.of(attribute("enabled"), Map.of("kind", "BOOLEAN", "value", true))));
+    var generated = passedProof(bool).path("generatedCases");
+    assertThat(generated).hasSize(2).allSatisfy(test ->
+        assertThat(test.path("expectedConstraintValid").asBoolean())
+            .isEqualTo(test.path("values").path("enabled").asBoolean()));
+  }
+
+  @ParameterizedTest
+  @CsvSource({"2.3, Math", "2.4, Math_V2"})
+  void provesSingleValuedPathsAndMultiValuedSums(String version, String math) throws Exception {
+    String model = """
+        INTERLIS %1$s;
+        CONTRACTED TYPE MODEL %2$s (en) AT "http://www.interlis.ch/models" VERSION "1" =
+          FUNCTION sum(attributePath: TEXT): NUMERIC;
+        END %2$s.
+        MODEL LinkedDemo (en) AT "https://example.org" VERSION "1" =
+          IMPORTS %2$s;
+          TOPIC Data =
+            CLASS Main = Gewichtung : MANDATORY 0..100; END Main;
+            CLASS Side = Gewichtung : MANDATORY 0..100; END Side;
+            ASSOCIATION Link =
+              main -- {1} Main;
+              Nebenauspraegung -- {0..3} Side;
+            END Link;
+          END Data;
+        END LinkedDemo.
+        """.formatted(version, math);
+    var path = Map.of("kind", "PATH", "name", "main->Gewichtung");
+    var single = authorCondition(model, "LinkedDemo.Data.Side",
+        node("AND", List.of(compare(path, ">=", 10), compare(path, "<=", 20))));
+    assertCases(single, "main->Gewichtung", Map.of(9, false, 10, true, 20, true, 21, false));
+    assertThat(passedProof(single).path("generatedCases")).allSatisfy(test ->
+        assertThat(test.path("associationLinkCount").asInt()).isEqualTo(1));
+
+    var sumPath = Map.of("kind", "PATH", "name", "Nebenauspraegung->Gewichtung");
+    var sum = Map.of("kind", "FUNCTION", "functionOrigin", "STANDARD", "name", "COLLECTION_SUM",
+        "children", List.of(sumPath));
+    var aggregate = authorCondition(model, "LinkedDemo.Data.Main", compare(sum, "==", 150));
+    var cases = passedProof(aggregate).path("generatedCases");
+    assertThat(cases).anySatisfy(test -> {
+      int total = 0;
+      for (var value : test.path("values").path("Nebenauspraegung->Gewichtung")) total += value.asInt();
+      assertThat(total).isEqualTo(150);
+      assertThat(test.path("expectedConstraintValid").asBoolean()).isTrue();
+      assertThat(test.path("associationLinkCount").asInt()).isGreaterThanOrEqualTo(2);
+    }).anySatisfy(test -> {
+      assertThat(test.path("associationLinkCount").asInt()).isZero();
+      assertThat(test.path("expectedConstraintValid").asBoolean()).isTrue();
+    });
+
+    if ("2.4".equals(version)) {
+      Map<String, Object> request = ConstraintFixtures.arguments("P06", Map.class);
+      request.put("contextFqn", "LinkedDemo.Data.Main");
+      request.put("modelText", model);
+      var guarded = author(request);
+      passedProof(guarded);
+      assertThat(guarded.get("updatedModelText").toString())
+          .contains("Math_V2.sum(\"Nebenauspraegung->Gewichtung\") + Gewichtung", "NOT(DEFINED");
+    }
+
+    var invalid = authorCondition(model, "LinkedDemo.Data.Main", compare(sumPath, ">=", 10));
+    assertThat(invalid).containsEntry("status", "AST_ROUND_TRIP_FAILED")
+        .containsEntry("reasonCode", "UNSUPPORTED_CONSTRAINT_SEMANTICS")
+        .doesNotContainKey("updatedModelText");
+  }
+
+  private Map<String, Object> authorCondition(String model, String context, Map<String, Object> condition) {
+    return author(Map.of("modelText", model, "contextFqn", context,
+        "spec", Map.of("kind", "MANDATORY", "name", "Rule", "condition", condition)));
+  }
+
+  private static Map<String, Object> attribute(String name) {
+    return Map.of("kind", "ATTRIBUTE", "name", name);
+  }
+
+  private static Map<String, Object> compare(Map<String, ?> left, String operator, int right) {
+    return Map.of("kind", "COMPARE", "operator", operator,
+        "children", List.of(left, Map.of("kind", "NUMERIC", "value", right)));
+  }
+
+  private static Map<String, Object> node(String kind, List<Map<String, Object>> children) {
+    return Map.of("kind", kind, "children", children);
+  }
+
+  private void assertCases(Map<String, Object> result, String attribute, Map<Integer, Boolean> expected) {
+    var generated = passedProof(result).path("generatedCases");
+    expected.forEach((value, valid) -> assertThat(generated).anySatisfy(test -> {
+      assertThat(test.path("values").path(attribute).asText()).isEqualTo(value.toString());
+      assertThat(test.path("expectedConstraintValid").asBoolean()).isEqualTo(valid);
+    }));
+  }
+
+  private tools.jackson.databind.JsonNode passedProof(Map<String, Object> result) {
+    assertThat(result).containsEntry("status", "GENERATED");
+    var proof = mapper.valueToTree(result.get("constraintProofs")).get(0);
+    assertThat(proof.path("status").asText()).isEqualTo("PASSED");
+    assertThat(proof.path("coverageComplete").asBoolean()).isTrue();
+    assertThat(proof.path("verification").path("cases")).isNotEmpty().allSatisfy(test -> {
+      assertThat(test.path("constraintExercised").asBoolean()).isTrue();
+      assertThat(test.path("fixtureValid").asBoolean()).isTrue();
+      assertThat(test.path("passed").asBoolean()).isTrue();
+      assertThat(test.path("targetViolationCount").asInt()).isEqualTo(
+          test.path("expectedConstraintValid").asBoolean() ? 0 : 1);
+    });
+    return proof;
+  }
+
+  @ParameterizedTest(name = "{0}: {1}")
   @CsvSource({
-      "P01, authorIliMandatoryConstraint, CheckKoernungsklasseUbTongehalt_Land",
-      "P02, authorIliMandatoryConstraint, UntertypENachPH_Unterboden_Wald_Neben",
-      "P03, authorIliMandatoryConstraint, HauptHatMehrGewicht_alsNeben_Landwirtschaft",
-      "P04, authorIliMandatoryConstraint, 105_1",
-      "P05, authorIliMandatoryConstraint, 103_1",
-      "P06, generateIliConstraintFromDecisionTable, GewichtungSumme100_Wald",
-      "P07, authorIliPlausibilityConstraint, 10201",
-      "P08, authorIliUniqueConstraint, 11006b",
-      "P09, authorIliExistenceConstraint, Constraint1",
-      "P10, authorIliSetConstraint, 19901",
-      "N11, authorIliMandatoryConstraint, checkMinimumFlaeche",
-      "N12, authorIliSetConstraint, CheckBefundSteinBlockschlagKeineUeberragung"
+      "P01, CheckKoernungsklasseUbTongehalt_Land",
+      "P02, UntertypENachPH_Unterboden_Wald_Neben",
+      "P03, HauptHatMehrGewicht_alsNeben_Landwirtschaft",
+      "P04, 105_1",
+      "P05, 103_1",
+      "P06, GewichtungSumme100_Wald",
+      "P07, 10201",
+      "P08, 11006b",
+      "P09, Constraint1",
+      "P10, 19901",
+      "N11, checkMinimumFlaeche",
+      "N12, CheckBefundSteinBlockschlagKeineUeberragung"
   })
   @SuppressWarnings("unchecked")
-  void reconstructsOnlyTheIntendedRule(String id, String tool, String originalName) throws Exception {
+  void reconstructsOnlyTheIntendedRule(String id, String originalName) throws Exception {
     Map<String, Object> arguments = ConstraintFixtures.arguments(id, Map.class);
-    String context = (String) arguments.getOrDefault("contextFqn", arguments.get("context"));
+    String context = (String) arguments.get("contextFqn");
     String target = context + ".ReconstructedRule";
     arguments.put("modelText", ConstraintFixtures.withoutRule(id));
     arguments.put("includeSuccessfulTestXtf", false);
 
-    var spec = tools.stream().filter(s -> tool.equals(s.tool().name())).findFirst().orElseThrow();
-    var response = spec.callHandler().apply(null, new McpSchema.CallToolRequest(tool, arguments));
-    assertThat(response.isError()).as("%s: %s", id, response.content()).isFalse();
-    var result = response.structuredContent() instanceof Map<?, ?> content ? (Map<String, Object>) content
-        : mapper.readValue(((McpSchema.TextContent) response.content().getFirst()).text(), Map.class);
+    var result = author(arguments);
 
     String after;
     if (id.startsWith("N")) {

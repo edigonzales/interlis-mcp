@@ -27,21 +27,23 @@ class ToolRegistrationContractTest {
   @Qualifier("toolSpecs")
   List<SyncToolSpecification> toolSpecifications;
 
-@Test
-void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
-  for (String name : List.of("authorIliModel", "applyIliModelChanges", "reviewIliModel", "listModelingRules")) {
-    assertThat(mapper.writeValueAsString(specsByName().get(name).tool().inputSchema())).contains("CORE", "SO-DATA", "SO-GIS").doesNotContain("SO_DATA", "SO_GIS", "\"SO\"");
+  @Test
+  void ruleProfilesArePublishedAndAcceptedByReview() throws Exception {
+    for (String name : List.of("authorIliModel", "applyIliModelChanges", "reviewIliModel", "authorIliConstraint")) {
+      assertThat(mapper.writeValueAsString(specsByName().get(name).tool().inputSchema()))
+          .contains("CORE", "SO-DATA", "SO-GIS").doesNotContain("SO_DATA", "SO_GIS", "\"SO\"");
+    }
+    String model = "INTERLIS 2.4; MODEL Demo (en) AT \"https://example.org\" VERSION \"1\" = END Demo.";
+    var review = specsByName().get("reviewIliModel");
+    for (String profile : List.of("CORE", "SO-GIS", "SO-DATA")) {
+      var result = extractStructuredContent(review.callHandler().apply(null,
+          new McpSchema.CallToolRequest("reviewIliModel", Map.of("modelText", model, "ruleProfile", profile))));
+      assertThat(result).containsEntry("ruleProfile", profile);
+      if (profile.equals("SO-DATA")) assertThat(result.get("ruleFindings").toString()).contains("DATA-002");
+    }
+    assertThat(mapper.writeValueAsString(specsByName().get("applyIliModelChanges").tool().inputSchema()))
+        .contains("REMOVE_COMMENTS");
   }
-  var response = specsByName().get("listModelingRules").callHandler().apply(null,
-      new McpSchema.CallToolRequest("listModelingRules", Map.of("profile", "SO-DATA")));
-  assertThat(mapper.writeValueAsString(response)).contains("SO-DATA", "DATA-001").doesNotContain("SO_DATA");
-  for (String profile : List.of("SO-GIS")) {
-    var gis = specsByName().get("listModelingRules").callHandler().apply(null,
-        new McpSchema.CallToolRequest("listModelingRules", Map.of("profile", profile)));
-    assertThat(mapper.writeValueAsString(gis)).contains("SO-GIS", "MDE-060", "MDE-209", "MDE-210").doesNotContain("SO_GIS");
-  }
-  assertThat(mapper.writeValueAsString(specsByName().get("applyIliModelChanges").tool().inputSchema())).contains("REMOVE_COMMENTS");
-}
 
 @Test
   void functionCatalogReturnsLanguageAndVersionedFunctions() throws Exception {
@@ -68,7 +70,7 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
   @Test
   @SuppressWarnings("unchecked")
   void expressionSchemasExposeUsableKindSpecificContractsAndDiagnosticFields() throws Exception {
-    var tool = specsByName().get("authorIliMandatoryConstraint").tool();
+    var tool = specsByName().get("authorIliConstraint").tool();
     var defs = (Map<String,Object>) tool.inputSchema().get("$defs");
     var expression = (Map<String,Object>) defs.get("ExpressionSpec");
     var alternatives = ((List<Map<String,Object>>) expression.get("allOf")).stream()
@@ -91,46 +93,6 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
     assertThat("##Drainage".matches(enumValue.get("pattern").toString())).isFalse();
     assertThat(mapper.writeValueAsString(tool.inputSchema())).contains("Regel42","COLLECTION_SUM","NUMERIC_ADD","threshold");
     assertThat(mapper.writeValueAsString(tool.outputSchema())).contains("specDiagnostics","code","path","message","hint", "afterCompilation", "constraintInteractions", "targetViolationCount");
-  }
-
-  @Test
-  @SuppressWarnings("unchecked")
-  void publishedMandatoryExampleExecutesAndRequiresCondition() throws Exception {
-    var tool = specsByName().get("authorIliMandatoryConstraint");
-    String example = ch.so.agi.mcp.model.ConstraintAuthoringGuidance.MANDATORY_SPEC_EXAMPLE;
-    assertThat(tool.tool().description()).contains("spec.condition", "children", example);
-    Map<String, Object> spec = mapper.readValue(example, Map.class);
-    var properties = schemaProperties(tool.tool().inputSchema());
-    var specSchema = (Map<String, Object>) properties.get("spec");
-    assertThat((List<String>) specSchema.get("required")).contains("condition");
-    assertThat((Map<String, Object>) specSchema.get("properties")).doesNotContainKey("expression");
-    var invalidSpec = new LinkedHashMap<>(spec);
-    invalidSpec.put("expression", invalidSpec.remove("condition"));
-    assertThat(invalidSpec.keySet().containsAll((List<String>) specSchema.get("required"))).isFalse();
-
-    String model = "INTERLIS 2.4; MODEL Example (en) AT \"https://example.org\" VERSION \"1\" = "
-        + "TOPIC Data = CLASS Item = value : 0..10; END Item; END Data; END Example.";
-    var response = tool.callHandler().apply(null, new McpSchema.CallToolRequest(tool.tool().name(),
-        Map.of("modelText", model, "contextFqn", "Example.Data.Item", "spec", spec,
-            "includeSuccessfulTestXtf", false)));
-    assertThat(response.isError()).isFalse();
-    var result = extractStructuredContent(response);
-    assertThat(result).containsEntry("status", "GENERATED");
-    assertPassedProofs(result);
-    assertThat((List<?>) result.get("openQuestions")).anySatisfy(q -> assertThat(((Map<?, ?>) q).get("decisionImpact")).isEqualTo("ADVISORY"));
-    assertThat(result.get("updatedModelText").toString()).contains("DEFINED(value)");
-    assertThat(mapper.writeValueAsString(result.get("openQuestions"))).contains("intended model purpose");
-  }
-
-  @Test
-  void scalarContractIsVisibleWithoutParameterSchema() {
-    for (String name : List.of("authorIliMandatoryConstraint", "authorIliPlausibilityConstraint",
-        "authorIliUniqueConstraint", "authorIliSetConstraint", "authorIliModel", "applyIliModelChanges")) {
-      assertThat(specsByName().get(name).tool().description()).as(name)
-          .contains(ch.so.agi.mcp.model.ConstraintAuthoringGuidance.SCALAR_INPUT);
-    }
-    assertThat(specsByName().get("applyIliModelChanges").tool().description())
-        .contains("request.changes[i].addConstraint.constraint");
   }
 
   @Test
@@ -171,7 +133,7 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
             "attributes",List.of(Map.of("name","value","mandatory",true,"typeSpec",Map.of("domainFqn","Example.Value"))),
             "constraints",List.of(constraint))))));
     var requests=Map.of(
-        "authorIliMandatoryConstraint",Map.of("modelText",model,"contextFqn","Example.Data.Item","spec",constraint),
+        "authorIliConstraint",Map.of("modelText",model,"contextFqn","Example.Data.Item","spec",constraint),
         "applyIliModelChanges",Map.of("modelText",model,"request",Map.of("allowPotentiallyBreaking",true,"changes",List.of(
             Map.of("operation","ADD_CONSTRAINT","addConstraint",Map.of("containerFqn","Example.Data.Item","constraint",constraint))))),
         "authorIliModel",Map.of("spec",completeSpec));
@@ -189,7 +151,7 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
 
   @Test
   void nativeHandlerReturnsStructuredContractErrors() throws Exception {
-    var tool = specsByName().get("authorIliMandatoryConstraint");
+    var tool = specsByName().get("authorIliConstraint");
     Map<String,Object> expression = Map.of("kind","FUNCTION","name","Math.sum","functionOrigin","STANDARD","children",List.of());
     var response=tool.callHandler().apply(null,new McpSchema.CallToolRequest(tool.tool().name(),Map.of(
         "modelText","INTERLIS 2.3;","contextFqn","Demo.Data.Item","spec",Map.of("kind","MANDATORY","name","Rule","condition",expression))));
@@ -237,18 +199,8 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
     var schema = mapper.readTree(testSchema);
     var cases = schema.get("properties").get("cases").get("items");
     assertThat(cases.get("required").toString()).doesNotContain("expectationSource");
-    assertThat(mapper.writeValueAsString(declarations.get("authorIliMandatoryConstraint").tool().outputSchema()))
+    assertThat(mapper.writeValueAsString(declarations.get("authorIliConstraint").tool().outputSchema()))
         .contains("explanation", "PARTIAL", "UNAVAILABLE", "modelHashes", "omittedSuccessfulTestXtfCount");
-  }
-
-  @Test
-  void publicToolSurfaceStaysSmallEnoughForAgentContext() throws Exception {
-    assertThat(toolSpecifications).hasSize(29);
-    for (SyncToolSpecification specification : toolSpecifications) {
-      assertThat(mapper.writeValueAsBytes(specification.tool()).length)
-          .as("serialized MCP declaration for %s", specification.tool().name())
-          .isLessThan(50_000);
-    }
   }
 
   @Test
@@ -288,8 +240,8 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
   void orphanStructureReturnsStructuredProofBoundaryThroughPublicMcpHandler() throws Exception {
     String model = "INTERLIS 2.3; MODEL Orphan (en) AT \"https://example.org\" VERSION \"1\" = "
         + "TOPIC Data = STRUCTURE S = value : MANDATORY 0 .. 100; END S; END Data; END Orphan.";
-    var response = specsByName().get("authorIliMandatoryConstraint").callHandler().apply(null,
-        new McpSchema.CallToolRequest("authorIliMandatoryConstraint", Map.of(
+    var response = specsByName().get("authorIliConstraint").callHandler().apply(null,
+        new McpSchema.CallToolRequest("authorIliConstraint", Map.of(
             "modelText", model, "contextFqn", "Orphan.Data.S", "spec", Map.of(
                 "kind", "MANDATORY", "name", "Rule", "condition", Map.of(
                     "kind", "COMPARE", "operator", ">=", "children", List.of(
@@ -414,9 +366,7 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
       assertThat(annotations.destructiveHint())
           .as(specification.tool().name())
           .isFalse();
-      if (!"indexConfiguredModels".equals(specification.tool().name())) {
-        assertThat(annotations.readOnlyHint()).as(specification.tool().name()).isTrue();
-      }
+      assertThat(annotations.readOnlyHint()).as(specification.tool().name()).isTrue();
       assertThat(annotations.idempotentHint()).as(specification.tool().name()).isTrue();
     }
   }
@@ -424,25 +374,10 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
   @Test
   void highLevelAuthoringToolsPublishOutputSchemas() {
     Map<String, SyncToolSpecification> specifications = specsByName();
-    Set<String> authoringTools = Set.of(
-        "authorIliModel",
-        "applyIliModelChanges",
-        "authorIliMandatoryConstraint",
-        "authorIliUniqueConstraint",
-        "authorIliExistenceConstraint",
-        "authorIliPlausibilityConstraint",
-        "authorIliSetConstraint",
-        "generateIliConstraintFromDecisionTable");
-    for (String toolName : authoringTools) {
-      assertThat(specifications.get(toolName).tool().outputSchema())
-          .as("output schema for %s", toolName)
-          .isNotNull()
-          .isNotEmpty();
-    }
-    for (String toolName : Set.of(
-        "authorIliModel", "applyIliModelChanges", "authorIliMandatoryConstraint",
-        "authorIliUniqueConstraint", "authorIliExistenceConstraint",
-        "authorIliPlausibilityConstraint", "authorIliSetConstraint")) {
+    var typedTools = Set.of("authorIliModel", "applyIliModelChanges", "authorIliConstraint", "verifyIliModel");
+    assertThat(specifications.values().stream().filter(spec -> spec.tool().outputSchema() != null)
+        .map(spec -> spec.tool().name()).toList()).containsExactlyInAnyOrderElementsOf(typedTools);
+    for (String toolName : typedTools) {
       Map<String, Object> properties = schemaProperties(
           specifications.get(toolName).tool().outputSchema());
       assertThat(properties).as("typed output properties for %s", toolName)
@@ -456,7 +391,7 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
 
   @Test
   void modelAndBatchSchemasExposeClosedConstraintDiscriminators() throws Exception {
-    for (String toolName : Set.of("authorIliModel", "applyIliModelChanges")) {
+    for (String toolName : Set.of("authorIliModel", "applyIliModelChanges", "authorIliConstraint")) {
       String schema = mapper.writeValueAsString(specsByName().get(toolName).tool().inputSchema());
       assertThat(schema).as(toolName)
           .contains("oneOf", "MANDATORY", "UNIQUE", "EXISTENCE", "PLAUSIBILITY", "SET")
@@ -467,7 +402,7 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
   @Test
   void outputSchemasUseTypedNestedAuthoringObjects() throws Exception {
     String schema = mapper.writeValueAsString(
-        specsByName().get("authorIliUniqueConstraint").tool().outputSchema());
+        specsByName().get("authorIliConstraint").tool().outputSchema());
     assertThat(schema)
         .contains("beforeCompilation", "afterCompilation", "sourceEdits", "semanticDiff")
         .contains("afterReview", "constraintProofs", "coverageGaps", "generatedCases")
@@ -490,34 +425,8 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
   }
 
   @Test
-  void oldFlatConstraintPayloadsAreRejected() {
-    Map<String, Map<String, Object>> oldArguments = Map.of(
-        "authorIliMandatoryConstraint", Map.of("constraintName", "C", "condition", "x > 0"),
-        "authorIliUniqueConstraint", Map.of("constraintName", "C", "uniqueScope", "GLOBAL"),
-        "authorIliExistenceConstraint", Map.of("constraintName", "C", "restrictedPath", "x"),
-        "authorIliPlausibilityConstraint", Map.of("constraintName", "C", "percentage", 50),
-        "authorIliSetConstraint", Map.of("constraintName", "C", "condition", "x"));
-    oldArguments.forEach((toolName, flat) -> {
-      Map<String, Object> arguments = new LinkedHashMap<>();
-      arguments.put("modelText", "INTERLIS 2.4;");
-      arguments.put("contextFqn", "Demo.Data.Item");
-      arguments.putAll(flat);
-      McpSchema.CallToolResult response = specsByName().get(toolName).callHandler().apply(
-          null, new McpSchema.CallToolRequest(toolName, arguments));
-      if (!response.isError()) {
-        try {
-          assertThat(extractStructuredContent(response).get("status"))
-              .as(toolName).isEqualTo("INVALID_SPEC");
-        } catch (Exception ex) {
-          throw new AssertionError("Unable to inspect rejected payload for " + toolName, ex);
-        }
-      }
-    });
-  }
-
-  @Test
-  void authorIliExistenceConstraintDeserializesExplicitRequiredInTargets() throws Exception {
-    SyncToolSpecification author = specsByName().get("authorIliExistenceConstraint");
+  void authoringDeserializesExplicitRequiredInTargets() throws Exception {
+    SyncToolSpecification author = specsByName().get("authorIliConstraint");
 
     String modelText = "INTERLIS 2.4;\n\n"
         + "MODEL ExistDemo (de) AT \"https://example.org/demo\" VERSION \"2026-08-19\" =\n"
@@ -535,7 +444,7 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
         + "END ExistDemo.\n";
 
     var response = author.callHandler().apply(null,
-        new McpSchema.CallToolRequest("authorIliExistenceConstraint", Map.of(
+        new McpSchema.CallToolRequest("authorIliConstraint", Map.of(
             "modelText", modelText,
             "contextFqn", "ExistDemo.Data.Source",
             "spec", Map.of(
@@ -558,8 +467,8 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
   }
 
   @Test
-  void authorIliPlausibilityConstraintDeserializesPopulationSpec() throws Exception {
-    SyncToolSpecification author = specsByName().get("authorIliPlausibilityConstraint");
+  void authoringDeserializesPopulationSpec() throws Exception {
+    SyncToolSpecification author = specsByName().get("authorIliConstraint");
 
     String modelText = "INTERLIS 2.4;\n\n"
         + "MODEL PlausDemo (de) AT \"https://example.org/demo\" VERSION \"2026-08-19\" =\n"
@@ -583,7 +492,7 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
         "percentage", 80,
         "condition", condition);
     var response = author.callHandler().apply(null,
-        new McpSchema.CallToolRequest("authorIliPlausibilityConstraint", Map.of(
+        new McpSchema.CallToolRequest("authorIliConstraint", Map.of(
             "modelText", modelText,
             "contextFqn", "PlausDemo.Data.Item",
             "spec", spec)));
@@ -598,8 +507,8 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
   }
 
   @Test
-  void authorIliSetConstraintDeserializesTypedWhereAndVerifiesProof() throws Exception {
-    SyncToolSpecification author = specsByName().get("authorIliSetConstraint");
+  void authoringDeserializesTypedSetWhereAndVerifiesProof() throws Exception {
+    SyncToolSpecification author = specsByName().get("authorIliConstraint");
 
     String modelText = "INTERLIS 2.4;\n\n"
         + "MODEL SetDemo (de) AT \"https://example.org/demo\" VERSION \"2026-08-19\" =\n"
@@ -626,7 +535,7 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
             "operator", ">=",
             "threshold", 2));
     var response = author.callHandler().apply(null,
-        new McpSchema.CallToolRequest("authorIliSetConstraint", Map.of(
+        new McpSchema.CallToolRequest("authorIliConstraint", Map.of(
             "modelText", modelText,
             "contextFqn", "SetDemo.Data.Item",
             "spec", setSpec)));
@@ -692,27 +601,19 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
 
     expectations.put("formatIliModel", schema(Set.of("modelText"), Set.of()));
     expectations.put("analyzeIliModel", schema(Set.of("modelText"), Set.of("modelPurpose", "contextFqn")));
-    expectations.put("checkModelingRules", schema(Set.of("modelText"), Set.of("modelPurpose", "ruleIds", "profile")));
     expectations.put("reviewIliModel", schema(Set.of("modelText"), Set.of("modelPurpose", "ruleProfile")));
     expectations.put("reviewIliChange", schema(Set.of("beforeModelText", "afterModelText"), Set.of("modelPurpose", "ruleProfile")));
-    expectations.put("verifyIliModel", schema(Set.of("modelText"), Set.of("modelPurpose", "ruleProfile")));
+    expectations.put("verifyIliModel", schema(Set.of("modelText"), Set.of("modelPurpose", "ruleProfile", "includeSuccessfulTestXtf")));
     expectations.put("authorIliModel", schema(Set.of("spec"), Set.of("modelPurpose", "ruleProfile", "includeSuccessfulTestXtf")));
     expectations.put("applyIliModelChanges", schema(Set.of("modelText", "request"), Set.of("modelPurpose", "ruleProfile", "includeSuccessfulTestXtf")));
     expectations.put("reviewIliConstraint", schema(Set.of("modelText", "constraint"), Set.of()));
     expectations.put("generateIliConstraintCases", schema(Set.of("modelText", "constraint"), Set.of("includeSuccessfulTestXtf")));
-    expectations.put("generateIliConstraintFromDecisionTable", schema(Set.of("modelText", "context", "constraintName", "rows"), Set.of("includeSuccessfulTestXtf")));
-    expectations.put("authorIliMandatoryConstraint", constraintAuthoringSchema());
-    expectations.put("authorIliPlausibilityConstraint", constraintAuthoringSchema());
-    expectations.put("authorIliExistenceConstraint", constraintAuthoringSchema());
-    expectations.put("authorIliSetConstraint", constraintAuthoringSchema());
-    expectations.put("authorIliUniqueConstraint", constraintAuthoringSchema());
+    expectations.put("authorIliConstraint", constraintAuthoringSchema());
     expectations.put("testIliConstraint", schema(Set.of("modelText", "constraint", "cases"), Set.of("includeSuccessfulTestXtf")));
     expectations.put("findSimilarModels", schema(Set.of(), Set.of("query", "modelText", "modelPurpose", "limit")));
-    expectations.put("indexConfiguredModels", schema(Set.of(), Set.of()));
     expectations.put("readModelExample", schema(Set.of("path"), Set.of()));
     expectations.put("listConstraintFunctions", schema(Set.of(), Set.of("iliVersion")));
     expectations.put("listGeometryTypes", schema(Set.of(), Set.of("iliVersion")));
-    expectations.put("listModelingRules", schema(Set.of(), Set.of("profile")));
     expectations.put("resolveConstraintPath", schema(Set.of("modelText", "context", "path"), Set.of()));
     expectations.put("findConstraintPaths", schema(Set.of("modelText", "context", "targetFqn"), Set.of("maxDepth", "limit")));
     expectations.put("renameModelElement", schema(Set.of("modelText", "elementFqn", "newName"), Set.of("expectedKind")));
@@ -738,7 +639,7 @@ void soDataIsPublishedInActualSchemasAndAcceptedByMcp() throws Exception {
   @Test
   void decimalStringBoundsArePublicAndSurviveTypedAuthoring() throws Exception {
     var tool = specsByName().get("authorIliModel");
-    assertThat(tool.tool().inputSchema()).containsEntry("x-interlis-decimal-bounds", "strings-v1");
+    assertThat(mapper.writeValueAsString(tool.tool().inputSchema())).contains("Decimal bound", "anyOf");
     var attributes = new java.util.ArrayList<Object>();
     var bounds = List.of(List.of("0.0", "100.0"), List.of("0.00", "100.00"), List.of("0.00", "999.99"));
     for (int i = 0; i < bounds.size(); i++) {

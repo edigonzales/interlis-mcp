@@ -74,37 +74,6 @@ class ConstraintWorkflowStdioE2eTest {
   }
 
   @Test
-  void constraintWorkflowResourceAndPromptAreExposedOverStdio() throws Exception {
-    initializeSession();
-
-    String resource = readResource(2, "interlis://knowledge/constraint-workflow");
-    assertContainsAll(
-        resource,
-        "authorIliMandatoryConstraint",
-        "authorIliUniqueConstraint",
-        "authorIliExistenceConstraint",
-        "authorIliPlausibilityConstraint",
-        "authorIliSetConstraint",
-        "generateIliConstraintCases",
-        "afterReview",
-        "constraintProofs",
-        "generationVerified");
-
-    String prompt = getPrompt(
-        3,
-        "author-interlis-constraint",
-        "{\"constraintKind\":\"SET\"}");
-    assertContainsAll(
-        prompt,
-        "SET",
-        "authorIliSetConstraint",
-        "authorIliUniqueConstraint",
-        "generateIliConstraintCases",
-        "PASSED",
-        "afterReview");
-  }
-
-  @Test
   void typedSetAuthoringRunsSourcePreservingRoundTripAndValidatorProofOverStdio() throws Exception {
     initializeSession();
 
@@ -142,7 +111,7 @@ class ConstraintWorkflowStdioE2eTest {
         + "}"
         + "}";
 
-    String response = callTool(2, "authorIliSetConstraint", arguments);
+    String response = callTool(2, "authorIliConstraint", arguments);
     assertFalse(response.contains("\"error\""), response);
     assertFalse(response.contains("\"isError\":true"), response);
     assertContainsAll(
@@ -169,7 +138,7 @@ class ConstraintWorkflowStdioE2eTest {
         {"modelText":"INTERLIS 2.3;","contextFqn":"Demo.Data.Item","spec":{"kind":"MANDATORY",
         "name":"Rule","condition":{"kind":"FUNCTION","name":"Math.sum","functionOrigin":"STANDARD","children":[]}}}
         """.replace("\n", "");
-    String response=callTool(3,"authorIliMandatoryConstraint",arguments);
+    String response=callTool(3,"authorIliConstraint",arguments);
     assertFalse(response.contains("\"isError\":true"),response);
     var mapper=new tools.jackson.databind.ObjectMapper();
     var envelope=mapper.readTree(response).get("result");
@@ -196,9 +165,9 @@ class ConstraintWorkflowStdioE2eTest {
     var paths=java.util.List.of("/condition/children/1/kind", "/condition/operator", "/name");
     for(int i=0;i<conditions.size();i++) {
       var spec=java.util.Map.of("kind","MANDATORY","name",i==2?"1Rule":"Rule","condition",conditions.get(i));
-      for(String tool:java.util.List.of("authorIliMandatoryConstraint","applyIliModelChanges")) {
+      for(String tool:java.util.List.of("authorIliConstraint","applyIliModelChanges")) {
         var args=new java.util.LinkedHashMap<String,Object>();args.put("modelText","INTERLIS 2.4;");
-        if(tool.equals("authorIliMandatoryConstraint")){args.put("contextFqn","Example.Data.Item");args.put("spec",spec);}
+        if(tool.equals("authorIliConstraint")){args.put("contextFqn","Example.Data.Item");args.put("spec",spec);}
         else args.put("request",java.util.Map.of("changes",java.util.List.of(java.util.Map.of("operation","ADD_CONSTRAINT","addConstraint",java.util.Map.of("containerFqn","Example.Data.Item","constraint",spec)))));
         String response=callTool(id++,tool,mapper.writeValueAsString(args));
         assertTrue(response.getBytes(StandardCharsets.UTF_8).length<8192,response);
@@ -211,22 +180,30 @@ class ConstraintWorkflowStdioE2eTest {
   }
 
   @Test
+  void rejectsFieldsFromAnotherConstraintKindBeforeCompilation() throws Exception {
+    initializeSession();
+    String mixed = """
+        {"modelText":"not an INTERLIS model","contextFqn":"Demo.Data.Item",
+         "spec":{"kind":"UNIQUE","name":"Rule","scope":"GLOBAL","keyPaths":["n"],
+                 "restrictedPath":"n","requiredIn":[{"viewableFqn":"Demo.Data.Target","attributePath":"n"}]}}
+        """.replace("\n", "");
+    String response = callTool(2, "authorIliConstraint", mixed);
+    assertContainsAll(response, "\"isError\":true", "restrictedPath");
+    assertFalse(response.contains("beforeCompilation"), response);
+  }
+
+  @Test
   void publishedMandatoryExampleAndExpectedDefinednessSurviveStdio() throws Exception {
     initializeSession();
     var mapper = new tools.jackson.databind.ObjectMapper();
     send("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}");
     var catalog = mapper.readTree(waitForResponseWithId(2, 15_000)).get("result").get("tools");
-    String example = ch.so.agi.mcp.model.ConstraintAuthoringGuidance.MANDATORY_SPEC_EXAMPLE;
-    boolean found = false;
-    for (var tool : catalog) {
-      if (tool.get("name").asText().equals("authorIliMandatoryConstraint")) {
-        assertContainsAll(tool.get("description").asText(), "spec.condition", "children", example);
-        found = true;
-      }
-    }
-    assertTrue(found);
-    String prompt = getPrompt(3, "author-interlis-constraint", "{\"constraintKind\":\"MANDATORY\"}");
-    assertContainsAll(mapper.readTree(prompt).toString(), "openQuestions", "Abschlussantwort");
+    assertTrue(java.util.stream.StreamSupport.stream(catalog.spliterator(), false)
+        .anyMatch(tool -> tool.path("name").asText().equals("authorIliConstraint")
+            && tool.path("inputSchema").path("properties").path("spec").path("oneOf").size() == 5));
+    var prompt = mapper.readTree(getPrompt(3, "author-interlis-constraint", "{\"constraintKind\":\"MANDATORY\"}"));
+    String example = prompt.path("result").path("messages").get(0).path("content").path("text").asText().lines()
+        .filter(line -> line.startsWith("{\"kind\":\"MANDATORY\"")).findFirst().orElseThrow();
     String source = "INTERLIS 2.4; MODEL Example (en) AT \"https://example.org\" VERSION \"1\" = "
         + "TOPIC Data = CLASS Item = value : 0..10; END Item; END Data; END Example.";
     var cases = java.util.List.of(
@@ -234,9 +211,8 @@ class ConstraintWorkflowStdioE2eTest {
             java.util.Map.of("classFqn", "Example.Data.Item", "oid", "i", "values", java.util.Map.of()))),
         java.util.Map.of("name", "present", "expectedConstraintValid", true, "objects", java.util.List.of(
             java.util.Map.of("classFqn", "Example.Data.Item", "oid", "i", "values", java.util.Map.of("value", 4)))));
-    var authorEnvelope = mapper.readTree(callTool(4, "authorIliMandatoryConstraint", mapper.writeValueAsString(
-        java.util.Map.of("modelText", source, "contextFqn", "Example.Data.Item", "spec", mapper.readTree(example),
-            "includeSuccessfulTestXtf", false)))).get("result");
+    var authorEnvelope = mapper.readTree(callTool(4, "authorIliConstraint", mapper.writeValueAsString(
+        java.util.Map.of("modelText", source, "contextFqn", "Example.Data.Item", "spec", mapper.readTree(example))))).get("result");
     var author = authorEnvelope.get("structuredContent");
     if (author == null) author = mapper.readTree(authorEnvelope.get("content").get(0).get("text").asText());
     assertTrue(author.get("status").asText().equals("GENERATED"));
@@ -245,6 +221,10 @@ class ConstraintWorkflowStdioE2eTest {
     assertTrue(author.get("afterCompilation").get("valid").asBoolean());
     assertFalse(author.has("proofVerified"));
     assertFalse(author.has("evidence"));
+    assertTrue(author.path("omittedSuccessfulTestXtfCount").asInt() > 0);
+    for (var test : author.path("constraintProofs").get(0).path("verification").path("cases")) {
+      assertFalse(test.has("xtfText"));
+    }
     var testEnvelope = mapper.readTree(callTool(5, "testIliConstraint", mapper.writeValueAsString(java.util.Map.of(
         "modelText", author.get("updatedModelText").asText(), "constraint", "Example.Data.Item.ValueRequired",
         "cases", cases, "includeSuccessfulTestXtf", false)))).get("result");
@@ -268,7 +248,7 @@ class ConstraintWorkflowStdioE2eTest {
     assertContainsAll(context, "authoringContext", "AVAILABLE", "minimum", "maximum", "modelHashes");
     String payload = "{\"modelText\":" + jsonString(source) + ",\"contextFqn\":\"Prose.Data.Person\",\"spec\":{\"kind\":\"MANDATORY\",\"name\":\"Adult\",\"condition\":{\"kind\":\"COMPARE\",\"operator\":\">=\",\"children\":[{\"kind\":\"ATTRIBUTE\",\"name\":\"age\"},{\"kind\":\"NUMERIC\",\"value\":18}]}}}";
     payload = payload.substring(0, payload.length()-1) + ",\"includeSuccessfulTestXtf\":false}";
-    String authoring = callTool(3, "authorIliMandatoryConstraint", payload);
+    String authoring = callTool(3, "authorIliConstraint", payload);
     var envelope = mapper.readTree(authoring).get("result");
     var result = envelope.get("structuredContent");
     if (result == null) result = mapper.readTree(envelope.get("content").get(0).get("text").asText());
@@ -322,7 +302,7 @@ class ConstraintWorkflowStdioE2eTest {
             "objects", java.util.List.of(java.util.Map.of("classFqn", "TextWorkflow.Data.Item", "oid", "i", "values", values))));
       }
     }
-    var envelope = mapper.readTree(callTool(2, "authorIliMandatoryConstraint", mapper.writeValueAsString(java.util.Map.of(
+    var envelope = mapper.readTree(callTool(2, "authorIliConstraint", mapper.writeValueAsString(java.util.Map.of(
         "modelText", source, "contextFqn", "TextWorkflow.Data.Item", "spec", spec, "includeSuccessfulTestXtf", false)))).get("result");
     var author = envelope.get("structuredContent");
     if (author == null) author = mapper.readTree(envelope.get("content").get(0).get("text").asText());

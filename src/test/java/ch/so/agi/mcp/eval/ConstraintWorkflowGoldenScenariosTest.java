@@ -20,7 +20,6 @@ import ch.so.agi.mcp.tools.ConstraintAuthoringTools;
 import ch.so.agi.mcp.tools.ConstraintCaseGenerationTools;
 import ch.so.agi.mcp.tools.ConstraintTestTools;
 import ch.so.agi.mcp.tools.DomainTools;
-import ch.so.agi.mcp.tools.UniqueConstraintAuthoringTools;
 import java.util.List;
 import java.math.BigDecimal;
 import org.jspecify.annotations.Nullable;
@@ -107,12 +106,12 @@ class ConstraintWorkflowGoldenScenariosTest {
     spec.name = "MinimumValue";
     spec.condition = root;
 
-    IliAuthoringResult authored = authoring.authorIliMandatoryConstraint(
+    IliAuthoringResult authored = authoring.authorIliConstraint(
         BASE_MODEL,
         "ConstraintWorkflow.Data.Item",
         spec,
         ModelPurpose.CAPTURE,
-        ModelingRuleProfile.CORE);
+        ModelingRuleProfile.CORE, null);
 
     assertThat(authored.status).isEqualTo(IliAuthoringResult.Status.GENERATED);
     assertThat(authored.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
@@ -130,19 +129,19 @@ class ConstraintWorkflowGoldenScenariosTest {
         contexts,
         new ConstraintTestTools(compiler));
     ModelChangeReviewService review = reviewService(compiler);
-    UniqueConstraintAuthoringTools authoring = new UniqueConstraintAuthoringTools(
+    ConstraintAuthoringTools authoring = new ConstraintAuthoringTools(
         engine(compiler, cases, review));
     IliConstraintSpec.Unique spec = new IliConstraintSpec.Unique();
     spec.name = "CodeUnique";
     spec.scope = IliConstraintSpec.UniqueScope.GLOBAL;
     spec.keyPaths = List.of("code");
 
-    IliAuthoringResult result = authoring.authorIliUniqueConstraint(
+    IliAuthoringResult result = authoring.authorIliConstraint(
         BASE_MODEL,
         "ConstraintWorkflow.Data.Item",
         spec,
         ModelPurpose.CAPTURE,
-        ModelingRuleProfile.CORE);
+        ModelingRuleProfile.CORE, null);
 
     assertThat(compiler.calls).isEqualTo(2);
     assertThat(result.status).isEqualTo(IliAuthoringResult.Status.GENERATED);

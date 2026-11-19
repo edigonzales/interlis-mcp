@@ -8,11 +8,11 @@ Der interne Solver und Evaluator helfen beim Erzeugen geeigneter Fälle. **Der i
 
 | Constraint-Art | Bestehenden Constraint automatisch beweisen | Typisiertes High-Level-Authoring |
 | --- | --- | --- |
-| MANDATORY | ja | `authorIliMandatoryConstraint` |
-| UNIQUE | ja | `authorIliUniqueConstraint` für GLOBAL, BASKET und LOCAL |
-| EXISTENCE | ja, mit dokumentierten Validator-/Navigationsgrenzen | `authorIliExistenceConstraint` |
-| PLAUSIBILITY | ja, mit echten Populationen | `authorIliPlausibilityConstraint` |
-| SET | ja für typisierte `OBJECT_COUNT`- und boolesche Formen | `authorIliSetConstraint` |
+| MANDATORY | ja | `authorIliConstraint` |
+| UNIQUE | ja | `authorIliConstraint` für GLOBAL, BASKET und LOCAL |
+| EXISTENCE | ja, mit dokumentierten Validator-/Navigationsgrenzen | `authorIliConstraint` |
+| PLAUSIBILITY | ja, mit echten Populationen | `authorIliConstraint` |
+| SET | ja für typisierte `OBJECT_COUNT`- und boolesche Formen | `authorIliConstraint` |
 
 ## Drei unterschiedliche Aufgaben
 
@@ -81,18 +81,17 @@ Die gemeinsamen Authoring-Resultate verwenden ein geschlossenes Status-Enum mit 
 
 ## Eingabevertrag und frühe Diagnosen
 
-Alle Constraint-Authoring-Tools prüfen die rekursiven Ausdrucksknoten vor dem Rendern.
-Die gleichen Regeln gelten für Constraints in Modell- und Änderungswerkzeugen.
-Die nativen Schemas zeigen pro `kind` die erlaubten Felder und Kinderzahlen; die Java-DTOs,
-Toolnamen und Top-Level-Parameter bleiben bestehen.
+`authorIliConstraint` prüft die rekursiven Ausdrucksknoten vor dem Rendern.
+Dieselben Regeln gelten für eingebettete Constraints beim Modell-Authoring und im Batch.
+Die nativen Schemas zeigen pro `kind` die erlaubten Felder und Kinderzahlen.
 
-- `spec.name` beziehungsweise `constraintName` ist ein technischer Name gemäß
+- `spec.name` ist ein technischer Name gemäß
   `[A-Za-z][A-Za-z0-9_]*`. Für eine fachliche Nummer `42` kann der Server `Regel42`
   vorschlagen; er benennt den Constraint nicht automatisch um.
 - `ENUM.value` akzeptiert einen String mit oder ohne genau ein führendes `#`, beispielsweise
   `Drainage`, `#Drainage` oder `Gruppe.Drainage`. Äußere Leerzeichen werden entfernt.
   Nullwerte, leere Werte, wiederholte `#` und Assoziationspfeile sind unzulässig.
-  Renderer, Entscheidungstabelle und AST-Vergleich verwenden dieselbe kanonische Schreibweise.
+  Renderer und AST-Vergleich verwenden dieselbe kanonische Schreibweise.
   Request-Objekte sowie TEXT-/MTEXT-Werte bleiben unverändert.
 - STANDARD-Funktionen verwenden eine `semanticId` aus `listConstraintFunctions` als `name`:
   `COLLECTION_SUM` und `NUMERIC_ADD`, nicht `Math.sum` und `Math.add`.
@@ -117,10 +116,7 @@ Toolnamen und Top-Level-Parameter bleiben bestehen.
 ```
 
 Die separate **SET-Condition** OBJECT_COUNT verwendet dagegen `objects`, `operator` und
-`threshold`. Ein `value` an ihrer Stelle ist kein Vergleichsgrenzwert. In Entscheidungstabellen
-bleibt OBJECT_COUNT ein `aggregate` mit numerischem `value`.
-`defined=true/false` bezeichnet dort ausschließlich SUM-Präsenz und erfordert `aggregate=SUM`
-ohne `operator`, `value` oder `addAttribute`; direkte DEFINED-Ausdrücke gehören ins typisierte Authoring.
+`threshold`.
 
 Bisher ignorierte, nichtleere Felder wie `FUNCTION.objects` oder `OBJECT_COUNT.operator/value`
 werden nun abgewiesen. Das ist eine bewusste Verschärfung für fehlerhafte Payloads, damit daraus
@@ -267,7 +263,7 @@ Die logische Coverage ist bewusst endlich und für direkte Operanden MC/DC-ähnl
 
 ## Typisiertes Authoring
 
-`authorIliMandatoryConstraint` erhält eine rekursive `MandatoryConstraintSpec`. Jeder Ausdrucksknoten trägt seinen `kind`; Kinder sind direkt als weitere `ExpressionSpec` eingebettet. Freie Syntax und Node-ID-Verweise werden nicht akzeptiert.
+`authorIliConstraint` erhält `spec.kind=MANDATORY` und einen rekursiven Ausdruck in `spec.condition`. Jeder Ausdrucksknoten trägt seinen `kind`; Kinder sind direkt als weitere `ExpressionSpec` eingebettet. Freie Syntax und Node-ID-Verweise werden nicht akzeptiert.
 
 Fachliche Regel:
 
@@ -320,7 +316,7 @@ Für Standardfunktionen sollte die stabile `semanticId` aus `listConstraintFunct
 
 ## Dreiwertige Coverage und ausgeschlossene Ziele
 
-Die gemeinsame Coverage-Planung für Mandatory, Decision Tables und boolesche SET-Bedingungen unterscheidet `TRUE`, `FALSE` und `UNDEFINED`. Zusätzlich zu strikten Belegungsmustern wird die tatsächliche Erreichbarkeit von AND-/OR-Zweigen geprüft: Vor einem späteren AND-Operanden müssen alle Vorgänger TRUE sein, vor einem späteren OR-Operanden FALSE. Nachfolgende Operanden sind nach dem Abbruch irrelevant. Zusammengesetzte Ziele verwenden interne Zustandsbedingungen; sie werden nicht als künstliche INTERLIS-Ausdrücke ausgeführt. In der Diagnostik kennzeichnet `STATE CONDITIONS:` solche Prüfbedingungen. Diese Ziele verändern den erzeugten Constraint nicht.
+Die gemeinsame Coverage-Planung für Mandatory und boolesche SET-Bedingungen unterscheidet `TRUE`, `FALSE` und `UNDEFINED`. Zusätzlich zu strikten Belegungsmustern wird die tatsächliche Erreichbarkeit von AND-/OR-Zweigen geprüft: Vor einem späteren AND-Operanden müssen alle Vorgänger TRUE sein, vor einem späteren OR-Operanden FALSE. Nachfolgende Operanden sind nach dem Abbruch irrelevant. Zusammengesetzte Ziele verwenden interne Zustandsbedingungen; sie werden nicht als künstliche INTERLIS-Ausdrücke ausgeführt. In der Diagnostik kennzeichnet `STATE CONDITIONS:` solche Prüfbedingungen. Diese Ziele verändern den erzeugten Constraint nicht.
 
 `coverageGoalCount` zählt anwendbare Ziele, `coverageSolvedCount` erfüllte Ziele. Mehrere Ziele können dieselbe Fixture verwenden; `generatedCases[*].coveredGoals` bewahrt ihre Zuordnung. Die Zahl der Fixtures ist deshalb unabhängig von der Zahl erfüllter Ziele. Historische Coverage-Brüche, die deduplizierte Fixtures zählten, sind nicht direkt mit diesen Zählerständen vergleichbar.
 
@@ -419,7 +415,7 @@ Navigierte LOCAL-Schlüssel, die nicht sicher synthetisiert werden können, werd
 
 ## Authoring
 
-`authorIliUniqueConstraint` erstellt UNIQUE vollständig typisiert und source-preserving. Unterstützt werden GLOBAL, BASKET und LOCAL, mehrere Schlüsselpfade, ein optionaler typisierter WHERE-Ausdruck und bei LOCAL ein explizites Präfix:
+`authorIliConstraint` erstellt UNIQUE vollständig typisiert und source-preserving. Unterstützt werden GLOBAL, BASKET und LOCAL, mehrere Schlüsselpfade, ein optionaler typisierter WHERE-Ausdruck und bei LOCAL ein explizites Präfix:
 
 ```json
 {
@@ -493,7 +489,7 @@ Das Tool verlangt `viewableFqn` **und** `attributePath`, weil echte `REQUIRED IN
 
 Freie EXISTENCE-Snippet-Helper sind nicht Teil der MCP-Oberfläche; für neue skalare Regeln dient das typisierte Authoring.
 
-## Mandatory- und Decision-Table-Proofs in Strukturkontexten
+## Mandatory-Proofs in Strukturkontexten
 
 Ein Constraint auf einer konkreten STRUCTURE wird im ursprünglichen Modell geprüft. Der
 Fixture-Resolver bettet die vom Solver belegte Struktur in eine vorhandene identifizierbare
@@ -538,10 +534,9 @@ Beide Suchphasen teilen sich 50.000 Versuche. Enum-, Text- und Collection-Kandid
 sowie die unabhängige Unerreichbarkeitsprüfung bleiben unverändert; Sucherschöpfung ist
 weiterhin kein Unerreichbarkeitsbeweis.
 
-Die P06-Regression verwendet eine separat festgelegte fachlich korrekte Decision Table mit
+Die P06-Regression verwendet eine typisierte Mandatory-Spezifikation mit
 expliziten SUM-Präsenzbedingungen. Leere Beziehungen beziehungsweise leere Compositions
 bleiben echte leere Mengen: Hauptgewicht 100 ist im geprüften Summenfall gültig, 99 ungültig.
-Historische Requests werden dadurch nicht geändert oder stillschweigend ergänzt.
 Direkte Identitätsprojektionen in VIEW TOPIC werden durch die gemeinsame View-Proof-Pipeline unterstützt (siehe unten). Die frühere UNDEFINED-Abweichung wurde im Zwischenpaket durch geordnete Auswertung korrigiert; native Validator-Implikationen bleiben eine explizite Proof-Grenze.
 
 ## Direkte STRUCTURE/COMPOSITION-Werte
@@ -812,7 +807,7 @@ Für einen neuen typisiert unterstützten Constraint:
 
 ```text
 fachliche Regel
--> passendes authorIli...Constraint
+-> authorIliConstraint mit passendem spec.kind
 -> Constraint-Proof mit Status PASSED prüfen
 -> coverageUnsolved/Safety-Codes berichten
 -> updatedModelText übernehmen
@@ -831,7 +826,7 @@ bei Bedarf reviewIliConstraint
 Für einen neuen UNIQUE-Constraint:
 
 ```text
-authorIliUniqueConstraint
+authorIliConstraint
 -> Status des Constraint-Proofs prüfen
 -> Diff und afterReview prüfen
 -> updatedModelText übernehmen
@@ -844,7 +839,7 @@ Diese Abläufe vermeiden sowohl unbewiesene Semantik als auch redundante doppelt
 
 Prio 4 unterstützt direkte `PROJECTION OF`-Views mit `ALL OF` in einem `VIEW TOPIC`,
 auch mit Alias, geerbten Basisattributen und mehreren `WHERE`-Klauseln. Mandatory,
-Decision Table, PLAUSIBILITY sowie globale UNIQUE- und SET-Proofs erzeugen echte
+PLAUSIBILITY sowie globale UNIQUE- und SET-Proofs erzeugen echte
 Objekte der konkreten Basisklasse. Der ursprüngliche View-Constraint bleibt das
 Compiler- und Validatorziel; die Pipeline benötigt weiterhin genau zwei
 Authoring-Kompilierungen.
@@ -893,20 +888,21 @@ View-Grenzen verwenden unter anderem `VIEW_PROOF_SHAPE_UNSUPPORTED`,
 Analyse erhalten, während `updatedModelText` nicht freigegeben wird.
 
 
-## Gemeinsame Objektzählung für Mandatory und Decision Table
+## Objektzählung in Mandatory und SET
 
-Die öffentliche `OBJECT_COUNT`-Spezifikation ist auch innerhalb verschachtelter Mandatory-Ausdrücke verwendbar. Decision Table unterstützt im bestehenden Feld `aggregate` zusätzlich `OBJECT_COUNT`:
+Ein `OBJECT_COUNT` in einem rekursiven Ausdruck liefert die Anzahl der Pfadvorkommen.
+Zum Beispiel prüft folgender `COMPARE` mindestens zwei Vorkommen:
 
 ```json
 {
-  "attribute": "mids->leaves",
-  "aggregate": "OBJECT_COUNT",
+  "kind": "COMPARE",
   "operator": ">=",
-  "value": 2
+  "children": [
+    {"kind": "OBJECT_COUNT", "objects": {"kind": "PATH", "path": "mids->leaves"}},
+    {"kind": "NUMERIC", "value": 2}
+  ]
 }
 ```
-
-`attribute` bezeichnet hier den Objektpfad, `value` ist numerisch. `defined` und `addAttribute` sind für `OBJECT_COUNT` unzulässig. Die Bedingung wird in die gemeinsame Mandatory-Spezifikation übersetzt; bestehende SUM-Payloads behalten ihre Bedeutung.
 
 Fehlende optionale Verbindungen ergeben null Pfadvorkommen. Nicht auflösbare Referenzen und technische Auswertungsfehler gelten als Fixture-Fehler. Der installierte Validator zählt dasselbe Ziel mehrfach, wenn unterschiedliche Wege dorthin führen. `objectCounts` in jeder Fallverifikation weist daher `plannedCount` (für generierte Fälle), `actualCount`, `distinctTargetCount`, `concreteTypeRoute` und `countingPolicy=PINNED_VALIDATOR_PATH_OCCURRENCES` aus. Das ist ausdrücklich die Zählpolitik des installierten Validators. Endliche zyklische Pfade werden anhand ihrer vorgegebenen Schritte ausgewertet; es gibt keine rekursive Suche ohne Pfadgrenze.
 

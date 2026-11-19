@@ -91,11 +91,46 @@ def probe(url):
             assert diagnostic['valid'] is False, diagnostic
             assert any('MissingSmokeDomain' in message['message'] for message in diagnostic['messages']), diagnostic
 
-        resource = call('resources/read', {'uri': 'interlis://knowledge/handbook-rules'}, 4)
-        assert 'MDE-010' in resource['contents'][0]['text'], resource
-        prompt = call('prompts/get', {'name': 'interlis-modeling-agent', 'arguments': {}}, 5)
-        assert prompt['messages'], prompt
-        error = send('missing/method', request_id=6)
+        catalog = call('tools/list', {}, 4)
+        assert len(catalog['tools']) == 21, catalog
+        author = next(spec for spec in catalog['tools'] if spec['name'] == 'authorIliConstraint')
+        assert len(author['inputSchema']['properties']['spec']['oneOf']) == 5, author
+        args = {
+            'modelText': MODEL.replace('      UNIQUE UniqueDay: day;\n', ''),
+            'contextFqn': 'Smoke.Data.Item',
+            'spec': {'kind': 'UNIQUE', 'name': 'UniqueDay', 'scope': 'GLOBAL', 'keyPaths': ['day']},
+        }
+        authored = tool(author['name'], args, 5)
+        assert authored['status'] == 'GENERATED', authored
+        assert authored['afterCompilation']['valid'] is True, authored
+        cases = authored['constraintProofs'][0]['verification']['cases']
+        assert any(case['passed'] and case['targetViolationCount'] > 0 for case in cases), cases
+        assert authored['omittedSuccessfulTestXtfCount'] > 0, authored
+        wrong_kind = args | {'spec': args['spec'] | {'restrictedPath': 'day'}}
+        rejected = call('tools/call', {'name': author['name'], 'arguments': wrong_kind}, 6)
+        assert rejected['isError'] and 'restrictedPath' in rejected['content'][0]['text'], rejected
+
+        expected_resources = {
+            'interlis://knowledge/handbook-rules': 'MDE-010',
+            'interlis://knowledge/so-data-rules': 'DATA-001',
+            'interlis://knowledge/model-corpus-index': 'indexedCount',
+            'interlis://knowledge/agent-workflow': 'authorIliConstraint',
+        }
+        resources = call('resources/list', {}, 7)['resources']
+        assert {resource['uri'] for resource in resources} == expected_resources.keys(), resources
+        for index, (uri, expected) in enumerate(expected_resources.items(), start=8):
+            resource = call('resources/read', {'uri': uri}, index)
+            assert expected in resource['contents'][0]['text'], resource
+
+        prompts = call('prompts/list', {}, 12)['prompts']
+        assert {prompt['name'] for prompt in prompts} == {
+            'interlis-modeling-agent', 'review-interlis-model', 'extend-interlis-model',
+            'author-interlis-constraint',
+        }, prompts
+        for index, prompt in enumerate(prompts, start=13):
+            result = call('prompts/get', {'name': prompt['name'], 'arguments': {}}, index)
+            assert result['messages'], result
+        error = send('missing/method', request_id=17)
         assert error['error']['code'] == -32601, error
     finally:
         request = urllib.request.Request(url, headers=headers, method='DELETE')
@@ -105,4 +140,4 @@ def probe(url):
 
 if __name__ == '__main__':
     probe(sys.argv[1])
-    print('Streamable HTTP: initialize, parallel proof and compiler error, resource, prompt and RPC error OK')
+    print('Streamable HTTP: parallel verification and compiler error, typed authoring, schema rejection, resources and prompts OK')
