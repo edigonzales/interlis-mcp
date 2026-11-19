@@ -1,6 +1,6 @@
 # Tool-Referenz
 
-Diese Referenz beschreibt die öffentliche MCP-Oberfläche. Die Java-Annotationen und `ToolRegistrationContractTest` sind der exakte Schema-Vertrag. Modell-Repositories werden serverseitig mit `interlis.mcp.model-repositories` konfiguriert und sind bewusst kein Parameter jedes einzelnen Tools.
+Diese Referenz beschreibt die öffentliche MCP-Oberfläche. Die registrierten JSON-Schemas sind über `tools/list` abrufbar. Modell-Repositories werden serverseitig mit `interlis.mcp.model-repositories` konfiguriert und sind bewusst kein Parameter jedes einzelnen Tools.
 
 ## Auswahlregel
 
@@ -10,7 +10,7 @@ Verwende das höchste Tool, das die Aufgabe vollständig abdeckt. Ein High-Level
 
 `interlis://knowledge/so-data-rules` liefert den Regelkatalog für SO-DATA.
 
-Die Resources `interlis://knowledge/agent-workflow`, `interlis://knowledge/tool-guide`, `interlis://knowledge/constraint-workflow`, `interlis://knowledge/handbook-rules` und `interlis://knowledge/model-corpus-index` stellen Regeln und Abläufe bereit. Die Prompts `interlis-modeling-agent`, `review-interlis-model`, `extend-interlis-model` und `author-interlis-constraint` übersetzen sie in konkrete Agentenaufträge.
+Die Resources `interlis://knowledge/agent-workflow`, `interlis://knowledge/handbook-rules` und `interlis://knowledge/model-corpus-index` stellen Regeln und Abläufe bereit. Die Prompts `interlis-modeling-agent`, `review-interlis-model`, `extend-interlis-model` und `author-interlis-constraint` übersetzen sie in konkrete Agentenaufträge.
 
 # Ergebnisvertrag für Authoring und Verifikation
 
@@ -24,6 +24,8 @@ unter `semanticDiff`. `reviewIliChange` liefert seine Diff-Felder direkt.
 Constraint. Ein leeres Array weist einen ermittelten leeren Prüfumfang aus. Fehlt das Feld,
 wurde die Proof-Phase noch nicht erreicht. `constraintInteractions` zeigt beratende
 Befunde zu unterstützten skalaren Mandatory-Regeln in Reviews und `afterReview`.
+Erfolgreiche, ausgeübte und warnungsfreie Test-XTFs mit gültiger Fixture werden
+standardmässig ausgelassen. `includeSuccessfulTestXtf=true` liefert auch diese Texte.
 Weitere Details stehen im [Benutzerhandbuch](USER_GUIDE.md#prüfnachweise-und-ihre-grenzen).
 
 # Reviews und Änderungen
@@ -60,19 +62,10 @@ Fokussierte ili2c-Compilerdiagnostik für `modelText`. Diagnosen des eingereicht
 
 Liefert die kompilierte Modellstruktur, darunter Modelle, Topics, Klassen, Strukturen, Views, Beziehungen, Domains, Units, Attribute, Vererbung und Abhängigkeiten. `modelPurpose` ist optional.
 
-## `listModelingRules`
-
-Listet den Regelkatalog für `CORE`, `SO-GIS` oder `SO-DATA`. Das Tool prüft selbst kein Modell.
-
-## `checkModelingRules`
-
-Prüft gezielt Regeln gegen ein Modell. Optional können Modellzweck, Regel-IDs und Profil eingeschränkt werden. Für das normale Gesamtgate ist der High-Level-Review kompakter.
-
 # Modellkorpus
 
-## `indexConfiguredModels`
-
-Inventarisiert die über `interlis.knowledge.model-paths` konfigurierten lokalen `.ili`-Dateien.
+Die Resource `interlis://knowledge/model-corpus-index` inventarisiert die Dateien aus
+`interlis.knowledge.model-paths`.
 
 ## `findSimilarModels`
 
@@ -163,29 +156,23 @@ Erzeugt und verifiziert modellbewusste Witnesses, Counterexamples, Grenz- und Sc
 
 Validiert höchstens 100 explizit vorgegebene Testfälle. Das Tool ist für fachliche oder gezielte Regressionstestdaten gedacht, nicht als redundante Wiederholung eines erfolgreichen automatischen Proofs.
 
-## `authorIliMandatoryConstraint`
+## `authorIliConstraint`
 
-Erstellt einen Mandatory Constraint aus einer rekursiven typisierten `ExpressionSpec`, fügt ihn source-preserving ein und beweist ihn über die gemeinsame semantische Pipeline.
+Ergänzt einen Constraint quelltexttreu und liefert Compilerphasen, automatischen
+Proof, semantischen Diff und `afterReview`. Erforderlich sind `modelText`,
+`contextFqn` und `spec` mit `kind` und technischem `name`.
+`modelPurpose`, `ruleProfile` und `includeSuccessfulTestXtf` sind optional.
 
-## `authorIliUniqueConstraint`
+| `spec.kind` | Pflichtfelder der Variante |
+| --- | --- |
+| `MANDATORY` | `condition` als rekursiver Ausdruck |
+| `UNIQUE` | `scope` und `keyPaths`, bei LOCAL auch `localPrefix`. Optional `where` |
+| `EXISTENCE` | `restrictedPath` und `requiredIn` mit `viewableFqn` und `attributePath` je Ziel |
+| `PLAUSIBILITY` | `direction`, `percentage` und `condition`. Der Proof verwendet echte Populationen |
+| `SET` | `scope` und `condition` vom Typ `OBJECT_COUNT` oder `BOOLEAN_EXPRESSION`. Optional `where` |
 
-Erstellt UNIQUE mit `GLOBAL`, `BASKET` oder `LOCAL`, mehreren Schlüsselpfaden, optionalem typisiertem WHERE und LOCAL-Präfix. Source-Edit, AST-Roundtrip, Proof, semantischer Diff und `afterReview` sind enthalten.
-
-## `authorIliExistenceConstraint`
-
-Erstellt EXISTENCE aus einem expliziten eingeschränkten Pfad und vollständigen REQUIRED-IN-Zielen. Skalare, strukturierte, Referenz- und Geometriepfade werden typisiert; freigegeben werden nur vollständig validatorbestätigte Proofs. Zielattribute werden nie geraten.
-
-## `authorIliPlausibilityConstraint`
-
-Erstellt einen Plausibility Constraint aus Richtung, Prozentgrenze und typisiertem Ausdruck. Der Proof verwendet echte Objektpopulationen.
-
-## `authorIliSetConstraint`
-
-Erstellt SET mit `GLOBAL`/`BASKET`, optionalem WHERE und diskriminierter `OBJECT_COUNT`- oder `BOOLEAN_EXPRESSION`-Bedingung. Objektmengen sind `ALL` oder ein typisierter navigierter Objektpfad.
-
-## `generateIliConstraintFromDecisionTable`
-
-Übersetzt explizit erlaubte Entscheidungszeilen in einen Mandatory Constraint. Source-Edit, semantische Übersetzung, Fallgenerierung und Validator-Proof verwenden dieselbe Pipeline wie das übrige typed Authoring.
+Fehlende Proofs und nicht ausführbare externe Funktionssemantik halten den
+Kandidaten zurück. [Eingabebeispiele und Proof-Grenzen](CONSTRAINTS.md).
 
 # XTF
 
@@ -207,8 +194,7 @@ Validiert bis zu 20 MiB XTF-Text gegen den vollständigen Modelltext mit ilivali
 Alle Profilparameter akzeptieren `CORE`, `SO-GIS` und `SO-DATA`; Default bleibt CORE.
 Das frühere `SO` ist kein zulässiger Eingabewert. Parser und Werkzeugschemas
 akzeptieren ausschliesslich `CORE`, `SO-GIS` und `SO-DATA`.
-`listModelingRules(profile="SO-DATA")` und
-`interlis://knowledge/so-data-rules` liefern den vollständigen Regelkatalog.
+`interlis://knowledge/so-data-rules` liefert den vollständigen Regelkatalog.
 `REMOVE_COMMENTS` benötigt keine zusätzliche Payload:
 
 ```json

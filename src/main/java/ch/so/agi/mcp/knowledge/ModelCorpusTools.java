@@ -17,23 +17,14 @@ public class ModelCorpusTools {
   }
 
   @McpTool(
-      name = "indexConfiguredModels",
-      description = "Inventar-/Admin-Tool: scannt die konfigurierten lokalen INTERLIS-Beispielpfade und gibt den aktuellen In-Memory-Index zurueck. Nicht fuer die normale Mustersuche verwenden; dafuer findSimilarModels.",
-      annotations = @McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = false, idempotentHint = true, openWorldHint = false)
-  )
-  public Map<String, Object> indexConfiguredModels() {
-    return corpusService.indexConfiguredModels();
-  }
-
-  @McpTool(
       name = "findSimilarModels",
-      description = "Discovery-Tool fuer passende INTERLIS-Beispiele im konfigurierten lokalen Modellkorpus. Verwenden, um Kandidaten fuer einen fachlichen oder strukturellen Modellierungsfall zu finden. Vor der Uebernahme eines Musters einen relevanten Treffer mit readModelExample vollstaendig lesen; nicht nur aus Treffer-Metadaten modellieren.",
+      description = "Findet passende Beispiele im konfigurierten lokalen Modellkorpus anhand von Suchbegriffen oder Modelltext.",
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = false)
   )
   public Map<String, Object> findSimilarModels(
-      @McpToolParam(description = "Suchbegriffe, fachlicher Kontext oder gewuenschte Modellstruktur", required = false) @Nullable String query,
+      @McpToolParam(description = "Suchbegriffe oder gewünschte Modellstruktur", required = false) @Nullable String query,
       @McpToolParam(description = "Optionaler INTERLIS-Modelltext als Suchvorlage", required = false) @Nullable String modelText,
-      @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false) @Nullable ModelPurpose modelPurpose,
+      @McpToolParam(description = "Modellzweck", required = false) @Nullable ModelPurpose modelPurpose,
       @McpToolParam(description = "Maximale Anzahl Treffer", required = false) @Nullable Integer limit
   ) {
     return corpusService.findSimilarModels(query, modelText, modelPurpose, limit);
@@ -41,11 +32,11 @@ public class ModelCorpusTools {
 
   @McpTool(
       name = "readModelExample",
-      description = "Liest den vollstaendigen Quelltext eines ausgewaehlten INTERLIS-Beispielmodells. Verwenden nach findSimilarModels oder bei einem bekannten path aus indexConfiguredModels, bevor ein Muster uebernommen wird. Nicht zum Lesen beliebiger Dateien verwenden; Pfade ausserhalb des konfigurierten Korpus werden abgelehnt.",
+      description = "Liest ein Beispiel aus dem konfigurierten lokalen Modellkorpus vollständig.",
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = false)
   )
   public Map<String, Object> readModelExample(
-      @McpToolParam(description = "Pfad eines Treffers aus findSimilarModels oder indexConfiguredModels", required = true) String path
+      @McpToolParam(description = "Pfad aus findSimilarModels oder aus dem Korpusindex", required = true) String path
   ) {
     return corpusService.readModelExample(path);
   }

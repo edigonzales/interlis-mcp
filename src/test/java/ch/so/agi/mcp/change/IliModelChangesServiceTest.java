@@ -20,10 +20,14 @@ import ch.so.agi.mcp.tools.AttributeTools;
 import ch.so.agi.mcp.tools.DomainTools;
 import ch.so.agi.mcp.tools.ConstraintCaseGenerationTools;
 import ch.so.agi.mcp.tools.ConstraintTestTools;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.math.BigDecimal;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class IliModelChangesServiceTest {
 
@@ -414,15 +418,19 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
   }
 
   @Test
-  void everyAddOperationProducesACompilableGuardedCandidate() {
-    assertAddOperation(operation(IliModelChangeOperation.ADD_IMPORT, change -> {
+  void everyAddOperationProducesACompilableGuardedCandidate(@TempDir Path repository) throws IOException {
+    Files.writeString(repository.resolve("Dependency.ili"), """
+        INTERLIS 2.4;
+        MODEL Dependency (en) AT "https://example.org/import" VERSION "1" = END Dependency.
+        """);
+    assertAddOperation(repository, operation(IliModelChangeOperation.ADD_IMPORT, change -> {
       IliModelChangeRequest.AddImportChange add = new IliModelChangeRequest.AddImportChange();
       add.modelFqn = "Demo";
-      add.importModel = "Units";
+      add.importModel = "Dependency";
       change.setAddImport(add);
-    }), "IMPORTS Units;");
+    }), "IMPORTS Dependency;");
 
-    assertAddOperation(operation(IliModelChangeOperation.ADD_TOPIC, change -> {
+    assertAddOperation(repository, operation(IliModelChangeOperation.ADD_TOPIC, change -> {
       IliModelSpec.TopicSpec topic = new IliModelSpec.TopicSpec();
       topic.name = "MoreData";
       IliModelChangeRequest.AddTopicChange add = new IliModelChangeRequest.AddTopicChange();
@@ -431,7 +439,7 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
       change.setAddTopic(add);
     }), "TOPIC MoreData");
 
-    assertAddOperation(operation(IliModelChangeOperation.ADD_DOMAIN, change -> {
+    assertAddOperation(repository, operation(IliModelChangeOperation.ADD_DOMAIN, change -> {
       IliModelSpec.DomainSpec domain = new IliModelSpec.DomainSpec();
       domain.name = "Height";
       domain.kind = IliModelSpec.DomainKind.NUMERIC;
@@ -443,7 +451,7 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
       change.setAddDomain(add);
     }), "Height = 0 .. 100;");
 
-    assertAddOperation(operation(IliModelChangeOperation.ADD_UNIT, change -> {
+    assertAddOperation(repository, operation(IliModelChangeOperation.ADD_UNIT, change -> {
       IliModelSpec.UnitSpec unit = new IliModelSpec.UnitSpec();
       unit.name = "Centimeter";
       unit.factor = new BigDecimal("0.01");
@@ -454,7 +462,7 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
       change.setAddUnit(add);
     }), "Centimeter = 0.01 [INTERLIS.m];");
 
-    assertAddOperation(operation(IliModelChangeOperation.ADD_CLASS, change -> {
+    assertAddOperation(repository, operation(IliModelChangeOperation.ADD_CLASS, change -> {
       IliModelSpec.ClassSpec clazz = new IliModelSpec.ClassSpec();
       clazz.name = "AddedClass";
       IliModelChangeRequest.AddClassChange add = new IliModelChangeRequest.AddClassChange();
@@ -463,7 +471,7 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
       change.setAddClass(add);
     }), "CLASS AddedClass");
 
-    assertAddOperation(operation(IliModelChangeOperation.ADD_STRUCTURE, change -> {
+    assertAddOperation(repository, operation(IliModelChangeOperation.ADD_STRUCTURE, change -> {
       IliModelSpec.StructureSpec structure = new IliModelSpec.StructureSpec();
       structure.name = "AddedStructure";
       IliModelChangeRequest.AddStructureChange add =
@@ -473,7 +481,7 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
       change.setAddStructure(add);
     }), "STRUCTURE AddedStructure");
 
-    assertAddOperation(operation(IliModelChangeOperation.ADD_ASSOCIATION, change -> {
+    assertAddOperation(repository, operation(IliModelChangeOperation.ADD_ASSOCIATION, change -> {
       IliModelSpec.AssociationSpec association = new IliModelSpec.AssociationSpec();
       association.name = "ThingRelation";
       association.roles = List.of(
@@ -486,12 +494,12 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     }), "ASSOCIATION ThingRelation");
   }
 
-  private void assertAddOperation(IliModelChangeRequest operation, String expectedText) {
-    CountingCompiler compiler = new CountingCompiler();
+  private void assertAddOperation(Path repository, IliModelChangeRequest operation, String expectedText) {
+    CountingCompiler compiler = new CountingCompiler(repository.toString());
     IliAuthoringResult result = service(compiler).apply(
         model(), batch(List.of(operation), true), null, null, null);
     assertThat(compiler.calls).as(operation.getOperation().name()).isEqualTo(2);
-    assertThat(result.status).as("%s: %s", operation.getOperation(), result.reason)
+    assertThat(result.status).as("%s: %s (%s)", operation.getOperation(), result.reason, result.afterCompilation)
         .isEqualTo(IliAuthoringResult.Status.APPLIED);
     assertThat(result.updatedModelText).contains(expectedText);
   }
@@ -606,6 +614,12 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
   }
 
   private static final class CountingCompiler extends IliCompilerService {
+    CountingCompiler() {}
+
+    CountingCompiler(String repositories) {
+      super(repositories);
+    }
+
     private int calls;
 
     @Override

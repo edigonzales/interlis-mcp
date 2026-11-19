@@ -9,7 +9,7 @@ import org.jspecify.annotations.Nullable;
 /** Output-only projection after validation. Only known verification case lists are touched. */
 public final class TestXtfOutput {
   private TestXtfOutput() {}
-  public static final String PARAMETER = "Standard true. false lässt nur XTF-Texte bestandener, ausgeübter Fälle mit gültiger Fixture und null Warnungen weg; alle Diagnosen bleiben erhalten.";
+  public static final String PARAMETER = "true liefert auch Test-XTFs bestandener, ausgeübter Fälle mit gültiger Fixture und ohne Warnungen. Standard false.";
 
   private static boolean omit(Object passed, Object fixtureValid, Object exercised, Object warnings) {
     return Boolean.TRUE.equals(passed) && Boolean.TRUE.equals(fixtureValid) && Boolean.TRUE.equals(exercised)
@@ -18,7 +18,7 @@ public final class TestXtfOutput {
 
   /** The typed result is a fresh public response; internal validator results are not modified. */
   public static IliAuthoringResult prepare(IliAuthoringResult result, @Nullable Boolean include) {
-    if (!Boolean.FALSE.equals(include) || result.constraintProofs == null) return result;
+    if (Boolean.TRUE.equals(include) || result.constraintProofs == null) return result;
     int omitted = 0;
     for (var proof : result.constraintProofs) {
       if (proof.verification == null) continue;
@@ -34,7 +34,7 @@ public final class TestXtfOutput {
   }
 
   public static Map<String, Object> prepare(Map<String, Object> result, @Nullable Boolean include) {
-    if (!Boolean.FALSE.equals(include)) return result;
+    if (Boolean.TRUE.equals(include)) return result;
     var response = new LinkedHashMap<>(result);
     int omitted = projectCases(response);
     if (result.get("verification") instanceof Map<?, ?> raw) {

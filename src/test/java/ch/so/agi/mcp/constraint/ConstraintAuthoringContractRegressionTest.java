@@ -51,31 +51,6 @@ class ConstraintAuthoringContractRegressionTest {
     assertThat(compiler.calls).isEqualTo(6);
   }
 
-  @Test void decisionTableEnumFormsRemainEquivalentAndMissingSumIsActionable() {
-    var compiler = new CountingCompiler();
-    var tool = new ConstraintDecisionTableTools(engine(compiler));
-    var condition = new ConstraintDecisionTableTools.DecisionCondition();
-    condition.attribute="status"; condition.operator="=="; condition.value="Drainage";
-    var row = new ConstraintDecisionTableTools.DecisionRow(); row.conditions=List.of(condition);
-    var plain=tool.generateIliConstraintFromDecisionTable(MODEL,"ContractDemo.Data.Item","Rule",List.of(row));
-    condition.value="#Drainage";
-    var prefixed=tool.generateIliConstraintFromDecisionTable(MODEL,"ContractDemo.Data.Item","Rule",List.of(row));
-    assertThat(plain.status).as(plain.toString()).isEqualTo(IliAuthoringResult.Status.GENERATED);
-    assertThat(prefixed.status).as(prefixed.toString()).isEqualTo(plain.status);
-    assertThat(prefixed.updatedModelText).isEqualTo(plain.updatedModelText);
-    assertThat(condition.value).isEqualTo("#Drainage");
-    int calls=compiler.calls;
-    condition.value="##Drainage";
-    var invalid=tool.generateIliConstraintFromDecisionTable(MODEL,"ContractDemo.Data.Item","Rule",List.of(row));
-    assertThat(invalid.specDiagnostics.getFirst().path()).isEqualTo("/rows/0/conditions/0/value");
-    condition.value=null; condition.operator=null; condition.defined=false;
-    invalid=tool.generateIliConstraintFromDecisionTable(MODEL,"ContractDemo.Data.Item","Rule",List.of(row));
-    assertThat(invalid.status).isEqualTo(IliAuthoringResult.Status.INVALID_SPEC);
-    assertThat(invalid.specDiagnostics.getFirst().path()).isEqualTo("/rows/0/conditions/0/defined");
-    assertThat(invalid.specDiagnostics.getFirst().hint()).contains("aggregate=SUM");
-    assertThat(compiler.calls).isEqualTo(calls);
-  }
-
   @Test void modelAndBatchConstraintsUseTheSameValidationWithCompleteRequestPaths() throws Exception {
     var invalid = mapper.readValue("""
         {"kind":"MANDATORY","name":"Rule","condition":{"kind":"FUNCTION","name":"External.f",

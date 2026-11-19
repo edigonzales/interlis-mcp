@@ -31,7 +31,7 @@ class ConstraintSchemaDiagnosticsTest {
     return mapper.readValue(mapper.writeValueAsString(map), Map.class);
   }
   private Map<String,Object> expressionSchema(boolean previous) {
-    Map<String,Object> result=cloneMap(schema("authorIliMandatoryConstraint"));
+    Map<String,Object> result=cloneMap(schema("authorIliConstraint"));
     Map<String,Object> defs=(Map<String,Object>)result.get("$defs");
     Map<String,Object> expression=(Map<String,Object>)defs.get("ExpressionSpec");
     if (previous) {
@@ -90,10 +90,45 @@ class ConstraintSchemaDiagnosticsTest {
         Map.of("kind","NOT","children",List.of()),
         Map.of("kind","ATTRIBUTE","name","value","children",List.of(Map.of("kind","BOOLEAN","value",true))),
         Map.of("kind","COMPARE","operator","=","children",List.of(Map.of("kind","NUMERIC","value",7),Map.of("kind","NUMERIC","value",7))),
-        Map.of("kind","BOOLEAN","value","true"),Map.of("kind","ENUM","value",7))) {
+        Map.of("kind","BOOLEAN","value","true"),Map.of("kind","ENUM","value",7),
+        Map.of("kind","NUMERIC","value","bad"),Map.of("kind","TEXT","value",7))) {
       assertThat(validator.validate(previous,node).valid()).isFalse();
       assertThat(validator.validate(current,node).valid()).isFalse();
     }
+  }
+
+  @Test void constraintKindsAreClosedAndRequireTheirOwnFields() {
+    var schema = schema("authorIliConstraint");
+    var condition = Map.of("kind", "BOOLEAN", "value", true);
+    var target = Map.of("viewableFqn", "Demo.Data.Target", "attributePath", "value");
+    List<Map<String, Object>> specs = List.of(
+        Map.of("kind", "MANDATORY", "name", "Rule", "condition", condition),
+        Map.of("kind", "UNIQUE", "name", "Rule", "scope", "GLOBAL", "keyPaths", List.of("value")),
+        Map.of("kind", "EXISTENCE", "name", "Rule", "restrictedPath", "value", "requiredIn", List.of(target)),
+        Map.of("kind", "PLAUSIBILITY", "name", "Rule", "direction", "AT_LEAST", "percentage", 50, "condition", condition),
+        Map.of("kind", "SET", "name", "Rule", "scope", "BASKET", "condition", Map.of(
+            "kind", "OBJECT_COUNT", "objects", Map.of("kind", "ALL"), "operator", "==", "threshold", 0)));
+    var arguments = new LinkedHashMap<String, Object>(Map.of(
+        "modelText", "INTERLIS 2.4;", "contextFqn", "Demo.Data.Item"));
+    for (var spec : specs) {
+      arguments.put("spec", spec);
+      assertThat(validator.validate(schema, arguments).valid()).as(spec.toString()).isTrue();
+      for (String required : spec.keySet()) {
+        var missing = new LinkedHashMap<>(spec);
+        missing.remove(required);
+        arguments.put("spec", missing);
+        assertThat(validator.validate(schema, arguments).valid()).as(missing.toString()).isFalse();
+      }
+    }
+    var unique = new LinkedHashMap<>(specs.get(1));
+    unique.put("restrictedPath", "value");
+    unique.put("requiredIn", List.of(target));
+    arguments.put("spec", unique);
+    assertThat(validator.validate(schema, arguments).valid()).isFalse();
+    unique.put("kind", "CUSTOM");
+    assertThat(validator.validate(schema, arguments).valid()).isFalse();
+    arguments.put("spec", Map.of("kind", "UNIQUE", "name", "Rule", "scope", "LOCAL", "keyPaths", List.of("value")));
+    assertThat(validator.validate(schema, arguments).valid()).isFalse();
   }
 
   @Test void nestedErrorsStayFocusedAndSmallAcrossSingleAndBatchSchemas() throws Exception {
@@ -106,7 +141,7 @@ class ConstraintSchemaDiagnosticsTest {
       var spec=Map.of("kind","MANDATORY","name","Rule","condition",condition);
       var single=Map.of("modelText","INTERLIS 2.4;","contextFqn","Example.Data.Item","spec",spec);
       var batch=Map.of("modelText","INTERLIS 2.4;","request",Map.of("changes",List.of(Map.of("operation","ADD_CONSTRAINT","addConstraint",Map.of("containerFqn","Example.Data.Item","constraint",spec)))));
-      for(var entry:Map.of("authorIliMandatoryConstraint",single,"applyIliModelChanges",batch).entrySet()) {
+      for(var entry:Map.of("authorIliConstraint",single,"applyIliModelChanges",batch).entrySet()) {
         var result=validator.validate(schema(entry.getKey()),entry.getValue());
         assertThat(result.valid()).isFalse();
         int bytes=result.errorMessage().getBytes(StandardCharsets.UTF_8).length;

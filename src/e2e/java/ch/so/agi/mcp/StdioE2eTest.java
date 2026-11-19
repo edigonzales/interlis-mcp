@@ -105,8 +105,9 @@ public class StdioE2eTest {
                 "\"tools\"",
                 "validateIliModel",
                 "reviewIliConstraint",
-                "authorIliMandatoryConstraint",
-                "generateIliConstraintFromDecisionTable");
+                "authorIliConstraint",
+                "verifyIliModel");
+        assertEquals(21, JSON.readTree(toolsResponse).path("result").path("tools").size());
 
         assertCleanEof();
     }
@@ -152,10 +153,10 @@ public class StdioE2eTest {
                 "\"tools\"",
                 "authorIliModel",
                 "applyIliModelChanges",
-                "authorIliUniqueConstraint",
+                "authorIliConstraint",
                 "renameModelElement",
                 "analyzeIliModel",
-                "checkModelingRules",
+                "reviewIliModel",
                 "findSimilarModels",
                 "generateExampleXtf",
                 "validateXtf");
@@ -499,58 +500,29 @@ public class StdioE2eTest {
         initializeSession();
 
         String resources = listResources(3);
-        assertContainsAll(resources,
-                "interlis://knowledge/handbook-rules",
-                "interlis://knowledge/agent-workflow",
-                "interlis://knowledge/tool-guide",
-                "interlis://knowledge/constraint-workflow",
-                "interlis://knowledge/so-data-rules",
+        assertContainsAll(resources, "interlis://knowledge/handbook-rules",
+                "interlis://knowledge/agent-workflow", "interlis://knowledge/so-data-rules",
                 "interlis://knowledge/model-corpus-index");
-
-        String handbook = readResource(4, "interlis://knowledge/handbook-rules");
-        assertContainsAll(handbook, "MDE-010", "MDE-020", "Modellzweck");
-
-        String prompts = listPrompts(5);
-        assertContainsAll(prompts,
-                "interlis-modeling-agent",
-                "review-interlis-model",
-                "extend-interlis-model",
-                "author-interlis-constraint");
-
-        String reviewPrompt = getPrompt(6, "review-interlis-model", "{\"modelPurpose\":\"PUBLICATION\"}");
-        assertContainsAll(reviewPrompt, "analyzeIliModel", "checkModelingRules", "validateIliModel", "PUBLICATION",
-                "compilerDiagnostics");
-
-        String modelingPrompt = getPrompt(10, "interlis-modeling-agent", "{}");
-        String workflow = readResource(11, "interlis://knowledge/agent-workflow");
-        for (String guidance : java.util.List.of(modelingPrompt, workflow)) {
-            assertContainsAll(guidance, "status=GENERATED", "updatedModelText", "openQuestions", "PASSED",
-                    "Bei Modellen ohne Constraints ist das Array leer.");
-            assertFalse(guidance.contains("complete=true"), guidance);
-        }
-
-        String extension = getPrompt(12, "extend-interlis-model", "{\"modelPurpose\":\"PUBLICATION\"}");
-        String batch = extension.substring(extension.indexOf("3. Verwende"), extension.indexOf("4. Wenn"));
-        assertContainsAll(batch, "applyIliModelChanges", "afterCompilation.valid", "afterCompilation.diagnostics",
-                "semanticDiff", "afterReview", "constraintProofs", "openQuestions");
-        assertFalse(batch.contains("afterCompilerValid") || batch.contains("afterDiagnostics"), batch);
-        assertContainsAll(extension, "in diesem Review `afterCompilerValid`, `afterDiagnostics`");
-
-        String toolGuide = readResource(13, "interlis://knowledge/tool-guide");
-        for (String guidance : java.util.List.of(modelingPrompt, extension, workflow, toolGuide)) {
-            assertContainsAll(guidance, "APPLIED", "technische Freigabe", "Gesamtmodells",
-                    "afterReview.validForAutomatedRules", "afterReview.ruleFindings");
-        }
-        assertContainsAll(toolGuide, "PASSED` bestaetigte Validatorfaelle und vollstaendige",
-                "`coverageComplete=false` zeigt dort offene Coverage-Ziele.");
-
-        String constraintPrompt = getPrompt(14, "author-interlis-constraint", "{\"constraintKind\":\"SET\"}");
-        String constraintWorkflow = readResource(15, "interlis://knowledge/constraint-workflow");
-        for (String guidance : java.util.List.of(constraintPrompt, constraintWorkflow)) {
-            assertContainsAll(guidance, "generationVerified=true", "coverageComplete=true", "coverageUnsolved");
-        }
+        assertEquals(4, new tools.jackson.databind.ObjectMapper().readTree(resources)
+                .path("result").path("resources").size());
+        assertContainsAll(readResource(4, "interlis://knowledge/handbook-rules"), "MDE-010", "MDE-020");
+        assertContainsAll(readResource(11, "interlis://knowledge/agent-workflow"),
+                "afterCompilation", "constraintProofs", "APPLIED", "afterReview.validForAutomatedRules",
+                "modelHashes.before", "coverageComplete", "includeSuccessfulTestXtf");
         assertContainsAll(readResource(16, "interlis://knowledge/so-data-rules"), "DATA-001");
         assertContainsAll(readResource(17, "interlis://knowledge/model-corpus-index"), "Configured INTERLIS Model Corpus");
+
+        assertContainsAll(listPrompts(5), "interlis-modeling-agent", "review-interlis-model",
+                "extend-interlis-model", "author-interlis-constraint");
+        String reviewPrompt = getPrompt(6, "review-interlis-model", "{\"modelPurpose\":\"PUBLICATION\"}");
+        assertContainsAll(reviewPrompt, "reviewIliModel", "PUBLICATION", "manualChecks");
+        assertContainsAll(getPrompt(10, "interlis-modeling-agent", "{}"),
+                "authorIliModel", "authorIliConstraint", "reviewIliModel", "testIliConstraint");
+        assertContainsAll(getPrompt(12, "extend-interlis-model", "{}"),
+                "applyIliModelChanges", "afterCompilation.valid", "semanticDiff", "afterReview",
+                "openQuestions", "allowPotentiallyBreaking");
+        assertContainsAll(getPrompt(14, "author-interlis-constraint", "{\"constraintKind\":\"SET\"}"),
+                "SET", "authorIliConstraint", "PASSED", "testIliConstraint", "candidateModelText");
 
         String modelText = """
                 INTERLIS 2.4;
@@ -564,24 +536,13 @@ public class StdioE2eTest {
                 END Demo.
                 """;
 
-        String argsJson = "{"
-                + "\"modelText\":" + jsonString(modelText) + ","
-                + "\"modelPurpose\":\"PUBLICATION\","
-                + "\"profile\":\"SO-GIS\""
-                + "}";
-
-        String analysis = callTool(7, "analyzeIliModel", argsJson);
-        assertSuccessfulToolResponse(analysis, "analyzeIliModel", "valid", "true", "classes", "Thing");
-
-        String ruleCheck = callTool(8, "checkModelingRules", argsJson);
-        assertSuccessfulToolResponse(ruleCheck,
-                "checkModelingRules",
-                "SO-GIS",
-                "validForAutomatedRules",
-                "manualChecks",
-                "MDE-060");
-        String legacy = callTool(9, "checkModelingRules", argsJson.replace("SO-GIS", "SO"));
-        assertTrue(legacy.contains("\"isError\":true") || legacy.contains("\"error\":"), legacy);
+        String argsJson = "{\"modelText\":" + jsonString(modelText) + ","
+                + "\"modelPurpose\":\"PUBLICATION\",\"ruleProfile\":\"SO-GIS\"}";
+        String review = callTool(8, "reviewIliModel", argsJson);
+        assertSuccessfulToolResponse(review, "reviewIliModel",
+                "SO-GIS", "validForAutomatedRules", "manualChecks", "MDE-060");
+        String invalidProfile = callTool(9, "reviewIliModel", argsJson.replace("SO-GIS", "SO"));
+        assertTrue(invalidProfile.contains("\"isError\":true"), invalidProfile);
     }
 
     @Test
@@ -617,36 +578,6 @@ public class StdioE2eTest {
         var resolvedResult = resolvedEnvelope.has("structuredContent") ? resolvedEnvelope.get("structuredContent")
                 : mapper.readTree(resolvedEnvelope.get("content").get(0).get("text").asString());
         org.junit.jupiter.api.Assertions.assertEquals(result.get("paths").get(0), resolvedResult);
-    }
-
-    @Test
-    void checkModelingRules_profileCore_overStdio() throws Exception {
-        initializeSession();
-
-        String modelText = """
-                INTERLIS 2.4;
-
-                MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
-                  TOPIC Topic =
-                    CLASS Thing =
-                      name : TEXT*20;
-                    END Thing;
-                  END Topic;
-                END Demo.
-                """;
-
-        String argsJson = "{"
-                + "\"modelText\":" + jsonString(modelText) + ","
-                + "\"modelPurpose\":\"CAPTURE\","
-                + "\"profile\":\"CORE\","
-                + "\"ruleIds\":[\"MDE-020\"]"
-                + "}";
-
-        String response = callTool(3, "checkModelingRules", argsJson);
-        assertSuccessfulToolResponse(response,
-                "checkModelingRules",
-                "CORE",
-                "validForAutomatedRules");
     }
 
     // ---- helpers ----

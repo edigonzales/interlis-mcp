@@ -24,7 +24,6 @@ public class KnowledgeResources {
   }
 
   @McpResource(
-
       uri = "interlis://knowledge/handbook-rules",
       name = "handbook-rules",
       title = "INTERLIS-Modellierungsregeln Solothurn",
@@ -40,150 +39,51 @@ public class KnowledgeResources {
   @McpResource(
       uri = "interlis://knowledge/agent-workflow",
       name = "agent-workflow",
-      title = "Agentischer INTERLIS-Arbeitsablauf",
-      description = "Kompakter Arbeitsablauf für agentisches INTERLIS-Modellieren.",
+      title = "INTERLIS-Arbeitsablauf",
+      description = "Werkzeugwahl, Prüfergebnisse und Freigabe von Modelländerungen.",
       mimeType = "text/markdown"
   )
   public ReadResourceResult agentWorkflow() {
     return markdown("interlis://knowledge/agent-workflow", """
-        # Agentischer INTERLIS-Arbeitsablauf
+        # INTERLIS-Arbeitsablauf
 
-        MCP-Sicherheitsvertrag:
-        - Erforderliche und voneinander abhaengige MCP-Aufrufe einzeln und nacheinander ausfuehren.
-        - Jedes Resultat vor dem naechsten Aufruf pruefen.
-        - Bei Fehler, Timeout oder unbrauchbarem Resultat stoppen und Tool, Argumente sowie exakte Fehlermeldung berichten; einmalige diagnostizierte INVALID_SPEC-Reparatur gemäss Prosa-Workflow ausgenommen.
-        - Hoechstens einmal bei plausibel transientem Fehler wiederholen.
-        - Vor einem erfolgreichen Retry keine `.ili`-Datei schreiben oder aendern.
-        - Keine INTERLIS-Syntax erfinden; die typisierten High-Level-Tools verwenden.
-
-        Modell-Gates:
-        1. Klaere Modellzweck, fachliche Begriffe, Quellsysteme, Publikationsbedarf und offene Fragen.
-        2. Suche bei Bedarf passende Beispiele mit `findSimilarModels` und lies ein ausgewaehltes Modell mit `readModelExample`.
-        3. Fuer ein neues Modell `authorIliModel`, fuer einen bestehenden Stand den atomaren Batch `applyIliModelChanges` verwenden.
-        4. Ein `APPLIED`-Resultat von `applyIliModelChanges` enthaelt `semanticDiff` und `afterReview` fuer den Nachher-Stand.
-           Fuer denselben Stand nicht zusaetzlich `reviewIliChange` oder `reviewIliModel` ausfuehren.
-        5. Fuer einen neuen Constraint verwende das hoechste passende Authoring-Tool. Ein erfolgreiches `constraintProofs[].status = PASSED`
-           ist das technische Constraint-Gate; fuer denselben unveraenderten Constraint folgt kein redundanter Validator-Durchlauf.
-        6. Constraint-Authoring liefert Diff und `afterReview` aus denselben Compilations; kein redundantes Abschlussreview.
-        7. Fuer noch nicht unterstuetzte sonstige Aenderungen bearbeite den Modelltext gezielt und vergleiche Vorher und Nachher mit `reviewIliChange`.
-        8. Fuer einen einzelnen vollstaendigen Modellstand ohne Vorher-Stand verwende `reviewIliModel`.
-        9. Behandle Compilerfehler und automatisierte ERROR-Findings vor WARNING/INFO-Findings.
-        10. Liste `manualChecks` und `openQuestions` als fachliche Rueckfragen, ohne Kardinalitaeten, Rollen oder Constraints zu erfinden.
-        11. Nutze `analyzeIliModel`, `checkModelingRules` und `validateIliModel` nur fuer gezielte Einzeldiagnosen, nicht als Standard-Dreierfolge.
-        12. Wenn ein bereits gepruefter Nachher-Stand erneut geaendert wird, pruefe den neuen Stand wieder mit dem passenden High-Level-Tool.
-        13. Bei `authorIliModel` `updatedModelText` nur bei `status=GENERATED` uebernehmen, wenn `openQuestions`
-            keine blockierende Frage enthaelt und alle erforderlichen `constraintProofs` den Status `PASSED` haben.
-            Bei Modellen ohne Constraints ist das Array leer.
-        14. Geometrien ausschliesslich mit `GeometryTypeSpec` und expliziter Fachsemantik beschreiben.
-        """ + ch.so.agi.mcp.model.ConstraintAuthoringGuidance.WORKFLOW);
-  }
-
-  @McpResource(
-      uri = "interlis://knowledge/tool-guide",
-      name = "tool-guide",
-      title = "Werkzeugauswahl für interlis-mcp",
-      description = "Entscheidungshilfe für High-Level-Reviews, semantische Änderungen, Constraints, Diagnostik und Modellbeispiele.",
-      mimeType = "text/markdown"
-  )
-  public ReadResourceResult toolGuide() {
-    return markdown("interlis://knowledge/tool-guide", """
-        # Werkzeugauswahl für interlis-mcp
-
-        Bevorzuge das hoechste Tool, das die konkrete Aufgabe vollstaendig abdeckt. Rufe Low-Level-Tools nicht routinemaessig zusaetzlich auf.
-
-        ## Modell-Reviews und Aenderungen
-
-        - Vollstaendigen aktuellen Modellstand ohne Vorher-Stand pruefen: `reviewIliModel`.
-        - Neues Modell authoren: `authorIliModel`.
-        - Unterstuetzte semantische Aenderung ausfuehren: `applyIliModelChanges`. Das Tool arbeitet atomar und source-preserving und liefert bei `APPLIED` bereits semantischen Diff,
-          Compilerzustand und `afterReview` fuer den unveraenderten Nachher-Stand; fuer diesen Stand kein zusaetzliches `reviewIliChange` oder `reviewIliModel` ausfuehren.
-        - Der Batch unterstuetzt unter anderem `ADD_CLASS`, `ADD_STRUCTURE`, `ADD_ATTRIBUTE`, `UPDATE_ATTRIBUTE` und `REMOVE_ATTRIBUTE`. Bei potenziell brechender Semantik wird der ganze Batch mit
-          `BREAKING_CHANGE_REQUIRES_CONFIRMATION` zurueckgehalten, bis `allowPotentiallyBreaking=true` explizit gesetzt wird.
-        - Wenn der Kandidat unerwartete semantische Nebenaenderungen enthaelt, wird `UNEXPECTED_SEMANTIC_CHANGE` geliefert.
-        - Nicht unterstuetzte Aenderung: Quelltext gezielt bearbeiten und mit `reviewIliChange` abschliessen.
-        - Lokales Vorbild: `findSimilarModels` -> ausgewaehlten Treffer mit `readModelExample` vollstaendig lesen.
-
-        ## Constraints
-
-        - Bestehenden Constraint erklaeren: `reviewIliConstraint`.
-        - Bestehenden Constraint automatisch beweisen: `generateIliConstraintCases` fuer MANDATORY, UNIQUE, EXISTENCE,
-          PLAUSIBILITY und den unterstuetzten SET-Umfang.
-        - MANDATORY authoren: `authorIliMandatoryConstraint`.
-        - EXISTENCE authoren: `authorIliExistenceConstraint` mit explizitem Source-Pfad und vollstaendigen REQUIRED-IN-Zielen.
-        - PLAUSIBILITY authoren: `authorIliPlausibilityConstraint`; der Proof verwendet echte Populationen und kann
-          `UNDEFINED_COUNTS_AS_SUCCESS` verifizieren.
-        - SET authoren: `authorIliSetConstraint` fuer `OBJECT_COUNT` ueber `ALL` oder einen navigierten Objektpfad sowie `BOOLEAN_EXPRESSION`, optionales WHERE und GLOBAL/BASKET.
-        - UNIQUE authoren: `authorIliUniqueConstraint` fuer GLOBAL/BASKET/LOCAL, mehrere Schluesselpfade, WHERE und LOCAL-Praefix.
-        - Im Authoring setzt `constraintProofs[].status = PASSED` bestaetigte Validatorfaelle und vollstaendige
-          vorgesehene Coverage voraus. Bei `generateIliConstraintCases` bestaetigt `generationVerified=true`
-          die erzeugten Faelle. `coverageComplete=false` zeigt dort offene Coverage-Ziele.
-        - Safety-Grenzen nicht approximieren. `REFERENCE_EQUALITY_VALIDATOR_FAILURE`, `GEOMETRY_EQUALITY_VALIDATOR_FAILURE`
-          oder ein Polymorphie-Budget-Gap bedeuten, dass kein automatischer Ersatzbeweis behauptet wird; materialisierbare
-          konkrete SET-Endtypen werden dagegen als getrennte `routeTargetFqn`-Coverage-Faelle bewiesen.
-        - `testIliConstraint` prüft vor dem Authoring festgehaltene Fachfälle zusätzlich zum automatischen Proof.
-          Automatisch aus dem Constraint abgeleitete Fälle nicht routinemässig wiederholen.
-        - Constraint-Authoring liefert Proof, Diff und `afterReview` gemeinsam; kein redundantes `reviewIliChange`.
-
-        ## Pfade und Funktionen
-
-        - Bei bekanntem Ziel-FQN mit `findConstraintPaths` Pfade suchen; Kardinalitaet, Optionalitaet und Alternativen anhand der Fachregel beurteilen.
-          `usageHints.expression` liefert einen Ausdrucksbaustein, keine fertige Regel. Danach Ausdruck erstellen und bestehendes Authoring/Validator nutzen.
-          Suchgrenzen berichten; keine Treffer beweisen keine Unerreichbarkeit. `proofStatus=NOT_RUN` ist keine Freigabe.
-        - Standardfunktionen fuer typed Authoring zuerst mit `listConstraintFunctions` bestimmen und deren stabile `semanticId` verwenden.
-        - Parameter mit `semanticType=ATTRIBUTE_PATH` als `PATH` modellieren; unklare Pfade mit `resolveConstraintPath` pruefen.
-        - `reviewIliConstraint` loest Pfade fuer einen bereits vorhandenen Constraint automatisch im kompilierten Kontext auf.
-
-        ## Gezielte Low-Level-Diagnostik
-
-        - `validateIliModel`: Compiler-/Syntaxdiagnostik, insbesondere fuer einen konkreten Repair-Loop.
-        - `analyzeIliModel`: Struktur- oder Semantikdetail eines Modells.
-        - `checkModelingRules`: gezielte Regelpruefung, bei Bedarf mit einzelnen `ruleIds`.
-        - `listModelingRules`: Regelkatalog; prueft selbst kein Modell.
-        - `indexConfiguredModels`: Korpus inventarisieren; fuer die eigentliche Mustersuche `findSimilarModels` verwenden.
-
-        Nach einem passenden High-Level-Review nicht standardmaessig noch `validateIliModel`, `analyzeIliModel` und `checkModelingRules` aufrufen. Technisch generierte Namen und andere Platzhalter sind keine fachlichen Entscheide.
+        - Modellstruktur oder Constraint-Kontext mit `analyzeIliModel` untersuchen. Reine
+          Compilerdiagnostik liefert `validateIliModel`. `reviewIliModel` ergänzt Regeln,
+          manuelle Checks und offene Fragen. `verifyIliModel` führt auch automatische
+          Constraint-Nachweise für einen bestehenden Modellstand aus.
+        - Neues Modell mit `authorIliModel` erstellen. Zusammengehörende Änderungen mit
+          `applyIliModelChanges` atomar anwenden. `allowPotentiallyBreaking=true` setzt eine
+          ausdrückliche Bestätigung voraus. Nutze `reviewIliChange` für separat bearbeitete Stände.
+        - Einen neuen Constraint mit `authorIliConstraint` und passendem `spec.kind` ergänzen.
+          Bekannte Pfade mit `resolveConstraintPath` prüfen, unbekannte zu einem Ziel-FQN mit
+          `findConstraintPaths` suchen. Verwende `listConstraintFunctions` für Standard-Semantik-IDs.
+          Einzutragende fachliche Erwartungen vor der Modellierung festhalten, einschliesslich
+          Grenzwerten, Fehlwerten, leeren Beziehungen und Geltungsbereich.
+        - `reviewIliConstraint` erklärt eine bestehende Regel. `generateIliConstraintCases`
+          prüft automatisch abgeleitete Fälle mit dem Validator. Beurteile `generationVerified`
+          zusammen mit `coverageComplete`. `testIliConstraint` prüft separat festgelegte
+          Erwartungen. Gib deren Herkunft als `expectationSource` an. Für fachliche Abnahme
+          sind Erwartungen aus einer bestätigten Fachquelle erforderlich.
+        - Lies Compilerbefunde unter `beforeCompilation` und `afterCompilation`.
+          `constraintProofs: []` meldet, dass keine Regel zu prüfen war. Fehlt das Feld,
+          wurde die Proof-Phase noch nicht erreicht. `PASSED` gilt für die geprüfte Coverage.
+          Berichte fehlende Coverage, fehlgeschlagene Fälle und externe Funktionssemantik.
+          Nutze `specDiagnostics` oder den JSON-Pfad eines Schemafehlers für eine gezielte Korrektur.
+        - `APPLIED` gibt den technischen Änderungsstand frei. Prüfe dessen Regelkonformität
+          anhand `afterReview.validForAutomatedRules` und berichte `afterReview.ruleFindings`.
+          `constraintInteractions` enthält beratende Befunde. Ein nachgewiesener Widerspruch
+          bezieht sich auf Objekte im angegebenen Kontext, auch wenn ein leerer Transfer möglich ist.
+        - Kläre blockierende Fragen aus `openQuestions`. Halte Kandidaten zurück, wenn
+          erforderliche Proofs oder fachliche Tests fehlen oder gescheitert sind. Vor einem
+          autorisierten Schreiben prüfe, dass `testIliConstraint.modelHashes.model` zum
+          `modelHashes.after` der Änderung passt. Vergleiche beim Überschreiben den exakten
+          aktuellen UTF-8-Text per SHA-256 mit `modelHashes.before`. Prüfe nach einer weiteren
+          Änderung den neuen Stand.
+        - Erfolgreiche, ausgeübte und warnungsfreie Test-XTFs werden standardmässig ausgelassen.
+          Für die vollständige Ausgabe setze `includeSuccessfulTestXtf=true`.
+        - `generateExampleXtf` meldet untersuchte Transferdaten unter `validation.status`.
+          `generated=true` meldet die Erzeugung. Ausgelassene Klassen sind ungeprüft.
         """);
-  }
-
-  @McpResource(
-      uri = "interlis://knowledge/constraint-workflow",
-      name = "constraint-workflow",
-      title = "Arbeitsablauf für INTERLIS-Constraints",
-      description = "Entscheidungsmatrix für Constraint-Authoring, automatischen Validator-Proof und Modell-Level-Abschlussreview.",
-      mimeType = "text/markdown"
-  )
-  public ReadResourceResult constraintWorkflow() {
-    return markdown("interlis://knowledge/constraint-workflow", """
-        # Arbeitsablauf für INTERLIS-Constraints
-
-        Trenne drei Ebenen:
-
-        1. Constraint verstehen: `reviewIliConstraint` fuer AST, Pfade, Typen und technische Erklaerung.
-        2. Constraint beweisen: Bei `generateIliConstraintCases` sind `generationVerified=true` und `coverageComplete=true`
-           fuer den automatischen Proof erforderlich. Vor dem Authoring festgehaltene fachliche Erwartungsfaelle mit `testIliConstraint` pruefen.
-        3. Modellaenderung abschliessen: Authoring-Resultat mit Proof, Diff und `afterReview` gemeinsam pruefen.
-
-        ## Neue Constraints
-
-        | Art | Bevorzugtes Authoring | Proof |
-        | --- | --- | --- |
-        | MANDATORY | `authorIliMandatoryConstraint` | im Authoring enthalten (`constraintProofs`) |
-        | UNIQUE | `authorIliUniqueConstraint` | im Authoring enthalten (`constraintProofs`) |
-        | EXISTENCE | `authorIliExistenceConstraint` | im Authoring enthalten (`constraintProofs`) |
-        | PLAUSIBILITY | `authorIliPlausibilityConstraint` | im Authoring enthalten (`constraintProofs`) |
-        | SET | `authorIliSetConstraint` fuer `OBJECT_COUNT` oder `BOOLEAN_EXPRESSION` | im Authoring enthalten (`constraintProofs`) |
-
-        Freie Mandatory-/Existence-/Set-Snippet-Helper sind nicht Teil der MCP-Oberflaeche. Wenn ein typed Authoring einen Fall
-        nicht ausdruecken kann, bearbeitet der Agent den Modelltext gezielt und schliesst mit dem passenden Review und Proof ab.
-
-        ## Safety-Grenzen
-
-        - Proof-Reason-Codes und offene Ziele aus `coverageGaps` (Authoring) oder `coverageUnsolved` (`generateIliConstraintCases`) berichten.
-        - EXISTENCE REFERENCE/COORD/komplexe Geometrie besitzt keine skalare Ersatzsemantik; nur validatorbestaetigte typisierte Fixtures zaehlen.
-        - PLAUSIBILITY wird mit echten Populationen bewiesen.
-        - SET unterstuetzt `ALL` und navigierte Objektmengen, boolesche Ausdruecke, optionales WHERE und GLOBAL/BASKET, soweit alle Routen materialisierbar sind.
-        - Das erfolgreiche Constraint-Authoring liefert `afterReview` aus der vorhandenen Kompilierung.
-        """ + ch.so.agi.mcp.model.ConstraintAuthoringGuidance.WORKFLOW);
   }
 
   @McpResource(
@@ -198,9 +98,6 @@ public class KnowledgeResources {
   }
 
   private ReadResourceResult markdown(String uri, String markdown) {
-    if (uri.endsWith("/agent-workflow") || uri.endsWith("/tool-guide") || uri.endsWith("/constraint-workflow")) {
-      markdown += ResultEvidenceGuidance.TEXT + ConstraintWorkflowGuidance.TEXT;
-    }
     return new ReadResourceResult(List.of(new TextResourceContents(uri, "text/markdown", markdown)));
   }
 }

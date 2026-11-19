@@ -228,7 +228,6 @@ Wenn beispielsweise ein neuer vollständiger Review-Befund benötigt wird, ist e
 reviewIliModel
 -> neuesLowLevelTool
 -> validateIliModel
--> checkModelingRules
 ```
 
 High-Level-Tools sollen Compilation Results und analysierte Daten möglichst wiederverwenden.
@@ -429,7 +428,6 @@ Wirkung zweier Regeln. `./gradlew check` führt diese Tests aus.
 `ModelHashes` berechnet SHA-256 des unveränderten UTF-8-Texts und ergänzt die jeweiligen
 öffentlichen Ergebnisse. Die bestehenden frühen Rückgaben bleiben im vollständigen
 Implementierungspfad; die öffentliche Grenze ergänzt auch dort die zutreffenden Hashes.
-Java-Kompatibilitätsüberladungen delegieren mit unverändertem Standardumfang.
 
 `TestXtfOutput` kennt nur die öffentlichen `cases`, `verification.cases` und typisierten
 `constraintProofs[].verification.cases`. Es gibt keinen rekursiven Feldfilter. Die Map-Projektion
@@ -437,34 +435,23 @@ kopiert nur betroffene Ausgabecontainer; die typisierte Projektion bearbeitet da
 öffentliche DTO. Interne Validatorergebnisse, Evidence und Freigabeentscheidungen bleiben
 unberührt. Die Projektion benötigt keine Compiler- oder Validatoraufrufe.
 
-Es entstehen keine Tools, Aktionszustände, Caches, Sitzungen oder Detailabruf-Mechanismen.
-Bei fehlendem `warningCount` wird konservativ kein XTF entfernt. Die Standards bleiben
-kompatibel; `omittedSuccessfulTestXtfCount` erscheint nur bei tatsächlichen Auslassungen.
+Die Standardausgabe lässt nur XTFs bestandener, ausgeübter Fälle mit gültiger Fixture
+und `warningCount=0` aus. `includeSuccessfulTestXtf=true` liefert auch diese XTFs.
+`omittedSuccessfulTestXtfCount` erscheint bei tatsächlichen Auslassungen.
 
 `SlimAgentOutputTest` vergleicht beide Ausgabeformen vollständig geprüfter Fixtures und
 prüft, dass die Projektion keine zusätzliche Kompilierung auslöst.
 
-### Sichtbarer Mandatory-Eingabevertrag und Freigabehinweise
+### Typed Authoring und Freigabehinweise
 
-`authorIliMandatoryConstraint` beschreibt `spec.condition` und geordnete `children`
-bereits in seiner Toolbeschreibung. Das dortige allgemeine `DEFINED`-Beispiel stammt
-wie das Beispiel im Authoring-Prompt aus `ConstraintAuthoringGuidance`; es setzt ein
-vorhandenes Attribut `value` voraus. Das rekursive Eingabeschema bleibt verbindlich,
-auch wenn ein Connector die Argumente lediglich als `unknown` darstellt.
+`authorIliConstraint` erwartet `spec.kind` und die Felder dieser Variante.
+Das Beispiel im Prompt `author-interlis-constraint` zeigt einen DEFINED-Ausdruck
+für ein vorhandenes Attribut. Details zu den rekursiven Knoten stehen in
+[Constraints](CONSTRAINTS.md#typisiertes-authoring). Im Batch liegt dieselbe
+Spezifikation unter `request.changes[i].addConstraint.constraint`.
 
-Die sichtbaren Beschreibungen für skalare Constraint-Ausdrücke nennen zusätzlich
-`{"kind":"NUMERIC","value":7}` sowie `COMPARE` mit `operator` aus `==`, `!=`, `<`,
-`<=`, `>` und `>=` und genau zwei geordneten `children`. `DEFINED`/`NOT` haben ein
-Kind; `AND`/`OR` behalten die Reihenfolge. Diese Angaben gelten auch für Constraints
-in `authorIliModel` und in `applyIliModelChanges`. Im Batch liegt die Spezifikation
-unter `request.changes[i].addConstraint.constraint`, der Mandatory-Ausdruck dort
-in `condition`. `NUMBER` und `=` sind keine alternativen Schreibweisen.
-
-
-Eine vorgelagerte MCP-Schemavalidierung kann einen Aufruf ablehnen, bevor der Handler
-läuft. Diese Diagnose ist kein reguläres Ergebnis mit `status=INVALID_SPEC` und darf
-weder im Protokoll noch in der Bewertung so bezeichnet werden. Sie erweitert das
-bestehende Reparaturlimit nicht; `expression` ist kein Alias für `spec.condition`.
+MCP prüft das Eingabeschema vor dem Handler. Fachliche Spezifikationsfehler im
+Handler liefern `INVALID_SPEC` mit `specDiagnostics`.
 
 Bei Einträgen in `openQuestions` nennt der Agent die konkrete Frage und seinen Umgang
 damit in der Abschlussantwort. Tatsächlich offene Fachentscheide verhindern das

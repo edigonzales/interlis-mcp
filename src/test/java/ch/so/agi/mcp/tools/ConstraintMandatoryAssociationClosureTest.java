@@ -158,7 +158,7 @@ class ConstraintMandatoryAssociationClosureTest {
   void completesSameTopicAndExternalMandatoryAssociations() {
     Map<String, Object> result = tools().generateIliConstraintCases(
         SAME_AND_CROSS_TOPIC_MODEL,
-        "MainWeightGreater");
+        "MainWeightGreater", true);
 
     assertThat(result.get("generationVerified")).isEqualTo(true);
     Map<String, Object> verification = map(result.get("verification"));

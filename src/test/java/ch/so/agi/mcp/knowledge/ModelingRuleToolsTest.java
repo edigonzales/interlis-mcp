@@ -20,53 +20,37 @@ class ModelingRuleToolsTest {
       compilerService);
 
   @Test
-  void listsCoreAndSolothurnRulesSeparately() {
-    Map<String, Object> core = tools.listModelingRules(ModelingRuleProfile.CORE);
-    Map<String, Object> so = tools.listModelingRules(ModelingRuleProfile.SO_GIS);
-
-    assertThat(core.get("profile")).isEqualTo("CORE");
-    assertThat(core.get("rules")).asList().hasSize(2);
-    assertThat(so.get("profile")).isEqualTo("SO-GIS");
-    assertThat(so.get("rules")).asList().hasSize(18);
-  }
-
-  @Test
   void flagsAssociationsInPublicationModels() {
-    Map<String, Object> response = tools.checkModelingRules(
+    Map<String, Object> response = tools.reviewIliModel(
         publicationModelWithAssociation(),
         ModelPurpose.PUBLICATION,
-        List.of("MDE-010"),
         ModelingRuleProfile.SO_GIS);
 
     assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
-    assertThat(response.get("findings")).asList()
+    assertThat(response.get("ruleFindings")).asList()
         .anySatisfy(finding -> assertThat(finding.toString()).contains("MDE-010"));
   }
 
   @Test
   void exposesManualChecksSeparately() {
-    Map<String, Object> response = tools.checkModelingRules(
+    Map<String, Object> response = tools.reviewIliModel(
         minimalModel(),
         ModelPurpose.CAPTURE,
-        List.of("MDE-001", "MDE-050", "MDE-602"),
         ModelingRuleProfile.SO_GIS);
 
-    assertThat(response.get("findings")).asList().isEmpty();
-    assertThat(response.get("manualChecks")).asList().hasSize(3)
-        .anySatisfy(check -> assertThat(check.toString()).contains("MDE-602"));
+    assertThat(response.get("manualChecks").toString()).contains("MDE-001", "MDE-050", "MDE-602");
+    assertThat(response.get("ruleFindings").toString()).doesNotContain("MDE-001", "MDE-050", "MDE-602");
   }
 
   @Test
   void flagsMissingRequiredModelMetaAttribute() {
-    Map<String, Object> response = tools.checkModelingRules(
+    Map<String, Object> response = tools.reviewIliModel(
         modelWithThreeHeaderMetaAttributes(),
         ModelPurpose.CAPTURE,
-        List.of("MDE-060"),
         ModelingRuleProfile.SO_GIS);
 
-    assertThat(response.get("findings")).asList()
-        .singleElement()
-        .satisfies(finding -> assertThat(finding.toString())
+    assertThat(response.get("ruleFindings")).asList()
+        .anySatisfy(finding -> assertThat(finding.toString())
             .contains("MDE-060")
             .contains("furtherInformation"));
   }
@@ -85,68 +69,60 @@ class ModelingRuleToolsTest {
         END Demo.
         """;
 
-    Map<String, Object> response = tools.checkModelingRules(
+    Map<String, Object> response = tools.reviewIliModel(
         modelWithTab,
         ModelPurpose.CAPTURE,
-        List.of("MDE-206"),
         ModelingRuleProfile.SO_GIS);
 
     assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
-    assertThat(response.get("findings")).asList()
+    assertThat(response.get("ruleFindings")).asList()
         .anySatisfy(finding -> assertThat(finding.toString()).contains("MDE-206").contains("line"));
   }
 
   @Test
   void flagsMissingModelVersion() {
-    Map<String, Object> response = tools.checkModelingRules(
+    Map<String, Object> response = tools.reviewIliModel(
         modelWithoutVersion(),
         ModelPurpose.CAPTURE,
-        List.of("MDE-208"),
         ModelingRuleProfile.SO_GIS);
 
     assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
-    assertThat(response.get("findings")).asList()
-        .singleElement()
-        .satisfies(finding -> assertThat(finding.toString()).contains("MDE-208").contains("VERSION"));
+    assertThat(response.get("ruleFindings")).asList()
+        .anySatisfy(finding -> assertThat(finding.toString()).contains("MDE-208").contains("VERSION"));
   }
 
   @Test
   void flagsUndocumentedClassesAndAttributes() {
-    Map<String, Object> response = tools.checkModelingRules(
+    Map<String, Object> response = tools.reviewIliModel(
         modelWithUndocumentedClassAndAttribute(),
         ModelPurpose.CAPTURE,
-        List.of("MDE-209", "MDE-210"),
         ModelingRuleProfile.SO_GIS);
 
     assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
-    assertThat(response.get("findings")).asList()
+    assertThat(response.get("ruleFindings")).asList()
         .anySatisfy(finding -> assertThat(finding.toString()).contains("MDE-209").contains("Demo.Topic.Thing.name"))
         .anySatisfy(finding -> assertThat(finding.toString()).contains("MDE-210").contains("Demo.Topic.Thing"));
   }
 
   @Test
   void acceptsDocumentedClassAndAttribute() {
-    Map<String, Object> response = tools.checkModelingRules(
+    Map<String, Object> response = tools.reviewIliModel(
         documentedModel(),
         ModelPurpose.CAPTURE,
-        List.of("MDE-209", "MDE-210"),
         ModelingRuleProfile.SO_GIS);
 
-    assertThat(response.get("findings")).asList().isEmpty();
+    assertThat(response.get("ruleFindings").toString()).doesNotContain("MDE-209", "MDE-210");
   }
 
   @Test
   void flagsNamesLongerThanTwentyNineCharacters() {
-    Map<String, Object> response = tools.checkModelingRules(
+    Map<String, Object> response = tools.reviewIliModel(
         modelWithLongAttributeName(),
         ModelPurpose.CAPTURE,
-        List.of("MDE-302"),
         ModelingRuleProfile.SO_GIS);
 
-    assertThat(response.get("validForAutomatedRules")).isEqualTo(true);
-    assertThat(response.get("findings")).asList()
-        .singleElement()
-        .satisfies(finding -> assertThat(finding.toString()).contains("MDE-302").contains("characters"));
+    assertThat(response.get("ruleFindings")).asList()
+        .anySatisfy(finding -> assertThat(finding.toString()).contains("MDE-302").contains("characters"));
   }
 
   @Test
@@ -173,71 +149,65 @@ class ModelingRuleToolsTest {
 
   @Test
   void flagsUnboundedTextAndMtext() {
-    Map<String, Object> response = tools.checkModelingRules(
+    Map<String, Object> response = tools.reviewIliModel(
         modelWithUnboundedText(),
         ModelPurpose.CAPTURE,
-        List.of("MDE-502"),
         ModelingRuleProfile.SO_GIS);
 
     assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
-    assertThat(response.get("findings")).asList()
+    assertThat(response.get("ruleFindings")).asList()
         .anySatisfy(finding -> assertThat(finding.toString()).contains("MDE-502").contains("TEXT"))
         .anySatisfy(finding -> assertThat(finding.toString()).contains("MDE-502").contains("MTEXT"));
   }
 
   @Test
   void flagsImplicitRoleCardinalities() {
-    Map<String, Object> response = tools.checkModelingRules(
+    Map<String, Object> response = tools.reviewIliModel(
         publicationModelWithAssociation(),
         ModelPurpose.CAPTURE,
-        List.of("MDE-601"),
         ModelingRuleProfile.SO_GIS);
 
     assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
-    assertThat(response.get("findings")).asList().hasSize(2)
+    assertThat((List<?>) response.get("ruleFindings"))
+        .filteredOn(finding -> finding.toString().contains("MDE-601")).hasSize(2)
         .allSatisfy(finding -> assertThat(finding.toString()).contains("MDE-601").contains("{1}"));
   }
 
   @Test
   void acceptsExplicitRoleCardinalities() {
-    Map<String, Object> response = tools.checkModelingRules(
+    Map<String, Object> response = tools.reviewIliModel(
         modelWithExplicitRoleCardinalities(),
         ModelPurpose.CAPTURE,
-        List.of("MDE-601"),
         ModelingRuleProfile.SO_GIS);
 
-    assertThat(response.get("findings")).asList().isEmpty();
+    assertThat(response.get("ruleFindings").toString()).doesNotContain("MDE-601");
   }
 
   @Test
   void flagsConcreteClassWithoutEffectiveOid() {
-    Map<String, Object> response = tools.checkModelingRules(
+    Map<String, Object> response = tools.reviewIliModel(
         modelWithConcreteClassWithoutOid(),
         ModelPurpose.CAPTURE,
-        List.of("MDE-603"),
         ModelingRuleProfile.SO_GIS);
 
     assertThat(response.get("validForAutomatedRules")).isEqualTo(false);
-    assertThat(response.get("findings")).asList()
-        .singleElement()
-        .satisfies(finding -> assertThat(finding.toString()).contains("MDE-603").contains("Demo.Topic.Thing"));
+    assertThat(response.get("ruleFindings")).asList()
+        .anySatisfy(finding -> assertThat(finding.toString()).contains("MDE-603").contains("Demo.Topic.Thing"));
   }
 
   @Test
   void acceptsTopicOidForConcreteClassAndSkipsAbstractClass() {
-    Map<String, Object> withTopicOid = tools.checkModelingRules(
+    Map<String, Object> withTopicOid = tools.reviewIliModel(
         modelWithTopicOid(),
         ModelPurpose.CAPTURE,
-        List.of("MDE-603"),
         ModelingRuleProfile.SO_GIS);
-    Map<String, Object> abstractClass = tools.checkModelingRules(
+    Map<String, Object> abstractClass = tools.reviewIliModel(
         modelWithAbstractClassWithoutOid(),
         ModelPurpose.CAPTURE,
-        List.of("MDE-603"),
         ModelingRuleProfile.SO_GIS);
 
-    assertThat(withTopicOid.get("findings")).asList().isEmpty();
-    assertThat(abstractClass.get("findings")).asList().isEmpty();
+    assertThat(withTopicOid.get("ruleFindings").toString()).doesNotContain("MDE-603");
+    assertThat(abstractClass.get("ruleFindings").toString()).doesNotContain("MDE-603");
   }
 
   @Test

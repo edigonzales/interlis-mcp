@@ -1,5 +1,16 @@
 package ch.so.agi.mcp.constraint;
 
+import ch.so.agi.mcp.analysis.ModelAnalysisTools;
+import ch.so.agi.mcp.analysis.ModelChangeReviewService;
+import ch.so.agi.mcp.knowledge.KnowledgeRuleLoader;
+import ch.so.agi.mcp.knowledge.ModelingRuleTools;
+import ch.so.agi.mcp.model.IliSpecRenderer;
+import ch.so.agi.mcp.service.IliCompilerService;
+import ch.so.agi.mcp.tools.AttributeTools;
+import ch.so.agi.mcp.tools.ConstraintAuthoringTools;
+import ch.so.agi.mcp.tools.ConstraintCaseGenerationTools;
+import ch.so.agi.mcp.tools.ConstraintTestTools;
+import ch.so.agi.mcp.tools.DomainTools;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -12,6 +23,15 @@ public final class ConstraintFixtures {
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
   private ConstraintFixtures() {}
+
+  public static ConstraintAuthoringTools authoring(IliCompilerService compiler) {
+    var analysis = new ModelAnalysisTools(compiler);
+    var rules = new ModelingRuleTools(new KnowledgeRuleLoader(), analysis, compiler);
+    return new ConstraintAuthoringTools(new ConstraintAuthoringEngine(
+        new ConstraintAuthoringWorkflow(compiler), new IliSpecRenderer(new AttributeTools(), new DomainTools()),
+        new ConstraintCaseGenerationTools(new ConstraintContextService(compiler), new ConstraintTestTools(compiler)),
+        new ModelChangeReviewService(analysis, rules)));
+  }
 
   public static String repositories() {
     // ili2c resolves imports from a filesystem directory. Gradle copies these test resources there.

@@ -21,7 +21,7 @@ public class IliModelChangeTools {
 
   @McpTool(
       name = "applyIliModelChanges",
-      description = ch.so.agi.mcp.model.ConstraintAuthoringGuidance.SCALAR_INPUT + " Batch-Constraints: request.changes[i].addConstraint.constraint; MANDATORY-Ausdruck dort in condition. " + ch.so.agi.mcp.knowledge.ConstraintWorkflowGuidance.TOOL + " Wendet einen typisierten Batch atomar und source-preserving auf ein vollständiges INTERLIS-Modell an. Unterstützt ADD_IMPORT, ADD_TOPIC, ADD_DOMAIN, ADD_UNIT, ADD_CLASS, ADD_STRUCTURE, ADD_ASSOCIATION, ADD_ATTRIBUTE, UPDATE_ATTRIBUTE, REMOVE_ATTRIBUTE und ADD_CONSTRAINT. Der gesamte Batch nutzt genau einen Before- und einen After-Compile; Diff und afterReview werden daraus wiederverwendet. Das Breaking-Change-Gate liefert bei potenziell brechenden Änderungen ohne explizites allowPotentiallyBreaking=true nur einen geprüften candidateModelText. Das Tool schreibt keine Datei.",
+      description = "Wendet einen typisierten Batch atomar und quelltexttreu an. Potenziell brechende Änderungen benötigen ausdrückliche Freigabe. Neue Constraints werden automatisch geprüft.",
       generateOutputSchema = true,
       annotations = @McpTool.McpAnnotations(
           readOnlyHint = true,
@@ -33,9 +33,9 @@ public class IliModelChangeTools {
       String modelText,
       @McpToolParam(description = "Typisierter atomarer Batch und Breaking-Change-Freigabe", required = true)
       IliModelChangesRequest request,
-      @McpToolParam(description = "Modellzweck: CAPTURE, PUBLICATION, VALIDATION oder UNKNOWN", required = false)
+      @McpToolParam(description = "Modellzweck", required = false)
       @Nullable ModelPurpose modelPurpose,
-      @McpToolParam(description = "Regelprofil: CORE, SO-GIS oder SO-DATA (Default CORE)", required = false)
+      @McpToolParam(description = "Regelprofil, Standard CORE", required = false)
       @Nullable ModelingRuleProfile ruleProfile,
       @McpToolParam(description = TestXtfOutput.PARAMETER, required = false) @org.jspecify.annotations.Nullable Boolean includeSuccessfulTestXtf) {
     return TestXtfOutput.prepare(ModelHashes.attach(changesService.apply(modelText, request, null, modelPurpose, ruleProfile), modelText), includeSuccessfulTestXtf);

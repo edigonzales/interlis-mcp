@@ -38,14 +38,14 @@ class IliModelAuthoringToolsTest {
         END DateProof.
         """;
     var compiler = new CountingCompiler();
-    var result = tools(compiler).verifyIliModel(text, ModelPurpose.VALIDATION, ModelingRuleProfile.CORE);
+    var result = tools(compiler).verifyIliModel(text, ModelPurpose.VALIDATION, ModelingRuleProfile.CORE, null);
     assertThat(result.status).isEqualTo(IliAuthoringResult.Status.VERIFIED);
     assertThat(result.updatedModelText).isNull();
     assertThat(result.modelHashes).isEqualTo(ch.so.agi.mcp.model.ModelHashes.model(text));
     assertThat(result.constraintProofs).hasSize(1);
     assertThat(result.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
     assertThat(compiler.calls).isEqualTo(1);
-    var duplicate = tools(compiler).verifyIliModel(text.replace("UNIQUE UniqueDay: day;", "UNIQUE UniqueDay: day;\n UNIQUE UniqueDay: day;"), ModelPurpose.VALIDATION, ModelingRuleProfile.CORE);
+    var duplicate = tools(compiler).verifyIliModel(text.replace("UNIQUE UniqueDay: day;", "UNIQUE UniqueDay: day;\n UNIQUE UniqueDay: day;"), ModelPurpose.VALIDATION, ModelingRuleProfile.CORE, null);
     assertThat(duplicate.updatedModelText).isNull();
   }
 

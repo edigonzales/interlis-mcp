@@ -8,8 +8,6 @@ import ch.so.agi.mcp.analysis.ModelChangeTools;
 import ch.so.agi.mcp.analysis.ModelChangeReviewService;
 import ch.so.agi.mcp.analysis.ModelPurpose;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
-import ch.so.agi.mcp.knowledge.AgentPrompts;
-import ch.so.agi.mcp.knowledge.KnowledgeResources;
 import ch.so.agi.mcp.knowledge.KnowledgeRuleLoader;
 import ch.so.agi.mcp.knowledge.ModelCorpusService;
 import ch.so.agi.mcp.knowledge.ModelCorpusTools;
@@ -168,34 +166,6 @@ class AgenticGoldenScenariosTest {
             .contains("Demo.Topic.Thing.name")
             .contains("mandatory"));
     assertThat(response.get("potentiallyBreakingChanges")).asList().isNotEmpty();
-  }
-
-  @Test
-  void agentGuidanceRejectsRoutineLowLevelTripleCheck() {
-    String toolGuide = new KnowledgeResources(null, null).toolGuide().toString();
-    String agentPrompt = new AgentPrompts().interlisModelingAgent().toString();
-
-    assertThat(toolGuide)
-        .contains("reviewIliModel")
-        .contains("nicht standardmaessig noch `validateIliModel`, `analyzeIliModel` und `checkModelingRules`");
-    assertThat(agentPrompt)
-        .contains("reviewIliModel")
-        .contains("Low-Level-Tools");
-  }
-
-  @Test
-  void agentGuidanceUsesSemanticChangeOrChangeReviewAsFinalGate() {
-    String toolGuide = new KnowledgeResources(null, null).toolGuide().toString();
-    String agentPrompt = new AgentPrompts().interlisModelingAgent().toString();
-
-    assertThat(toolGuide)
-        .contains("applyIliModelChanges")
-        .contains("afterReview")
-        .contains("kein zusaetzliches `reviewIliChange` oder `reviewIliModel`");
-    assertThat(agentPrompt)
-        .contains("applyIliModelChanges")
-        .contains("afterReview")
-        .contains("nicht routinemässig noch `reviewIliChange` oder `reviewIliModel`");
   }
 
   @Test

@@ -50,7 +50,7 @@ public class ConstraintCaseGenerationTools {
 
   @McpTool(
       name = "generateIliConstraintCases",
-      description = "Erzeugt fuer INTERLIS Mandatory-, UNIQUE-, EXISTENCE-, PLAUSIBILITY- und SET-Constraints modellbewusste Witness-, Counterexample-, Boundary- und Scope-Faelle. Verwendet einen einmal kompilierten Constraint-Kontext fuer AST/semantische IR, Solver, Object-Graph-Synthese, TypedValueFixtureFactory, NavigationGraphSynthesizer und Validator-Fixtures. UNIQUE prueft GLOBAL/WHERE/(BASKET)/LOCAL sowie direkte REFERENCE-, STRUCTURE-/COMPOSITION- und Geometrieschlüssel. EXISTENCE prueft skalare, Struktur-, REFERENCE-, COORD-, Linien-, Flaechen- und Multigeometriewerte; Validatorgrenzen werden mit Safety-Reason-Codes zurückgehalten. PLAUSIBILITY erzeugt echte Populationen an der Prozentgrenze. SET unterstützt OBJECT_COUNT einschließlich objectCount(ALL), navigierte Objektmengen, boolesche Ausdrücke und Scope-Semantik, soweit alles materialisierbar ist. Alle freigegebenen Faelle sind vom realen ilivalidator bestätigt. Die Fälle werden automatisch aus der Regel abgeleitet und prüfen endliche Coverage.",
+      description = "Leitet Testfälle aus einem bestehenden Constraint ab und prüft sie mit ilivalidator. Meldet Coverage-Lücken und Nachweisgrenzen.",
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> generateIliConstraintCases(

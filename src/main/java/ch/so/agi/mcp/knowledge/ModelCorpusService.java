@@ -42,18 +42,6 @@ public class ModelCorpusService {
     this.maxSearchResults = maxSearchResults;
   }
 
-  public Map<String, Object> indexConfiguredModels() {
-    ScanResult scan = scan();
-    Map<String, Object> response = new LinkedHashMap<>();
-    response.put("configuredPaths", configuredPathStrings());
-    response.put("maxModelBytes", maxModelBytes);
-    response.put("indexedCount", scan.documents().size());
-    response.put("ignored", scan.ignored());
-    response.put("errors", scan.errors());
-    response.put("models", scan.documents().stream().map(ModelDocument::summaryMap).toList());
-    return response;
-  }
-
   public Map<String, Object> findSimilarModels(
       @Nullable String query,
       @Nullable String modelText,

@@ -108,8 +108,8 @@ class ConstraintOrderedSemanticsTest {
       spec.condition = node(IliConstraintSpec.ExpressionKind.NOT,
           node(IliConstraintSpec.ExpressionKind.IMPLIES, attribute("A"),
               node(IliConstraintSpec.ExpressionKind.IMPLIES, attribute("B"), attribute("C"))));
-      var result = new ConstraintAuthoringTools(engine(counting)).authorIliMandatoryConstraint(
-          MODEL.formatted(version, ""), "Ordered.Data.Item", spec, null, null);
+      var result = new ConstraintAuthoringTools(engine(counting)).authorIliConstraint(
+          MODEL.formatted(version, ""), "Ordered.Data.Item", spec, null, null, null);
       assertThat(calls.get()).isEqualTo(2);
       assertThat(result.status).as(result.toString()).isEqualTo(IliAuthoringResult.Status.GENERATED);
       assertThat(result.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));

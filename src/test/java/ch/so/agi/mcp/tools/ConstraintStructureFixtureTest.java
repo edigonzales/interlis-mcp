@@ -1,9 +1,10 @@
 package ch.so.agi.mcp.tools;
 
+import ch.so.agi.mcp.model.IliConstraintSpec;
+import tools.jackson.databind.ObjectMapper;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.so.agi.mcp.constraint.CompiledConstraintContext;
-import ch.so.agi.mcp.constraint.ConstraintAuthoringWorkflow;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.constraint.ConstraintFixtures;
 import ch.so.agi.mcp.model.IliAuthoringResult;
@@ -196,15 +197,14 @@ class ConstraintStructureFixtureTest {
   }
 
   @Test
-  void decisionTableUsesSameEmbeddingAndRetainsTypedDiagnostics() {
-    var tools = new ConstraintDecisionTableTools(new ConstraintAuthoringWorkflow(compiler), generator);
-    var condition = new ConstraintDecisionTableTools.DecisionCondition();
-    condition.attribute = "value"; condition.operator = ">="; condition.value = 50;
-    var row = new ConstraintDecisionTableTools.DecisionRow();
-    row.name = "allowed"; row.conditions = List.of(condition);
-    var result = tools.generateIliConstraintFromDecisionTable(model(
+  void typedAuthoringEmbedsStructureAndRetainsDiagnostics() {
+    var spec = new ObjectMapper().readValue("""
+        {"kind":"MANDATORY","name":"Rule","condition":{"kind":"COMPARE","operator":">=",
+         "children":[{"kind":"ATTRIBUTE","name":"value"},{"kind":"NUMERIC","value":50}]}}
+        """, IliConstraintSpec.class);
+    var result = ConstraintFixtures.authoring(compiler).authorIliConstraint(model(
         "STRUCTURE S = value : MANDATORY 0 .. 100; END S; CLASS Owner = s : S; END Owner;"),
-        "StructureProof.Data.S", "Rule", List.of(row));
+        "StructureProof.Data.S", spec, null, null, null);
     assertThat(result.status).as(result.toString()).isEqualTo(IliAuthoringResult.Status.GENERATED);
     assertThat(result.constraintProofs.getFirst().generatedCases).allSatisfy(c -> assertThat(c.structurePath).isEqualTo("s"));
     assertThat(result.constraintProofs.getFirst().verification.cases).allSatisfy(c -> {
@@ -214,32 +214,30 @@ class ConstraintStructureFixtureTest {
     });
   }
 
-  record DecisionRequest(String context, String constraintName,
-      List<ConstraintDecisionTableTools.DecisionRow> rows) {}
+  record AuthoringRequest(String contextFqn, IliConstraintSpec spec) {}
 
   @Test
   void publicP06WithExplicitPresenceGuardsProvesEmptyRelationship() throws Exception {
-    var request = ConstraintFixtures.arguments("P06", DecisionRequest.class);
+    var request = ConstraintFixtures.arguments("P06", AuthoringRequest.class);
     String model = ConstraintFixtures.withoutRule("P06");
     var localCompiler = new IliCompilerService(ConstraintFixtures.repositories());
     var localVerifier = new ConstraintTestTools(localCompiler);
-    var tools = new ConstraintDecisionTableTools(new ConstraintAuthoringWorkflow(localCompiler),
-        new ConstraintCaseGenerationTools(new ConstraintContextService(localCompiler), localVerifier));
-    var result = tools.generateIliConstraintFromDecisionTable(model, request.context(), request.constraintName(), request.rows());
+    var result = ConstraintFixtures.authoring(localCompiler).authorIliConstraint(
+        model, request.contextFqn(), request.spec(), null, null, null);
     assertThat(result.status).as(result.toString()).isEqualTo(IliAuthoringResult.Status.GENERATED);
     var cases = new ArrayList<ConstraintTestTools.TestCase>();
     for (int weight : List.of(100, 99)) {
       var c = testCase("no secondary " + weight, weight == 100, Map.of("Gewichtung", weight));
-      c.objects.getFirst().classFqn = request.context();
+      c.objects.getFirst().classFqn = request.contextFqn();
       cases.add(c);
     }
     var verification = localVerifier.testIliConstraint(result.updatedModelText,
-        request.context()+"."+request.constraintName(), cases);
+        request.contextFqn()+"."+request.spec().name, cases);
     assertThat(verification.get("allPassed")).as(verification.toString()).isEqualTo(true);
   }
 
   @Test
-  void decisionTableProvesEmptyCompositionInsideStructure() {
+  void typedAuthoringProvesEmptyCompositionInsideStructure() {
     String model = model("""
         STRUCTURE Part = value : MANDATORY 0 .. 100; END Part;
         STRUCTURE S = weight : MANDATORY 0 .. 100; parts : BAG {0..3} OF Part; END S;
@@ -250,18 +248,21 @@ class ConstraintStructureFixtureTest {
           FUNCTION add(a: NUMERIC; b: NUMERIC): NUMERIC;
         END Math.
         MODEL StructureProof""").replace("TOPIC Data =", "IMPORTS Math; TOPIC Data =");
-    var present = new ConstraintDecisionTableTools.DecisionCondition();
-    present.attribute = "parts->value"; present.aggregate = "SUM"; present.defined = true;
-    var absent = new ConstraintDecisionTableTools.DecisionCondition();
-    absent.attribute = "parts->value"; absent.aggregate = "SUM"; absent.defined = false;
-    var sum = new ConstraintDecisionTableTools.DecisionCondition();
-    sum.attribute = "parts->value"; sum.aggregate = "SUM"; sum.addAttribute = "weight"; sum.operator = "=="; sum.value = 100;
-    var weight = new ConstraintDecisionTableTools.DecisionCondition();
-    weight.attribute = "weight"; weight.operator = "=="; weight.value = 100;
-    var with = new ConstraintDecisionTableTools.DecisionRow(); with.name = "present"; with.conditions = List.of(present, sum);
-    var without = new ConstraintDecisionTableTools.DecisionRow(); without.name = "absent"; without.conditions = List.of(absent, weight);
-    var tools = new ConstraintDecisionTableTools(new ConstraintAuthoringWorkflow(compiler), generator);
-    var result = tools.generateIliConstraintFromDecisionTable(model, "StructureProof.Data.S", "Rule", List.of(with, without));
+    var summary = """
+        {"kind":"FUNCTION","name":"COLLECTION_SUM","functionOrigin":"STANDARD","children":[{"kind":"PATH","name":"parts->value"}]}
+        """;
+    var spec = new ObjectMapper().readValue("""
+        {"kind":"MANDATORY","name":"Rule","condition":{"kind":"OR","children":[
+          {"kind":"AND","children":[{"kind":"DEFINED","children":[%1$s]},
+            {"kind":"COMPARE","operator":"==","children":[
+              {"kind":"FUNCTION","name":"NUMERIC_ADD","functionOrigin":"STANDARD","children":[%1$s,{"kind":"ATTRIBUTE","name":"weight"}]},
+              {"kind":"NUMERIC","value":100}]}]},
+          {"kind":"AND","children":[{"kind":"NOT","children":[{"kind":"DEFINED","children":[%1$s]}]},
+            {"kind":"COMPARE","operator":"==","children":[{"kind":"ATTRIBUTE","name":"weight"},{"kind":"NUMERIC","value":100}]}]}
+        ]}}
+        """.formatted(summary), IliConstraintSpec.class);
+    var result = ConstraintFixtures.authoring(compiler).authorIliConstraint(
+        model, "StructureProof.Data.S", spec, null, null, null);
     assertThat(result.status).as(result.toString()).isEqualTo(IliAuthoringResult.Status.GENERATED);
     var verification = verify(result.updatedModelText, List.of(
         testCase("empty good", true, Map.of("s", Map.of("weight", 100, "parts", List.of()))),
@@ -329,7 +330,7 @@ class ConstraintStructureFixtureTest {
   }
 
   private IliAuthoringResult.ConstraintProof proof(String model) {
-    var response = generator.generateIliConstraintCases(model, "StructureProof.Data.S.Rule");
+    var response = generator.generateIliConstraintCases(model, "StructureProof.Data.S.Rule", true);
     assertThat(response.get("generationVerified")).as(response.toString()).isEqualTo(true);
     return IliAuthoringResult.constraintProof("StructureProof.Data.S.Rule", IliAuthoringResult.ProofStatus.PASSED, response);
   }

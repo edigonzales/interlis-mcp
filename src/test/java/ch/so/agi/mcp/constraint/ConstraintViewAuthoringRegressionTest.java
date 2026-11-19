@@ -16,8 +16,6 @@ import ch.so.agi.mcp.tools.ConstraintAuthoringTools;
 import ch.so.agi.mcp.tools.ConstraintCaseGenerationTools;
 import ch.so.agi.mcp.tools.ConstraintTestTools;
 import ch.so.agi.mcp.tools.DomainTools;
-import ch.so.agi.mcp.tools.UniqueConstraintAuthoringTools;
-import ch.so.agi.mcp.tools.SetConstraintAuthoringTools;
 import java.io.IOException;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -82,8 +80,8 @@ class ConstraintViewAuthoringRegressionTest {
     var engine = new ConstraintAuthoringEngine(new ConstraintAuthoringWorkflow(compiler),
         renderer(), new ConstraintCaseGenerationTools(new ConstraintContextService(compiler),
             new ConstraintTestTools(compiler)), review);
-    IliAuthoringResult result = new ConstraintAuthoringTools(engine).authorIliMandatoryConstraint(
-        ConstraintFixtures.withoutRule(fixture.caseId()), fixture.contextFqn(), (IliConstraintSpec.Mandatory) fixture.spec(), null, null);
+    IliAuthoringResult result = new ConstraintAuthoringTools(engine).authorIliConstraint(
+        ConstraintFixtures.withoutRule(fixture.caseId()), fixture.contextFqn(), (IliConstraintSpec.Mandatory) fixture.spec(), null, null, null);
     assertThat(compiler.calls).as(new ObjectMapper().writeValueAsString(result)).isEqualTo(2);
     assertThat(result.status).isEqualTo(IliAuthoringResult.Status.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED);
     assertThat(result.candidateModelText).isNotBlank();
@@ -105,13 +103,8 @@ class ConstraintViewAuthoringRegressionTest {
     var engine = new ConstraintAuthoringEngine(new ConstraintAuthoringWorkflow(compiler), renderer(),
         new ConstraintCaseGenerationTools(new ConstraintContextService(compiler), new ConstraintTestTools(compiler)),
         new ModelChangeReviewService(analysis, new ModelingRuleTools(new KnowledgeRuleLoader(), analysis, compiler)));
-    var result = switch (fixture.spec()) {
-      case IliConstraintSpec.Mandatory spec -> new ConstraintAuthoringTools(engine).authorIliMandatoryConstraint(ConstraintFixtures.withoutRule(fixture.caseId()), fixture.contextFqn(), spec, null, null);
-      case IliConstraintSpec.Plausibility spec -> new ConstraintAuthoringTools(engine).authorIliPlausibilityConstraint(ConstraintFixtures.withoutRule(fixture.caseId()), fixture.contextFqn(), spec, null, null);
-      case IliConstraintSpec.Unique spec -> new UniqueConstraintAuthoringTools(engine).authorIliUniqueConstraint(ConstraintFixtures.withoutRule(fixture.caseId()), fixture.contextFqn(), spec, null, null);
-      case IliConstraintSpec.Set spec -> new SetConstraintAuthoringTools(engine).authorIliSetConstraint(ConstraintFixtures.withoutRule(fixture.caseId()), fixture.contextFqn(), spec, null, null);
-      default -> throw new AssertionError("Unexpected fixture kind");
-    };
+    var result = new ConstraintAuthoringTools(engine).authorIliConstraint(
+        ConstraintFixtures.withoutRule(fixture.caseId()), fixture.contextFqn(), fixture.spec(), null, null, null);
     assertThat(compiler.calls).as(new ObjectMapper().writeValueAsString(result)).isEqualTo(2);
     assertThat(result.status).as(result.toString()).isEqualTo(IliAuthoringResult.Status.GENERATED);
     assertThat(result.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));

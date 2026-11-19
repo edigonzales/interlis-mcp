@@ -16,37 +16,6 @@ import org.springframework.context.annotation.Configuration;
 @Configuration(proxyBeanMethods = false)
 public class McpDiscriminatorSchemaConfig {
 
-  // Bound this schema adapter to the public INTERLIS tool contract.
-  private static final Set<String> INTERLIS_TOOLS = Set.of(
-      "analyzeIliModel",
-      "applyIliModelChanges",
-      "authorIliExistenceConstraint",
-      "authorIliMandatoryConstraint",
-      "authorIliModel",
-      "verifyIliModel",
-      "authorIliPlausibilityConstraint",
-      "authorIliSetConstraint",
-      "authorIliUniqueConstraint",
-      "checkModelingRules",
-      "findSimilarModels",
-      "formatIliModel",
-      "generateExampleXtf",
-      "generateIliConstraintCases",
-      "generateIliConstraintFromDecisionTable",
-      "indexConfiguredModels",
-      "listConstraintFunctions",
-      "listGeometryTypes",
-      "listModelingRules",
-      "readModelExample",
-      "renameModelElement",
-      "resolveConstraintPath",
-      "reviewIliChange",
-      "reviewIliConstraint",
-      "reviewIliModel",
-      "testIliConstraint",
-      "validateIliModel",
-      "validateXtf");
-
   @Bean
   static BeanPostProcessor discriminatedToolSchemaPostProcessor() {
     return new BeanPostProcessor() {
@@ -60,13 +29,8 @@ public class McpDiscriminatorSchemaConfig {
             continue;
           }
           McpSchema.Tool tool = specification.tool();
-          if (!INTERLIS_TOOLS.contains(tool.name())) {
-            normalizedSpecifications.add(specification);
-            continue;
-          }
           Map<String, Object> normalizedInput = normalize(tool.inputSchema());
           ConstraintSpecSchema.enrich(normalizedInput);
-          normalizedInput.put("x-interlis-decimal-bounds", "strings-v1");
           Map<String, Object> normalizedOutput = normalize(tool.outputSchema());
           McpSchema.Tool normalizedTool = new McpSchema.Tool(
               tool.name(), tool.title(), tool.description(), normalizedInput, normalizedOutput,
@@ -111,8 +75,6 @@ public class McpDiscriminatorSchemaConfig {
         }
       }
       Object alternatives = map.get("anyOf");
-
-
       if (alternatives instanceof List<?> list && isDiscriminatedUnion(list, definitions)) {
         map.remove("anyOf");
         map.put("oneOf", alternatives);

@@ -70,7 +70,7 @@ class ConstraintMultiStepObjectGraphTest {
   void reusesSharedAssociationStructureAndReferencePrefixesAndValidatesTheGraph() {
     Map<String, Object> result = tools.generateIliConstraintCases(
         MODEL,
-        "SharedReferencePath");
+        "SharedReferencePath", true);
 
     assertEquals(true, result.get("automaticCasesAvailable"), String.valueOf(result));
     assertEquals(true, result.get("generationVerified"), String.valueOf(result));
@@ -100,7 +100,7 @@ class ConstraintMultiStepObjectGraphTest {
   void writesNestedStructureNavigationAsNestedXtfAndValidatesIt() {
     Map<String, Object> result = tools.generateIliConstraintCases(
         MODEL,
-        "StructurePath");
+        "StructurePath", true);
 
     assertEquals(true, result.get("automaticCasesAvailable"), String.valueOf(result));
     assertEquals(true, result.get("generationVerified"), String.valueOf(result));

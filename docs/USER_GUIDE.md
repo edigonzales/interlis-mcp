@@ -185,7 +185,7 @@ Wichtige Ergebnisfelder sind unter anderem:
 - `manualChecks`
 - `openQuestions`
 
-Wenn `reviewIliModel` die benötigte Antwort bereits liefert, sollten `validateIliModel`, `analyzeIliModel` und `checkModelingRules` nicht noch einmal routinemässig separat aufgerufen werden.
+`reviewIliModel` enthält Compilerdiagnostik, Modellstruktur und Regelbefunde.
 
 ## Aufgabe: ein bestehendes Modell atomar ändern
 
@@ -332,19 +332,11 @@ Die erforderlichen Imports werden ausschliesslich aus dem explizit gewählten Ty
 
 ## Aufgabe: einen neuen Constraint erstellen
 
-Für neue Constraints sollte das höchste semantische Authoring-Tool verwendet werden:
-
-| Constraint-Art | Tool |
-| --- | --- |
-| MANDATORY | `authorIliMandatoryConstraint` |
-| EXISTENCE | `authorIliExistenceConstraint` |
-| PLAUSIBILITY | `authorIliPlausibilityConstraint` |
-| SET mit `OBJECT_COUNT` oder `BOOLEAN_EXPRESSION` | `authorIliSetConstraint` |
-| UNIQUE | `authorIliUniqueConstraint` |
-
-Ein typisiertes Authoring-Tool liefert bei Erfolg `constraintProofs[].status = PASSED`, den semantischen Diff, `afterReview` und `updatedModelText`. Proof und Modellreview sind damit für genau diesen Text abgeschlossen; ein zusätzliches `reviewIliChange` ist nicht nötig.
-
-Alle fünf Tools erwarten `modelText`, `contextFqn` und ein `spec` mit verbindlichem `kind`. Alte flache Payloads werden abgewiesen. Ein kompilierbarer, aber nicht vollständig bewiesener Stand erscheint nur als `candidateModelText`, beispielsweise mit `PROOF_INCOMPLETE` oder `EXTERNAL_FUNCTION_SEMANTICS_REQUIRED`.
+`authorIliConstraint` erwartet `modelText`, `contextFqn` und `spec`.
+`spec.kind` wählt MANDATORY, UNIQUE, EXISTENCE, PLAUSIBILITY oder SET.
+Bei Erfolg enthält das Ergebnis `constraintProofs[].status=PASSED`,
+`semanticDiff`, `afterReview` und `updatedModelText`. Ein technisch
+unvollständig geprüfter Stand bleibt als `candidateModelText` verfügbar.
 
 Ein ausführliches MANDATORY-Beispiel sowie Beispiele für EXISTENCE, PLAUSIBILITY, UNIQUE und SET stehen in [Constraints](CONSTRAINTS.md).
 
@@ -570,35 +562,21 @@ Vor dem Schreiben muss `modelHashes.model` der Fachtests mit `modelHashes.after`
 sie mit `before`. Bei Änderung setzt er auf dem aktuellen Stand neu an. Das ist keine atomare
 Dateisperre und keine automatische Zusammenführung.
 
-Für Authoring, Entscheidungstabellen, Fallgenerierung und explizite Tests kann der Agent
-`includeSuccessfulTestXtf=false` setzen. Ausschliesslich XTF-Texte bestandener, tatsächlich
-ausgeübter Fälle mit gültiger Fixture und ausdrücklich null Warnungen entfallen.
-`omittedSuccessfulTestXtfCount` nennt dann deren Anzahl. Auch bestandene negative Fälle können
-so verkürzt werden. Alle Erwartungen, Diagnosen, Coverage und Freigaben bleiben erhalten.
-Ohne Parameter oder mit `true` bleibt die vollständige Ausgabe erhalten; der normale
-Agentenablauf verwendet `false`. Ein erneuter Aufruf mit `true` dient nur konkreter Diagnose.
+Authoring, Modellverifikation, Fallgenerierung und explizite Tests lassen XTF-Texte
+bestandener, ausgeübter Fälle mit gültiger Fixture und null Warnungen standardmässig
+aus. Das gilt auch für bestätigte Gegenbeispiele. `omittedSuccessfulTestXtfCount`
+nennt die Anzahl. `includeSuccessfulTestXtf=true` liefert auch diese XTF-Texte.
 
-### Sichtbarer Mandatory-Eingabevertrag und Freigabehinweise
+### Typed Authoring und Freigabehinweise
 
-`authorIliMandatoryConstraint` beschreibt `spec.condition` und geordnete `children`
-bereits in seiner Toolbeschreibung. Das dortige allgemeine `DEFINED`-Beispiel stammt
-wie das Beispiel im Authoring-Prompt aus `ConstraintAuthoringGuidance`; es setzt ein
-vorhandenes Attribut `value` voraus. Das rekursive Eingabeschema bleibt verbindlich,
-auch wenn ein Connector die Argumente lediglich als `unknown` darstellt.
+`authorIliConstraint` erwartet `spec.kind` und die Felder dieser Variante.
+Das Beispiel im Prompt `author-interlis-constraint` zeigt einen DEFINED-Ausdruck
+für ein vorhandenes Attribut. Details zu den rekursiven Knoten stehen in
+[Constraints](CONSTRAINTS.md#typisiertes-authoring). Im Batch liegt dieselbe
+Spezifikation unter `request.changes[i].addConstraint.constraint`.
 
-Die sichtbaren Beschreibungen für skalare Constraint-Ausdrücke nennen zusätzlich
-`{"kind":"NUMERIC","value":7}` sowie `COMPARE` mit `operator` aus `==`, `!=`, `<`,
-`<=`, `>` und `>=` und genau zwei geordneten `children`. `DEFINED`/`NOT` haben ein
-Kind; `AND`/`OR` behalten die Reihenfolge. Diese Angaben gelten auch für Constraints
-in `authorIliModel` und in `applyIliModelChanges`. Im Batch liegt die Spezifikation
-unter `request.changes[i].addConstraint.constraint`, der Mandatory-Ausdruck dort
-in `condition`. `NUMBER` und `=` sind keine alternativen Schreibweisen.
-
-
-Eine vorgelagerte MCP-Schemavalidierung kann einen Aufruf ablehnen, bevor der Handler
-läuft. Diese Diagnose ist kein reguläres Ergebnis mit `status=INVALID_SPEC` und darf
-weder im Protokoll noch in der Bewertung so bezeichnet werden. Sie erweitert das
-bestehende Reparaturlimit nicht; `expression` ist kein Alias für `spec.condition`.
+MCP prüft das Eingabeschema vor dem Handler. Fachliche Spezifikationsfehler im
+Handler liefern `INVALID_SPEC` mit `specDiagnostics`.
 
 Bei Einträgen in `openQuestions` nennt der Agent die konkrete Frage und seinen Umgang
 damit in der Abschlussantwort. Tatsächlich offene Fachentscheide verhindern das
@@ -613,8 +591,7 @@ Das öffentliche Profil `SO-DATA` übernimmt CORE und SO-GIS mit Ausnahme von
 `MDE-060`, `MDE-209`, `MDE-210`. Die übrigen Regeln bleiben aktiv, insbesondere
 Namens-, Textlängen-, OID- und AT-Anforderungen. `CORE` und `SO-GIS` behalten ihre
 bisherigen Regeln. Über MCP gilt ausschliesslich `SO-DATA`, intern `SO_DATA`.
-Der Katalog ist mit `listModelingRules(profile="SO-DATA")` und als Ressource
-`interlis://knowledge/so-data-rules` verfügbar.
+Der Katalog steht in der Resource `interlis://knowledge/so-data-rules`.
 
 `DATA-001` verbietet Kommentare einschliesslich `!!`, `!!@` und Blockkommentaren
 ausserhalb von Zeichenketten. `DATA-002` verlangt ein gültiges ISO-Versionsdatum,

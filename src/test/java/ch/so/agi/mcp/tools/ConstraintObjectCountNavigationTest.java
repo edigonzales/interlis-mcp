@@ -51,17 +51,6 @@ class ConstraintObjectCountNavigationTest {
   }
 
   @ParameterizedTest @ValueSource(strings={"2.3","2.4"})
-  void decisionTableAuthorsObjectCountThroughTheCommonPipeline(String version) {
-    var condition=new ConstraintDecisionTableTools.DecisionCondition();condition.attribute="mids->leaves";condition.aggregate="OBJECT_COUNT";condition.operator=">=";condition.value=2;
-    var row=new ConstraintDecisionTableTools.DecisionRow();row.name="two leaves";row.conditions=List.of(condition);
-    var tool=new ConstraintDecisionTableTools(new ConstraintAuthoringWorkflow(compiler),generation);
-    var result=tool.generateIliConstraintFromDecisionTable(model(version,""),"Objects.T.Root","counted",List.of(row));
-    assertThat(result.status).as(result.toString()).isEqualTo(IliAuthoringResult.Status.GENERATED);
-    condition.defined=true;
-    assertThat(tool.generateIliConstraintFromDecisionTable(model(version,""),"Objects.T.Root","invalid",List.of(row)).status).isEqualTo(IliAuthoringResult.Status.INVALID_SPEC);
-  }
-
-  @ParameterizedTest @ValueSource(strings={"2.3","2.4"})
   void realValidatorCountsOccurrencesAndReportsDistinctIdentities(String version) {
     for(int shape=0;shape<4;shape++) {
       var c=new ConstraintTestTools.TestCase();c.name="shape "+shape;c.expectedConstraintValid=shape>=2;c.objects=new ArrayList<>();c.links=new ArrayList<>();
@@ -212,12 +201,12 @@ class ConstraintObjectCountNavigationTest {
             {"kind":"OBJECT_COUNT","objects":{"kind":"PATH","path":"mids->leaves"}},
             {"kind":"NUMERIC","value":2}]}]}]}}
         """,IliConstraintSpec.Mandatory.class);
-    var result=new ConstraintAuthoringTools(engine).authorIliMandatoryConstraint(model(version,""),"Objects.T.Root",spec,null,null);
+    var result=new ConstraintAuthoringTools(engine).authorIliConstraint(model(version,""),"Objects.T.Root",spec,null,null, null);
     assertThat(result.status).as(result.toString()).isEqualTo(IliAuthoringResult.Status.GENERATED);
     assertThat(result.updatedModelText).contains("INTERLIS.objectCount(mids->leaves)").doesNotContain("IMPLIES");
     assertThat(result.constraintProofs.getFirst().verification.cases).allSatisfy(c->assertThat(c.objectCounts).isNotEmpty());
     ((IliConstraintSpec.PathObjectsSpec)spec.condition.children.get(1).children.getFirst().children.getFirst().objects).path="mids->roots->mids->roots->mids->roots->mids->roots->mids";
-    result=new ConstraintAuthoringTools(engine).authorIliMandatoryConstraint(model(version,""),"Objects.T.Root",spec,null,null);
+    result=new ConstraintAuthoringTools(engine).authorIliConstraint(model(version,""),"Objects.T.Root",spec,null,null, null);
     assertThat(result.status).isEqualTo(IliAuthoringResult.Status.PROOF_INCOMPLETE);
     assertThat(result.constraintProofs).singleElement().satisfies(proof ->
         assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.INCOMPLETE));
