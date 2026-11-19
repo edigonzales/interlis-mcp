@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.analysis.ModelChangeReviewService;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
+import ch.so.agi.mcp.constraint.ConstraintFixtures;
 import ch.so.agi.mcp.knowledge.KnowledgeRuleLoader;
 import ch.so.agi.mcp.knowledge.ModelingRuleTools;
 import ch.so.agi.mcp.model.IliAuthoringResult;
@@ -614,7 +615,9 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
   }
 
   private static final class CountingCompiler extends IliCompilerService {
-    CountingCompiler() {}
+    CountingCompiler() {
+      super(ConstraintFixtures.repositories());
+    }
 
     CountingCompiler(String repositories) {
       super(repositories);

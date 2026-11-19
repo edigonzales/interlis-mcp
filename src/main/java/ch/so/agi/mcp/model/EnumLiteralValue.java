@@ -1,6 +1,6 @@
 package ch.so.agi.mcp.model;
 
-/** Canonical enum spelling shared by authoring, decision tables and ordered AST comparison. */
+/** Canonical enum spelling shared by authoring and ordered AST comparison. */
 public final class EnumLiteralValue {
   public static final String PATTERN = "[A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z][A-Za-z0-9_]*)*";
   private EnumLiteralValue() {}

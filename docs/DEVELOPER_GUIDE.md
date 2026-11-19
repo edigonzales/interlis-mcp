@@ -416,7 +416,8 @@ Die Rekonstruktionsfälle liegen unter `src/test/resources/constraint/reconstruc
 Die sechs INTERLIS-Modelle enthalten die Originalregeln. Markierungen grenzen die Regel ein,
 die `ConstraintReconstructionTest` für den jeweiligen Authoring-Aufruf entfernt. Die JSON-Dateien
 enthalten die MCP-Eingaben. Die importierten Modelle liegen unter `src/test/resources/constraint/imports`
-und werden als lokales Modellrepository verwendet.
+und bilden ein lokales Modellrepository. Das Modell-Authoring verwendet dort auch
+die CHBase-Geometrie für 2.4 samt deren Units- und CoordSys-Importen sowie Text_V2.
 
 Die JUnit-Tests führen die registrierten MCP-Handler aus und kompilieren die Kandidaten mit ili2c.
 Feste Sollwerte für XTF-Fälle prüfen mit ilivalidator die Zielregel und die Gültigkeit der Fixtures.

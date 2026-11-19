@@ -40,7 +40,7 @@ Ein Agent soll nicht mehrere Low-Level-Werkzeuge kombinieren, wenn ein High-Leve
 | Vorher/Nachher-Modell prüfen | `reviewIliChange` |
 | neues vollständiges Modell erstellen | `authorIliModel` |
 | unterstützte semantische Änderungen ausführen | `applyIliModelChanges` |
-| neuen unterstützten Constraint erstellen | passendes `authorIli...Constraint`-Tool |
+| neuen unterstützten Constraint erstellen | `authorIliConstraint` mit passendem `spec.kind` |
 | bestehenden Constraint automatisch beweisen | `generateIliConstraintCases` |
 | einzelnen Compilerfehler untersuchen | `validateIliModel` |
 | einzelne Strukturfrage beantworten | `analyzeIliModel` |

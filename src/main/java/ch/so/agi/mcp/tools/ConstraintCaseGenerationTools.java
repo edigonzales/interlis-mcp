@@ -864,7 +864,7 @@ public class ConstraintCaseGenerationTools {
 
   private List<String> limitations() {
     return List.of(
-        "Mandatory and decision-table structure proofs embed the context in an existing concrete owner class; ownerClassFqn and structurePath describe the fixture route. Missing, abstract or excessive routes remain explicit proof boundaries.",
+        "Mandatory structure proofs embed the context in an existing concrete owner class; ownerClassFqn and structurePath describe the fixture route. Missing, abstract or excessive routes remain explicit proof boundaries.",
         "Automatic semantic generation covers all five INTERLIS constraint kinds. SET supports OBJECT_COUNT over ALL and a typed navigated object path plus boolean expressions; every unmaterializable route remains explicit coverageUnsolved.",
         "SET preserves ili2c base/RESTRICTION and polymorphy metadata. Geometry-aware SET functions such as INTERLIS.areAreas/areAreas2 remain unsupported unless executable semantics are registered.",
         "SET WHERE and navigated object-set graphs are merged only when cardinalities and all concrete target routes can be synthesized without changing the population silently.",

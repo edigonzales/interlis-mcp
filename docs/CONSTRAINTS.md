@@ -81,12 +81,11 @@ Die gemeinsamen Authoring-Resultate verwenden ein geschlossenes Status-Enum mit 
 
 ## Eingabevertrag und frühe Diagnosen
 
-Alle Constraint-Authoring-Tools prüfen die rekursiven Ausdrucksknoten vor dem Rendern.
-Die gleichen Regeln gelten für Constraints in Modell- und Änderungswerkzeugen.
-Die nativen Schemas zeigen pro `kind` die erlaubten Felder und Kinderzahlen; die Java-DTOs,
-Toolnamen und Top-Level-Parameter bleiben bestehen.
+`authorIliConstraint` prüft die rekursiven Ausdrucksknoten vor dem Rendern.
+Dieselben Regeln gelten für eingebettete Constraints beim Modell-Authoring und im Batch.
+Die nativen Schemas zeigen pro `kind` die erlaubten Felder und Kinderzahlen.
 
-- `spec.name` beziehungsweise `constraintName` ist ein technischer Name gemäß
+- `spec.name` ist ein technischer Name gemäß
   `[A-Za-z][A-Za-z0-9_]*`. Für eine fachliche Nummer `42` kann der Server `Regel42`
   vorschlagen; er benennt den Constraint nicht automatisch um.
 - `ENUM.value` akzeptiert einen String mit oder ohne genau ein führendes `#`, beispielsweise
@@ -808,7 +807,7 @@ Für einen neuen typisiert unterstützten Constraint:
 
 ```text
 fachliche Regel
--> passendes authorIli...Constraint
+-> authorIliConstraint mit passendem spec.kind
 -> Constraint-Proof mit Status PASSED prüfen
 -> coverageUnsolved/Safety-Codes berichten
 -> updatedModelText übernehmen

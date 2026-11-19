@@ -5,7 +5,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
-/** Direct object-valued navigation, shared with Mandatory and Decision Table proofs. */
+/** Direct object-valued navigation, shared by Mandatory and SET proofs. */
 public final class NavigationGraphSynthesizer {
   public record Binding(ConstraintModelSynthesizer.ModelBinding modelBinding, String countKey,
       boolean collection, String routeTargetFqn) {}

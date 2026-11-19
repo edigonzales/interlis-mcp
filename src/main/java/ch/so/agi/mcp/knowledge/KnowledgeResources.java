@@ -64,6 +64,9 @@ public class KnowledgeResources {
           zusammen mit `coverageComplete`. `testIliConstraint` prüft separat festgelegte
           Erwartungen. Gib deren Herkunft als `expectationSource` an. Für fachliche Abnahme
           sind Erwartungen aus einer bestätigten Fachquelle erforderlich.
+        - Führe abhängige MCP-Aufrufe nacheinander aus. Bei einem temporären Ausfall kannst
+          du den betroffenen Aufruf einmal wiederholen. Fehlt weiterhin ein brauchbares Resultat,
+          melde den Fehler und halte alle darauf angewiesenen Dateiänderungen zurück.
         - Lies Compilerbefunde unter `beforeCompilation` und `afterCompilation`.
           `constraintProofs: []` meldet, dass keine Regel zu prüfen war. Fehlt das Feld,
           wurde die Proof-Phase noch nicht erreicht. `PASSED` gilt für die geprüfte Coverage.

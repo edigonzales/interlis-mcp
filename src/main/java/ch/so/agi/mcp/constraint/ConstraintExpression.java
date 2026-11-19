@@ -13,7 +13,7 @@ import java.util.Set;
  * Small typed, semantic intermediate representation for constraint expressions.
  *
  * <p>The IR deliberately separates meaning from INTERLIS surface syntax. Frontends for INTERLIS 2.3,
- * INTERLIS 2.4, decision tables or other structured rule sources translate into the same semantic
+ * INTERLIS 2.4 and typed constraint specifications translate into the same semantic
  * tree. Renderers, case generators and solver adapters can then operate on that tree without
  * duplicating logic for Math.add versus the INTERLIS 2.4 {@code +} operator, Math versus Math_V2,
  * or similar syntax differences.</p>

@@ -6,6 +6,7 @@ import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.analysis.ModelChangeReviewService;
 import ch.so.agi.mcp.analysis.ModelPurpose;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
+import ch.so.agi.mcp.constraint.ConstraintFixtures;
 import ch.so.agi.mcp.knowledge.KnowledgeRuleLoader;
 import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
 import ch.so.agi.mcp.knowledge.ModelingRuleTools;
@@ -72,7 +73,7 @@ void soDataKeepsAllFiveConstraintNamesWithoutMetadataComments() throws Exception
         completeSpec(), ModelPurpose.CAPTURE, ModelingRuleProfile.CORE);
 
     assertThat(compiler.calls).isEqualTo(1);
-    assertThat(result.status).as("%s", result).isEqualTo(IliAuthoringResult.Status.GENERATED);
+    assertThat(result.status).as("%s (%s)", result, result.afterCompilation).isEqualTo(IliAuthoringResult.Status.GENERATED);
     assertThat(result.semanticDiff.astGenerated).isTrue();
     assertThat(result.semanticDiff.astRoundTripVerified).isNull();
     assertThat(result.constraintProofs).hasSize(5)
@@ -286,6 +287,10 @@ void soDataKeepsAllFiveConstraintNamesWithoutMetadataComments() throws Exception
 
   private static final class CountingCompiler extends IliCompilerService {
     private int calls;
+
+    CountingCompiler() {
+      super(ConstraintFixtures.repositories());
+    }
 
     @Override
     public CompilationResult compile(String text, String repositories, String prefix) {

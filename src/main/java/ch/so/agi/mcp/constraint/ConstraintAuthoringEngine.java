@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
-/** Shared two-compile implementation used by all five constraint authoring tools. */
+/** Authors all five constraint kinds using a before and after compilation. */
 @Component
 public final class ConstraintAuthoringEngine {
   private static final Pattern ILI_VERSION =
