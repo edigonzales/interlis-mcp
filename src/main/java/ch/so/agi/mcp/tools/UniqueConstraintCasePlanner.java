@@ -44,14 +44,6 @@ final class UniqueConstraintCasePlanner {
         throw new IllegalArgumentException("UNIQUE proof cases and summaries must have equal size.");
       }
     }
-
-    int goalCount() {
-      return cases.size() + unsolved.size();
-    }
-
-    boolean complete() {
-      return unsolved.isEmpty();
-    }
   }
 
   private record ScopedGraph(

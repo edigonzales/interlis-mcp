@@ -35,14 +35,6 @@ final class PlausibilityConstraintCasePlanner {
             "PLAUSIBILITY proof cases and summaries must have equal size.");
       }
     }
-
-    int goalCount() {
-      return cases.size() + unsolved.size();
-    }
-
-    boolean complete() {
-      return unsolved.isEmpty();
-    }
   }
 
   private record RatioTarget(

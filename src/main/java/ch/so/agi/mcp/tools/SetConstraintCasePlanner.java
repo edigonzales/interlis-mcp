@@ -45,14 +45,6 @@ final class SetConstraintCasePlanner {
         throw new IllegalArgumentException("SET proof cases and summaries must have equal size.");
       }
     }
-
-    int goalCount() {
-      return solvedGoalCount + unsolved.size();
-    }
-
-    boolean complete() {
-      return unsolved.isEmpty();
-    }
   }
 
   private record WhereTemplates(
