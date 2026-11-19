@@ -19,12 +19,12 @@ final class ViewProofCoverage {
     Set<String> targetRefs=targetReferences(context.semantics());
     for (int filter=0; filter<scope.filters().size();filter++) {
       var expression=scope.filters().get(filter);
+      var fullBinding = ViewProofScope.bind(context, scope.base().getScopedName(), expression);
+      var prefix = new ViewProofScope(scope.view(), scope.base(), scope.filters().subList(0, filter));
+      var binding = new ConstraintModelSynthesizer.ModelBinding(scope.base().getScopedName(), fullBinding.references(), prefix);
       for (var goal: filterGoals(scope,expression,filter)) {
         var state=goal.kind();
         String name=goal.reason();
-        var fullBinding=ViewProofScope.bind(context,scope.base().getScopedName(),expression);
-        var prefix=new ViewProofScope(scope.view(),scope.base(),scope.filters().subList(0,filter));
-        var binding=new ConstraintModelSynthesizer.ModelBinding(scope.base().getScopedName(),fullBinding.references(),prefix);
         boolean solved=false;
         for (var source: original) {
           if (source.objects.stream().noneMatch(o->o.classFqn.equals(scope.base().getScopedName()))) continue;
@@ -73,7 +73,7 @@ final class ViewProofCoverage {
         }
       }
     }
-    var result=new LinkedHashMap<>(tools.testCompiledConstraint(context,cases));
+    var result=tools.testCompiledConstraint(context, cases);
     var checked=(List<Map<String,Object>>)result.get("cases");
     for (int index=0;index<cases.size();index++) {
       int planned=0;
@@ -100,15 +100,16 @@ final class ViewProofCoverage {
 
   private static List<ConstraintExpressionEngine.TestGoal> filterGoals(ViewProofScope scope, ConstraintExpression expression, int filter) {
     var goals=new ArrayList<ConstraintExpressionEngine.TestGoal>();
+    var footprint = scope.footprint(expression);
     for(var state:List.of(ConstraintExpressionEngine.GoalKind.TRUE,ConstraintExpressionEngine.GoalKind.FALSE,ConstraintExpressionEngine.GoalKind.UNDEFINED))
-      goals.add(new ConstraintExpressionEngine.TestGoal(state,scope.footprint(expression),"View filter "+(filter+1)+" reached "+state,
+      goals.add(new ConstraintExpressionEngine.TestGoal(state,footprint,"View filter "+(filter+1)+" reached "+state,
           List.of(new ConstraintExpressionEngine.StateCondition(state,expression))));
     if(expression instanceof ConstraintExpression.Or alternatives) {
       var conditions=new ArrayList<ConstraintExpressionEngine.StateCondition>();
       for(int index=0;index<alternatives.operands().size();index++) {
         var branch=alternatives.operands().get(index);
         var reached=new ArrayList<>(conditions);reached.add(new ConstraintExpressionEngine.StateCondition(ConstraintExpressionEngine.GoalKind.TRUE,branch));
-        goals.add(new ConstraintExpressionEngine.TestGoal(ConstraintExpressionEngine.GoalKind.TRUE,scope.footprint(expression),
+        goals.add(new ConstraintExpressionEngine.TestGoal(ConstraintExpressionEngine.GoalKind.TRUE,footprint,
             "View filter "+(filter+1)+" alternative "+(index+1),reached));
         conditions.add(new ConstraintExpressionEngine.StateCondition(ConstraintExpressionEngine.GoalKind.FALSE,branch));
       }

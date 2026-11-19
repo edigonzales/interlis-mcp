@@ -1,5 +1,7 @@
 package ch.so.agi.mcp.tools;
 
+import static ch.so.agi.mcp.tools.ConstraintCaseGenerationTools.summaryValue;
+
 import ch.so.agi.mcp.constraint.CompiledConstraintContext;
 import ch.so.agi.mcp.constraint.ConstraintExpression;
 import ch.so.agi.mcp.constraint.ConstraintExpressionEngine;
@@ -361,15 +363,5 @@ final class ExistenceConstraintScalarCasePlanner {
 
   private static String nonBlank(String value, String fallback) {
     return value == null || value.isBlank() ? fallback : value;
-  }
-
-  private static Object summaryValue(@Nullable Object value) {
-    if (value == null || value == ConstraintExpressionEngine.Undefined.INSTANCE) {
-      return "UNDEFINED";
-    }
-    if (value instanceof BigDecimal number) {
-      return number.stripTrailingZeros().toPlainString();
-    }
-    return value;
   }
 }

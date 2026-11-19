@@ -230,12 +230,12 @@ public class ConstraintCaseGenerationTools {
       String code = ex.getMessage().contains(":") ? ex.getMessage().substring(0,ex.getMessage().indexOf(':')) : "OBJECT_PATH_BINDING_UNAVAILABLE";
       return unavailable(code,ex.getMessage(),context,context.compilation().messages());
     }
-    var results = routes.stream().map(route -> generateMandatoryRoute(context,mandatory,route)).toList();
+    var results = routes.stream().map(route -> generateMandatoryRoute(context, mandatory, route, routes)).toList();
     return ObjectPathProofResults.merge(results, routes);
   }
 
   private Map<String,Object> generateMandatoryRoute(CompiledConstraintContext context,
-      SemanticConstraint.Mandatory mandatory, Map<String,String> route) {
+      SemanticConstraint.Mandatory mandatory, Map<String, String> route, List<Map<String, String>> routes) {
     ConstraintExpression expression = mandatory.condition();
     ConstraintModelSynthesizer.ModelBinding binding;
     try {
@@ -267,7 +267,7 @@ public class ConstraintCaseGenerationTools {
       return unavailable("OBJECT_GRAPH_SYNTHESIS_FAILED", ex.getMessage(), context, context.compilation().messages());
     }
 
-    var topology = ObjectCountTopologyPlanner.plan(context, expression, binding);
+    var topology = ObjectCountTopologyPlanner.plan(context.transferDescription(), expression, binding, routes);
     var combinedCases = new ArrayList<>(generated.cases()); combinedCases.addAll(topology.cases());
     var combinedSummaries = new ArrayList<>(generated.summaries()); combinedSummaries.addAll(topology.summaries());
     generated = new GeneratedCases(combinedCases, combinedSummaries);
@@ -467,14 +467,7 @@ public class ConstraintCaseGenerationTools {
     }
     result.put("conditionKind", set.condition().getClass().getSimpleName());
     if (set.condition() instanceof SemanticConstraint.ObjectCountSetCondition objectCount) {
-      result.put("operator", switch (objectCount.operator()) {
-        case EQ -> "==";
-        case NE -> "!=";
-        case LT -> "<";
-        case LE -> "<=";
-        case GT -> ">";
-        case GE -> ">=";
-      });
+      result.put("operator", objectCount.operator().interlis());
       result.put("threshold", objectCount.threshold().stripTrailingZeros().toPlainString());
       if (objectCount.objects() instanceof SemanticConstraint.AllObjects all) {
         result.put("objectSet", "ALL");
@@ -573,13 +566,13 @@ public class ConstraintCaseGenerationTools {
     return new GeneratedCases(cases, summaries);
   }
 
-  private Map<String, Object> summaryAssignment(Map<String, Object> assignment) {
+  static Map<String, Object> summaryAssignment(Map<String, Object> assignment) {
     Map<String, Object> result = new LinkedHashMap<>();
     assignment.forEach((name, value) -> result.put(name, summaryValue(value)));
     return result;
   }
 
-  private Object summaryValue(@Nullable Object value) {
+  static Object summaryValue(@Nullable Object value) {
     if (value == null || value == ConstraintExpressionEngine.Undefined.INSTANCE) {
       return "UNDEFINED";
     }
@@ -587,7 +580,7 @@ public class ConstraintCaseGenerationTools {
       return number.stripTrailingZeros().toPlainString();
     }
     if (value instanceof Collection<?> collection) {
-      return collection.stream().map(this::summaryValue).toList();
+      return collection.stream().map(ConstraintCaseGenerationTools::summaryValue).toList();
     }
     return value;
   }

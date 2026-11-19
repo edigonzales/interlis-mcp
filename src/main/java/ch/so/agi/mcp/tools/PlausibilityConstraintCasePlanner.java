@@ -1,5 +1,7 @@
 package ch.so.agi.mcp.tools;
 
+import static ch.so.agi.mcp.tools.ConstraintCaseGenerationTools.summaryAssignment;
+
 import ch.so.agi.mcp.constraint.CompiledConstraintContext;
 import ch.so.agi.mcp.constraint.ConstraintExpression;
 import ch.so.agi.mcp.constraint.ConstraintExpressionEngine;
@@ -9,7 +11,6 @@ import ch.so.agi.mcp.constraint.SemanticConstraint;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -344,25 +345,6 @@ final class PlausibilityConstraintCasePlanner {
         ? "UNSOLVED"
         : solution.reasonCode();
     return code + ": " + solution.reason();
-  }
-
-  private static Map<String, Object> summaryAssignment(Map<String, Object> assignment) {
-    Map<String, Object> result = new LinkedHashMap<>();
-    assignment.forEach((name, value) -> result.put(name, summaryValue(value)));
-    return Map.copyOf(result);
-  }
-
-  private static Object summaryValue(Object value) {
-    if (value == null || value == ConstraintExpressionEngine.Undefined.INSTANCE) {
-      return "UNDEFINED";
-    }
-    if (value instanceof BigDecimal number) {
-      return number.stripTrailingZeros().toPlainString();
-    }
-    if (value instanceof Collection<?> collection) {
-      return collection.stream().map(PlausibilityConstraintCasePlanner::summaryValue).toList();
-    }
-    return value;
   }
 
   private static String display(BigDecimal value) {
