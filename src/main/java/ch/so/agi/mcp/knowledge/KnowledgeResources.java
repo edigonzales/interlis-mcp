@@ -60,8 +60,8 @@ public class KnowledgeResources {
         1. Klaere Modellzweck, fachliche Begriffe, Quellsysteme, Publikationsbedarf und offene Fragen.
         2. Suche bei Bedarf passende Beispiele mit `findSimilarModels` und lies ein ausgewaehltes Modell mit `readModelExample`.
         3. Fuer ein neues Modell `authorIliModel`, fuer einen bestehenden Stand den atomaren Batch `applyIliModelChanges` verwenden.
-        4. Ein erfolgreiches `APPLIED`-Resultat von `applyIliModelChanges` enthaelt den semantischen Diff und `afterReview` als
-          Abschlussgate. Fuer denselben unveraenderten Nachher-Stand nicht zusaetzlich `reviewIliChange` oder `reviewIliModel` ausfuehren.
+        4. Ein `APPLIED`-Resultat von `applyIliModelChanges` enthaelt `semanticDiff` und `afterReview` fuer den Nachher-Stand.
+           Fuer denselben Stand nicht zusaetzlich `reviewIliChange` oder `reviewIliModel` ausfuehren.
         5. Fuer einen neuen Constraint verwende das hoechste passende Authoring-Tool. Ein erfolgreiches `constraintProofs[].status = PASSED`
            ist das technische Constraint-Gate; fuer denselben unveraenderten Constraint folgt kein redundanter Validator-Durchlauf.
         6. Constraint-Authoring liefert Diff und `afterReview` aus denselben Compilations; kein redundantes Abschlussreview.
@@ -71,7 +71,9 @@ public class KnowledgeResources {
         10. Liste `manualChecks` und `openQuestions` als fachliche Rueckfragen, ohne Kardinalitaeten, Rollen oder Constraints zu erfinden.
         11. Nutze `analyzeIliModel`, `checkModelingRules` und `validateIliModel` nur fuer gezielte Einzeldiagnosen, nicht als Standard-Dreierfolge.
         12. Wenn ein bereits gepruefter Nachher-Stand erneut geaendert wird, pruefe den neuen Stand wieder mit dem passenden High-Level-Tool.
-        13. Ein neues Modell nur aus `authorIliModel.updatedModelText` bei `complete=true` uebernehmen.
+        13. Bei `authorIliModel` `updatedModelText` nur bei `status=GENERATED` uebernehmen, wenn `openQuestions`
+            keine blockierende Frage enthaelt und alle erforderlichen `constraintProofs` den Status `PASSED` haben.
+            Bei Modellen ohne Constraints ist das Array leer.
         14. Geometrien ausschliesslich mit `GeometryTypeSpec` und expliziter Fachsemantik beschreiben.
         """ + ch.so.agi.mcp.model.ConstraintAuthoringGuidance.WORKFLOW);
   }
@@ -112,9 +114,9 @@ public class KnowledgeResources {
           `UNDEFINED_COUNTS_AS_SUCCESS` verifizieren.
         - SET authoren: `authorIliSetConstraint` fuer `OBJECT_COUNT` ueber `ALL` oder einen navigierten Objektpfad sowie `BOOLEAN_EXPRESSION`, optionales WHERE und GLOBAL/BASKET.
         - UNIQUE authoren: `authorIliUniqueConstraint` fuer GLOBAL/BASKET/LOCAL, mehrere Schluesselpfade, WHERE und LOCAL-Praefix.
-        - `constraintProofs[].status = PASSED` bzw. `generationVerified=true` bedeutet, dass alle erzeugten Proof-Faelle vom echten
-          ilivalidator mit dem erwarteten Resultat bestaetigt wurden. `coverageComplete=false` kann trotzdem verbleibende
-          sichere Coverage-Grenzen anzeigen.
+        - Im Authoring setzt `constraintProofs[].status = PASSED` bestaetigte Validatorfaelle und vollstaendige
+          vorgesehene Coverage voraus. Bei `generateIliConstraintCases` bestaetigt `generationVerified=true`
+          die erzeugten Faelle. `coverageComplete=false` zeigt dort offene Coverage-Ziele.
         - Safety-Grenzen nicht approximieren. `REFERENCE_EQUALITY_VALIDATOR_FAILURE`, `GEOMETRY_EQUALITY_VALIDATOR_FAILURE`
           oder ein Polymorphie-Budget-Gap bedeuten, dass kein automatischer Ersatzbeweis behauptet wird; materialisierbare
           konkrete SET-Endtypen werden dagegen als getrennte `routeTargetFqn`-Coverage-Faelle bewiesen.
@@ -157,7 +159,8 @@ public class KnowledgeResources {
         Trenne drei Ebenen:
 
         1. Constraint verstehen: `reviewIliConstraint` fuer AST, Pfade, Typen und technische Erklaerung.
-        2. Constraint beweisen: `generateIliConstraintCases` fuer automatisch erzeugte Faelle und `generationVerified=true` als Gate; `testIliConstraint` fuer vor dem Authoring festgehaltene fachliche Erwartungsfaelle.
+        2. Constraint beweisen: Bei `generateIliConstraintCases` sind `generationVerified=true` und `coverageComplete=true`
+           fuer den automatischen Proof erforderlich. Vor dem Authoring festgehaltene fachliche Erwartungsfaelle mit `testIliConstraint` pruefen.
         3. Modellaenderung abschliessen: Authoring-Resultat mit Proof, Diff und `afterReview` gemeinsam pruefen.
 
         ## Neue Constraints
@@ -175,11 +178,11 @@ public class KnowledgeResources {
 
         ## Safety-Grenzen
 
-        - Proof-Reason-Codes und `coverageUnsolved` werden berichtet und nicht approximiert.
+        - Proof-Reason-Codes und offene Ziele aus `coverageGaps` (Authoring) oder `coverageUnsolved` (`generateIliConstraintCases`) berichten.
         - EXISTENCE REFERENCE/COORD/komplexe Geometrie besitzt keine skalare Ersatzsemantik; nur validatorbestaetigte typisierte Fixtures zaehlen.
         - PLAUSIBILITY wird mit echten Populationen bewiesen.
         - SET unterstuetzt `ALL` und navigierte Objektmengen, boolesche Ausdruecke, optionales WHERE und GLOBAL/BASKET, soweit alle Routen materialisierbar sind.
-        - Jedes Authoring-Tool liefert auch das Modell-Level-`afterReview` aus seinen vorhandenen Compilations.
+        - Das erfolgreiche Constraint-Authoring liefert `afterReview` aus der vorhandenen Kompilierung.
         """ + ch.so.agi.mcp.model.ConstraintAuthoringGuidance.WORKFLOW);
   }
 

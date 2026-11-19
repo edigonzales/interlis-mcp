@@ -502,6 +502,9 @@ public class StdioE2eTest {
         assertContainsAll(resources,
                 "interlis://knowledge/handbook-rules",
                 "interlis://knowledge/agent-workflow",
+                "interlis://knowledge/tool-guide",
+                "interlis://knowledge/constraint-workflow",
+                "interlis://knowledge/so-data-rules",
                 "interlis://knowledge/model-corpus-index");
 
         String handbook = readResource(4, "interlis://knowledge/handbook-rules");
@@ -511,10 +514,43 @@ public class StdioE2eTest {
         assertContainsAll(prompts,
                 "interlis-modeling-agent",
                 "review-interlis-model",
-                "extend-interlis-model");
+                "extend-interlis-model",
+                "author-interlis-constraint");
 
         String reviewPrompt = getPrompt(6, "review-interlis-model", "{\"modelPurpose\":\"PUBLICATION\"}");
-        assertContainsAll(reviewPrompt, "analyzeIliModel", "checkModelingRules", "validateIliModel", "PUBLICATION");
+        assertContainsAll(reviewPrompt, "analyzeIliModel", "checkModelingRules", "validateIliModel", "PUBLICATION",
+                "compilerDiagnostics");
+
+        String modelingPrompt = getPrompt(10, "interlis-modeling-agent", "{}");
+        String workflow = readResource(11, "interlis://knowledge/agent-workflow");
+        for (String guidance : java.util.List.of(modelingPrompt, workflow)) {
+            assertContainsAll(guidance, "status=GENERATED", "updatedModelText", "openQuestions", "PASSED",
+                    "Bei Modellen ohne Constraints ist das Array leer.");
+            assertFalse(guidance.contains("complete=true"), guidance);
+        }
+
+        String extension = getPrompt(12, "extend-interlis-model", "{\"modelPurpose\":\"PUBLICATION\"}");
+        String batch = extension.substring(extension.indexOf("3. Verwende"), extension.indexOf("4. Wenn"));
+        assertContainsAll(batch, "applyIliModelChanges", "afterCompilation.valid", "afterCompilation.diagnostics",
+                "semanticDiff", "afterReview", "constraintProofs", "openQuestions");
+        assertFalse(batch.contains("afterCompilerValid") || batch.contains("afterDiagnostics"), batch);
+        assertContainsAll(extension, "in diesem Review `afterCompilerValid`, `afterDiagnostics`");
+
+        String toolGuide = readResource(13, "interlis://knowledge/tool-guide");
+        for (String guidance : java.util.List.of(modelingPrompt, extension, workflow, toolGuide)) {
+            assertContainsAll(guidance, "APPLIED", "technische Freigabe", "Gesamtmodells",
+                    "afterReview.validForAutomatedRules", "afterReview.ruleFindings");
+        }
+        assertContainsAll(toolGuide, "PASSED` bestaetigte Validatorfaelle und vollstaendige",
+                "`coverageComplete=false` zeigt dort offene Coverage-Ziele.");
+
+        String constraintPrompt = getPrompt(14, "author-interlis-constraint", "{\"constraintKind\":\"SET\"}");
+        String constraintWorkflow = readResource(15, "interlis://knowledge/constraint-workflow");
+        for (String guidance : java.util.List.of(constraintPrompt, constraintWorkflow)) {
+            assertContainsAll(guidance, "generationVerified=true", "coverageComplete=true", "coverageUnsolved");
+        }
+        assertContainsAll(readResource(16, "interlis://knowledge/so-data-rules"), "DATA-001");
+        assertContainsAll(readResource(17, "interlis://knowledge/model-corpus-index"), "Configured INTERLIS Model Corpus");
 
         String modelText = """
                 INTERLIS 2.4;

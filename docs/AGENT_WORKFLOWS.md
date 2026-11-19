@@ -207,7 +207,7 @@ Der Constraint-Proof weist die erwartete Validator-Semantik nach. Diff und `afte
 - SET mit `OBJECT_COUNT` oder `BOOLEAN_EXPRESSION` → `authorIliSetConstraint`
 - UNIQUE → `authorIliUniqueConstraint`
 
-Bei einem typisierten Authoring-Tool muss `constraintProofs[].status = PASSED` sein. Bei einem bestehenden oder separat integrierten Constraint ist `generationVerified=true` aus `generateIliConstraintCases` das Proof-Gate.
+Bei einem typisierten Authoring-Tool muss `constraintProofs[].status = PASSED` sein. Bei einem bestehenden oder separat integrierten Constraint ist `generationVerified=true` zusammen mit `coverageComplete=true` aus `generateIliConstraintCases` das Proof-Gate.
 
 ### Keine redundante zweite Proof-Runde
 

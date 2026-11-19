@@ -40,7 +40,9 @@ public class AgentPrompts {
 
         Sicherheitsgates für neue Modelle:
         - `authorIliModel` mit explizitem Namen, URI, Modellversion und INTERLIS-Version verwenden.
-        - `status=GENERATED`, `complete=true` und `updatedModelText` sind notwendige technische Bedingungen; vor Schreiben gilt zusätzlich der gemeinsame Prosa-Workflow.
+        - Übernimm `updatedModelText` bei `status=GENERATED`, wenn `openQuestions` keine blockierende Frage enthält
+          und alle erforderlichen `constraintProofs` den Status `PASSED` haben. Bei Modellen ohne Constraints ist das Array leer.
+          Vor dem Schreiben gilt zusätzlich der gemeinsame Prosa-Workflow.
         - `candidateModelText`, `NEEDS_INPUT` oder ein fehlgeschlagener Constraint-Proof dürfen nicht geschrieben werden.
 
         Geometrie:
@@ -62,8 +64,9 @@ public class AgentPrompts {
         - Für neue Constraints verwende den Prompt `author-interlis-constraint` bzw. das höchste passende Constraint-Tool:
           `authorIliMandatoryConstraint`, `authorIliUniqueConstraint`, `authorIliExistenceConstraint`,
           `authorIliPlausibilityConstraint` oder `authorIliSetConstraint`.
-        - `constraintProofs[].status = PASSED` eines Authoring-Tools bzw. `generationVerified=true` von `generateIliConstraintCases` ist das
-          technische Proof-Gate für genau diesen Constraint. Wiederhole automatisch abgeleitete Fälle nicht nochmals
+        - `constraintProofs[].status = PASSED` ist das technische Proof-Gate des Authoring-Tools für diesen Constraint.
+          Bei `generateIliConstraintCases` prüfe `generationVerified=true` und `coverageComplete=true`.
+          Wiederhole automatisch abgeleitete Fälle nicht nochmals
           routinemässig mit `testIliConstraint` oder `validateXtf`. Vorab festgelegte Fachfälle sind bei Prosa-Authoring zusätzlich erforderlich.
         - Erfolgreiches Constraint-Authoring enthält bereits semantischen Diff und `afterReview`; kein redundantes
           `reviewIliChange` für denselben unveränderten Nachher-Stand.
@@ -124,13 +127,15 @@ public class AgentPrompts {
         Vorgehen:
         1. Kläre die verlangte Änderung und erfinde keine fachlichen Details, die nicht vorgegeben sind.
         2. Suche bei Bedarf lokale Vorbilder mit `findSimilarModels` und lies ein ausgewähltes Modell mit `readModelExample`.
-        3. Wenn die Änderung von `applyIliModelChanges` unterstützt wird, verwende dieses Tool. Bei `APPLIED` sind der enthaltene semantische Diff, `afterCompilerValid`,
-           `afterDiagnostics` und `afterReview` das Abschlussgate; führe für denselben unveränderten Stand kein weiteres
-           `reviewIliChange` oder `reviewIliModel` aus.
+        3. Verwende `applyIliModelChanges` für unterstützte Änderungen. Prüfe `status`, `afterCompilation.valid`,
+           `afterCompilation.diagnostics`, `semanticDiff`, `afterReview`, `constraintProofs` und `openQuestions`.
+           Bei `APPLIED` enthält `updatedModelText` den technisch freigegebenen Modelltext. Führe für denselben Stand
+           kein weiteres `reviewIliChange` oder `reviewIliModel` aus.
         4. Wenn die Änderung ein neuer Constraint ist, verwende das höchste passende Constraint-Authoring-Tool. Bei
            `constraintProofs[].status = PASSED` ist keine Wiederholung automatisch abgeleiteter Tests erforderlich. Fachliche Erwartungsfälle sind zusätzlich mit `testIliConstraint` zu prüfen. Das Authoring liefert bereits Diff und `afterReview`; kein zusätzliches `reviewIliChange` für denselben Stand.
         5. Wenn die Änderung sonst noch nicht unterstützt wird, mache nur die geforderte Erweiterung im Modelltext und vergleiche
-           Vorher und Nachher mit `reviewIliChange`. Beachte `potentiallyBreakingChanges` und `impact`.
+           Vorher und Nachher mit `reviewIliChange`. Beachte in diesem Review `afterCompilerValid`, `afterDiagnostics`,
+           `potentiallyBreakingChanges` und `impact`.
         6. Liefere den neuen Modelltext, die semantische Änderung, Compiler-/Regelbefunde und offene fachliche Entscheide.
 
         Wenn du einen von einem High-Level-Tool bereits geprüften Nachher-Stand nochmals änderst, prüfe den neuen Stand erneut.

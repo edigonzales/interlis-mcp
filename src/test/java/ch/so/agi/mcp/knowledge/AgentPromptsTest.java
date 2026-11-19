@@ -37,7 +37,8 @@ class AgentPromptsTest {
         .contains("MCP-Ausfallvertrag")
         .contains("einzeln und nacheinander")
         .contains("keine `.ili`-Datei schreiben")
-        .contains("GeometryTypeSpec");
+        .contains("GeometryTypeSpec", "status=GENERATED", "updatedModelText")
+        .doesNotContain("complete=true");
   }
 
   @Test
@@ -79,10 +80,10 @@ class AgentPromptsTest {
 
     assertThat(prompt)
         .contains("applyIliModelChanges")
-        .contains("semantische Diff")
+        .contains("afterCompilation.valid", "afterCompilation.diagnostics", "semanticDiff")
         .contains("APPLIED")
         .contains("reviewIliChange")
-        .contains("potentiallyBreakingChanges")
+        .contains("afterCompilerValid", "afterDiagnostics", "potentiallyBreakingChanges")
         .contains("impact")
         .contains("afterReview")
         .contains("kein weiteres")
@@ -129,7 +130,8 @@ class AgentPromptsTest {
         .contains("nicht als Standard-Dreierfolge")
         .contains("MCP-Sicherheitsvertrag")
         .contains("Keine INTERLIS-Syntax erfinden")
-        .contains("authorIliModel.updatedModelText")
+        .contains("status=GENERATED", "updatedModelText")
+        .doesNotContain("complete=true")
         .contains("GeometryTypeSpec");
   }
 

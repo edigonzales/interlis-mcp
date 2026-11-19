@@ -238,6 +238,9 @@ Passender Payload:
 
 Bei Erfolg liefert das Tool `status=APPLIED` und `updatedModelText`. Es kompiliert Vorher und Nachher, prüft den semantischen Diff auf unerwartete Kollateraleffekte und enthält bereits das `afterReview` des neuen Stands.
 
+`APPLIED` bestätigt die technische Freigabe der atomaren Änderung. Für die Regelkonformität des Gesamtmodells gilt
+`afterReview.validForAutomatedRules`. Berichte `afterReview.ruleFindings` auch bei `APPLIED`.
+
 `UPDATE_ATTRIBUTE` enthält einen Patch. Nicht angegebene fachliche Eigenschaften bedeuten `KEEP`; IliDoc und Metaattribute besitzen explizite KEEP-/SET-/REMOVE- beziehungsweise KEEP-/REPLACE-/REMOVE-Aktionen. `REMOVE_ATTRIBUTE` braucht nur das eindeutige lokale `attributeFqn` und entfernt zusätzlich eindeutig zugeordnete Annotationen. Referenzen auf ein gelöschtes Attribut werden durch den After-Compile abgewiesen.
 
 Bei potenziell brechender Semantik liefert das Tool ohne Bestätigung nur `candidateModelText` und `status=BREAKING_CHANGE_REQUIRES_CONFIRMATION`. Der unveränderte Batch muss danach explizit mit `allowPotentiallyBreaking=true` erneut aufgerufen werden.
