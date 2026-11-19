@@ -72,7 +72,7 @@ final class ObjectCountTopologyPlanner {
     try {
       var graph=ConstraintModelSynthesizer.synthesize(binding,solution.assignment(),"topology_"+(cases.size()+1),shape);
       var typeRoute=ref.navigation().stream().map(ConstraintModelSynthesizer.NavigationBinding::targetClassFqn).toList();
-      var c=toCase(name+" "+path+" via "+String.join(" -> ",typeRoute),ConstraintExpressionEngine.evaluateConstraint(expression,ConstraintExpressionEngine.EvaluationContext.of(solution.assignment())),graph,binding,solution.assignment());
+      var c=toCountedCase(name+" "+path+" via "+String.join(" -> ",typeRoute),ConstraintExpressionEngine.evaluateConstraint(expression,ConstraintExpressionEngine.EvaluationContext.of(solution.assignment())),graph,binding,solution.assignment());
       c.plannedObjectShapes=Map.of(graph.objects().getFirst().oid(),Map.of(path,shape));
       cases.add(c);
       summaries.add(Map.of("name",c.name,"purpose","OBJECT_PATH_TOPOLOGY","goal",name,"objectPath",path,
@@ -83,14 +83,19 @@ final class ObjectCountTopologyPlanner {
     } catch(IllegalArgumentException ex) {gaps.add(Map.of("goal",name,"objectPath",path,"reasonCode","OBJECT_PATH_MATERIALIZATION_FAILED","reason",ex.getMessage()));}
   }
 
-  static ConstraintTestTools.TestCase toCase(String name, boolean expected,ConstraintModelSynthesizer.ObjectGraph graph,
-      ConstraintModelSynthesizer.ModelBinding binding,Map<String,Object> assignment) {
-    var c=new ConstraintTestTools.TestCase();c.name=name;c.expectedConstraintValid=expected;
-    c.objects=graph.objects().stream().map(o->{var value=new ConstraintTestTools.TestObject();value.classFqn=o.classFqn();value.oid=o.oid();value.values=o.values();value.references=o.references();return value;}).toList();
-    c.links=graph.links().stream().map(l->{var value=new ConstraintTestTools.TestLink();value.associationFqn=l.associationFqn();value.roles=l.roles();return value;}).toList();
-    var counts=new LinkedHashMap<String,Integer>();
-    for(var reference:binding.references().values())if(reference.reference().kind()==ConstraintExpression.ReferenceKind.OBJECT_COUNT)
-      counts.put(ConstraintModelSynthesizer.countedPath(reference.reference()),new BigDecimal(assignment.get(reference.reference().name()).toString()).intValueExact());
-    c.plannedObjectCounts=Map.of(graph.objects().getFirst().oid(),counts);return c;
+  static ConstraintTestTools.TestCase toCountedCase(
+      String name, boolean expected, ConstraintModelSynthesizer.ObjectGraph graph,
+      ConstraintModelSynthesizer.ModelBinding binding, Map<String,Object> assignment) {
+    var testCase = ConstraintTestTools.TestCase.fromGraph(name, expected, graph);
+    var counts = new LinkedHashMap<String, Integer>();
+    for (var reference : binding.references().values()) {
+      if (reference.reference().kind() == ConstraintExpression.ReferenceKind.OBJECT_COUNT) {
+        var value = assignment.get(reference.reference().name());
+        counts.put(ConstraintModelSynthesizer.countedPath(reference.reference()),
+            new BigDecimal(value.toString()).intValueExact());
+      }
+    }
+    testCase.plannedObjectCounts = Map.of(graph.objects().getFirst().oid(), counts);
+    return testCase;
   }
 }

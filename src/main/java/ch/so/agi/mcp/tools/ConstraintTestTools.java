@@ -49,6 +49,10 @@ import ch.so.agi.mcp.service.IliCompilerService;
 import ch.so.agi.mcp.constraint.CompiledConstraintContext;
 import ch.so.agi.mcp.constraint.ViewProofScope;
 import ch.so.agi.mcp.util.McpInputLimits;
+import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer.CountShape;
+import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer.GraphLink;
+import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer.GraphObject;
+import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer.ObjectGraph;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
@@ -94,8 +98,17 @@ public class ConstraintTestTools {
     @com.fasterxml.jackson.annotation.JsonIgnore
     Map<String, Map<String, Integer>> plannedObjectCounts = Map.of();
     @com.fasterxml.jackson.annotation.JsonIgnore
-    Map<String, Map<String, ch.so.agi.mcp.constraint.ConstraintModelSynthesizer.CountShape>> plannedObjectShapes = Map.of();
+    Map<String, Map<String, CountShape>> plannedObjectShapes = Map.of();
     public @Nullable List<TestLink> links;
+
+    static TestCase fromGraph(String name, boolean expected, ObjectGraph graph) {
+      TestCase testCase = new TestCase();
+      testCase.name = name;
+      testCase.expectedConstraintValid = expected;
+      testCase.objects = graph.objects().stream().map(TestObject::fromGraph).toList();
+      testCase.links = graph.links().stream().map(TestLink::fromGraph).toList();
+      return testCase;
+    }
   }
 
   public static class TestObject {
@@ -104,12 +117,28 @@ public class ConstraintTestTools {
     public @Nullable String basketId;
     public @Nullable Map<String, Object> values;
     public @Nullable Map<String, String> references;
+
+    static TestObject fromGraph(GraphObject object) {
+      TestObject result = new TestObject();
+      result.classFqn = object.classFqn();
+      result.oid = object.oid();
+      result.values = object.values();
+      result.references = object.references();
+      return result;
+    }
   }
 
   public static class TestLink {
     public String associationFqn;
     public @Nullable String basketId;
     public Map<String, String> roles;
+
+    static TestLink fromGraph(GraphLink link) {
+      TestLink result = new TestLink();
+      result.associationFqn = link.associationFqn();
+      result.roles = link.roles();
+      return result;
+    }
   }
 
   @McpTool(
@@ -915,7 +944,7 @@ public class ConstraintTestTools {
       List<Constraint> allConstraints,
       Path xtfFile, @Nullable ViewProofScope viewScope,
       Map<BasketKey,List<Iom_jObject>> objectsByBasket, Map<String,Map<String,Integer>> plannedCounts,
-      Map<String,Map<String,ch.so.agi.mcp.constraint.ConstraintModelSynthesizer.CountShape>> plannedShapes) {
+      Map<String,Map<String,CountShape>> plannedShapes) {
     ValidationConfig config = new ValidationConfig();
     config.setConfigValue(ValidationConfig.PARAMETER, ValidationConfig.ALL_OBJECTS_ACCESSIBLE, ValidationConfig.TRUE);
     if (viewScope != null) config.setConfigValue(ValidationConfig.PARAMETER, ValidationConfig.ADDITIONAL_MODELS,

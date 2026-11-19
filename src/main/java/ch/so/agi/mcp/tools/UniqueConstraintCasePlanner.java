@@ -262,7 +262,7 @@ final class UniqueConstraintCasePlanner {
       return new Plan(cases, summaries, unsolved);
     }
 
-    ParentState participating = parentState(context, unique, true, unsolved);
+    ConstraintModelSynthesizer.ObjectGraph participating = parentState(context, unique, true, unsolved);
     if (participating == null) {
       return new Plan(cases, summaries, unsolved);
     }
@@ -276,7 +276,7 @@ final class UniqueConstraintCasePlanner {
         true,
         "WITNESS",
         "One member in the local collection cannot violate LOCAL UNIQUE.",
-        participating.graph(),
+        participating,
         List.of(child));
 
     addLocalCase(
@@ -288,15 +288,14 @@ final class UniqueConstraintCasePlanner {
         false,
         "COUNTEREXAMPLE",
         "Two members of the same parent's collection have the same defined LOCAL UNIQUE key.",
-        cloneGraph(participating.graph(), "local_duplicate_parent"),
+        cloneGraph(participating, "local_duplicate_parent"),
         List.of(child, child));
 
     ConstraintModelSynthesizer.ObjectGraph parentA = cloneGraph(
-        participating.graph(), "local_scope_parent_a");
+        participating, "local_scope_parent_a");
     ConstraintModelSynthesizer.ObjectGraph parentB = cloneGraph(
-        participating.graph(), "local_scope_parent_b");
+        participating, "local_scope_parent_b");
     ConstraintTestTools.TestCase separateParents = localCase(
-        context,
         prefix.path(),
         "same LOCAL key in different parents",
         true,
@@ -314,7 +313,7 @@ final class UniqueConstraintCasePlanner {
         1));
 
     if (unique.preCondition() != null) {
-      ParentState excluded = parentState(context, unique, false, unsolved);
+      ConstraintModelSynthesizer.ObjectGraph excluded = parentState(context, unique, false, unsolved);
       if (excluded != null) {
         addLocalCase(
             context,
@@ -325,7 +324,7 @@ final class UniqueConstraintCasePlanner {
             true,
             "WITNESS",
             "A parent outside the UNIQUE WHERE predicate does not apply its LOCAL uniqueness check.",
-            excluded.graph(),
+            excluded,
             List.of(child, child));
       }
     }
@@ -340,12 +339,9 @@ final class UniqueConstraintCasePlanner {
         summaries,
         unsolved,
         true,
-        new LocalUndefinedContext(prefix.path(), participating.graph()));
+        new LocalUndefinedContext(prefix.path(), participating));
 
     return new Plan(cases, summaries, unsolved);
-  }
-
-  private record ParentState(ConstraintModelSynthesizer.ObjectGraph graph) {
   }
 
   private record ParentWithChildren(
@@ -358,7 +354,7 @@ final class UniqueConstraintCasePlanner {
       ConstraintModelSynthesizer.ObjectGraph parentGraph) {
   }
 
-  private static @Nullable ParentState parentState(
+  private static ConstraintModelSynthesizer.@Nullable ObjectGraph parentState(
       CompiledConstraintContext context,
       SemanticConstraint.Unique unique,
       boolean participating,
@@ -367,11 +363,10 @@ final class UniqueConstraintCasePlanner {
       if (!participating) {
         return null;
       }
-      ConstraintModelSynthesizer.ObjectGraph graph = new ConstraintModelSynthesizer.ObjectGraph(
+      return new ConstraintModelSynthesizer.ObjectGraph(
           List.of(new ConstraintModelSynthesizer.GraphObject(
               unique.contextFqn(), "local_parent_root", Map.of(), Map.of())),
           List.of());
-      return new ParentState(graph);
     }
 
     ConstraintModelSynthesizer.ModelBinding binding;
@@ -402,10 +397,10 @@ final class UniqueConstraintCasePlanner {
           participating ? "LOCAL WHERE included parent" : "LOCAL WHERE excluded parent"));
       return null;
     }
-    return new ParentState(synthesize(
+    return synthesize(
         binding,
         solution.assignment(),
-        participating ? "local_where_true" : "local_where_false"));
+        participating ? "local_where_true" : "local_where_false");
   }
 
   private static void addUndefinedKeyCases(
@@ -522,7 +517,6 @@ final class UniqueConstraintCasePlanner {
       ConstraintModelSynthesizer.ObjectGraph parent,
       List<LocalKeyFixture> children) {
     ConstraintTestTools.TestCase testCase = localCase(
-        context,
         prefixName,
         name,
         expected,
@@ -539,7 +533,6 @@ final class UniqueConstraintCasePlanner {
   }
 
   private static ConstraintTestTools.TestCase localCase(
-      CompiledConstraintContext context,
       String prefixName,
       String name,
       boolean expected,
@@ -548,14 +541,9 @@ final class UniqueConstraintCasePlanner {
     List<ConstraintTestTools.TestLink> links = new ArrayList<>();
     for (ParentWithChildren parent : parents) {
       ConstraintModelSynthesizer.ObjectGraph graph = parent.graph();
-      if (graph.objects().isEmpty()) {
-        throw new IllegalArgumentException("LOCAL UNIQUE parent graph has no root object.");
-      }
       String rootOid = graph.objects().getFirst().oid();
       for (ConstraintModelSynthesizer.GraphObject graphObject : graph.objects()) {
-        ConstraintTestTools.TestObject object = new ConstraintTestTools.TestObject();
-        object.classFqn = graphObject.classFqn();
-        object.oid = graphObject.oid();
+        var object = ConstraintTestTools.TestObject.fromGraph(graphObject);
         Map<String, Object> values = new LinkedHashMap<>(graphObject.values());
         if (graphObject.oid().equals(rootOid)) {
           List<Map<String, Object>> localValues = parent.children().stream()
@@ -565,16 +553,9 @@ final class UniqueConstraintCasePlanner {
           values.put(prefixName, localValues);
         }
         object.values = Map.copyOf(values);
-        object.references = graphObject.references();
         objects.add(object);
       }
-      for (ConstraintModelSynthesizer.GraphLink graphLink : graph.links()) {
-        ConstraintTestTools.TestLink link = new ConstraintTestTools.TestLink();
-        link.associationFqn = graphLink.associationFqn();
-        link.roles = graphLink.roles();
-        objects.size();
-        links.add(link);
-      }
+      graph.links().stream().map(ConstraintTestTools.TestLink::fromGraph).forEach(links::add);
     }
     ConstraintTestTools.TestCase testCase = new ConstraintTestTools.TestCase();
     testCase.name = name;
@@ -616,20 +597,14 @@ final class UniqueConstraintCasePlanner {
     List<ConstraintTestTools.TestLink> links = new ArrayList<>();
     for (ScopedGraph scoped : graphs) {
       for (ConstraintModelSynthesizer.GraphObject graphObject : scoped.graph().objects()) {
-        ConstraintTestTools.TestObject object = new ConstraintTestTools.TestObject();
-        object.classFqn = graphObject.classFqn();
-        object.oid = graphObject.oid();
-        object.values = graphObject.values();
-        object.references = graphObject.references();
+        var object = ConstraintTestTools.TestObject.fromGraph(graphObject);
         if (scoped.basketScope() != null) {
           object.basketId = baskets.forElement(graphObject.classFqn(), scoped.basketScope());
         }
         objects.add(object);
       }
       for (ConstraintModelSynthesizer.GraphLink graphLink : scoped.graph().links()) {
-        ConstraintTestTools.TestLink link = new ConstraintTestTools.TestLink();
-        link.associationFqn = graphLink.associationFqn();
-        link.roles = graphLink.roles();
+        var link = ConstraintTestTools.TestLink.fromGraph(graphLink);
         Element element = context.transferDescription().getElement(graphLink.associationFqn());
         if (scoped.basketScope() != null
             && element instanceof AssociationDef association
@@ -777,7 +752,7 @@ final class UniqueConstraintCasePlanner {
       Map<String, String> roles = new LinkedHashMap<>();
       link.roles().forEach((role, oid) -> roles.put(role, oidMap.getOrDefault(oid, oid)));
       return new ConstraintModelSynthesizer.GraphLink(
-          link.associationFqn(), roles, link.lightweight());
+          link.associationFqn(), roles);
     }).toList();
     return new ConstraintModelSynthesizer.ObjectGraph(objects, links);
   }

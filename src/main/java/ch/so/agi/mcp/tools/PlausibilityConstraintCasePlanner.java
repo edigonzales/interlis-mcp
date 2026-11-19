@@ -332,20 +332,8 @@ final class PlausibilityConstraintCasePlanner {
               + populationObjects + " for " + plausibility.contextFqn() + ".");
     }
 
-    for (ConstraintModelSynthesizer.GraphObject object : graph.objects()) {
-      ConstraintTestTools.TestObject result = new ConstraintTestTools.TestObject();
-      result.classFqn = object.classFqn();
-      result.oid = object.oid();
-      result.values = object.values();
-      result.references = object.references();
-      objects.add(result);
-    }
-    for (ConstraintModelSynthesizer.GraphLink link : graph.links()) {
-      ConstraintTestTools.TestLink result = new ConstraintTestTools.TestLink();
-      result.associationFqn = link.associationFqn();
-      result.roles = link.roles();
-      links.add(result);
-    }
+    graph.objects().stream().map(ConstraintTestTools.TestObject::fromGraph).forEach(objects::add);
+    graph.links().stream().map(ConstraintTestTools.TestLink::fromGraph).forEach(links::add);
   }
 
   private static String solverReason(ConstraintGoalSolver.Solution solution) {

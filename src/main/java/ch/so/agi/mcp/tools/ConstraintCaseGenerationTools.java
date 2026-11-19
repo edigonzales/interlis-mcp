@@ -550,14 +550,9 @@ public class ConstraintCaseGenerationTools {
       ConstraintModelSynthesizer.ObjectGraph graph = ConstraintModelSynthesizer.synthesize(
           binding, assignment, "auto_case_" + index);
 
-      ConstraintTestTools.TestCase testCase = toTestCase(
+      ConstraintTestTools.TestCase testCase = ObjectCountTopologyPlanner.toCountedCase(
           "automatic case " + index + " - " + coverageCase.goal().reason(),
-          expectedValid,
-          graph);
-      var plannedCounts = new LinkedHashMap<String,Integer>();
-      for (var ref : binding.references().values()) if (ref.reference().kind() == ConstraintExpression.ReferenceKind.OBJECT_COUNT)
-        plannedCounts.put(ConstraintModelSynthesizer.countedPath(ref.reference()), new java.math.BigDecimal(assignment.get(ref.reference().name()).toString()).intValueExact());
-      testCase.plannedObjectCounts = Map.of(graph.objects().getFirst().oid(), plannedCounts);
+          expectedValid, graph, binding, assignment);
       cases.add(testCase);
 
       Map<String, Object> summary = new LinkedHashMap<>();
@@ -576,30 +571,6 @@ public class ConstraintCaseGenerationTools {
       index++;
     }
     return new GeneratedCases(cases, summaries);
-  }
-
-  private ConstraintTestTools.TestCase toTestCase(
-      String name,
-      boolean expected,
-      ConstraintModelSynthesizer.ObjectGraph graph) {
-    ConstraintTestTools.TestCase testCase = new ConstraintTestTools.TestCase();
-    testCase.name = name;
-    testCase.expectedConstraintValid = expected;
-    testCase.objects = graph.objects().stream().map(object -> {
-      ConstraintTestTools.TestObject result = new ConstraintTestTools.TestObject();
-      result.classFqn = object.classFqn();
-      result.oid = object.oid();
-      result.values = object.values();
-      result.references = object.references();
-      return result;
-    }).toList();
-    testCase.links = graph.links().stream().map(link -> {
-      ConstraintTestTools.TestLink result = new ConstraintTestTools.TestLink();
-      result.associationFqn = link.associationFqn();
-      result.roles = link.roles();
-      return result;
-    }).toList();
-    return testCase;
   }
 
   private Map<String, Object> summaryAssignment(Map<String, Object> assignment) {

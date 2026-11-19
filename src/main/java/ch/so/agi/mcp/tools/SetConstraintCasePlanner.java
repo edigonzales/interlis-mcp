@@ -268,7 +268,7 @@ final class SetConstraintCasePlanner {
         try {
           ConstraintModelSynthesizer.ObjectGraph graph = NavigationGraphSynthesizer.synthesize(
               binding, candidate.count(), "set_path_" + index);
-          ConstraintTestTools.TestCase testCase = toTestCase(
+          ConstraintTestTools.TestCase testCase = ConstraintTestTools.TestCase.fromGraph(
               "set navigated objectCount " + candidate.boundary().toLowerCase()
                   + " selected=" + candidate.count()
                   + " target=" + binding.routeTargetFqn(),
@@ -346,7 +346,7 @@ final class SetConstraintCasePlanner {
           expression, ConstraintExpressionEngine.EvaluationContext.of(assignment));
       ConstraintModelSynthesizer.ObjectGraph graph = ConstraintModelSynthesizer.synthesize(
           binding, assignment, "set_boolean_" + index);
-      ConstraintTestTools.TestCase testCase = toTestCase(
+      ConstraintTestTools.TestCase testCase = ConstraintTestTools.TestCase.fromGraph(
           "set boolean case " + index + " - " + coverageCase.goal().reason(),
           expected,
           graph);
@@ -374,30 +374,6 @@ final class SetConstraintCasePlanner {
     }
     return new Plan(cases, summaries, unsolved, ConstraintCoveragePlanner.solvedGoalCount(coverage),
         ConstraintCoveragePlanner.excludedGoals(coverage, set.version()));
-  }
-
-  private static ConstraintTestTools.TestCase toTestCase(
-      String name,
-      boolean expected,
-      ConstraintModelSynthesizer.ObjectGraph graph) {
-    ConstraintTestTools.TestCase testCase = new ConstraintTestTools.TestCase();
-    testCase.name = name;
-    testCase.expectedConstraintValid = expected;
-    testCase.objects = graph.objects().stream().map(object -> {
-      ConstraintTestTools.TestObject result = new ConstraintTestTools.TestObject();
-      result.classFqn = object.classFqn();
-      result.oid = object.oid();
-      result.values = object.values();
-      result.references = object.references();
-      return result;
-    }).toList();
-    testCase.links = graph.links().stream().map(link -> {
-      ConstraintTestTools.TestLink result = new ConstraintTestTools.TestLink();
-      result.associationFqn = link.associationFqn();
-      result.roles = link.roles();
-      return result;
-    }).toList();
-    return testCase;
   }
 
   private static WhereTemplates whereTemplates(
@@ -563,13 +539,8 @@ final class SetConstraintCasePlanner {
       List<ConstraintTestTools.TestObject> objects,
       List<ConstraintTestTools.TestLink> links) {
     requireSimpleGraph(set, graph);
-    ConstraintModelSynthesizer.GraphObject object = graph.objects().getFirst();
-    ConstraintTestTools.TestObject result = new ConstraintTestTools.TestObject();
-    result.classFqn = object.classFqn();
-    result.oid = object.oid();
+    var result = ConstraintTestTools.TestObject.fromGraph(graph.objects().getFirst());
     result.basketId = basketId;
-    result.values = object.values();
-    result.references = object.references();
     objects.add(result);
   }
 
