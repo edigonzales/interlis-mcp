@@ -97,8 +97,7 @@ public final class ConstraintModelSynthesizer {
       String targetClassFqn,
       long minimum,
       long maximum,
-      boolean unbounded,
-      boolean lightweight) {
+      boolean unbounded) {
 
     public AssociationBinding {
       requireName(associationFqn, "associationFqn");
@@ -117,24 +116,6 @@ public final class ConstraintModelSynthesizer {
       return unbounded || maximum > cap ? cap : (int) maximum;
     }
 
-    public AssociationBinding(
-        String associationFqn,
-        String roleName,
-        String oppositeRoleName,
-        String targetClassFqn,
-        long minimum,
-        long maximum,
-        boolean unbounded) {
-      this(
-          associationFqn,
-          roleName,
-          oppositeRoleName,
-          targetClassFqn,
-          minimum,
-          maximum,
-          unbounded,
-          false);
-    }
   }
 
   public enum NavigationKind {
@@ -256,16 +237,11 @@ public final class ConstraintModelSynthesizer {
           ? Map.of()
           : Collections.unmodifiableMap(new LinkedHashMap<>(references));
     }
-
-    public GraphObject(String classFqn, String oid, Map<String, Object> values) {
-      this(classFqn, oid, values, Map.of());
-    }
   }
 
   public record GraphLink(
       String associationFqn,
-      Map<String, String> roles,
-      boolean lightweight) {
+      Map<String, String> roles) {
 
     public GraphLink {
       requireName(associationFqn, "associationFqn");
@@ -275,10 +251,6 @@ public final class ConstraintModelSynthesizer {
       if (roles.size() < 2) {
         throw new IllegalArgumentException("Association graph link requires at least two roles.");
       }
-    }
-
-    public GraphLink(String associationFqn, Map<String, String> roles) {
-      this(associationFqn, roles, false);
     }
   }
 
@@ -464,7 +436,7 @@ public final class ConstraintModelSynthesizer {
       roles.put(association.roleName(), targetOid);
       roles.put(association.oppositeRoleName(), source.oid);
       links.add(new GraphLink(
-          association.associationFqn(), roles, association.lightweight()));
+          association.associationFqn(), roles));
       return target;
     }
 
@@ -707,7 +679,7 @@ public final class ConstraintModelSynthesizer {
         var link=graph.links.get(linkIndex);
         if (link.roles().containsValue(object.oid)) {
           var roles=new LinkedHashMap<>(link.roles()); roles.replaceAll((role,oid)->oid.equals(object.oid)?shared.oid:oid);
-          graph.links.set(linkIndex,new GraphLink(link.associationFqn(),roles,link.lightweight()));
+          graph.links.set(linkIndex,new GraphLink(link.associationFqn(),roles));
         }
       }
       if (parent instanceof MutableObject source) source.references.replaceAll((name,oid)->oid.equals(object.oid)?shared.oid:oid);
@@ -912,17 +884,14 @@ public final class ConstraintModelSynthesizer {
           association.getScopedName(null),
           role.getName(),
           role.getOppEnd().getName(),
-          concreteTargetFqn(
-              td, role.getDestination(), fullPath, concreteTargetOverrides),
+          concreteTargetFqn(td, role.getDestination(), fullPath, concreteTargetOverrides),
           minimum,
           maximum,
-          unbounded,
-          association.isLightweight());
+          unbounded);
       return new NavigationBinding(
           NavigationKind.ASSOCIATION,
           role.getName(),
-          concreteTargetFqn(
-              td, role.getDestination(), fullPath, concreteTargetOverrides),
+          binding.targetClassFqn(),
           minimum,
           maximum,
           unbounded,
@@ -1095,8 +1064,7 @@ public final class ConstraintModelSynthesizer {
         target,
         minimum,
         maximum,
-        unbounded,
-        actual != null && actual.lightweight());
+        unbounded);
   }
 
   private static void validateCount(NavigationBinding step, int count) {

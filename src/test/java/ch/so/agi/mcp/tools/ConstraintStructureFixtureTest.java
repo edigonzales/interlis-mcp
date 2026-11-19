@@ -234,6 +234,17 @@ class ConstraintStructureFixtureTest {
     var verification = localVerifier.testIliConstraint(result.updatedModelText,
         request.contextFqn()+"."+request.spec().name, cases);
     assertThat(verification.get("allPassed")).as(verification.toString()).isEqualTo(true);
+    var checked = new ObjectMapper().valueToTree(verification).path("cases");
+    assertThat(checked.get(0).path("targetViolationCount").asInt()).isZero();
+    assertThat(checked.get(1).path("targetViolationCount").asInt()).isEqualTo(1);
+    for (var test : checked) {
+      assertThat(test.path("fixtureValid").asBoolean()).isTrue();
+      assertThat(test.path("constraintExercised").asBoolean()).isTrue();
+      assertThat(test.path("baskets").findValues("objectCount").stream()
+          .map(value -> value.asInt()).toList()).containsExactly(2, 2);
+      assertThat(test.path("baskets").findValues("associationObjectCount").stream()
+          .map(value -> value.asInt()).toList()).containsExactly(1, 0);
+    }
   }
 
   @Test

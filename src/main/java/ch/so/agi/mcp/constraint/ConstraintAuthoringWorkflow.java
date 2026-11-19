@@ -40,23 +40,6 @@ public final class ConstraintAuthoringWorkflow {
       String contextFqn,
       String constraintText,
       String constraintFqn,
-      String afterTempPrefix) {
-    return insertAndResolve(
-        modelText,
-        beforeCompilation,
-        contextFqn,
-        constraintText,
-        constraintFqn,
-        afterTempPrefix,
-        Set.of());
-  }
-
-  public PreparedConstraint insertAndResolve(
-      String modelText,
-      IliCompilerService.CompilationResult beforeCompilation,
-      String contextFqn,
-      String constraintText,
-      String constraintFqn,
       String afterTempPrefix,
       Set<String> requiredImports) {
     ConstraintSourceEditService.PreparedInsertion insertion = sourceEditService.insertConstraint(

@@ -1,5 +1,7 @@
 package ch.so.agi.mcp.tools;
 
+import static ch.so.agi.mcp.tools.ConstraintCaseGenerationTools.summaryAssignment;
+
 import ch.so.agi.mcp.constraint.CompiledConstraintContext;
 import ch.so.agi.mcp.constraint.ConstraintExpression;
 import ch.so.agi.mcp.constraint.ConstraintExpressionEngine;
@@ -9,7 +11,6 @@ import ch.so.agi.mcp.constraint.SemanticConstraint;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,14 +35,6 @@ final class PlausibilityConstraintCasePlanner {
         throw new IllegalArgumentException(
             "PLAUSIBILITY proof cases and summaries must have equal size.");
       }
-    }
-
-    int goalCount() {
-      return cases.size() + unsolved.size();
-    }
-
-    boolean complete() {
-      return unsolved.isEmpty();
     }
   }
 
@@ -340,20 +333,8 @@ final class PlausibilityConstraintCasePlanner {
               + populationObjects + " for " + plausibility.contextFqn() + ".");
     }
 
-    for (ConstraintModelSynthesizer.GraphObject object : graph.objects()) {
-      ConstraintTestTools.TestObject result = new ConstraintTestTools.TestObject();
-      result.classFqn = object.classFqn();
-      result.oid = object.oid();
-      result.values = object.values();
-      result.references = object.references();
-      objects.add(result);
-    }
-    for (ConstraintModelSynthesizer.GraphLink link : graph.links()) {
-      ConstraintTestTools.TestLink result = new ConstraintTestTools.TestLink();
-      result.associationFqn = link.associationFqn();
-      result.roles = link.roles();
-      links.add(result);
-    }
+    graph.objects().stream().map(ConstraintTestTools.TestObject::fromGraph).forEach(objects::add);
+    graph.links().stream().map(ConstraintTestTools.TestLink::fromGraph).forEach(links::add);
   }
 
   private static String solverReason(ConstraintGoalSolver.Solution solution) {
@@ -364,25 +345,6 @@ final class PlausibilityConstraintCasePlanner {
         ? "UNSOLVED"
         : solution.reasonCode();
     return code + ": " + solution.reason();
-  }
-
-  private static Map<String, Object> summaryAssignment(Map<String, Object> assignment) {
-    Map<String, Object> result = new LinkedHashMap<>();
-    assignment.forEach((name, value) -> result.put(name, summaryValue(value)));
-    return Map.copyOf(result);
-  }
-
-  private static Object summaryValue(Object value) {
-    if (value == null || value == ConstraintExpressionEngine.Undefined.INSTANCE) {
-      return "UNDEFINED";
-    }
-    if (value instanceof BigDecimal number) {
-      return number.stripTrailingZeros().toPlainString();
-    }
-    if (value instanceof Collection<?> collection) {
-      return collection.stream().map(PlausibilityConstraintCasePlanner::summaryValue).toList();
-    }
-    return value;
   }
 
   private static String display(BigDecimal value) {

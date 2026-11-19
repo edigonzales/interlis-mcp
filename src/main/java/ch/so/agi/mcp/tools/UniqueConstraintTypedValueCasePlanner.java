@@ -70,7 +70,7 @@ final class UniqueConstraintTypedValueCasePlanner {
       PathEl[] elements = pathElements[index];
       if (elements.length != 1) {
         return gap("UNIQUE_TYPED_NAVIGATION_UNSUPPORTED",
-            "Navigated reference, structure and geometry UNIQUE keys require NavigationGraphSynthesizer coverage per route.");
+            "Navigated reference, structure and geometry UNIQUE keys require graph synthesis coverage for each concrete route.");
       }
       if (elements[0] instanceof PathElAbstractClassRole rolePath) {
         RoleDef role = rolePath.getRole();

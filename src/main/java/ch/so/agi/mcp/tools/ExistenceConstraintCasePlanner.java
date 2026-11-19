@@ -24,14 +24,6 @@ final class ExistenceConstraintCasePlanner {
         throw new IllegalArgumentException("EXISTENCE proof cases and summaries must have equal size.");
       }
     }
-
-    int goalCount() {
-      return cases.size() + unsolved.size();
-    }
-
-    boolean complete() {
-      return unsolved.isEmpty();
-    }
   }
 
   private ExistenceConstraintCasePlanner() {

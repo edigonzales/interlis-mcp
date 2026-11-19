@@ -1,16 +1,17 @@
 package ch.so.agi.mcp.tools;
 
+import static ch.so.agi.mcp.tools.ConstraintCaseGenerationTools.summaryAssignment;
+
 import ch.so.agi.mcp.constraint.CompiledConstraintContext;
 import ch.so.agi.mcp.constraint.ConstraintExpression;
 import ch.so.agi.mcp.constraint.ConstraintExpressionEngine;
 import ch.so.agi.mcp.constraint.ConstraintCoveragePlanner;
 import ch.so.agi.mcp.constraint.ConstraintGoalSolver;
 import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer;
-import ch.so.agi.mcp.constraint.NavigationGraphSynthesizer;
+import ch.so.agi.mcp.constraint.ObjectPathRoutes;
 import ch.so.agi.mcp.constraint.SemanticConstraint;
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -44,14 +45,6 @@ final class SetConstraintCasePlanner {
       if (cases.size() != summaries.size()) {
         throw new IllegalArgumentException("SET proof cases and summaries must have equal size.");
       }
-    }
-
-    int goalCount() {
-      return solvedGoalCount + unsolved.size();
-    }
-
-    boolean complete() {
-      return unsolved.isEmpty();
     }
   }
 
@@ -163,7 +156,7 @@ final class SetConstraintCasePlanner {
             "selectedCount", 0));
         continue;
       }
-      Population population = population(
+      var objects = population(
           set,
           where,
           candidate.count(),
@@ -173,15 +166,15 @@ final class SetConstraintCasePlanner {
       testCase.name = "set objectCount " + candidate.boundary().toLowerCase()
           + " selected=" + candidate.count();
       testCase.expectedConstraintValid = candidate.expectedValid();
-      testCase.objects = population.objects();
-      testCase.links = population.links();
+      testCase.objects = objects;
+      testCase.links = List.of();
       cases.add(testCase);
 
       Map<String, Object> summary = baseSummary(set, objectCount, testCase);
       summary.put("purpose", candidate.expectedValid() ? "WITNESS" : "COUNTEREXAMPLE");
       summary.put("boundary", candidate.boundary());
       summary.put("selectedCount", candidate.count());
-      summary.put("excludedByWhereCount", population.excludedByWhere());
+      summary.put("excludedByWhereCount", where == null ? 0 : 1);
       summary.put("expectedConstraintValid", candidate.expectedValid());
       if (where != null) {
         summary.put("whereIncludedValues", summaryAssignment(where.included().assignment()));
@@ -204,12 +197,10 @@ final class SetConstraintCasePlanner {
           "reason", "No two-basket population within the automatic fixture limit distinguishes global from (BASKET) SET semantics.",
           "goal", "BASKET_SCOPE"));
     } else {
-      Population first = population(set, where, scope.first(), "set_scope_a", "set_scope_a");
-      Population second = population(set, where, scope.second(), "set_scope_b", "set_scope_b");
-      List<ConstraintTestTools.TestObject> objects = new ArrayList<>(first.objects());
-      objects.addAll(second.objects());
-      List<ConstraintTestTools.TestLink> links = new ArrayList<>(first.links());
-      links.addAll(second.links());
+      var first = population(set, where, scope.first(), "set_scope_a", "set_scope_a");
+      var second = population(set, where, scope.second(), "set_scope_b", "set_scope_b");
+      var objects = new ArrayList<>(first);
+      objects.addAll(second);
 
       boolean expected = set.perBasket() ? scope.perBasketValid() : scope.globalValid();
       ConstraintTestTools.TestCase testCase = new ConstraintTestTools.TestCase();
@@ -217,7 +208,7 @@ final class SetConstraintCasePlanner {
           + " perBasket=" + scope.perBasketValid();
       testCase.expectedConstraintValid = expected;
       testCase.objects = List.copyOf(objects);
-      testCase.links = List.copyOf(links);
+      testCase.links = List.of();
       cases.add(testCase);
 
       Map<String, Object> summary = baseSummary(set, objectCount, testCase);
@@ -251,10 +242,15 @@ final class SetConstraintCasePlanner {
           "goal", "NAVIGATED_OBJECT_SET_WHERE"));
       return new Plan(cases, summaries, unsolved);
     }
-    List<NavigationGraphSynthesizer.Binding> bindings;
+    ConstraintExpression.ObjectCount count;
+    List<Map<String, String>> routes;
+    List<ConstraintModelSynthesizer.ModelBinding> bindings;
     try {
-      bindings = NavigationGraphSynthesizer.bindAll(
-          context.transferDescription(), set.contextFqn(), objects);
+      count = new ConstraintExpression.ObjectCount(objects.path().path());
+      var td = context.transferDescription();
+      routes = ObjectPathRoutes.resolve(td, set.contextFqn(), count);
+      bindings = routes.stream()
+          .map(route -> ConstraintModelSynthesizer.bind(td, set.contextFqn(), count, route)).toList();
     } catch (IllegalArgumentException ex) {
       unsolved.add(Map.of(
           "reasonCode", "SET_NAVIGATED_OBJECTS_BINDING_UNAVAILABLE",
@@ -265,21 +261,26 @@ final class SetConstraintCasePlanner {
 
     var excluded = new ArrayList<Map<String,Object>>();
     int index = 1;
-    for (NavigationGraphSynthesizer.Binding binding : bindings) {
-      for (CountCandidate candidate : branchCandidates(condition)) {
-        var domain = binding.modelBinding().reference(binding.countKey()).domain().numeric();
+    var candidates = branchCandidates(condition);
+    var expression = new ConstraintExpression.Comparison(condition.operator(), count,
+        new ConstraintExpression.NumericLiteral(condition.threshold()));
+    for (var binding : bindings) {
+      var reference = binding.reference(count.key());
+      var domain = reference.domain().numeric();
+      String targetFqn = reference.navigation().getLast().targetClassFqn();
+      for (CountCandidate candidate : candidates) {
         if (!domain.contains(BigDecimal.valueOf(candidate.count()))) {
           excluded.add(Map.of("reasonCode","PROVEN_UNREACHABLE","reason",candidate.boundary(),
-              "justification","Compiled path cardinalities exclude count " + candidate.count(), "routeTargetFqn",binding.routeTargetFqn()));
+              "justification","Compiled path cardinalities exclude count " + candidate.count(), "routeTargetFqn",targetFqn));
           continue;
         }
         try {
-          ConstraintModelSynthesizer.ObjectGraph graph = NavigationGraphSynthesizer.synthesize(
-              binding, candidate.count(), "set_path_" + index);
-          ConstraintTestTools.TestCase testCase = toTestCase(
+          var graph = ConstraintModelSynthesizer.synthesize(
+              binding, Map.of(count.key(), BigDecimal.valueOf(candidate.count())), "set_path_" + index);
+          ConstraintTestTools.TestCase testCase = ConstraintTestTools.TestCase.fromGraph(
               "set navigated objectCount " + candidate.boundary().toLowerCase()
                   + " selected=" + candidate.count()
-                  + " target=" + binding.routeTargetFqn(),
+                  + " target=" + targetFqn,
               candidate.expectedValid(),
               graph);
           testCase.plannedObjectCounts = Map.of(graph.objects().getFirst().oid(), Map.of(objects.path().path(), candidate.count()));
@@ -290,7 +291,7 @@ final class SetConstraintCasePlanner {
           summary.put("boundary", candidate.boundary());
           summary.put("objectSet", "PATH");
           summary.put("objectPath", objects.path().path());
-          summary.put("routeTargetFqn", binding.routeTargetFqn());
+          summary.put("routeTargetFqn", targetFqn);
           summary.put("selectedCount", candidate.count());
           summary.put("expectedConstraintValid", candidate.expectedValid());
           summary.put("objectCount", graph.objects().size());
@@ -301,14 +302,12 @@ final class SetConstraintCasePlanner {
               "reasonCode", "SET_NAVIGATED_OBJECTS_CARDINALITY_UNAVAILABLE",
               "reason", ex.getMessage(),
               "goal", candidate.boundary(),
-              "routeTargetFqn", binding.routeTargetFqn(),
+              "routeTargetFqn", targetFqn,
               "selectedCount", candidate.count()));
         }
         index++;
       }
-      var expression = new ConstraintExpression.Comparison(condition.operator(),
-          new ConstraintExpression.ObjectCount(objects.path().path()),new ConstraintExpression.NumericLiteral(condition.threshold()));
-      var topology = ObjectCountTopologyPlanner.plan(context, expression, binding.modelBinding());
+      var topology = ObjectCountTopologyPlanner.plan(context.transferDescription(), expression, binding, routes);
       cases.addAll(topology.cases()); summaries.addAll(topology.summaries()); unsolved.addAll(topology.gaps()); excluded.addAll(topology.excluded());
     }
 
@@ -354,7 +353,7 @@ final class SetConstraintCasePlanner {
           expression, ConstraintExpressionEngine.EvaluationContext.of(assignment));
       ConstraintModelSynthesizer.ObjectGraph graph = ConstraintModelSynthesizer.synthesize(
           binding, assignment, "set_boolean_" + index);
-      ConstraintTestTools.TestCase testCase = toTestCase(
+      ConstraintTestTools.TestCase testCase = ConstraintTestTools.TestCase.fromGraph(
           "set boolean case " + index + " - " + coverageCase.goal().reason(),
           expected,
           graph);
@@ -382,30 +381,6 @@ final class SetConstraintCasePlanner {
     }
     return new Plan(cases, summaries, unsolved, ConstraintCoveragePlanner.solvedGoalCount(coverage),
         ConstraintCoveragePlanner.excludedGoals(coverage, set.version()));
-  }
-
-  private static ConstraintTestTools.TestCase toTestCase(
-      String name,
-      boolean expected,
-      ConstraintModelSynthesizer.ObjectGraph graph) {
-    ConstraintTestTools.TestCase testCase = new ConstraintTestTools.TestCase();
-    testCase.name = name;
-    testCase.expectedConstraintValid = expected;
-    testCase.objects = graph.objects().stream().map(object -> {
-      ConstraintTestTools.TestObject result = new ConstraintTestTools.TestObject();
-      result.classFqn = object.classFqn();
-      result.oid = object.oid();
-      result.values = object.values();
-      result.references = object.references();
-      return result;
-    }).toList();
-    testCase.links = graph.links().stream().map(link -> {
-      ConstraintTestTools.TestLink result = new ConstraintTestTools.TestLink();
-      result.associationFqn = link.associationFqn();
-      result.roles = link.roles();
-      return result;
-    }).toList();
-    return testCase;
   }
 
   private static WhereTemplates whereTemplates(
@@ -519,14 +494,13 @@ final class SetConstraintCasePlanner {
     };
   }
 
-  private static Population population(
+  private static List<ConstraintTestTools.TestObject> population(
       SemanticConstraint.Set set,
       WhereTemplates where,
       int selectedCount,
       String basketId,
       String prefix) {
     List<ConstraintTestTools.TestObject> objects = new ArrayList<>();
-    List<ConstraintTestTools.TestLink> links = new ArrayList<>();
 
     if (where == null) {
       for (int i = 0; i < selectedCount; i++) {
@@ -538,7 +512,7 @@ final class SetConstraintCasePlanner {
         object.references = Map.of();
         objects.add(object);
       }
-      return new Population(List.copyOf(objects), List.of(), 0);
+      return List.copyOf(objects);
     }
 
     for (int i = 0; i < selectedCount; i++) {
@@ -549,8 +523,7 @@ final class SetConstraintCasePlanner {
               where.included().assignment(),
               prefix + "_selected_" + (i + 1)),
           basketId,
-          objects,
-          links);
+          objects);
     }
     addGraph(
         set,
@@ -559,25 +532,18 @@ final class SetConstraintCasePlanner {
             where.excluded().assignment(),
             prefix + "_excluded"),
         basketId,
-        objects,
-        links);
-    return new Population(List.copyOf(objects), List.copyOf(links), 1);
+        objects);
+    return List.copyOf(objects);
   }
 
   private static void addGraph(
       SemanticConstraint.Set set,
       ConstraintModelSynthesizer.ObjectGraph graph,
       String basketId,
-      List<ConstraintTestTools.TestObject> objects,
-      List<ConstraintTestTools.TestLink> links) {
+      List<ConstraintTestTools.TestObject> objects) {
     requireSimpleGraph(set, graph);
-    ConstraintModelSynthesizer.GraphObject object = graph.objects().getFirst();
-    ConstraintTestTools.TestObject result = new ConstraintTestTools.TestObject();
-    result.classFqn = object.classFqn();
-    result.oid = object.oid();
+    var result = ConstraintTestTools.TestObject.fromGraph(graph.objects().getFirst());
     result.basketId = basketId;
-    result.values = object.values();
-    result.references = object.references();
     objects.add(result);
   }
 
@@ -614,23 +580,12 @@ final class SetConstraintCasePlanner {
       ConstraintTestTools.TestCase testCase) {
     Map<String, Object> summary = new LinkedHashMap<>();
     summary.put("name", testCase.name);
-    summary.put("operator", symbol(objectCount.operator()));
+    summary.put("operator", objectCount.operator().interlis());
     summary.put("threshold", objectCount.threshold().stripTrailingZeros().toPlainString());
     summary.put("objectSet", "ALL");
     summary.put("perBasket", set.perBasket());
     summary.put("wherePresent", set.preCondition() != null);
     return summary;
-  }
-
-  private static String symbol(ConstraintExpression.ComparisonOperator operator) {
-    return switch (operator) {
-      case EQ -> "==";
-      case NE -> "!=";
-      case LT -> "<";
-      case LE -> "<=";
-      case GT -> ">";
-      case GE -> ">=";
-    };
   }
 
   private static String solverReason(ConstraintGoalSolver.Solution solution) {
@@ -641,31 +596,6 @@ final class SetConstraintCasePlanner {
         ? "UNSOLVED"
         : solution.reasonCode();
     return code + ": " + solution.reason();
-  }
-
-  private static Map<String, Object> summaryAssignment(Map<String, Object> assignment) {
-    Map<String, Object> result = new LinkedHashMap<>();
-    assignment.forEach((name, value) -> result.put(name, summaryValue(value)));
-    return Map.copyOf(result);
-  }
-
-  private static Object summaryValue(Object value) {
-    if (value == null || value == ConstraintExpressionEngine.Undefined.INSTANCE) {
-      return "UNDEFINED";
-    }
-    if (value instanceof BigDecimal number) {
-      return number.stripTrailingZeros().toPlainString();
-    }
-    if (value instanceof Collection<?> collection) {
-      return collection.stream().map(SetConstraintCasePlanner::summaryValue).toList();
-    }
-    return value;
-  }
-
-  private record Population(
-      List<ConstraintTestTools.TestObject> objects,
-      List<ConstraintTestTools.TestLink> links,
-      int excludedByWhere) {
   }
 
   private record BasketScope(
