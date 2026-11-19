@@ -56,6 +56,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -225,47 +226,48 @@ public class ConstraintTestTools {
     PreparedCase prepared;
     Map<BasketKey, List<Iom_jObject>> iomObjects;
     int subjectCount;
+    List<BasketKey> transferOrder;
+    List<Map<String, Object>> baskets;
     ViewProofScope viewScope;
     try {
       viewScope = ViewProofScope.resolve(td, target);
       prepared = prepareCase(td, testCase, caseIndex);
       iomObjects = buildCaseObjects(prepared);
+      transferOrder = orderBaskets(iomObjects.keySet());
+      baskets = new ArrayList<>();
+      for (BasketKey basket : transferOrder) {
+        baskets.add(basketSummary(basket, iomObjects.get(basket)));
+      }
       if (viewScope != null && target instanceof ch.interlis.ili2c.metamodel.SetConstraint) {
-        if (iomObjects.isEmpty()) iomObjects.put(new BasketKey((Topic)viewScope.base().getContainer(), "view_base_" + caseIndex), new ArrayList<>());
-        iomObjects.put(new BasketKey((Topic)viewScope.view().getContainer(), "view_scope_" + caseIndex), new ArrayList<>());
+        if (iomObjects.isEmpty()) {
+          var base = new BasketKey((Topic) viewScope.base().getContainer(), "view_base_" + caseIndex);
+          iomObjects.put(base, new ArrayList<>());
+          baskets.add(basketSummary(base, List.of()));
+        }
+        var scope = new BasketKey((Topic) viewScope.view().getContainer(), "view_scope_" + caseIndex);
+        if (iomObjects.put(scope, new ArrayList<>()) == null) {
+          baskets.add(basketSummary(scope, List.of()));
+        }
+        transferOrder = orderBaskets(iomObjects.keySet());
       }
       subjectCount = countSubjects(td, target, prepared, iomObjects);
     } catch (IllegalArgumentException ex) {
       String reasonCode = ex instanceof ConstraintFixtureException known
           ? known.reasonCode() : ex instanceof ViewProofScope.ScopeException scopeError ? scopeError.reasonCode() : "FIXTURE_MATERIALIZATION_FAILED";
-      Map<String, Object> fixtureError = Map.of(
-          "severity", "ERROR",
-          "code", reasonCode,
-          "message", ex.getMessage());
-      Map<String, Object> result = new LinkedHashMap<>();
-      result.put("name", testCase.name.trim());
-      result.put("expectedConstraintValid", testCase.expectedConstraintValid);
-      result.put("actualConstraintValid", false);
-      result.put("passed", false);
-      result.put("constraintExercised", false);
-      result.put("subjectCount", 0);
+      var result = fixtureFailure(testCase.name.trim(), testCase, 0, reasonCode, ex.getMessage());
       result.put("basketCount", 0);
       result.put("baskets", List.of());
-      result.put("fixtureValid", false);
       result.put("validatorValid", false);
       result.put("targetViolationCount", 0);
       result.put("errorCount", 1);
       result.put("warningCount", 0);
-      result.put("messages", List.of(fixtureError));
-      result.put("fixtureErrors", List.of(fixtureError));
-      result.put("fixturePreparationReasonCode", reasonCode);
-      result.put("reason", ex.getMessage());
+      result.put("messages", result.get("fixtureErrors"));
       return result;
     }
     Path xtfFile = null;
     try {
       xtfFile = Files.createTempFile("interlis-mcp-constraint-case-", ".xtf");
-      writeCaseXtf(td, iomObjects, xtfFile);
+      writeCaseXtf(td, iomObjects, transferOrder, xtfFile);
       String xtfText = Files.readString(xtfFile, StandardCharsets.UTF_8);
       ValidationOutcome validation = validateCase(td, target, targetQName, allConstraints, xtfFile, viewScope, iomObjects, testCase.plannedObjectCounts, testCase.plannedObjectShapes);
 
@@ -285,24 +287,13 @@ public class ConstraintTestTools {
       boolean expected = testCase.expectedConstraintValid;
       boolean passed = exercised && fixtureValid && actualConstraintValid == expected;
 
-      Map<String, Object> result = new LinkedHashMap<>();
-      result.put("name", testCase.name.trim());
-      result.put("expectedConstraintValid", expected);
-      result.put("actualConstraintValid", actualConstraintValid);
-      result.put("passed", passed);
-      result.put("constraintExercised", exercised);
-      result.put("subjectCount", subjectCount);
+      var result = caseOutcome(testCase.name.trim(), testCase, actualConstraintValid, passed, exercised, subjectCount);
       if (viewScope != null) {
         result.putAll(validation.viewDiagnostics());
         result.put("setExecuted", validation.setExecuted());
       }
       result.put("objectCounts", validation.viewDiagnostics().getOrDefault("objectCounts", List.of()));
       result.put("basketCount", iomObjects.size());
-      var baskets = new ArrayList<>(basketSummaries(prepared));
-      for (var basket : iomObjects.keySet()) if (!prepared.baskets().contains(basket)) {
-        baskets.add(Map.of("topic", basket.topic().getScopedName(), "basketId", basket.basketId(),
-            "objectCount", 0L, "associationObjectCount", 0L));
-      }
       result.put("baskets", baskets);
       result.put("fixtureValid", fixtureValid);
       result.put("validatorValid", validation.errorCount() == 0);
@@ -333,14 +324,7 @@ public class ConstraintTestTools {
       while (cause.getCause() != null) cause = cause.getCause();
       String reason = cause.getMessage() == null ? e.toString() : cause.getMessage();
       if (reason.contains("max one reference") || reason.contains("cardinality")) code = "OBJECT_PATH_CARDINALITY_VIOLATION";
-      var result = new LinkedHashMap<String,Object>();
-      result.put("name", testCase.name);
-      result.put("expectedConstraintValid", testCase.expectedConstraintValid);
-      result.put("actualConstraintValid", false); result.put("passed", false);
-      result.put("constraintExercised", false); result.put("subjectCount", subjectCount);
-      result.put("fixtureValid", false); result.put("fixturePreparationReasonCode", code);
-      result.put("fixtureErrors", List.of(Map.of("severity", "ERROR", "code", code, "message", reason)));
-      result.put("reason", reason); return result;
+      return fixtureFailure(testCase.name, testCase, subjectCount, code, reason);
     } finally {
       if (xtfFile != null) {
         try {
@@ -352,14 +336,35 @@ public class ConstraintTestTools {
     }
   }
 
+  private Map<String, Object> caseOutcome(
+      String name, TestCase testCase, boolean actual, boolean passed, boolean exercised, int subjectCount) {
+    var result = new LinkedHashMap<String, Object>();
+    result.put("name", name);
+    result.put("expectedConstraintValid", testCase.expectedConstraintValid);
+    result.put("actualConstraintValid", actual);
+    result.put("passed", passed);
+    result.put("constraintExercised", exercised);
+    result.put("subjectCount", subjectCount);
+    return result;
+  }
+
+  private Map<String, Object> fixtureFailure(
+      String name, TestCase testCase, int subjectCount, String code, String reason) {
+    var result = caseOutcome(name, testCase, false, false, false, subjectCount);
+    result.put("fixtureValid", false);
+    result.put("fixturePreparationReasonCode", code);
+    result.put("fixtureErrors", List.of(Map.of("severity", "ERROR", "code", code, "message", reason)));
+    result.put("reason", reason);
+    return result;
+  }
+
   private PreparedCase prepareCase(
       TransferDescription td,
       TestCase testCase,
       int caseIndex) {
     if(testCase.objects.size() + (testCase.links == null ? 0 : testCase.links.size()) > 64)
       throw new ConstraintFixtureException("OBJECT_PATH_FIXTURE_BUDGET_EXCEEDED", "A fixture permits at most 64 explicit class objects and relationships.");
-    List<ObjectDraft> objectDrafts = new ArrayList<>();
-    Map<String, ObjectDraft> draftsByOid = new LinkedHashMap<>();
+    Map<String, PreparedObject> objectsByOid = new LinkedHashMap<>();
 
     for (int i = 0; i < testCase.objects.size(); i++) {
       TestObject spec = testCase.objects.get(i);
@@ -373,20 +378,18 @@ public class ConstraintTestTools {
       String oid = spec.oid == null || spec.oid.isBlank()
           ? "case" + caseIndex + "_o" + (i + 1)
           : spec.oid.trim();
-      if (draftsByOid.containsKey(oid)) {
+      if (objectsByOid.containsKey(oid)) {
         throw new IllegalArgumentException("Case '" + testCase.name + "': duplicate OID " + oid);
       }
-      ObjectDraft draft = new ObjectDraft(
+      objectsByOid.put(oid, new PreparedObject(
           table,
           oid,
           normalizeBasketId(spec.basketId),
           spec.values != null ? spec.values : Map.of(),
-          spec.references != null ? spec.references : Map.of());
-      objectDrafts.add(draft);
-      draftsByOid.put(oid, draft);
+          spec.references != null ? spec.references : Map.of()));
     }
 
-    List<LinkDraft> linkDrafts = new ArrayList<>();
+    List<PreparedLink> links = new ArrayList<>();
     if (testCase.links != null) {
       for (TestLink spec : testCase.links) {
         if (spec == null || spec.associationFqn == null || spec.associationFqn.isBlank()) {
@@ -403,7 +406,7 @@ public class ConstraintTestTools {
           if (role.getKey() == null || role.getKey().isBlank() || role.getValue() == null || role.getValue().isBlank()) {
             throw new IllegalArgumentException("Case '" + testCase.name + "': link role names and OIDs must be non-empty.");
           }
-          if (!draftsByOid.containsKey(role.getValue().trim())) {
+          if (!objectsByOid.containsKey(role.getValue().trim())) {
             throw new IllegalArgumentException("Case '" + testCase.name + "': link role '" + role.getKey() + "' references unknown OID " + role.getValue());
           }
         }
@@ -413,62 +416,40 @@ public class ConstraintTestTools {
               + "': basketId is not applicable to lightweight association " + association.getScopedName(null)
               + "; its embedded reference belongs to the owner object's basket.");
         }
-        linkDrafts.add(new LinkDraft(association, requestedBasketId, Map.copyOf(spec.roles)));
+        links.add(new PreparedLink(association, requestedBasketId, Map.copyOf(spec.roles)));
       }
     }
 
-    completeMandatoryAssociations(
-        testCase, caseIndex, objectDrafts, draftsByOid, linkDrafts);
+    completeMandatoryAssociations(testCase, caseIndex, objectsByOid, links);
+    validateReferenceTargets(testCase, objectsByOid);
+    validateExplicitBasketIds(testCase, objectsByOid.values(), links);
+    Map<Topic, String> defaultBasketIds = allocateDefaultBasketIds(objectsByOid.values(), links);
 
-    validateReferenceTargets(testCase, objectDrafts, draftsByOid);
-    validateExplicitBasketIds(testCase, objectDrafts, linkDrafts);
-    Map<Topic, String> defaultBasketIds = allocateDefaultBasketIds(objectDrafts, linkDrafts);
-
-    List<PreparedObject> objects = new ArrayList<>();
-    Map<String, PreparedObject> objectsByOid = new LinkedHashMap<>();
+    objectsByOid.replaceAll((oid, object) -> new PreparedObject(
+        object.table(), oid, resolveBasketId(topicOf(object.table()), object.basketId(), defaultBasketIds),
+        object.values(), object.references()));
+    links.replaceAll(link -> link.association().isLightweight() ? link : new PreparedLink(
+        link.association(), resolveBasketId(topicOf(link.association()), link.basketId(), defaultBasketIds),
+        link.roles()));
     Map<Table, List<PreparedObject>> objectsByClass = new LinkedHashMap<>();
-    for (ObjectDraft draft : objectDrafts) {
-      Topic topic = topicOf(draft.table());
-      String basketId = resolveBasketId(topic, draft.requestedBasketId(), defaultBasketIds);
-      PreparedObject prepared = new PreparedObject(
-          draft.table(),
-          draft.oid(),
-          basketId,
-          draft.values(),
-          draft.references());
-      objects.add(prepared);
-      objectsByOid.put(prepared.oid(), prepared);
-      objectsByClass.computeIfAbsent(prepared.table(), key -> new ArrayList<>()).add(prepared);
+    for (PreparedObject object : objectsByOid.values()) {
+      objectsByClass.computeIfAbsent(object.table(), key -> new ArrayList<>()).add(object);
     }
-
-    List<PreparedLink> links = new ArrayList<>();
-    for (LinkDraft draft : linkDrafts) {
-      String basketId = null;
-      if (!draft.association().isLightweight()) {
-        basketId = resolveBasketId(
-            topicOf(draft.association()),
-            draft.requestedBasketId(),
-            defaultBasketIds);
-      }
-      links.add(new PreparedLink(draft.association(), basketId, draft.roles()));
-    }
-
-    List<BasketKey> baskets = collectBaskets(objects, links);
-    return new PreparedCase(objects, links, objectsByOid, objectsByClass, baskets);
+    return new PreparedCase(links, objectsByOid, objectsByClass);
   }
 
   private void completeMandatoryAssociations(
       TestCase testCase,
       int caseIndex,
-      List<ObjectDraft> objects,
-      Map<String, ObjectDraft> objectsByOid,
-      List<LinkDraft> links) {
+      Map<String, PreparedObject> objectsByOid,
+      List<PreparedLink> links) {
+    List<PreparedObject> objects = new ArrayList<>(objectsByOid.values());
     int generatedElements = 0;
     int generatedObjectIndex = 1;
     Set<String> visitedRolePaths = new LinkedHashSet<>();
 
     for (int objectIndex = 0; objectIndex < objects.size(); objectIndex++) {
-      ObjectDraft source = objects.get(objectIndex);
+      PreparedObject source = objects.get(objectIndex);
       List<RoleDef> navigationRoles = new ArrayList<>();
       Iterator<RoleDef> iterator = source.table().getOpposideRoles();
       while (iterator.hasNext()) {
@@ -501,7 +482,7 @@ public class ConstraintTestTools {
 
         RoleDef sourceRole = targetRole.getOppEnd();
         while (countLinksForSource(links, association, sourceRole, source.oid()) < minimum) {
-          ObjectDraft target = reusableTarget(objects, links, targetRole, source);
+          PreparedObject target = reusableTarget(objects, links, targetRole, source);
           boolean createsObject = target == null;
           int requiredElements = createsObject ? 2 : 1;
           if (generatedElements + requiredElements > MAX_AUTOMATIC_ASSOCIATION_ELEMENTS) {
@@ -520,9 +501,9 @@ public class ConstraintTestTools {
             } while (objectsByOid.containsKey(oid));
             String targetBasketId = topicOf(targetTable) == topicOf(source.table())
                     && !targetRole.isExternal()
-                ? source.requestedBasketId()
+                ? source.basketId()
                 : null;
-            target = new ObjectDraft(targetTable, oid, targetBasketId, Map.of(), Map.of());
+            target = new PreparedObject(targetTable, oid, targetBasketId, Map.of(), Map.of());
             objects.add(target);
             objectsByOid.put(oid, target);
             generatedElements++;
@@ -531,7 +512,7 @@ public class ConstraintTestTools {
           Map<String, String> roles = new LinkedHashMap<>();
           roles.put(sourceRole.getName(), source.oid());
           roles.put(targetRole.getName(), Objects.requireNonNull(target).oid());
-          links.add(new LinkDraft(association, null, Map.copyOf(roles)));
+          links.add(new PreparedLink(association, null, Map.copyOf(roles)));
           generatedElements++;
         }
       }
@@ -563,7 +544,7 @@ public class ConstraintTestTools {
   }
 
   private long countLinksForSource(
-      List<LinkDraft> links,
+      List<PreparedLink> links,
       AssociationDef association,
       RoleDef sourceRole,
       String sourceOid) {
@@ -573,11 +554,11 @@ public class ConstraintTestTools {
         .count();
   }
 
-  private @Nullable ObjectDraft reusableTarget(
-      List<ObjectDraft> objects,
-      List<LinkDraft> links,
+  private @Nullable PreparedObject reusableTarget(
+      List<PreparedObject> objects,
+      List<PreparedLink> links,
       RoleDef targetRole,
-      ObjectDraft source) {
+      PreparedObject source) {
     if (!(targetRole.getDestination() instanceof Table declaredTarget)) {
       return null;
     }
@@ -590,7 +571,7 @@ public class ConstraintTestTools {
         .filter(candidate -> compatibleTable(candidate.table(), declaredTarget))
         .filter(candidate -> targetRole.isExternal()
             || topicOf(candidate.table()) != topicOf(source.table())
-            || Objects.equals(candidate.requestedBasketId(), source.requestedBasketId()))
+            || Objects.equals(candidate.basketId(), source.basketId()))
         .filter(candidate -> links.stream().noneMatch(link ->
             link.association() == targetRole.getContainer()
                 && source.oid().equals(link.roles().get(sourceRole.getName()))
@@ -600,7 +581,7 @@ public class ConstraintTestTools {
                 .filter(link -> link.association() == targetRole.getContainer())
                 .filter(link -> candidate.oid().equals(link.roles().get(targetRole.getName())))
                 .count() < maximumBackReferences)
-        .sorted(Comparator.comparing(ObjectDraft::oid))
+        .sorted(Comparator.comparing(PreparedObject::oid))
         .findFirst()
         .orElse(null);
   }
@@ -658,9 +639,8 @@ public class ConstraintTestTools {
 
   private void validateReferenceTargets(
       TestCase testCase,
-      List<ObjectDraft> objects,
-      Map<String, ObjectDraft> objectsByOid) {
-    for (ObjectDraft object : objects) {
+      Map<String, PreparedObject> objectsByOid) {
+    for (PreparedObject object : objectsByOid.values()) {
       for (Map.Entry<String, String> reference : object.references().entrySet()) {
         if (reference.getValue() == null
             || reference.getValue().isBlank()
@@ -674,22 +654,22 @@ public class ConstraintTestTools {
 
   private void validateExplicitBasketIds(
       TestCase testCase,
-      List<ObjectDraft> objects,
-      List<LinkDraft> links) {
+      Collection<PreparedObject> objects,
+      List<PreparedLink> links) {
     Map<String, Topic> topicsByBasketId = new LinkedHashMap<>();
-    for (ObjectDraft object : objects) {
+    for (PreparedObject object : objects) {
       registerExplicitBasketId(
           testCase.name,
           topicsByBasketId,
-          object.requestedBasketId(),
+          object.basketId(),
           topicOf(object.table()));
     }
-    for (LinkDraft link : links) {
+    for (PreparedLink link : links) {
       if (!link.association().isLightweight()) {
         registerExplicitBasketId(
             testCase.name,
             topicsByBasketId,
-            link.requestedBasketId(),
+            link.basketId(),
             topicOf(link.association()));
       }
     }
@@ -712,25 +692,25 @@ public class ConstraintTestTools {
   }
 
   private Map<Topic, String> allocateDefaultBasketIds(
-      List<ObjectDraft> objects,
-      List<LinkDraft> links) {
+      Collection<PreparedObject> objects,
+      List<PreparedLink> links) {
     Set<String> explicitIds = new LinkedHashSet<>();
     Set<Topic> topicsNeedingDefault = new LinkedHashSet<>();
-    for (ObjectDraft object : objects) {
-      if (object.requestedBasketId() == null) {
+    for (PreparedObject object : objects) {
+      if (object.basketId() == null) {
         topicsNeedingDefault.add(topicOf(object.table()));
       } else {
-        explicitIds.add(object.requestedBasketId());
+        explicitIds.add(object.basketId());
       }
     }
-    for (LinkDraft link : links) {
+    for (PreparedLink link : links) {
       if (link.association().isLightweight()) {
         continue;
       }
-      if (link.requestedBasketId() == null) {
+      if (link.basketId() == null) {
         topicsNeedingDefault.add(topicOf(link.association()));
       } else {
-        explicitIds.add(link.requestedBasketId());
+        explicitIds.add(link.basketId());
       }
     }
 
@@ -762,21 +742,6 @@ public class ConstraintTestTools {
       throw new IllegalStateException("No implicit basket allocated for topic " + topic.getScopedName(null) + ".");
     }
     return basketId;
-  }
-
-  private List<BasketKey> collectBaskets(
-      List<PreparedObject> objects,
-      List<PreparedLink> links) {
-    Set<BasketKey> result = new LinkedHashSet<>();
-    for (PreparedObject object : objects) {
-      result.add(new BasketKey(topicOf(object.table()), object.basketId()));
-    }
-    for (PreparedLink link : links) {
-      if (!link.association().isLightweight()) {
-        result.add(new BasketKey(topicOf(link.association()), Objects.requireNonNull(link.basketId())));
-      }
-    }
-    return orderBaskets(result);
   }
 
   private List<BasketKey> orderBaskets(Iterable<BasketKey> baskets) {
@@ -815,25 +780,14 @@ public class ConstraintTestTools {
     return false;
   }
 
-  private List<Map<String, Object>> basketSummaries(PreparedCase prepared) {
-    List<Map<String, Object>> result = new ArrayList<>();
-    for (BasketKey basket : prepared.baskets()) {
-      long objectCount = prepared.objects().stream()
-          .filter(object -> topicOf(object.table()) == basket.topic())
-          .filter(object -> object.basketId().equals(basket.basketId()))
-          .count();
-      long associationObjectCount = prepared.links().stream()
-          .filter(link -> !link.association().isLightweight())
-          .filter(link -> topicOf(link.association()) == basket.topic())
-          .filter(link -> basket.basketId().equals(link.basketId()))
-          .count();
-      result.add(Map.of(
-          "topic", basket.topic().getScopedName(null),
-          "basketId", basket.basketId(),
-          "objectCount", objectCount,
-          "associationObjectCount", associationObjectCount));
-    }
-    return result;
+  private Map<String, Object> basketSummary(BasketKey basket, List<Iom_jObject> objects) {
+    // Only top-level class objects have TIDs. Heavyweight links are emitted without a TID.
+    long objectCount = objects.stream().filter(object -> object.getobjectoid() != null).count();
+    return Map.of(
+        "topic", basket.topic().getScopedName(null),
+        "basketId", basket.basketId(),
+        "objectCount", objectCount,
+        "associationObjectCount", objects.size() - objectCount);
   }
 
   private Map<BasketKey, List<Iom_jObject>> buildCaseObjects(PreparedCase prepared) {
@@ -841,7 +795,7 @@ public class ConstraintTestTools {
     Map<BasketKey, List<Iom_jObject>> objectsByBasket = new LinkedHashMap<>();
     Map<String, Iom_jObject> iomObjectsByOid = new LinkedHashMap<>();
     int objectIndex = 1;
-    for (PreparedObject preparedObject : prepared.objects()) {
+    for (PreparedObject preparedObject : prepared.objectsByOid().values()) {
       Table table = preparedObject.table();
       Iom_jObject object = new Iom_jObject(table.getScopedName(null), preparedObject.oid());
       Set<String> explicitNames = new LinkedHashSet<>(preparedObject.values().keySet());
@@ -892,8 +846,7 @@ public class ConstraintTestTools {
 
   private void writeCaseXtf(
       TransferDescription td, Map<BasketKey, List<Iom_jObject>> objectsByBasket,
-      Path xtfFile) throws IOException {
-    List<BasketKey> baskets = orderBaskets(objectsByBasket.keySet());
+      List<BasketKey> baskets, Path xtfFile) throws IOException {
     try (OutputStream outputStream = Files.newOutputStream(xtfFile)) {
       XtfWriter writer = new XtfWriter(outputStream, td);
       try {
@@ -1573,24 +1526,10 @@ public class ConstraintTestTools {
     return (container != null ? container.getScopedName(null) + "." : "") + constraint.getName();
   }
 
-  private record ObjectDraft(
-      Table table,
-      String oid,
-      @Nullable String requestedBasketId,
-      Map<String, Object> values,
-      Map<String, String> references) {
-  }
-
-  private record LinkDraft(
-      AssociationDef association,
-      @Nullable String requestedBasketId,
-      Map<String, String> roles) {
-  }
-
   private record PreparedObject(
       Table table,
       String oid,
-      String basketId,
+      @Nullable String basketId,
       Map<String, Object> values,
       Map<String, String> references) {
   }
@@ -1611,11 +1550,9 @@ public class ConstraintTestTools {
   }
 
   private record PreparedCase(
-      List<PreparedObject> objects,
       List<PreparedLink> links,
       Map<String, PreparedObject> objectsByOid,
-      Map<Table, List<PreparedObject>> objectsByClass,
-      List<BasketKey> baskets) {
+      Map<Table, List<PreparedObject>> objectsByClass) {
   }
 
   private record ValidationOutcome(List<Map<String, Object>> messages, int errorCount, int warningCount,
