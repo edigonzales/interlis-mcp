@@ -466,12 +466,12 @@ läuft. Diese Diagnose ist kein reguläres Ergebnis mit `status=INVALID_SPEC` un
 weder im Protokoll noch in der Bewertung so bezeichnet werden. Sie erweitert das
 bestehende Reparaturlimit nicht; `expression` ist kein Alias für `spec.condition`.
 
-Bei `requiresUserDecision=true` nennt der Agent die konkrete Frage und seinen Umgang
+Bei Einträgen in `openQuestions` nennt der Agent die konkrete Frage und seinen Umgang
 damit in der Abschlussantwort. Tatsächlich offene Fachentscheide verhindern das
 Schreiben. Beurteilt er eine allgemeine Frage anhand des vorhandenen Auftrags als
-für die konkrete Änderung unerheblich, muss er dies sichtbar begründen. Das Flag
-bleibt unverändert; weder ein erfundener Modellzweck noch erfolgreiche Proofs ersetzen
-diese Beurteilung. Es gibt keine pauschale Ausnahme für Modellzweckfragen.
+für die konkrete Änderung unerheblich, begründet er das in der Abschlussantwort. Eine Frage mit
+`decisionImpact=BLOCKING` klärt er mit dem Nutzer. Fragen mit `decisionImpact=ADVISORY`
+bleiben als Hinweise sichtbar.
 
 ### Gezielte Schemadiagnosen
 

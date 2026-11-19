@@ -52,8 +52,8 @@ class ConstraintDecisionTableToolsTest {
         "ValueBetween10And20",
         List.of(allowed));
 
-    assertEquals(true, result.generated, String.valueOf(result));
-    assertEquals(true, result.proofVerified);
+    assertEquals(IliAuthoringResult.Status.GENERATED, result.status, String.valueOf(result));
+    assertEquals(IliAuthoringResult.ProofStatus.PASSED, result.constraintProofs.getFirst().status);
     assertEquals("(value >= 10 AND value <= 20)", result.details.get("constraintExpression"));
     assertTrue(result.updatedModelText.contains("ValueBetween10And20"));
 
@@ -67,9 +67,9 @@ class ConstraintDecisionTableToolsTest {
 
     IliAuthoringResult.ProofVerification verification =
         result.constraintProofs.getFirst().verification;
-    assertEquals(4, verification.caseCount);
-    assertEquals(4, verification.passedCount);
-    assertEquals(true, verification.allPassed);
+    assertEquals(4, verification.cases.size());
+
+    assertTrue(verification.cases.stream().allMatch(c -> Boolean.TRUE.equals(c.passed)));
   }
 
   @Test
@@ -89,8 +89,8 @@ class ConstraintDecisionTableToolsTest {
         "LowOrHigh",
         List.of(low, high));
 
-    assertEquals(true, result.generated, String.valueOf(result));
-    assertEquals(true, result.proofVerified);
+    assertEquals(IliAuthoringResult.Status.GENERATED, result.status, String.valueOf(result));
+    assertEquals(IliAuthoringResult.ProofStatus.PASSED, result.constraintProofs.getFirst().status);
     assertTrue(String.valueOf(result.details.get("constraintExpression")).contains(" OR "));
 
     List<IliAuthoringResult.ProofCase> boundaryCases =
@@ -116,8 +116,8 @@ class ConstraintDecisionTableToolsTest {
         "DraftOrActive",
         List.of(draft, active));
 
-    assertEquals(true, result.generated);
-    assertEquals(true, result.proofVerified);
+    assertEquals(IliAuthoringResult.Status.GENERATED, result.status);
+    assertEquals(IliAuthoringResult.ProofStatus.PASSED, result.constraintProofs.getFirst().status);
     String expression = String.valueOf(result.details.get("constraintExpression"));
     assertTrue(expression.contains("status == #draft"));
     assertTrue(expression.contains("status == #active"));
@@ -127,7 +127,7 @@ class ConstraintDecisionTableToolsTest {
     assertCase(cases, "status", "active", true);
     assertCase(cases, "status", "archived", false);
 
-    assertEquals(true, result.constraintProofs.getFirst().verification.allPassed);
+    assertTrue(result.constraintProofs.getFirst().verification.cases.stream().allMatch(c -> Boolean.TRUE.equals(c.passed)));
   }
 
   @Test
@@ -138,15 +138,15 @@ class ConstraintDecisionTableToolsTest {
         "EnabledOnly",
         List.of(row("enabled", condition("enabled", "==", true))));
 
-    assertEquals(true, result.generated, String.valueOf(result));
-    assertEquals(true, result.proofVerified);
+    assertEquals(IliAuthoringResult.Status.GENERATED, result.status, String.valueOf(result));
+    assertEquals(IliAuthoringResult.ProofStatus.PASSED, result.constraintProofs.getFirst().status);
     assertEquals("enabled == #true", result.details.get("constraintExpression"));
 
     List<IliAuthoringResult.ProofCase> cases = result.constraintProofs.getFirst().generatedCases;
     assertCase(cases, "enabled", "true", true);
     assertCase(cases, "enabled", "false", false);
 
-    assertEquals(true, result.constraintProofs.getFirst().verification.allPassed);
+    assertTrue(result.constraintProofs.getFirst().verification.cases.stream().allMatch(c -> Boolean.TRUE.equals(c.passed)));
   }
 
   @Test
@@ -161,12 +161,11 @@ class ConstraintDecisionTableToolsTest {
         "NumericOnly",
         List.of(row("row", condition("value", ">=", 10))));
 
-    assertEquals(false, result.generated);
-    assertEquals(false, result.proofVerified, String.valueOf(result));
-    assertTrue(List.of("CANDIDATE_MODEL_INVALID", "UNSUPPORTED_ATTRIBUTE_TYPE", "PROOF_INCOMPLETE")
-        .contains(String.valueOf(result.reasonCode)));
-    assertTrue(result.constraintProofs.isEmpty()
-        || result.constraintProofs.getFirst().verification == null);
+    assertEquals(null, result.updatedModelText);
+    assertEquals(IliAuthoringResult.Status.CANDIDATE_MODEL_INVALID, result.status, String.valueOf(result));
+    assertTrue(result.beforeCompilation.valid());
+    assertEquals(false, result.afterCompilation.valid());
+    assertEquals(null, result.constraintProofs);
   }
 
   private ConstraintDecisionTableTools.DecisionRow row(
@@ -195,11 +194,11 @@ class ConstraintDecisionTableToolsTest {
       String expectedValue,
       boolean expectedValid) {
     IliAuthoringResult.ProofCase match = cases.stream()
-        .filter(item -> expectedValue.equals(String.valueOf(map(item.get("values")).get(attribute))))
+        .filter(item -> expectedValue.equals(String.valueOf(map(item.values).get(attribute))))
         .findFirst()
         .orElseThrow(() -> new AssertionError(
             "Missing decision-table value " + attribute + "=" + expectedValue + ": " + cases));
-    assertEquals(expectedValid, match.get("expectedConstraintValid"));
+    assertEquals(expectedValid, match.expectedConstraintValid);
   }
 
   @SuppressWarnings("unchecked")

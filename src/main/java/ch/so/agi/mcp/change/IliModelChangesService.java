@@ -15,10 +15,12 @@ import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
 import ch.so.agi.mcp.model.AttributeLineRequest;
 import ch.so.agi.mcp.model.IliAuthoringResult;
+import ch.so.agi.mcp.model.IliAuthoringResult.SemanticDiff;
+import ch.so.agi.mcp.model.IliAuthoringResult.SourceEdit;
+import ch.so.agi.mcp.model.IliAuthoringResult.Status;
 import ch.so.agi.mcp.model.SpecValidationException;
 import ch.so.agi.mcp.model.ConstraintSpecContract;
 import ch.so.agi.mcp.model.IliConstraintSpec;
-import ch.so.agi.mcp.model.IliModelSpec;
 import ch.so.agi.mcp.model.IliSpecRenderer;
 import ch.so.agi.mcp.service.IliCompilerService;
 import ch.so.agi.mcp.tools.ConstraintCaseGenerationTools;
@@ -36,7 +38,6 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** Atomic, source-preserving implementation of applyIliModelChanges. */
@@ -49,29 +50,21 @@ public final class IliModelChangesService {
   private final IliCompilerService compilerService;
   private final ModelChangeReviewService reviewService;
   private final IliSpecRenderer renderer;
-  private final @Nullable ConstraintContextService constraintContextService;
-  private final @Nullable ConstraintCaseGenerationTools caseGenerationTools;
+  private final ConstraintContextService constraintContextService;
+  private final ConstraintCaseGenerationTools caseGenerationTools;
   private final IliSourceLocator sourceLocator = new IliSourceLocator();
 
   public IliModelChangesService(
       IliCompilerService compilerService,
       ModelChangeReviewService reviewService,
-      IliSpecRenderer renderer) {
-    this(compilerService, reviewService, renderer, null, null);
-  }
-
-  @Autowired
-  public IliModelChangesService(
-      IliCompilerService compilerService,
-      ModelChangeReviewService reviewService,
       IliSpecRenderer renderer,
-      @Nullable ConstraintContextService constraintContextService,
-      @Nullable ConstraintCaseGenerationTools caseGenerationTools) {
+      ConstraintContextService constraintContextService,
+      ConstraintCaseGenerationTools caseGenerationTools) {
     this.compilerService = compilerService;
     this.reviewService = reviewService;
     this.renderer = renderer;
-    this.constraintContextService = constraintContextService;
-    this.caseGenerationTools = caseGenerationTools;
+    this.constraintContextService = Objects.requireNonNull(constraintContextService);
+    this.caseGenerationTools = Objects.requireNonNull(caseGenerationTools);
   }
 
   public IliAuthoringResult apply(
@@ -81,22 +74,19 @@ public final class IliModelChangesService {
       @Nullable ModelPurpose modelPurpose,
       @Nullable ModelingRuleProfile ruleProfile) {
     if (modelText == null || modelText.isBlank()) {
-      return failure("INVALID_SPEC", "modelText is required.");
+      return new IliAuthoringResult().reject(Status.INVALID_SPEC, "modelText is required.", null);
     }
     if (request == null) {
-      return failure("INVALID_SPEC", "request is required.");
+      return new IliAuthoringResult().reject(Status.INVALID_SPEC, "request is required.", null);
     }
 
     IliCompilerService.CompilationResult before = compilerService.compile(
         modelText, modelRepositories, "ili2c_model_changes_before_");
     if (!before.valid() || before.transferDescription() == null) {
-      IliAuthoringResult result = failure(
-          "BEFORE_MODEL_INVALID", "The supplied before model must compile.");
-      result.beforeDiagnostics = IliAuthoringResult.diagnostics(before.messages());
-      if (result.compilerEvidence == null) result.compilerEvidence =
-          ch.so.agi.mcp.model.EvidenceSummary.compiler(before.valid(), before.messages());
-      result.compilerDiagnostics = IliAuthoringResult.diagnostics(before.messages());
-      return result.withEvidence("ADDED_CONSTRAINTS");
+      IliAuthoringResult result = new IliAuthoringResult().reject(
+          Status.BEFORE_MODEL_INVALID, "The supplied before model must compile.", null);
+      result.beforeCompilation = IliAuthoringResult.Compilation.from(before);
+      return result;
     }
 
     try {
@@ -111,12 +101,9 @@ public final class IliModelChangesService {
           ModelPurpose.normalize(modelPurpose),
           ModelingRuleProfile.normalize(ruleProfile));
     } catch (IllegalArgumentException ex) {
-      IliAuthoringResult result = SpecValidationException.attach(failure("INVALID_SPEC", ex.getMessage()), ex);
-      result.beforeDiagnostics = IliAuthoringResult.diagnostics(before.messages());
-      if (result.compilerEvidence == null) result.compilerEvidence =
-          ch.so.agi.mcp.model.EvidenceSummary.compiler(before.valid(), before.messages());
-      result.compilerDiagnostics = IliAuthoringResult.diagnostics(before.messages());
-      return result.withEvidence("ADDED_CONSTRAINTS");
+      IliAuthoringResult result = SpecValidationException.attach(new IliAuthoringResult().reject(Status.INVALID_SPEC, ex.getMessage(), null), ex);
+      result.beforeCompilation = IliAuthoringResult.Compilation.from(before);
+      return result;
     }
   }
 
@@ -172,118 +159,69 @@ public final class IliModelChangesService {
     patches.addAll(groupInsertions(document, insertions));
     Prepared prepared = prepare(document, patches);
     if (prepared.candidate().equals(modelText)) {
-      IliAuthoringResult result = failure(
-          "INVALID_SPEC", "The requested batch changes no source text.");
-      result.beforeDiagnostics = IliAuthoringResult.diagnostics(before.messages());
-      if (result.compilerEvidence == null) result.compilerEvidence =
-          ch.so.agi.mcp.model.EvidenceSummary.compiler(before.valid(), before.messages());
-      result.sourceEdits = IliAuthoringResult.sourceEdits(prepared.sourceEdits());
-      return result.withEvidence("ADDED_CONSTRAINTS");
+      IliAuthoringResult result = new IliAuthoringResult().reject(
+          Status.INVALID_SPEC, "The requested batch changes no source text.", null);
+      result.beforeCompilation = IliAuthoringResult.Compilation.from(before);
+      result.sourceEdits = prepared.sourceEdits();
+      return result;
     }
 
     IliCompilerService.CompilationResult after = compilerService.compile(
         prepared.candidate(), modelRepositories, "ili2c_model_changes_after_");
     Map<String, Object> review = reviewService.reviewCompiledChange(
         before, after, modelText, prepared.candidate(), modelPurpose, ruleProfile);
-    IliAuthoringResult result = reviewResult(review);
-    result.applied = false;
-    result.complete = false;
-    result.beforeDiagnostics = IliAuthoringResult.diagnostics(before.messages());
-    result.afterDiagnostics = IliAuthoringResult.diagnostics(after.messages());
-    result.compilerDiagnostics = IliAuthoringResult.diagnostics(after.messages());
-    result.sourceEdits = IliAuthoringResult.sourceEdits(prepared.sourceEdits());
+    IliAuthoringResult result = IliAuthoringResult.fromChangeReview(review, before, after);
+    result.sourceEdits = prepared.sourceEdits();
     result.derivedImports = List.copyOf(derivedImports);
 
-    if (!after.valid()) {
-      result.status = IliAuthoringResult.Status.CANDIDATE_MODEL_INVALID;
-      result.reasonCode = "CANDIDATE_MODEL_INVALID";
-      result.reason = "The complete batch candidate does not compile; no change was released.";
-      result.candidateModelText = prepared.candidate();
-      return result.withEvidence("ADDED_CONSTRAINTS");
+    if (!result.afterCompilation.valid()) {
+      return result.reject(Status.CANDIDATE_MODEL_INVALID,
+          "The complete batch candidate does not compile; no change was released.", prepared.candidate());
     }
 
-    String unexpected = unexpectedSemanticChange(result, expected);
+    String unexpected = unexpectedSemanticChange(Objects.requireNonNull(result.semanticDiff), expected);
     if (unexpected != null) {
-      result.status = IliAuthoringResult.Status.UNEXPECTED_SEMANTIC_CHANGE;
-      result.reasonCode = "UNEXPECTED_SEMANTIC_CHANGE";
-      result.reason = unexpected;
-      result.candidateModelText = prepared.candidate();
-      return result.withEvidence("ADDED_CONSTRAINTS");
+      return result.reject(Status.UNEXPECTED_SEMANTIC_CHANGE, unexpected, prepared.candidate());
     }
 
-    if (changes.stream().anyMatch(this::addsExternalFunctionConstraint)) {
-      result.status = IliAuthoringResult.Status.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED;
-      result.reasonCode = result.status.name();
-      result.reason = "The batch adds a constraint with model-defined or validator-extension function semantics that cannot be proved automatically.";
-      result.candidateModelText = prepared.candidate();
-      result.proofVerified = false;
-      result.requiresUserDecision = true;
-      result.openQuestions = List.of(IliAuthoringResult.openQuestion(
-          "Provide independently verified validator cases for every external function in the batch."));
-      return result.withEvidence("ADDED_CONSTRAINTS");
+    Map<String, Boolean> requestedConstraints = new LinkedHashMap<>();
+    for (var change : changes) {
+      switch (change.requireOperation()) {
+        case ADD_TOPIC -> change.getAddTopic().topic.collectConstraints(modelName, requestedConstraints);
+        case ADD_CLASS -> change.getAddClass().clazz.collectConstraints(change.getAddClass().topicFqn.trim(), requestedConstraints);
+        case ADD_STRUCTURE -> change.getAddStructure().structure.collectConstraints(change.getAddStructure().topicFqn.trim(), requestedConstraints);
+        case ADD_ASSOCIATION -> change.getAddAssociation().association.collectConstraints(change.getAddAssociation().topicFqn.trim(), requestedConstraints);
+        case ADD_CONSTRAINT -> {
+          var add = change.getAddConstraint();
+          requestedConstraints.put(add.containerFqn.trim() + "." + add.constraint.name.trim(),
+              add.constraint.hasExternalFunctionSemantics());
+        }
+        default -> { }
+      }
+    }
+    Map<String, Integer> existing = new LinkedHashMap<>();
+    for (String fqn : ConstraintContextService.declaredConstraintNames(td)) {
+      existing.merge(fqn, 1, Integer::sum);
+    }
+    var required = new LinkedHashSet<String>();
+    for (String fqn : ConstraintContextService.declaredConstraintNames(Objects.requireNonNull(after.transferDescription()))) {
+      if (existing.merge(fqn, -1, Integer::sum) < 0) required.add(fqn);
+    }
+    // Explicit proof targets remain required even when absent from the compiled candidate.
+    required.addAll(requestedConstraints.keySet());
+    var proofs = required.stream()
+        .map(fqn -> caseGenerationTools.prove(fqn, constraintContextService.resolveCompiled(
+            prepared.candidate(), fqn, modelRepositories, after), Boolean.TRUE.equals(requestedConstraints.get(fqn))))
+        .toList();
+    if (result.rejectFailedProof(proofs, prepared.candidate())) return result;
+
+    if (!result.semanticDiff.potentiallyBreakingChanges.isEmpty() && !allowPotentiallyBreaking) {
+      result.addQuestion("Confirm all potentially breaking changes by setting allowPotentiallyBreaking=true.");
+      return result.reject(Status.BREAKING_CHANGE_REQUIRES_CONFIRMATION,
+          "The semantic review found potentially breaking changes.", prepared.candidate());
     }
 
-    if (constraintContextService != null && caseGenerationTools != null
-        && !proveAddedConstraints(result, prepared.candidate(), modelRepositories, after)) {
-      boolean incomplete = result.constraintProofs.stream().anyMatch(
-          proof -> !Boolean.TRUE.equals(proof.coverageComplete));
-      result.status = incomplete
-          ? IliAuthoringResult.Status.PROOF_INCOMPLETE
-          : IliAuthoringResult.Status.PROOF_FAILED;
-      result.reasonCode = result.status.name();
-      result.reason = "At least one added constraint could not be fully proved.";
-      result.candidateModelText = prepared.candidate();
-      return result.withEvidence("ADDED_CONSTRAINTS");
-    }
-
-    if (!result.potentiallyBreakingChanges.isEmpty() && !allowPotentiallyBreaking) {
-      result.status = IliAuthoringResult.Status.BREAKING_CHANGE_REQUIRES_CONFIRMATION;
-      result.reasonCode = "BREAKING_CHANGE_REQUIRES_CONFIRMATION";
-      result.reason = "The semantic review found potentially breaking changes. Repeat the same batch with allowPotentiallyBreaking=true to release it.";
-      result.candidateModelText = prepared.candidate();
-      result.requiresUserDecision = true;
-      result.openQuestions = List.of(IliAuthoringResult.openQuestion(
-          "Confirm all potentially breaking changes by setting allowPotentiallyBreaking=true."));
-      return result.withEvidence("ADDED_CONSTRAINTS");
-    }
-
-    result.status = IliAuthoringResult.Status.APPLIED;
-    result.complete = true;
-    result.applied = true;
-    result.updatedModelText = prepared.candidate();
-    return result.withEvidence("ADDED_CONSTRAINTS");
-  }
-
-  private boolean addsExternalFunctionConstraint(IliModelChangeRequest change) {
-    return switch (change.requireOperation()) {
-      case ADD_CONSTRAINT -> change.getAddConstraint().constraint.hasExternalFunctionSemantics();
-      case ADD_CLASS -> hasExternalFunctions(change.getAddClass().clazz.constraints);
-      case ADD_STRUCTURE -> hasExternalFunctions(change.getAddStructure().structure.constraints);
-      case ADD_ASSOCIATION -> hasExternalFunctions(change.getAddAssociation().association.constraints);
-      case ADD_TOPIC -> hasExternalFunctions(change.getAddTopic().topic);
-      default -> false;
-    };
-  }
-
-  private boolean hasExternalFunctions(IliModelSpec.TopicSpec topic) {
-    for (IliModelSpec.ClassSpec clazz : safe(topic.classes)) {
-      if (hasExternalFunctions(clazz.constraints)) return true;
-    }
-    for (IliModelSpec.StructureSpec structure : safe(topic.structures)) {
-      if (hasExternalFunctions(structure.constraints)) return true;
-    }
-    for (IliModelSpec.AssociationSpec association : safe(topic.associations)) {
-      if (hasExternalFunctions(association.constraints)) return true;
-    }
-    return false;
-  }
-
-  private boolean hasExternalFunctions(@Nullable List<IliConstraintSpec> constraints) {
-    return safe(constraints).stream().anyMatch(IliConstraintSpec::hasExternalFunctionSemantics);
-  }
-
-  private <T> List<T> safe(@Nullable List<T> values) {
-    return values == null ? List.of() : values;
+    return result.release(Status.APPLIED, prepared.candidate());
   }
 
   private void addMissingDerivedImports(
@@ -670,86 +608,25 @@ public final class IliModelChangesService {
   private Prepared prepare(IliSourceDocument document, List<IliTextPatch> patches) {
     List<IliTextPatch> ordered = patches.stream()
         .sorted(Comparator.comparingInt(patch -> patch.span().startOffset())).toList();
-    List<Map<String, Object>> edits = new ArrayList<>();
-    for (IliTextPatch patch : ordered) {
-      Map<String, Object> edit = new LinkedHashMap<>();
-      edit.put("startOffset", patch.span().startOffset());
-      edit.put("endOffset", patch.span().endOffset());
-      edit.put("startLine", patch.span().startLine());
-      edit.put("endLine", patch.span().endLine());
-      edit.put("before", document.slice(patch.span()));
-      edit.put("after", patch.replacement());
-      edit.put("description", patch.description());
-      edits.add(edit);
-    }
-    return new Prepared(IliPatchApplier.apply(document, ordered), List.copyOf(edits));
-  }
-
-  private IliAuthoringResult reviewResult(Map<String, Object> review) {
-    IliAuthoringResult result = new IliAuthoringResult();
-    result.compilerEvidence = ((ch.so.agi.mcp.model.EvidenceSummary) review.get("evidence")).compiler();
-    result.semanticDiff = IliAuthoringResult.semanticDiff(review);
-    result.afterReview = IliAuthoringResult.modelReview(review.get("afterReview"));
-    if (result.afterReview != null) {
-      result.openQuestions = result.afterReview.openQuestions;
-      result.requiresUserDecision = !result.openQuestions.isEmpty();
-    }
-    result.added = IliAuthoringResult.semanticChanges(review.get("added"));
-    result.removed = IliAuthoringResult.semanticChanges(review.get("removed"));
-    result.changed = IliAuthoringResult.semanticChanges(review.get("changed"));
-    result.potentiallyBreakingChanges = IliAuthoringResult.semanticChanges(
-        review.get("potentiallyBreakingChanges"));
-    result.impact = string(review.get("impact"));
-    return result.withEvidence("ADDED_CONSTRAINTS");
-  }
-
-  private boolean proveAddedConstraints(
-      IliAuthoringResult result,
-      String candidate,
-      @Nullable String modelRepositories,
-      IliCompilerService.CompilationResult after) {
-    List<IliAuthoringResult.ConstraintProof> proofs = new ArrayList<>();
-    boolean verified = true;
-    for (IliAuthoringResult.SemanticChange item : result.added) {
-      String kind = String.valueOf(item.get("kind"));
-      if (!kind.endsWith("_CONSTRAINT")) continue;
-      String fqn = String.valueOf(item.get("scopedName"));
-      var resolution = constraintContextService.resolveCompiled(
-          candidate, fqn, modelRepositories, after);
-      if (!resolution.available()) {
-        IliAuthoringResult.ConstraintProof entry = IliAuthoringResult.constraintProof(
-            fqn, false, null);
-        entry.reasonCode = resolution.reasonCode();
-        entry.reason = resolution.reason();
-        proofs.add(entry);
-        verified = false;
-      } else {
-        Map<String, Object> proof = caseGenerationTools.generateCompiledConstraintCases(
-            resolution.context());
-        boolean proofVerified = Boolean.TRUE.equals(proof.get("generationVerified"))
-            && Boolean.TRUE.equals(proof.get("coverageComplete"));
-        proofs.add(IliAuthoringResult.constraintProof(fqn, proofVerified, proof));
-        verified &= proofVerified;
-      }
-    }
-    result.constraintProofs = List.copyOf(proofs);
-    result.proofVerified = proofs.isEmpty() ? null : verified;
-    return verified;
+    List<SourceEdit> edits = ordered.stream().map(patch -> IliAuthoringResult.sourceEdit(
+        patch.span().startOffset(), patch.span().endOffset(), patch.span().startLine(),
+        patch.span().endLine(), document.slice(patch.span()), patch.replacement(), patch.description())).toList();
+    return new Prepared(IliPatchApplier.apply(document, ordered), edits);
   }
 
   private @Nullable String unexpectedSemanticChange(
-      IliAuthoringResult result, List<ExpectedChange> expected) {
-    for (IliAuthoringResult.SemanticChange item : result.added) {
+      SemanticDiff diff, List<ExpectedChange> expected) {
+    for (IliAuthoringResult.SemanticChange item : diff.added) {
       if (!matchesExpected(item, Direction.ADD, expected)) {
         return "Semantic diff contains an unexpected addition: " + item;
       }
     }
-    for (IliAuthoringResult.SemanticChange item : result.removed) {
+    for (IliAuthoringResult.SemanticChange item : diff.removed) {
       if (!matchesExpected(item, Direction.REMOVE, expected)) {
         return "Semantic diff contains an unexpected removal: " + item;
       }
     }
-    for (IliAuthoringResult.SemanticChange item : result.changed) {
+    for (IliAuthoringResult.SemanticChange item : diff.changed) {
       if (!matchesExpected(item, Direction.CHANGE, expected)) {
         return "Semantic diff contains an unexpected change: " + item;
       }
@@ -757,8 +634,8 @@ public final class IliModelChangesService {
     for (ExpectedChange item : expected) {
       if (item.direction() == Direction.CHANGE) continue;
       List<IliAuthoringResult.SemanticChange> actual = item.direction() == Direction.ADD
-          ? result.added : result.removed;
-      boolean found = actual.stream().anyMatch(diff -> item.matches(diff));
+          ? diff.added : diff.removed;
+      boolean found = actual.stream().anyMatch(item::matches);
       if (!found) return "Semantic diff does not contain expected "
           + item.direction() + " for " + item.scopedName() + ".";
     }
@@ -769,16 +646,15 @@ public final class IliModelChangesService {
       IliAuthoringResult.SemanticChange item,
       Direction direction,
       List<ExpectedChange> expected) {
-    String kind = String.valueOf(item.get("kind"));
-    String scoped = String.valueOf(item.get("scopedName"));
+    String kind = item.kind;
+    String scoped = item.scopedName;
     if ("META_ATTRIBUTE".equals(kind)) {
-      scoped = String.valueOf(item.get("owner"));
+      scoped = item.owner;
     }
     for (ExpectedChange candidate : expected) {
       if ("COMMENTS".equals(candidate.kind()) && direction == Direction.CHANGE
       && (scoped.equals(candidate.scopedName()) || scoped.startsWith(candidate.scopedName() + "."))
-      && item.get("changedFields") instanceof List<?> fields
-      && !fields.isEmpty() && fields.stream().allMatch(f -> Set.of("documentation", "metaAttributes").contains(f))) return true;
+      && !item.changedFields.isEmpty() && item.changedFields.stream().allMatch(f -> Set.of("documentation", "metaAttributes").contains(f))) return true;
       if ("COMMENTS".equals(candidate.kind()) && direction == Direction.CHANGE
           && nativeConstraintNameOnly(item)) return true;
 
@@ -1024,56 +900,12 @@ public final class IliModelChangesService {
     if (!condition) throw new IllegalArgumentException(message);
   }
 
-  private IliAuthoringResult failure(String status, @Nullable String reason) {
-    IliAuthoringResult result = new IliAuthoringResult();
-    result.status = IliAuthoringResult.Status.valueOf(status);
-    result.complete = false;
-    result.applied = false;
-    result.proofVerified = false;
-    result.reasonCode = status;
-    result.reason = reason == null ? "" : reason;
-    return result.withEvidence("ADDED_CONSTRAINTS");
-  }
-
-  @SuppressWarnings("unchecked")
-  private List<Map<String, Object>> mapList(@Nullable Object value) {
-    if (!(value instanceof List<?> list)) return List.of();
-    List<Map<String, Object>> result = new ArrayList<>();
-    for (Object item : list) if (item instanceof Map<?, ?> map) result.add((Map<String, Object>) map);
-    return List.copyOf(result);
-  }
-
-  @SuppressWarnings("unchecked")
-  private @Nullable Map<String, Object> map(@Nullable Object value) {
-    return value instanceof Map<?, ?> map ? (Map<String, Object>) map : null;
-  }
-
-  private @Nullable String string(@Nullable Object value) {
-    return value == null ? null : String.valueOf(value);
-  }
-
-  private List<String> reviewQuestions(@Nullable Object value) {
-    if (!(value instanceof List<?> list)) return List.of();
-    List<String> result = new ArrayList<>();
-    for (Object item : list) {
-      if (item instanceof Map<?, ?> map && map.get("question") != null) {
-        result.add(String.valueOf(map.get("question")));
-      } else if (item != null) {
-        result.add(String.valueOf(item));
-      }
-    }
-    return List.copyOf(result);
-  }
-
   private enum Direction { ADD, CHANGE, REMOVE }
 
   private record ExpectedChange(
       Direction direction, String kind, String scopedName, boolean includeDescendants) {
-    boolean matches(Map<String, Object> item) {
-      return matches(String.valueOf(item.get("kind")), String.valueOf(item.get("scopedName")));
-    }
     boolean matches(IliAuthoringResult.SemanticChange item) {
-      return matches(String.valueOf(item.get("kind")), String.valueOf(item.get("scopedName")));
+      return matches(item.kind, item.scopedName);
     }
     boolean matches(String actualKind, String actualScopedName) {
       if ("COMMENTS".equals(kind)) return "META_ATTRIBUTE".equals(actualKind) && (actualScopedName.equals(scopedName) || actualScopedName.startsWith(scopedName + "."));
@@ -1089,7 +921,7 @@ public final class IliModelChangesService {
 
   private record PendingInsertion(
       int anchor, String text, int operationIndex, String description) {}
-  private record Prepared(String candidate, List<Map<String, Object>> sourceEdits) {}
+  private record Prepared(String candidate, List<SourceEdit> sourceEdits) {}
   private record ExistingAttribute(
       boolean mandatory, AttributeLineRequest.Collection collection, String typeText) {}
   private record InsertionAnchor(

@@ -2,6 +2,7 @@ package ch.so.agi.mcp.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis;
+import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,40 +37,95 @@ public class IliAuthoringResult {
   public @Nullable ModelHashes modelHashes;
   public @Nullable Integer omittedSuccessfulTestXtfCount;
 
-  public EvidenceSummary evidence = EvidenceSummary.empty();
-  @com.fasterxml.jackson.annotation.JsonIgnore
-  public EvidenceSummary.@Nullable Check compilerEvidence;
-
-  public IliAuthoringResult withEvidence(String scope) {
-    evidence = EvidenceSummary.authoring(this, scope);
-    return this;
-  }
-
   public Status status;
-  public boolean complete;
-  public @Nullable Boolean generated;
-  public @Nullable Boolean applied;
   public @Nullable String updatedModelText;
   public @Nullable String candidateModelText;
-  public List<CompilerDiagnostic> compilerDiagnostics = List.of();
-  public List<CompilerDiagnostic> beforeDiagnostics = List.of();
-  public List<CompilerDiagnostic> afterDiagnostics = List.of();
+  public @Nullable Compilation beforeCompilation;
+  public @Nullable Compilation afterCompilation;
   public List<SourceEdit> sourceEdits = List.of();
   public List<String> derivedImports = List.of();
-  public List<SemanticChange> added = List.of();
-  public List<SemanticChange> removed = List.of();
-  public List<SemanticChange> changed = List.of();
-  public List<SemanticChange> potentiallyBreakingChanges = List.of();
-  public @Nullable String impact;
   public @Nullable SemanticDiff semanticDiff;
   public @Nullable ModelReview afterReview;
-  public @Nullable Boolean proofVerified;
-  public List<ConstraintProof> constraintProofs = List.of();
+  /** Absent before the proof stage; empty when that stage identifies no required constraints. */
+  public @Nullable List<ConstraintProof> constraintProofs;
   public List<OpenQuestion> openQuestions = List.of();
-  public boolean requiresUserDecision;
   public @Nullable String reasonCode;
   public @Nullable String reason;
   public @Nullable Map<String, Object> details;
+
+  public record Compilation(boolean valid, List<CompilerDiagnostic> diagnostics) {
+    public static Compilation from(IliCompilerService.CompilationResult compilation) {
+      return new Compilation(compilation.valid() && compilation.transferDescription() != null,
+          compilation.messages().stream().map(IliAuthoringResult::diagnostic).toList());
+    }
+  }
+
+  public IliAuthoringResult reject(Status status, @Nullable String reason, @Nullable String candidate) {
+    this.status = status;
+    this.reason = reason;
+    this.updatedModelText = null;
+    this.candidateModelText = candidate;
+    return this;
+  }
+
+  public IliAuthoringResult release(Status status, String modelText) {
+    if ((status != Status.GENERATED && status != Status.APPLIED)
+        || afterCompilation == null || !afterCompilation.valid()
+        || constraintProofs == null || constraintProofs.stream().anyMatch(proof -> proof.status != ProofStatus.PASSED)
+        || openQuestions.stream().anyMatch(question -> "BLOCKING".equals(question.decisionImpact))) {
+      throw new IllegalStateException("A model can be released only after its required checks have passed.");
+    }
+    this.status = status;
+    this.candidateModelText = null;
+    this.updatedModelText = modelText;
+    return this;
+  }
+
+  public boolean rejectFailedProof(List<ConstraintProof> proofs, String candidate) {
+    constraintProofs = List.copyOf(proofs);
+    for (var outcome : List.of(ProofStatus.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED,
+        ProofStatus.FAILED, ProofStatus.INCOMPLETE)) {
+      for (var proof : proofs) {
+        if (proof.status != outcome) continue;
+        if (outcome == ProofStatus.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED) {
+          addQuestion("Provide an independently verified implementation and validator cases for external functions.");
+        }
+        Status failure = switch (outcome) {
+          case EXTERNAL_FUNCTION_SEMANTICS_REQUIRED -> Status.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED;
+          case FAILED -> Status.PROOF_FAILED;
+          case INCOMPLETE -> Status.PROOF_INCOMPLETE;
+          case PASSED -> throw new IllegalStateException("A passed proof cannot block release");
+        };
+        reasonCode = failure.name().equals(proof.reasonCode) ? null : proof.reasonCode;
+        reject(failure, proof.reason, candidate);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public void addQuestion(String question) {
+    var questions = new ArrayList<>(openQuestions);
+    OpenQuestion entry = new OpenQuestion();
+    entry.question = question;
+    entry.decisionImpact = "BLOCKING";
+    questions.add(entry);
+    openQuestions = List.copyOf(questions);
+  }
+
+  public static IliAuthoringResult fromChangeReview(Map<String, Object> review,
+      IliCompilerService.CompilationResult before, IliCompilerService.CompilationResult after) {
+    var result = new IliAuthoringResult();
+    result.beforeCompilation = Compilation.from(before);
+    result.afterCompilation = Compilation.from(after);
+    if (result.afterCompilation.valid()) {
+      result.semanticDiff = semanticDiff(review);
+      if (review.get("afterReview") instanceof Map<?, ?> afterReview) {
+        result.attachReview(afterReview, false);
+      }
+    }
+    return result;
+  }
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public static final class CompilerDiagnostic {
@@ -114,27 +170,6 @@ public class IliAuthoringResult {
     public @Nullable Map<String, Object> after;
     public Map<String, Object> properties = Map.of();
 
-    /** Internal compatibility accessor used by the semantic diff guard. */
-    public @Nullable Object get(String key) {
-      return switch (key) {
-        case "kind" -> kind;
-        case "name" -> name;
-        case "scopedName" -> scopedName;
-        case "owner" -> owner;
-        case "model" -> model;
-        case "mandatory" -> mandatory;
-        case "reason" -> reason;
-        case "changedFields" -> changedFields;
-        case "before" -> before;
-        case "after" -> after;
-        default -> properties.get(key);
-      };
-    }
-
-    public Object getOrDefault(String key, Object fallback) {
-      Object value = get(key);
-      return value == null ? fallback : value;
-    }
   }
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -146,23 +181,19 @@ public class IliAuthoringResult {
     public @Nullable String impact;
     public @Nullable String kind;
     public @Nullable String modelName;
+    public @Nullable Boolean astGenerated;
     public @Nullable Boolean astRoundTripVerified;
   }
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public static final class ModelReview {
-    public @Nullable EvidenceSummary evidence;
     public ConstraintInteractionAnalysis.@Nullable Result constraintInteractions;
-    public @Nullable Boolean available;
-    public @Nullable Boolean valid;
-    public @Nullable Boolean compilerValid;
     public @Nullable Boolean validForAutomatedRules;
     public @Nullable String modelPurpose;
     public @Nullable String ruleProfile;
     public List<ReviewFinding> ruleFindings = List.of();
     public List<ReviewFinding> manualChecks = List.of();
-    public List<OpenQuestion> openQuestions = List.of();
-    public @Nullable String reason;
+    public @Nullable Integer automatedRuleCount;
   }
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -177,14 +208,13 @@ public class IliAuthoringResult {
     public @Nullable String location;
   }
 
+  public enum ProofStatus { PASSED, FAILED, INCOMPLETE, EXTERNAL_FUNCTION_SEMANTICS_REQUIRED }
+
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public static final class ConstraintProof {
     public String constraintFqn;
-    public boolean proofVerified;
+    public ProofStatus status;
     public ch.so.agi.mcp.constraint.@Nullable ConstraintExplanation explanation;
-    public @Nullable Boolean automaticCasesAvailable;
-    public @Nullable Boolean automaticCasesGenerated;
-    public @Nullable Boolean generationVerified;
     public @Nullable String pattern;
     public @Nullable Integer coverageGoalCount;
     public @Nullable Integer coverageSolvedCount;
@@ -231,7 +261,6 @@ public class IliAuthoringResult {
     public @Nullable String purpose;
     public @Nullable String reason;
     public @Nullable String outcome;
-    public @Nullable Boolean expectedValid;
     public @Nullable Boolean expectedConstraintValid;
     public @Nullable Integer expectedViolationCount;
     public @Nullable Integer objectCount;
@@ -243,28 +272,6 @@ public class IliAuthoringResult {
     public Map<String, Object> values = Map.of();
     public List<Map<String, Object>> objects = List.of();
 
-    public @Nullable Object get(String key) {
-      return switch (key) {
-        case "name" -> name;
-        case "purpose" -> purpose;
-        case "reason" -> reason;
-        case "outcome" -> outcome;
-        case "expectedValid" -> expectedValid;
-        case "expectedConstraintValid" -> expectedConstraintValid;
-        case "expectedViolationCount" -> expectedViolationCount;
-        case "objectCount" -> objectCount;
-        case "associationLinkCount" -> associationLinkCount;
-        case "basketId" -> basketId;
-        case "routeTargetFqn" -> routeTargetFqn;
-        case "ownerClassFqn" -> ownerClassFqn;
-        case "structurePath" -> structurePath;
-        case "values" -> values;
-        case "objects" -> objects;
-        case "coveredGoals" -> coveredGoals;
-        default -> null;
-      };
-    }
-
     @Override
     public String toString() {
       return "ProofCase{name=" + name + ", purpose=" + purpose
@@ -274,9 +281,6 @@ public class IliAuthoringResult {
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public static final class ProofVerification {
-    public @Nullable Boolean allPassed;
-    public @Nullable Integer passedCount;
-    public @Nullable Integer caseCount;
     public List<ProofCaseVerification> cases = List.of();
   }
 
@@ -298,10 +302,14 @@ public class IliAuthoringResult {
     public List<Map<String, Object>> fixtureErrors = List.of();
     public @Nullable String name;
     public @Nullable Boolean passed;
-    public @Nullable Boolean expectedValid;
-    public @Nullable Boolean actualValid;
+    public @Nullable Boolean expectedConstraintValid;
+    public @Nullable Boolean actualConstraintValid;
     public @Nullable Integer expectedViolationCount;
-    public @Nullable Integer actualViolationCount;
+    public @Nullable Integer targetViolationCount;
+    public @Nullable String expectationSource;
+    public @Nullable Integer basketCount;
+    public List<Map<String, Object>> baskets = List.of();
+    public List<Map<String, Object>> messages = List.of();
     public @Nullable String reason;
     public @Nullable String xtfText;
   }
@@ -309,30 +317,10 @@ public class IliAuthoringResult {
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public static final class OpenQuestion {
     public String question;
+    public @Nullable String kind;
+    public List<String> options = List.of();
     public @Nullable String reason;
     public @Nullable String decisionImpact;
-  }
-
-  public static List<CompilerDiagnostic> diagnostics(List<Map<String, Object>> input) {
-    if (input == null) return List.of();
-    return input.stream().map(IliAuthoringResult::diagnostic).toList();
-  }
-
-  public static List<SourceEdit> sourceEdits(List<Map<String, Object>> input) {
-    if (input == null) return List.of();
-    return input.stream().map(IliAuthoringResult::sourceEdit).toList();
-  }
-
-  public static SourceEdit sourceEdit(Map<String, Object> input) {
-    SourceEdit result = new SourceEdit();
-    result.startOffset = integer(input.get("startOffset"), 0);
-    result.endOffset = integer(input.get("endOffset"), result.startOffset);
-    result.startLine = integer(input.get("startLine"), 1);
-    result.endLine = integer(input.get("endLine"), result.startLine);
-    result.before = string(input.get("before"), "");
-    result.after = string(input.get("after"), "");
-    result.description = string(input.get("description"), "");
-    return result;
   }
 
   public static SourceEdit sourceEdit(
@@ -354,7 +342,7 @@ public class IliAuthoringResult {
     return result;
   }
 
-  public static List<SemanticChange> semanticChanges(@Nullable Object value) {
+  private static List<SemanticChange> semanticChanges(@Nullable Object value) {
     if (!(value instanceof List<?> list)) return List.of();
     List<SemanticChange> result = new ArrayList<>();
     for (Object item : list) {
@@ -376,39 +364,28 @@ public class IliAuthoringResult {
     return result;
   }
 
-  public static @Nullable ModelReview modelReview(@Nullable Object value) {
-    if (!(value instanceof Map<?, ?> raw)) return null;
-    Map<String, Object> map = stringMap(raw);
-    ModelReview result = new ModelReview();
-    if (map.get("evidence") instanceof EvidenceSummary evidence) result.evidence = evidence;
-    if (map.get("constraintInteractions") instanceof ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis.Result interactions)
-      result.constraintInteractions = interactions;
-    result.available = bool(map.get("available"));
-    result.valid = bool(map.get("valid"));
-    result.compilerValid = bool(map.get("compilerValid"));
-    result.validForAutomatedRules = bool(map.get("validForAutomatedRules"));
-    result.modelPurpose = nullableString(map.get("modelPurpose"));
-    result.ruleProfile = nullableString(map.get("ruleProfile"));
-    result.ruleFindings = reviewFindings(map.get("ruleFindings"));
-    result.manualChecks = reviewFindings(map.get("manualChecks"));
-    result.openQuestions = openQuestions(map.get("openQuestions"));
-    result.reason = nullableString(map.get("reason"));
-    return result;
+  public void attachReview(Map<?, ?> map, boolean questionsBlock) {
+    ModelReview review = new ModelReview();
+    if (map.get("constraintInteractions") instanceof ConstraintInteractionAnalysis.Result interactions) {
+      review.constraintInteractions = interactions;
+    }
+    review.validForAutomatedRules = bool(map.get("validForAutomatedRules"));
+    review.modelPurpose = nullableString(map.get("modelPurpose"));
+    review.ruleProfile = nullableString(map.get("ruleProfile"));
+    review.automatedRuleCount = nullableInteger(map.get("automatedRuleCount"));
+    review.ruleFindings = reviewFindings(map.get("ruleFindings"));
+    review.manualChecks = reviewFindings(map.get("manualChecks"));
+    afterReview = review;
+    openQuestions = openQuestions(map.get("openQuestions"), questionsBlock ? "BLOCKING" : "ADVISORY");
   }
 
   public static ConstraintProof constraintProof(
-      String constraintFqn, boolean proofVerified, @Nullable Map<String, Object> proof) {
+      String constraintFqn, ProofStatus status, @Nullable Map<String, Object> proof) {
     ConstraintProof result = new ConstraintProof();
     result.constraintFqn = constraintFqn;
-    result.proofVerified = proofVerified;
-    if (proof == null) {
-      result.explanation = ch.so.agi.mcp.constraint.ConstraintExplanation.unavailable(constraintFqn);
-      return result;
-    }
+    result.status = status;
+    if (proof == null) return result;
     result.explanation = (ch.so.agi.mcp.constraint.ConstraintExplanation) proof.get("explanation");
-    result.automaticCasesAvailable = bool(proof.get("automaticCasesAvailable"));
-    result.automaticCasesGenerated = bool(proof.get("automaticCasesGenerated"));
-    result.generationVerified = bool(proof.get("generationVerified"));
     result.pattern = nullableString(proof.get("pattern"));
     result.coverageGoalCount = nullableInteger(proof.get("coverageGoalCount"));
     result.coverageSolvedCount = nullableInteger(proof.get("coverageSolvedCount"));
@@ -424,43 +401,27 @@ public class IliAuthoringResult {
     return result;
   }
 
-  public static List<OpenQuestion> openQuestions(@Nullable Object value) {
+  private static List<OpenQuestion> openQuestions(@Nullable Object value, String impact) {
     if (!(value instanceof List<?> list)) return List.of();
     List<OpenQuestion> result = new ArrayList<>();
     for (Object item : list) {
+      Map<?, ?> map = (Map<?, ?>) item;
       OpenQuestion question = new OpenQuestion();
-      if (item instanceof Map<?, ?> raw) {
-        Map<String, Object> map = stringMap(raw);
-        question.question = string(map.get("question"), "");
-        question.reason = nullableString(map.get("reason"));
-        question.decisionImpact = nullableString(map.get("decisionImpact"));
-      } else if (item != null) {
-        question.question = String.valueOf(item);
-      } else {
-        continue;
-      }
+      question.question = (String) map.get("question");
+      question.kind = (String) map.get("kind");
+      question.options = strings(map.get("options"));
+      question.reason = (String) map.get("reason");
+      question.decisionImpact = impact;
       result.add(question);
     }
     return List.copyOf(result);
   }
 
-  public static OpenQuestion openQuestion(String question) {
-    OpenQuestion result = new OpenQuestion();
-    result.question = question;
-    return result;
-  }
-
   @Override
   public String toString() {
-    return "IliAuthoringResult{status=" + status
-        + ", complete=" + complete
-        + ", proofVerified=" + proofVerified
-        + ", proofs=" + constraintProofs.stream().map(proof ->
-            proof.constraintFqn + ":complete=" + proof.coverageComplete
-                + ":gaps=" + proof.coverageGaps.stream()
-                    .map(gap -> gap.reasonCode + "/" + gap.reason).toList()).toList()
-        + ", reasonCode=" + reasonCode
-        + ", reason=" + reason + "}";
+    return "IliAuthoringResult{status=" + status + ", reasonCode=" + reasonCode
+        + ", reason=" + reason + ", proofs=" + (constraintProofs == null ? null
+              : constraintProofs.stream().map(p -> p.constraintFqn + ": " + p.status + " " + p.reasonCode).toList()) + "}";
   }
 
   private static CompilerDiagnostic diagnostic(Map<String, Object> map) {
@@ -582,7 +543,6 @@ public class IliAuthoringResult {
       proofCase.purpose = nullableString(map.get("purpose"));
       proofCase.reason = nullableString(map.get("reason"));
       proofCase.outcome = nullableString(map.get("outcome"));
-      proofCase.expectedValid = bool(map.get("expectedValid"));
       proofCase.expectedConstraintValid = bool(map.get("expectedConstraintValid"));
       proofCase.expectedViolationCount = nullableInteger(map.get("expectedViolationCount"));
       proofCase.objectCount = nullableInteger(map.get("objectCount"));
@@ -603,10 +563,7 @@ public class IliAuthoringResult {
     if (!(value instanceof Map<?, ?> raw)) return null;
     Map<String, Object> map = stringMap(raw);
     ProofVerification result = new ProofVerification();
-    result.allPassed = bool(map.get("allPassed"));
-    result.passedCount = nullableInteger(map.get("passedCount"));
-    result.caseCount = nullableInteger(map.get("caseCount"));
-    Object caseValue = map.containsKey("cases") ? map.get("cases") : map.get("results");
+    Object caseValue = map.get("cases");
     if (caseValue instanceof List<?> list) {
       List<ProofCaseVerification> cases = new ArrayList<>();
       for (Object item : list) {
@@ -616,8 +573,8 @@ public class IliAuthoringResult {
         checked.warningCount = nullableInteger(entry.get("warningCount"));
         checked.name = nullableString(entry.get("name"));
         checked.passed = bool(entry.get("passed"));
-        checked.expectedValid = bool(entry.getOrDefault("expectedValid", entry.get("expectedConstraintValid")));
-        checked.actualValid = bool(entry.getOrDefault("actualValid", entry.get("actualConstraintValid")));
+        checked.expectedConstraintValid = bool(entry.get("expectedConstraintValid"));
+        checked.actualConstraintValid = bool(entry.get("actualConstraintValid"));
         checked.viewFqn = nullableString(entry.get("viewFqn"));
         checked.baseClassFqn = nullableString(entry.get("baseClassFqn"));
         checked.objectCounts = entry.get("objectCounts") instanceof List<?> counts ? counts.stream().filter(Map.class::isInstance).map(countEntry -> stringMap((Map<?, ?>) countEntry)).toList() : List.of();
@@ -632,7 +589,11 @@ public class IliAuthoringResult {
         checked.fixturePreparationReasonCode = nullableString(entry.get("fixturePreparationReasonCode"));
         checked.fixtureErrors = mapList(entry.get("fixtureErrors"));
         checked.expectedViolationCount = nullableInteger(entry.get("expectedViolationCount"));
-        checked.actualViolationCount = nullableInteger(entry.get("actualViolationCount"));
+        checked.targetViolationCount = nullableInteger(entry.get("targetViolationCount"));
+        checked.expectationSource = nullableString(entry.get("expectationSource"));
+        checked.basketCount = nullableInteger(entry.get("basketCount"));
+        checked.baskets = mapList(entry.get("baskets"));
+        checked.messages = mapList(entry.get("messages"));
         checked.reason = nullableString(entry.get("reason"));
         checked.xtfText = nullableString(entry.get("xtfText"));
         cases.add(checked);
@@ -674,16 +635,8 @@ public class IliAuthoringResult {
     return value instanceof Number number ? number.intValue() : null;
   }
 
-  private static int integer(@Nullable Object value, int fallback) {
-    Integer result = nullableInteger(value);
-    return result == null ? fallback : result;
-  }
-
   private static @Nullable String nullableString(@Nullable Object value) {
     return value == null ? null : String.valueOf(value);
   }
 
-  private static String string(@Nullable Object value, String fallback) {
-    return value == null ? fallback : String.valueOf(value);
-  }
 }

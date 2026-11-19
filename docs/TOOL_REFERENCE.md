@@ -12,14 +12,19 @@ Verwende das höchste Tool, das die Aufgabe vollständig abdeckt. Ein High-Level
 
 Die Resources `interlis://knowledge/agent-workflow`, `interlis://knowledge/tool-guide`, `interlis://knowledge/constraint-workflow`, `interlis://knowledge/handbook-rules` und `interlis://knowledge/model-corpus-index` stellen Regeln und Abläufe bereit. Die Prompts `interlis-modeling-agent`, `review-interlis-model`, `extend-interlis-model` und `author-interlis-constraint` übersetzen sie in konkrete Agentenaufträge.
 
-# Ergänzende Prüfnachweise
+# Ergebnisvertrag für Authoring und Verifikation
 
-Modell-/Änderungsreviews, High-Level-Authoring und automatische/explizite Constraint-Tests
-liefern das typisierte Feld `evidence`. Es trennt Compiler, Modellierungsregeln, Constraint-Tests,
-Constraint-Zusammenspiel und fachliche Akzeptanz; bestehende Statuswerte und Freigaben bleiben erhalten.
-Reviews und `afterReview` enthalten zusätzlich `constraintInteractions` für unterstützte skalare
-Mandatory-Regeln. `UNKNOWN` und nicht unterstützte Teile sind keine erfolgreichen Prüfungen.
-Die vollständige Feldsemantik steht im [Benutzerhandbuch](USER_GUIDE.md#prüfnachweise-und-ihre-grenzen).
+`status` gibt den Workflow-Ausgang an. Geprüfte Modelltexte erscheinen je nach Ausgang
+als `updatedModelText` oder `candidateModelText`. `verifyIliModel` identifiziert den
+eingereichten Text über dessen Hash. `beforeCompilation` und `afterCompilation`
+enthalten die tatsächlich ausgeführten Compilerphasen. Der Diff steht im Authoring
+unter `semanticDiff`. `reviewIliChange` liefert seine Diff-Felder direkt.
+
+`constraintProofs` nennt den Ausgang, die Coverage und die Validatorfälle je erforderlichem
+Constraint. Ein leeres Array weist einen ermittelten leeren Prüfumfang aus. Fehlt das Feld,
+wurde die Proof-Phase noch nicht erreicht. `constraintInteractions` zeigt beratende
+Befunde zu unterstützten skalaren Mandatory-Regeln in Reviews und `afterReview`.
+Weitere Details stehen im [Benutzerhandbuch](USER_GUIDE.md#prüfnachweise-und-ihre-grenzen).
 
 # Reviews und Änderungen
 
@@ -33,11 +38,13 @@ Vergleicht `beforeModelText` und `afterModelText` semantisch. Views sowie die de
 
 ## `authorIliModel`
 
-Erzeugt ein vollständiges Modell aus einer typisierten `IliModelSpec`. Name, URI, Modellversion und INTERLIS-Version sind explizit. Units, Domains, Topics, Klassen, Strukturen, Assoziationen, Attribute, Geometrien und alle fünf Constraint-Arten werden in einem Compile geprüft; AST-Roundtrip, Constraint-Proofs und `afterReview` verwenden denselben kompilierten Kontext.
+Erzeugt ein vollständiges Modell aus einer typisierten `IliModelSpec`. Name, URI, Modellversion und INTERLIS-Version sind explizit. Units, Domains, Topics, Klassen, Strukturen, Assoziationen, Attribute, Geometrien und alle fünf Constraint-Arten werden in einem Compile geprüft; AST-Generierung, Constraint-Proofs und `afterReview` verwenden denselben kompilierten Kontext.
+Die boolesche Angabe `semanticDiff.astGenerated` bestätigt die Regenerierung aus dem Modell-AST.
+Einzelconstraint-Authoring meldet den strukturellen Abgleich mit `semanticDiff.astRoundTripVerified`.
 
 ## `applyIliModelChanges`
 
-Wendet einen atomaren Batch source-preserving an. Unterstützt `ADD_IMPORT`, `ADD_TOPIC`, `ADD_DOMAIN`, `ADD_UNIT`, `ADD_CLASS`, `ADD_STRUCTURE`, `ADD_ASSOCIATION`, `ADD_ATTRIBUTE`, `UPDATE_ATTRIBUTE`, `REMOVE_ATTRIBUTE`, `ADD_CONSTRAINT` und `REMOVE_COMMENTS`. Der Batch nutzt genau einen Before- und After-Compile. Potenziell brechende Änderungen werden ohne `allowPotentiallyBreaking=true` nur als geprüfter Kandidat zurückgegeben.
+Wendet einen atomaren Batch source-preserving an. Unterstützt `ADD_IMPORT`, `ADD_TOPIC`, `ADD_DOMAIN`, `ADD_UNIT`, `ADD_CLASS`, `ADD_STRUCTURE`, `ADD_ASSOCIATION`, `ADD_ATTRIBUTE`, `UPDATE_ATTRIBUTE`, `REMOVE_ATTRIBUTE`, `ADD_CONSTRAINT` und `REMOVE_COMMENTS`. Der Batch nutzt je eine Before- und After-Kompilierung und prüft alle in diesem Batch neu deklarierten Constraints. Potenziell brechende Änderungen werden ohne `allowPotentiallyBreaking=true` nur als geprüfter Kandidat zurückgegeben.
 
 ## `renameModelElement`
 

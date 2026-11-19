@@ -69,8 +69,8 @@ class ConstraintDecisionTableIr24Test {
         "WeightSum100",
         List.of(withSecondary, withoutSecondary));
 
-    assertEquals(true, result.generated, String.valueOf(result));
-    assertEquals(true, result.proofVerified, String.valueOf(result));
+    assertEquals(IliAuthoringResult.Status.GENERATED, result.status, String.valueOf(result));
+    assertEquals(IliAuthoringResult.ProofStatus.PASSED, result.constraintProofs.getFirst().status, String.valueOf(result));
 
     String expression = String.valueOf(result.details.get("constraintExpression"));
     assertTrue(expression.contains("Math_V2.sum(\"Nebenauspraegung->Gewichtung\")"), expression);
@@ -79,7 +79,7 @@ class ConstraintDecisionTableIr24Test {
 
     IliAuthoringResult.ProofVerification verification =
         result.constraintProofs.getFirst().verification;
-    assertEquals(true, verification.allPassed, String.valueOf(verification));
+    assertTrue(verification.cases.stream().allMatch(c -> Boolean.TRUE.equals(c.passed)));
   }
 
   private ConstraintDecisionTableTools.DecisionRow row(

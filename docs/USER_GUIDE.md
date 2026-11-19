@@ -238,6 +238,9 @@ Passender Payload:
 
 Bei Erfolg liefert das Tool `status=APPLIED` und `updatedModelText`. Es kompiliert Vorher und Nachher, prüft den semantischen Diff auf unerwartete Kollateraleffekte und enthält bereits das `afterReview` des neuen Stands.
 
+`APPLIED` bestätigt die technische Freigabe der atomaren Änderung. Für die Regelkonformität des Gesamtmodells gilt
+`afterReview.validForAutomatedRules`. Berichte `afterReview.ruleFindings` auch bei `APPLIED`.
+
 `UPDATE_ATTRIBUTE` enthält einen Patch. Nicht angegebene fachliche Eigenschaften bedeuten `KEEP`; IliDoc und Metaattribute besitzen explizite KEEP-/SET-/REMOVE- beziehungsweise KEEP-/REPLACE-/REMOVE-Aktionen. `REMOVE_ATTRIBUTE` braucht nur das eindeutige lokale `attributeFqn` und entfernt zusätzlich eindeutig zugeordnete Annotationen. Referenzen auf ein gelöschtes Attribut werden durch den After-Compile abgewiesen.
 
 Bei potenziell brechender Semantik liefert das Tool ohne Bestätigung nur `candidateModelText` und `status=BREAKING_CHANGE_REQUIRES_CONFIRMATION`. Der unveränderte Batch muss danach explizit mit `allowPotentiallyBreaking=true` erneut aufgerufen werden.
@@ -339,7 +342,7 @@ Für neue Constraints sollte das höchste semantische Authoring-Tool verwendet w
 | SET mit `OBJECT_COUNT` oder `BOOLEAN_EXPRESSION` | `authorIliSetConstraint` |
 | UNIQUE | `authorIliUniqueConstraint` |
 
-Ein typisiertes Authoring-Tool liefert bei Erfolg `proofVerified=true`, den semantischen Diff, `afterReview` und `updatedModelText`. Proof und Modellreview sind damit für genau diesen Text abgeschlossen; ein zusätzliches `reviewIliChange` ist nicht nötig.
+Ein typisiertes Authoring-Tool liefert bei Erfolg `constraintProofs[].status = PASSED`, den semantischen Diff, `afterReview` und `updatedModelText`. Proof und Modellreview sind damit für genau diesen Text abgeschlossen; ein zusätzliches `reviewIliChange` ist nicht nötig.
 
 Alle fünf Tools erwarten `modelText`, `contextFqn` und ein `spec` mit verbindlichem `kind`. Alte flache Payloads werden abgewiesen. Ein kompilierbarer, aber nicht vollständig bewiesener Stand erscheint nur als `candidateModelText`, beispielsweise mit `PROOF_INCOMPLETE` oder `EXTERNAL_FUNCTION_SEMANTICS_REQUIRED`.
 
@@ -442,37 +445,35 @@ Technische Fehler und fachliche Unsicherheiten sind unterschiedliche Dinge:
 
 ## Prüfnachweise und ihre Grenzen
 
-Modellreviews, Änderungsreviews, High-Level-Authoring und Constraint-Tests enthalten
-zusätzlich `evidence`. Bestehende Statuswerte und Freigabebedingungen bleiben unverändert.
-Insbesondere verändern die neuen Befunde weder `updatedModelText` noch `requiresUserDecision`.
+Im High-Level-Authoring enthält `beforeCompilation` die Eingangskompilierung bei
+Änderungen. `afterCompilation` enthält die Kompilierung des Kandidaten oder des bei
+`verifyIliModel` eingereichten Texts. Jede ausgeführte Phase zeigt `valid` und
+`diagnostics`. Modellierungsregeln stehen in `afterReview`. Eigenständige Modell-
+und Änderungsreviews liefern ihre Compilerdiagnosen direkt.
 
-| Teil | Aussage |
-| --- | --- |
-| `compiler` | Tatsächliches ili2c-Ergebnis; beim Änderungsreview für beide Modellstände. |
-| `modelingRules` | Automatisierte Regeln des gewählten Profils; manuelle Checks bleiben offen. |
-| `constraintTests` | Automatisch abgeleitete Fälle oder explizit übergebene Erwartungen. |
-| `constraintInteractions` | Begrenzte gemeinsame Untersuchung skalarer Mandatory-Regeln. |
-| `businessAcceptance` | `NOT_RUN`: Übereinstimmung mit einer unabhängigen Fachquelle ist nicht geprüft. |
+`status` gibt den Workflow-Ausgang an. Bei `GENERATED` und `APPLIED` steht der
+freigegebene Text in `updatedModelText`. Bei einer zurückgehaltenen Änderung
+enthält `candidateModelText` den vorliegenden Kandidaten. `VERIFIED` bezieht
+sich auf den eingereichten Text und dessen Hash. `openQuestions` kennzeichnet
+Entscheidungen mit `BLOCKING` oder `ADVISORY`. Ein optionaler `reasonCode` präzisiert
+den Status, etwa mit dem Code einer fehlgeschlagenen Teilprüfung.
 
-Jeder Teil enthält `status`, `scope`, `basis`, `checkedCount`, `errorCount`,
-`warningCount` und `reasonCodes`. Statuswerte sind `PASSED`, `FAILED`, `HAS_WARNINGS`,
-`INCOMPLETE`, `NOT_RUN` und `NOT_APPLICABLE`. Warnungen der Modellierungskonventionen
-erscheinen als `HAS_WARNINGS`, auch wenn das historische `validForAutomatedRules=false` ist.
-`checkedCount` zählt je nach Prüfumfang Modellstände, automatisierte Regeln, automatisch
-getestete Constraints, explizite Testfälle oder untersuchte Constraint-Kontexte.
-
-`proofVerified=true` bei einer Modellerzeugung ohne Constraints bleibt aus Kompatibilitätsgründen
-möglich; `evidence.constraintTests.status=NOT_APPLICABLE` macht deutlich, dass keine
-Constraint-Tests nötig waren. Ein Modellreview führt keine solchen Tests aus und meldet
-`NOT_RUN`. Auch erfolgreiche endliche Tests beweisen keine allgemeine fachliche Richtigkeit.
+Ein fehlendes Feld `constraintProofs` bedeutet, dass die Proof-Phase noch nicht
+erreicht wurde. Ein leeres Array bedeutet, dass in diesem Workflow kein Constraint
+geprüft werden musste. Andernfalls nennt jeder Eintrag den Constraint, seinen
+Proof-Status und die vorliegenden Coverage- und Validatorresultate. `coverageGaps`
+nennt offene Coverage-Ziele. `PASSED`
+setzt ausgeführte Fälle mit gültigen Fixtures und vollständiger vorgesehener
+Coverage voraus. `INCOMPLETE` zeigt fehlende Prüffälle, Fixture-Grenzen oder offene Coverage-Ziele.
+`FAILED` zeigt einen fehlgeschlagenen Validatorfall oder einen technischen Ausführungsfehler.
+Externe Funktionssemantik hat den Status `EXTERNAL_FUNCTION_SEMANTICS_REQUIRED`.
 
 ### Unabhängige Erwartungen
 
 Automatische Tests werden aus dem bereits formulierten Constraint abgeleitet. Ein versehentliches
 `Alter > 18` kann deshalb seine technischen Tests bestehen. Für die Fachanforderung „mindestens
 18“ sind getrennt vorgegebene Erwartungen nötig: 17 ungültig, 18 gültig, 19 gültig. Diese werden
-über `testIliConstraint` geprüft; der Fall 18 deckt den Fehler auf. `CALLER_SUPPLIED_EXPECTATIONS`
-kennzeichnet solche Fälle, ohne ihre fachliche Herkunft zu bestätigen.
+über `testIliConstraint` geprüft. Der Fall 18 deckt den Fehler auf. Das Feld `expectationSource` dokumentiert die vom Aufrufer angegebene Herkunft.
 
 ### Gemeinsame skalare Regeln
 
@@ -537,8 +538,7 @@ Rückfragen: etwa fehlende Werte, eine leere Beziehung oder der Bereich einer Ei
 Vor dem Schreiben prüft der Agent die zuvor festgelegten Fälle mit `testIliConstraint` gegen
 exakt den vom Authoring zurückgegebenen Modellstand. `expectationSource` kennzeichnet die
 Herkunftsangabe: `USER_PROVIDED`, `USER_CONFIRMED`, `AGENT_DERIVED` oder standardmässig
-`UNSPECIFIED`. Der Server verifiziert diese Herkunft nicht. Auch vom Agenten aus der Anforderung
-abgeleitete Fälle sind keine unabhängige Fachabnahme; `businessAcceptance` bleibt `NOT_RUN`.
+`UNSPECIFIED`. Für die fachliche Abnahme sind Erwartungen aus einer bestätigten Fachquelle nötig.
 
 Beispiel: „mindestens 18, Alter erforderlich“ verlangt die Fälle 17 unzulässig, 18 zulässig,
 19 zulässig und fehlendes Alter unzulässig. Ein automatischer Proof für `age > 18` ersetzt diese
@@ -547,8 +547,10 @@ und offene Fachentscheide verhindern das Schreiben im Agentenablauf. Diese Regel
 MCP-Statuswerte und kann vom Server gegenüber anderen Clients nicht erzwungen werden.
 
 `explanation` in Constraint-Reviews und den `constraintProofs` beschreibt die tatsächlich
-kompilierte Regel. `COMPLETE` bedeutet vollständige Unterstützung durch den Erklärer,
-`PARTIAL` nennt Erklärungslücken und `UNAVAILABLE` bezeichnet eine fehlende Erklärung.
+kompilierte Regel, wenn eine Erklärung verfügbar ist. `COMPLETE` bedeutet vollständige
+Unterstützung durch den Erklärer, `PARTIAL` nennt Erklärungslücken. Ein Proof ohne
+ausgeführte Regelanalyse kann das Feld weglassen. Ein eigenständiges Constraint-Review
+meldet eine fehlende Erklärung mit `UNAVAILABLE`.
 Keiner dieser Werte bestätigt fachliche Akzeptanz. Nicht vollständig unterstützte Funktionen
 oder Views werden ausdrücklich begrenzt erklärt. Widerspruchsbefunde aus `constraintInteractions`
 bleiben advisory und müssen sichtbar berichtet werden. Einzeltests isolieren den ausgewählten
@@ -598,12 +600,12 @@ läuft. Diese Diagnose ist kein reguläres Ergebnis mit `status=INVALID_SPEC` un
 weder im Protokoll noch in der Bewertung so bezeichnet werden. Sie erweitert das
 bestehende Reparaturlimit nicht; `expression` ist kein Alias für `spec.condition`.
 
-Bei `requiresUserDecision=true` nennt der Agent die konkrete Frage und seinen Umgang
+Bei Einträgen in `openQuestions` nennt der Agent die konkrete Frage und seinen Umgang
 damit in der Abschlussantwort. Tatsächlich offene Fachentscheide verhindern das
 Schreiben. Beurteilt er eine allgemeine Frage anhand des vorhandenen Auftrags als
-für die konkrete Änderung unerheblich, muss er dies sichtbar begründen. Das Flag
-bleibt unverändert; weder ein erfundener Modellzweck noch erfolgreiche Proofs ersetzen
-diese Beurteilung. Es gibt keine pauschale Ausnahme für Modellzweckfragen.
+für die konkrete Änderung unerheblich, begründet er das in der Abschlussantwort. Eine Frage mit
+`decisionImpact=BLOCKING` klärt er mit dem Nutzer. Fragen mit `decisionImpact=ADVISORY`
+bleiben als Hinweise sichtbar.
 
 ## SO-DATA: CSV-Validierungsmodelle
 

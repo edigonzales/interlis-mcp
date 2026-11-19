@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /** Typed, complete input tree shared by full-model and change authoring. */
@@ -58,6 +59,13 @@ public class IliModelSpec {
     @JsonProperty(required = false) public @Nullable List<StructureSpec> structures;
     @JsonProperty(required = false) public @Nullable List<ClassSpec> classes;
     @JsonProperty(required = false) public @Nullable List<AssociationSpec> associations;
+
+    public void collectConstraints(String model, Map<String, Boolean> names) {
+      String topic = model + "." + name.trim();
+      if (classes != null) classes.forEach(viewable -> viewable.collectConstraints(topic, names));
+      if (structures != null) structures.forEach(viewable -> viewable.collectConstraints(topic, names));
+      if (associations != null) associations.forEach(viewable -> viewable.collectConstraints(topic, names));
+    }
   }
 
   public static class ViewableSpec extends AnnotatedSpec {
@@ -65,6 +73,14 @@ public class IliModelSpec {
     @JsonProperty(required = false) public @Nullable String extendsFqn;
     @JsonProperty(required = false) public @Nullable List<AttributeLineRequest> attributes;
     @JsonProperty(required = false) public @Nullable List<IliConstraintSpec> constraints;
+
+    public void collectConstraints(String topic, Map<String, Boolean> names) {
+      if (constraints == null) return;
+      String context = topic + "." + name.trim();
+      for (IliConstraintSpec constraint : constraints) {
+        names.put(context + "." + constraint.name.trim(), constraint.hasExternalFunctionSemantics());
+      }
+    }
   }
 
   public static class ClassSpec extends ViewableSpec {

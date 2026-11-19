@@ -232,7 +232,7 @@ XTF
 ilivalidator
 ```
 
-Der interne Evaluator ist ein Hilfsmittel, nicht die finale Instanz. `generationVerified` oder `proofVerified` wird nur auf Grundlage der echten Validatorergebnisse freigegeben.
+Der interne Evaluator ist ein Hilfsmittel, nicht die finale Instanz. `generationVerified` oder `constraintProofs[].status` wird nur auf Grundlage der echten Validatorergebnisse freigegeben.
 
 ## Source-preserving Constraint-Authoring
 
@@ -441,7 +441,9 @@ Es gelten höchstens acht Navigationsschritte, acht konkrete Routenkombinationen
 
 ## Ergänzende Ergebnisnachweise
 
-`EvidenceSummary` bereitet vorhandene Resultate typisiert auf, ohne Freigabefelder zu verändern.
+Die Authoring-Ergebnisse verwenden eine Compilerphase je Modellstand, einen semantischen Diff und
+einen Ausgang je erforderlichem Constraint. Der Batch bestimmt seinen Proof-Umfang anhand der
+neuen Deklarationen im kompilierten lokalen Modell und der im Änderungsantrag angegebenen Constraints.
 Modellreviews und ihre eingebetteten Varianten verwenden `ConstraintInteractionAnalysis` mit
 dem vorhandenen Compiler-AST. `ScalarTruthPartitions` enthält die unverändert wiederverwendete
 Partitionierung der Erreichbarkeitsprüfung. Getrennte Mandatory-Auswertung verhindert, dass

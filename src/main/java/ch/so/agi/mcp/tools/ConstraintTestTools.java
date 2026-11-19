@@ -113,7 +113,7 @@ public class ConstraintTestTools {
 
   @McpTool(
       name = "testIliConstraint",
-      description = "Prueft einen bestehenden INTERLIS-Constraint mit explizit vom Agenten definierten Testfaellen. Erzeugt fuer jeden Fall ein minimales XTF, unterstuetzt mehrere Objekte und optional mehrere Baskets pro Topic ueber object.basketId bzw. bei heavyweight Associations link.basketId, deaktiviert andere Constraints, validiert mit iox-ili/ilivalidator und vergleicht das beobachtete Ergebnis mit expectedConstraintValid. Erzeugt selbst noch keine Witnesses oder Counterexamples. evidence kennzeichnet CALLER_SUPPLIED_EXPECTATIONS; deren fachliche Herkunft wird nicht verifiziert.",
+      description = "Prueft einen bestehenden INTERLIS-Constraint mit explizit vom Agenten definierten Testfaellen. Erzeugt fuer jeden Fall ein minimales XTF, unterstuetzt mehrere Objekte und optional mehrere Baskets pro Topic ueber object.basketId bzw. bei heavyweight Associations link.basketId, deaktiviert andere Constraints, validiert mit iox-ili/ilivalidator und vergleicht das beobachtete Ergebnis mit expectedConstraintValid. Erzeugt selbst noch keine Witnesses oder Counterexamples. expectationSource dokumentiert die vom Aufrufer angegebene Herkunft je Fall.",
       annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true)
   )
   public Map<String, Object> testIliConstraint(
@@ -151,7 +151,6 @@ public class ConstraintTestTools {
         item.put("reasonCode", "MODEL_INVALID");
         return item;
       }).toList());
-      response.put("evidence", ch.so.agi.mcp.model.EvidenceSummary.explicit(false, response, compilation.messages()));
       return response;
     }
 
@@ -162,7 +161,7 @@ public class ConstraintTestTools {
     }
 
     Map<String, Object> response = testResolvedConstraint(td, target, cases);
-    response.put("evidence", ch.so.agi.mcp.model.EvidenceSummary.explicit(true, response, compilation.messages()));
+    response.put("messages", compilation.messages());
     return response;
   }
 

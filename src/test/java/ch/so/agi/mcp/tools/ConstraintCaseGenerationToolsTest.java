@@ -96,6 +96,21 @@ class ConstraintCaseGenerationToolsTest {
       new ConstraintContextService(compilerService), testTools);
 
   @Test
+  void declaredExternalTargetMustStillExistInTheCompiledModel() {
+    var compiler = new IliCompilerService();
+    var contexts = new ConstraintContextService(compiler);
+    var tools = new ConstraintCaseGenerationTools(contexts, new ConstraintTestTools(compiler));
+    String fqn = "ConstraintAutoCases.Data.Item.Missing";
+    var resolution = contexts.compileAndResolve(MODEL, fqn, null, "ili2c_missing_proof_target_");
+    var proof = tools.prove(fqn, resolution, true);
+
+    assertTrue(resolution.compilation().valid());
+    assertEquals(ch.so.agi.mcp.model.IliAuthoringResult.ProofStatus.INCOMPLETE, proof.status);
+    assertEquals("CONSTRAINT_LOOKUP_FAILED", proof.reasonCode);
+    assertEquals(null, proof.verification);
+  }
+
+  @Test
   void generatesAndVerifiesNumericBoundaryCasesThroughSemanticPipeline() {
     Map<String, Object> result = tools.generateIliConstraintCases(
         MODEL,

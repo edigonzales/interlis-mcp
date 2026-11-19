@@ -58,8 +58,8 @@ class ConstraintDecisionTableAssociationPathTest {
         "MainWeightBetween10And20",
         List.of(allowed));
 
-    assertEquals(true, result.generated, String.valueOf(result));
-    assertEquals(true, result.proofVerified, String.valueOf(result));
+    assertEquals(IliAuthoringResult.Status.GENERATED, result.status, String.valueOf(result));
+    assertEquals(IliAuthoringResult.ProofStatus.PASSED, result.constraintProofs.getFirst().status, String.valueOf(result));
     assertEquals(
         "(Bodeneinheit->Gewichtung >= 10 AND Bodeneinheit->Gewichtung <= 20)",
         result.details.get("constraintExpression"));
@@ -71,14 +71,14 @@ class ConstraintDecisionTableAssociationPathTest {
     assertCase(boundaryCases, "10", true);
     assertCase(boundaryCases, "20", true);
     assertCase(boundaryCases, "21", false);
-    assertTrue(boundaryCases.stream().allMatch(item -> Integer.valueOf(2).equals(item.get("objectCount"))));
-    assertTrue(boundaryCases.stream().allMatch(item -> Integer.valueOf(1).equals(item.get("associationLinkCount"))));
+    assertTrue(boundaryCases.stream().allMatch(item -> Integer.valueOf(2).equals(item.objectCount)));
+    assertTrue(boundaryCases.stream().allMatch(item -> Integer.valueOf(1).equals(item.associationLinkCount)));
 
     IliAuthoringResult.ProofVerification verification =
         result.constraintProofs.getFirst().verification;
-    assertEquals(4, verification.caseCount);
-    assertEquals(4, verification.passedCount);
-    assertEquals(true, verification.allPassed);
+    assertEquals(4, verification.cases.size());
+
+    assertTrue(verification.cases.stream().allMatch(c -> Boolean.TRUE.equals(c.passed)));
 
     String xtf = verification.cases.getFirst().xtfText;
     assertTrue(xtf.contains("<Bodeneinheit REF=\""), xtf);
@@ -94,13 +94,11 @@ class ConstraintDecisionTableAssociationPathTest {
             "secondary value",
             condition("Nebenauspraegung->LokalerWert", ">=", 10))));
 
-    assertEquals(false, result.generated);
-    assertEquals(false, result.proofVerified);
-    assertTrue(
-        List.of("CANDIDATE_MODEL_INVALID", "UNSUPPORTED_ATTRIBUTE_PATH_OR_TYPE",
-            "AST_ROUND_TRIP_FAILED", "PROOF_INCOMPLETE")
-            .contains(String.valueOf(result.reasonCode)),
-        String.valueOf(result));
+    assertEquals(null, result.updatedModelText);
+    assertEquals(IliAuthoringResult.Status.AST_ROUND_TRIP_FAILED, result.status, String.valueOf(result));
+    assertEquals("UNSUPPORTED_CONSTRAINT_SEMANTICS", result.reasonCode);
+    assertTrue(result.afterCompilation.valid());
+    assertEquals(null, result.constraintProofs);
   }
 
   private ConstraintDecisionTableTools.DecisionRow row(
@@ -129,10 +127,10 @@ class ConstraintDecisionTableAssociationPathTest {
       boolean expectedValid) {
     IliAuthoringResult.ProofCase match = cases.stream()
         .filter(item -> expectedValue.equals(String.valueOf(
-            map(item.get("values")).get("Bodeneinheit->Gewichtung"))))
+            map(item.values).get("Bodeneinheit->Gewichtung"))))
         .findFirst()
         .orElseThrow(() -> new AssertionError("Missing path boundary value " + expectedValue + ": " + cases));
-    assertEquals(expectedValid, match.get("expectedConstraintValid"));
+    assertEquals(expectedValid, match.expectedConstraintValid);
   }
 
   @SuppressWarnings("unchecked")

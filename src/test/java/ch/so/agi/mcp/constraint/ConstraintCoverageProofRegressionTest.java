@@ -29,7 +29,7 @@ class ConstraintCoverageProofRegressionTest {
     IliAuthoringResult result = new ConstraintAuthoringTools(engine(compiler)).authorIliMandatoryConstraint(
         source, request.contextFqn(), (IliConstraintSpec.Mandatory) request.spec(), null, null);
     assertThat(result.status).as(new ObjectMapper().writeValueAsString(result)).isEqualTo(IliAuthoringResult.Status.GENERATED);
-    assertThat(result.proofVerified).isTrue();
+    assertThat(result.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
     var proof = result.constraintProofs.getFirst();
     assertThat(proof.coverageComplete).isTrue();
     assertThat(proof.coverageGaps).isEmpty();
@@ -41,7 +41,7 @@ class ConstraintCoverageProofRegressionTest {
       assertThat(exclusion.reasonCode).isEqualTo("PROVEN_UNREACHABLE");
       assertThat(exclusion.justification).contains("partition", "Unterboden->Ph", "Untertyp_E");
     });
-    assertThat(proof.verification.allPassed).isTrue();
+    assertThat(proof.verification.cases).isNotEmpty().allSatisfy(c -> assertThat(c.passed).isTrue());
     assertThat(proof.generatedCases).anySatisfy(item -> {
       assertThat(item.values.get("Unterboden->Ph")).isEqualTo("UNDEFINED");
       assertThat(item.expectedConstraintValid).isTrue();
@@ -70,11 +70,11 @@ class ConstraintCoverageProofRegressionTest {
         source, request.contextFqn(), (IliConstraintSpec.Mandatory) request.spec(), null, null);
     assertThat(compiler.calls).isEqualTo(2);
     assertThat(result.status).as(new ObjectMapper().writeValueAsString(result)).isEqualTo(IliAuthoringResult.Status.GENERATED);
-    assertThat(result.proofVerified).isTrue();
+    assertThat(result.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
     var proof = result.constraintProofs.getFirst();
     assertThat(proof.coverageComplete).isTrue();
     assertThat(proof.coverageGaps).isEmpty();
-    assertThat(proof.verification.allPassed).isTrue();
+    assertThat(proof.verification.cases).isNotEmpty().allSatisfy(c -> assertThat(c.passed).isTrue());
     assertThat(proof.generatedCases).allSatisfy(item -> {
       assertThat(item.ownerClassFqn).endsWith(".BodeneinheitHauptauspraegung_Landwirtschaft");
       assertThat(item.structurePath).isEqualTo("Unterboden");
@@ -83,7 +83,7 @@ class ConstraintCoverageProofRegressionTest {
       assertThat(item.subjectCount).isEqualTo(1);
       assertThat(item.constraintExercised).isTrue();
       assertThat(item.fixtureValid).isTrue();
-      assertThat(item.expectedValid).isEqualTo(item.actualValid);
+      assertThat(item.expectedConstraintValid).isEqualTo(item.actualConstraintValid);
       assertThat(item.fixtureErrors).isEmpty();
     });
     assertThat(proof.generatedCases).anySatisfy(item -> {
@@ -165,7 +165,7 @@ class ConstraintCoverageProofRegressionTest {
             source, "TextPresence.Data.Item", spec, null, null);
         assertThat(compiler.calls).isEqualTo(2);
         assertThat(result.status).as(mapper.writeValueAsString(result)).isEqualTo(IliAuthoringResult.Status.GENERATED);
-        assertThat(result.proofVerified).isTrue();
+        assertThat(result.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
         var proof = result.constraintProofs.getFirst();
         assertThat(proof.coverageComplete).isTrue();
         assertThat(proof.coverageGaps).isEmpty();
@@ -174,7 +174,7 @@ class ConstraintCoverageProofRegressionTest {
           assertThat(goal.reasonCode).isEqualTo("PROVEN_UNREACHABLE");
           assertThat(goal.justification).contains("presence only", "not text contents");
         });
-        assertThat(proof.verification.allPassed).isTrue();
+        assertThat(proof.verification.cases).isNotEmpty().allSatisfy(c -> assertThat(c.passed).isTrue());
         var verified = new ConstraintTestTools(compiler).testIliConstraint(result.updatedModelText, "TextPresence.Data.Item.Presence", cases);
         var json = mapper.valueToTree(verified);
         assertThat(json.get("allPassed").asBoolean()).as(json.toString()).isTrue();
@@ -230,7 +230,7 @@ class ConstraintCoverageProofRegressionTest {
         .generateIliConstraintCases(model, "CoverageSet.Data.Item.Rule");
     assertThat(response.get("coverageComplete")).as(response.toString()).isEqualTo(true);
     assertThat(response.get("generationVerified")).isEqualTo(true);
-    var proof = IliAuthoringResult.constraintProof("CoverageSet.Data.Item.Rule", true, response);
+    var proof = IliAuthoringResult.constraintProof("CoverageSet.Data.Item.Rule", IliAuthoringResult.ProofStatus.PASSED, response);
     assertThat(proof.coverageExcludedGoals).isNotEmpty();
     assertThat(proof.coverageGoalCount).isEqualTo(proof.coverageSolvedCount);
     assertThat(proof.generatedCases.stream().mapToInt(item -> item.coveredGoals.size()).sum())

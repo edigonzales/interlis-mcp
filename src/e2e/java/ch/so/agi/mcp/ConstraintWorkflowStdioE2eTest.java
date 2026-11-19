@@ -87,7 +87,7 @@ class ConstraintWorkflowStdioE2eTest {
         "authorIliSetConstraint",
         "generateIliConstraintCases",
         "afterReview",
-        "proofVerified",
+        "constraintProofs",
         "generationVerified");
 
     String prompt = getPrompt(
@@ -100,7 +100,7 @@ class ConstraintWorkflowStdioE2eTest {
         "authorIliSetConstraint",
         "authorIliUniqueConstraint",
         "generateIliConstraintCases",
-        "proofVerified=true",
+        "PASSED",
         "afterReview");
   }
 
@@ -147,9 +147,9 @@ class ConstraintWorkflowStdioE2eTest {
     assertFalse(response.contains("\"isError\":true"), response);
     assertContainsAll(
         response,
-        "\\\"generated\\\":true",
-        "\\\"proofVerified\\\":true",
-        "\\\"generationVerified\\\":true",
+        "GENERATED",
+        "PASSED",
+        "coverageComplete",
         "\\\"updatedModelText\\\"",
         "\\\"semanticDiff\\\"",
         "\\\"afterReview\\\"",
@@ -226,7 +226,7 @@ class ConstraintWorkflowStdioE2eTest {
     }
     assertTrue(found);
     String prompt = getPrompt(3, "author-interlis-constraint", "{\"constraintKind\":\"MANDATORY\"}");
-    assertContainsAll(mapper.readTree(prompt).toString(), "requiresUserDecision=true", "Abschlussantwort");
+    assertContainsAll(mapper.readTree(prompt).toString(), "openQuestions", "Abschlussantwort");
     String source = "INTERLIS 2.4; MODEL Example (en) AT \"https://example.org\" VERSION \"1\" = "
         + "TOPIC Data = CLASS Item = value : 0..10; END Item; END Data; END Example.";
     var cases = java.util.List.of(
@@ -240,7 +240,11 @@ class ConstraintWorkflowStdioE2eTest {
     var author = authorEnvelope.get("structuredContent");
     if (author == null) author = mapper.readTree(authorEnvelope.get("content").get(0).get("text").asText());
     assertTrue(author.get("status").asText().equals("GENERATED"));
-    assertTrue(author.get("requiresUserDecision").asBoolean());
+    assertTrue(author.get("openQuestions").get(0).get("decisionImpact").asText().equals("ADVISORY"));
+    assertTrue(author.get("beforeCompilation").get("valid").asBoolean());
+    assertTrue(author.get("afterCompilation").get("valid").asBoolean());
+    assertFalse(author.has("proofVerified"));
+    assertFalse(author.has("evidence"));
     var testEnvelope = mapper.readTree(callTool(5, "testIliConstraint", mapper.writeValueAsString(java.util.Map.of(
         "modelText", author.get("updatedModelText").asText(), "constraint", "Example.Data.Item.ValueRequired",
         "cases", cases, "includeSuccessfulTestXtf", false)))).get("result");
@@ -277,7 +281,7 @@ class ConstraintWorkflowStdioE2eTest {
         "expectationSource", "USER_PROVIDED", "expectedConstraintValid", age >= 18,
         "objects", java.util.List.of(java.util.Map.of("classFqn", "Prose.Data.Person", "oid", "p", "values", java.util.Map.of("age", age)))));
     String tested = callTool(4, "testIliConstraint", mapper.writeValueAsString(java.util.Map.of("modelText", result.get("updatedModelText").asText(), "constraint", "Prose.Data.Person.Adult", "cases", cases, "includeSuccessfulTestXtf", false)));
-    assertContainsAll(tested, "USER_PROVIDED", "CALLER_SUPPLIED_EXPECTATIONS", "allPassed");
+    assertContainsAll(tested, "USER_PROVIDED", "expectationSource", "allPassed");
     var testEnvelope = mapper.readTree(tested).get("result");
     var testResult = testEnvelope.get("structuredContent");
     if (testResult == null) testResult = mapper.readTree(testEnvelope.get("content").get(0).get("text").asText());
@@ -323,8 +327,8 @@ class ConstraintWorkflowStdioE2eTest {
     var author = envelope.get("structuredContent");
     if (author == null) author = mapper.readTree(envelope.get("content").get(0).get("text").asText());
     assertTrue(author.get("status").asText().equals("GENERATED"), author.toString());
-    assertTrue(author.get("proofVerified").asBoolean());
     var proof = author.get("constraintProofs").get(0);
+    assertTrue(proof.get("status").asText().equals("PASSED"));
     assertTrue(proof.get("coverageComplete").asBoolean());
     assertTrue(proof.get("coverageGaps").isEmpty());
     boolean excluded = false;

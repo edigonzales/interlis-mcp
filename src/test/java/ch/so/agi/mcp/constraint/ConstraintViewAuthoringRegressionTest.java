@@ -88,8 +88,7 @@ class ConstraintViewAuthoringRegressionTest {
     assertThat(result.status).isEqualTo(IliAuthoringResult.Status.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED);
     assertThat(result.candidateModelText).isNotBlank();
     assertThat(result.updatedModelText).isNull();
-    assertThat(result.generated).isFalse();
-    assertThat(result.proofVerified).isFalse();
+    assertThat(result.updatedModelText).isNull();
     var compiled = new IliCompilerService(ConstraintFixtures.repositories()).compile(result.candidateModelText, null);
     assertThat(compiled.valid()).as(compiled.messages().toString()).isTrue();
   }
@@ -115,9 +114,9 @@ class ConstraintViewAuthoringRegressionTest {
     };
     assertThat(compiler.calls).as(new ObjectMapper().writeValueAsString(result)).isEqualTo(2);
     assertThat(result.status).as(result.toString()).isEqualTo(IliAuthoringResult.Status.GENERATED);
-    assertThat(result.proofVerified).isTrue();
+    assertThat(result.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
     assertThat(result.constraintProofs.getFirst().coverageComplete).isTrue();
-    assertThat(result.constraintProofs.getFirst().verification.allPassed).isTrue();
+    assertThat(result.constraintProofs.getFirst().verification.cases).isNotEmpty().allSatisfy(c -> assertThat(c.passed).isTrue());
     var verified = result.constraintProofs.getFirst().verification.cases;
     assertThat(verified).allSatisfy(c -> {
       assertThat(c.viewFqn).isEqualTo(fixture.contextFqn());
@@ -126,13 +125,13 @@ class ConstraintViewAuthoringRegressionTest {
       assertThat(c.constraintExercised).isTrue();
     });
     if (fixture.caseId().equals("P08")) {
-      assertThat(verified).anySatisfy(c -> { assertThat(c.name).isEqualTo("exactly key 2 differs"); assertThat(c.actualValid).isTrue(); });
+      assertThat(verified).anySatisfy(c -> { assertThat(c.name).isEqualTo("exactly key 2 differs"); assertThat(c.actualConstraintValid).isTrue(); });
       assertThat(verified).anySatisfy(c -> { assertThat(c.skippedFilterCount).isEqualTo(1); assertThat(c.subjectCount).isEqualTo(1); });
       assertThat(verified).anySatisfy(c -> assertThat(c.excludedSubjectCount).isEqualTo(1));
     }
     if (fixture.caseId().equals("P05")) {
-      assertThat(verified).anySatisfy(c -> { assertThat(c.actualValid).isFalse(); assertThat(c.objectCounts).anySatisfy(count -> assertThat(count.get("actualCount")).isEqualTo(0)); });
-      assertThat(verified).anySatisfy(c -> { assertThat(c.actualValid).isTrue(); assertThat(c.objectCounts).anySatisfy(count -> assertThat(count.get("actualCount")).isEqualTo(1)); });
+      assertThat(verified).anySatisfy(c -> { assertThat(c.actualConstraintValid).isFalse(); assertThat(c.objectCounts).anySatisfy(count -> assertThat(count.get("actualCount")).isEqualTo(0)); });
+      assertThat(verified).anySatisfy(c -> { assertThat(c.actualConstraintValid).isTrue(); assertThat(c.objectCounts).anySatisfy(count -> assertThat(count.get("actualCount")).isEqualTo(1)); });
       for(int alternative=1;alternative<=3;alternative++) {
         String expectedName="View filter 3 alternative "+alternative;
         assertThat(verified).anySatisfy(c -> assertThat(c.name).isEqualTo(expectedName));
@@ -143,12 +142,12 @@ class ConstraintViewAuthoringRegressionTest {
       });
     }
     if (fixture.caseId().equals("P10")) {
-      assertThat(verified).anySatisfy(c -> { assertThat(c.subjectCount).isZero(); assertThat(c.setExecuted).isTrue(); assertThat(c.actualValid).isTrue(); });
-      assertThat(verified).anySatisfy(c -> { assertThat(c.subjectCount).isEqualTo(2); assertThat(c.actualValid).isFalse(); });
+      assertThat(verified).anySatisfy(c -> { assertThat(c.subjectCount).isZero(); assertThat(c.setExecuted).isTrue(); assertThat(c.actualConstraintValid).isTrue(); });
+      assertThat(verified).anySatisfy(c -> { assertThat(c.subjectCount).isEqualTo(2); assertThat(c.actualConstraintValid).isFalse(); });
     }
     if (fixture.caseId().equals("P07")) {
-      assertThat(verified).anySatisfy(c -> { assertThat(c.subjectCount).isEqualTo(2); assertThat(c.actualValid).isTrue(); });
-      assertThat(verified).anySatisfy(c -> { assertThat(c.subjectCount).isEqualTo(19); assertThat(c.actualValid).isFalse(); });
+      assertThat(verified).anySatisfy(c -> { assertThat(c.subjectCount).isEqualTo(2); assertThat(c.actualConstraintValid).isTrue(); });
+      assertThat(verified).anySatisfy(c -> { assertThat(c.subjectCount).isEqualTo(19); assertThat(c.actualConstraintValid).isFalse(); });
     }
   }
 

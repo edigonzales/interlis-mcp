@@ -192,7 +192,7 @@ fachliche Constraint-Regel
         v
 Constraint-Authoring + Validator-Proof
         |
-        | proofVerified=true
+        | Constraint-Proof PASSED
         v
 semantischer Diff + afterReview + aktualisierter Modelltext
 ```
@@ -207,7 +207,7 @@ Der Constraint-Proof weist die erwartete Validator-Semantik nach. Diff und `afte
 - SET mit `OBJECT_COUNT` oder `BOOLEAN_EXPRESSION` → `authorIliSetConstraint`
 - UNIQUE → `authorIliUniqueConstraint`
 
-Bei einem typisierten Authoring-Tool muss `proofVerified=true` sein. Bei einem bestehenden oder separat integrierten Constraint ist `generationVerified=true` aus `generateIliConstraintCases` das Proof-Gate.
+Bei einem typisierten Authoring-Tool muss `constraintProofs[].status = PASSED` sein. Bei einem bestehenden oder separat integrierten Constraint ist `generationVerified=true` zusammen mit `coverageComplete=true` aus `generateIliConstraintCases` das Proof-Gate.
 
 ### Keine redundante zweite Proof-Runde
 
@@ -318,7 +318,7 @@ Eine gute Abschlussantwort eines Agenten enthält nicht nur ILI-Text. Sie trennt
 
 - **Modelländerung:** Was wurde konkret geändert?
 - **Technische Prüfung:** Welches High-Level-Gate wurde ausgeführt und mit welchem Ergebnis?
-- **Constraint-Proof:** Falls relevant `proofVerified`/`generationVerified`, Coverage und Safety-Grenzen.
+- **Constraint-Proof:** Falls relevant `constraintProofs[].status`/`generationVerified`, Coverage und Safety-Grenzen.
 - **Potenzielle Inkompatibilitäten:** `impact` und `potentiallyBreakingChanges`.
 - **Fachliche offene Fragen:** Kardinalitäten, Namen, Schlüssel oder andere nicht technisch entscheidbare Punkte.
 
@@ -345,10 +345,11 @@ Diese Schnittstellen werden durch Tests abgesichert. Client-spezifische, kopiert
 
 ## Prüfumfang berichten
 
-Berichte `evidence` gemeinsam mit den vorhandenen Freigabefeldern. `NOT_RUN` ist kein Erfolg,
-`NOT_APPLICABLE` keine ausgeführte Prüfung. Automatisch abgeleitete Constraint-Fälle bestätigen
-keine unabhängige Fachanforderung; explizite fachliche Grenzfälle werden über `testIliConstraint`
-getrennt geprüft. Ihre Herkunft bleibt Verantwortung des Auftraggebers.
+Berichte den Workflow-Status, die tatsächlich ausgeführten Compilerphasen und die
+Proof-Resultate zu den geprüften Constraints. Ein leeres `constraintProofs`-Array zeigt,
+dass kein Proof erforderlich war. Prüfungen mit endlicher Coverage bestätigen
+die getesteten Fälle. Fachliche Grenzfälle anhand unabhängiger Erwartungen über
+`testIliConstraint` prüfen.
 
 `constraintInteractions` beschreibt unterstützte skalare Mandatory-Regeln. Eine gefundene
 Belegung ist kein validierter Objektgraph; ein Widerspruch betrifft den genannten Objektkontext,
