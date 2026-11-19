@@ -10,6 +10,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.w3c.dom.Element;
 import org.xml.sax.InputSource;
 
@@ -115,6 +116,26 @@ class ConstraintMultiBasketFixtureTest {
     assertThat(caseResult(result)).containsEntry("baskets", List.of(Map.of("topic", "BasketFixture.Data",
         "basketId", "b1", "objectCount", 2L, "associationObjectCount", 1L)));
     assertThat(caseResult(result).get("xtfText").toString()).contains("<BasketFixture:Relation ili:tid=");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2.3", "2.4"})
+  void rejectsOidAssociationClassifiedAsEmbedded(String version) {
+    String model = ASSOCIATION_MODEL.formatted("(OID)", "OID AS INTERLIS.UUIDOID;")
+        .replace("INTERLIS 2.4;", "INTERLIS " + version + ";")
+        .replace("item -- {0..*}", "item -- {0..1}")
+        .replace("MANDATORY CONSTRAINT ValidCode:", "!!@ name = \"ValidCode\"\n        MANDATORY CONSTRAINT");
+    var fixture = associationCase("ac02bc31-50c3-4ddf-8c87-700448b29a8c");
+
+    var result = tools.testIliConstraint(model, "ValidCode", List.of(fixture), true);
+
+    assertThat(result).as(result.toString()).containsEntry("compilerValid", true).containsEntry("allPassed", false);
+    assertThat(caseResult(result))
+        .containsEntry("passed", false)
+        .containsEntry("fixtureValid", false)
+        .containsEntry("constraintExercised", false)
+        .containsEntry("fixturePreparationReasonCode", "ASSOCIATION_OID_TRANSFER_UNSUPPORTED")
+        .doesNotContainKey("xtfText");
   }
 
   private ConstraintTestTools.TestCase associationCase(String oid) {
