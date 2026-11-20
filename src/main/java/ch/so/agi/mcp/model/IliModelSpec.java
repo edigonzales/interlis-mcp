@@ -1,6 +1,5 @@
 package ch.so.agi.mcp.model;
 
-import ch.so.agi.mcp.tools.AssociationTools;
 import ch.so.agi.mcp.tools.DomainTools;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;

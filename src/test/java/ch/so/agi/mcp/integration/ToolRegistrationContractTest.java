@@ -62,6 +62,24 @@ class ToolRegistrationContractTest {
     }
   }
 
+  @Test
+  void geometryCatalogReturnsVersionedInterlisAndChBaseTypes() throws Exception {
+    var tool = specsByName().get("listGeometryTypes");
+    for (String version : List.of("2.3", "2.4")) {
+      var response = tool.callHandler().apply(null,
+          new McpSchema.CallToolRequest("listGeometryTypes", Map.of("iliVersion", version)));
+      assertThat(response.isError()).isFalse();
+      var result = extractStructuredContent(response);
+      boolean ili23 = version.equals("2.3");
+      assertThat(result).containsEntry("iliVersion", version);
+      assertThat((List<?>) result.get("types")).hasSize(ili23 ? 11 : 30)
+          .anySatisfy(type -> assertThat(type).isEqualTo(Map.of(
+              "model", "INTERLIS", "name", ili23 ? "SURFACE" : "MULTISURFACE")))
+          .anySatisfy(type -> assertThat(type).isEqualTo(Map.of(
+              "model", "CHBase", "name", ili23 ? "GeometryCHLV95_V1.Line" : "GeometryCHLV95_V2.Coord2")));
+    }
+  }
+
   private void assertPassedProofs(Map<String, Object> result) {
     assertThat((List<?>) result.get("constraintProofs")).isNotEmpty().allSatisfy(
         proof -> assertThat(((Map<?, ?>) proof).get("status")).isEqualTo("PASSED"));

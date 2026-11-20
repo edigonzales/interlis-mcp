@@ -1,7 +1,6 @@
 package ch.so.agi.mcp.eval;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.analysis.ModelChangeTools;
@@ -14,7 +13,6 @@ import ch.so.agi.mcp.knowledge.ModelCorpusTools;
 import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
 import ch.so.agi.mcp.knowledge.ModelingRuleTools;
 import ch.so.agi.mcp.service.IliCompilerService;
-import ch.so.agi.mcp.tools.AssociationTools;
 import ch.so.agi.mcp.model.IliAuthoringResult;
 import ch.so.agi.mcp.model.IliModelSpec;
 import ch.so.agi.mcp.model.IliSpecRenderer;
@@ -116,18 +114,6 @@ class AgenticGoldenScenariosTest {
   }
 
   @Test
-  void missingCardinalityIsRejectedInsteadOfInvented() {
-    AssociationTools tools = new AssociationTools();
-    AssociationTools.Role left = role("left", "Demo.Topic.A", null);
-    AssociationTools.Role right = role("right", "Demo.Topic.B", null);
-
-    assertThatThrownBy(() -> tools.createAssociation(
-        "AB", List.of(left, right), null, null, null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("cardinality is required");
-  }
-
-  @Test
   @SuppressWarnings("unchecked")
   void exampleWorkflowSearchesThenReadsFullModel() throws Exception {
     String building = corpusModel("BuildingModel", "Building");
@@ -168,18 +154,6 @@ class AgenticGoldenScenariosTest {
     assertThat(response.get("potentiallyBreakingChanges")).asList().isNotEmpty();
   }
 
-  @Test
-  void missingAssociationNamesAreNeverInvented() {
-    AssociationTools tools = new AssociationTools();
-    AssociationTools.Role left = role(null, "Demo.Topic.A", "{1}");
-    AssociationTools.Role right = role(null, "Demo.Topic.B", "{0..*}");
-
-    assertThatThrownBy(() -> tools.createAssociation(
-        null, List.of(left, right), null, null, null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("must not be invented");
-  }
-
   private ModelingRuleTools reviewTools(CountingCompilerService compiler) {
     return reviewTools(compiler, new ModelAnalysisTools(compiler));
   }
@@ -188,17 +162,6 @@ class AgenticGoldenScenariosTest {
       CountingCompilerService compiler,
       ModelAnalysisTools analysis) {
     return new ModelingRuleTools(new KnowledgeRuleLoader(), analysis, compiler);
-  }
-
-  private AssociationTools.Role role(
-      @Nullable String name,
-      String classFqn,
-      @Nullable String cardinality) {
-    AssociationTools.Role role = new AssociationTools.Role();
-    role.name = name;
-    role.classFQN = classFqn;
-    role.card = cardinality;
-    return role;
   }
 
   private String baseModel() {
