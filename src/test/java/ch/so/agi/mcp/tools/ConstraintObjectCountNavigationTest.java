@@ -82,6 +82,62 @@ class ConstraintObjectCountNavigationTest {
     assertThat(cases).anySatisfy(c->assertThat(c.get("concreteRoute").toString()).contains("Second"));
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"2.3", "2.4"})
+  @SuppressWarnings("unchecked")
+  void unresolvedTopologyGoalsKeepTheirConcreteRoutes(String version) {
+    // Each Mid needs two leaves. Unbranched fixtures are verifiable, but the
+    // topology planner finds no assignment for the branch with two Mid objects.
+    String source = model(version, "MANDATORY CONSTRAINT target: INTERLIS.objectCount(mids->leaves) >= 2;")
+        .replace("CLASS Mid = END Mid;", """
+            CLASS Mid (ABSTRACT) = END Mid;
+            CLASS First EXTENDS Mid = END First;
+            CLASS Second EXTENDS Mid = END Second;
+            """.strip())
+        .replace("leaves -- {0..*}", "leaves -- {2..2}");
+    String fqn = "Objects.T.Root.target";
+
+    var response = generation.generateIliConstraintCases(source, fqn);
+    assertThat(response).containsEntry("compilerValid", true)
+        .containsEntry("automaticCasesGenerated", true)
+        .containsEntry("generationVerified", false)
+        .containsEntry("coverageComplete", false)
+        .containsEntry("reasonCode", "OBJECT_PATH_TOPOLOGY_INCOMPLETE");
+
+    var gaps = (List<Map<String, Object>>) response.get("objectPathGaps");
+    var unsolved = (List<Map<String, Object>>) response.get("coverageUnsolved");
+    assertThat(gaps).allSatisfy(gap -> assertThat(gap)
+        .containsEntry("objectPath", "mids->leaves").containsEntry("reasonCode", "NO_SOLUTION_FOUND"));
+    var first = Map.of("mids->leaves#0", "Objects.T.First", "mids->leaves#1", "Objects.T.Leaf");
+    var second = Map.of("mids->leaves#0", "Objects.T.Second", "mids->leaves#1", "Objects.T.Leaf");
+    assertThat(gaps).extracting(gap -> gap.get("goal"), gap -> gap.get("concreteRoute"))
+        .containsExactly(
+            tuple("DISTINCT_BRANCH_STEP_0", first),
+            tuple("MIXED_TYPES_STEP_0_Objects.T.Second", first),
+            tuple("SHARED_TARGET_STEP_0", first),
+            tuple("DISTINCT_BRANCH_STEP_0", second),
+            tuple("MIXED_TYPES_STEP_0_Objects.T.First", second),
+            tuple("SHARED_TARGET_STEP_0", second));
+    assertThat(unsolved).containsAll(gaps);
+    assertThat(response.get("coverageGoalCount")).isEqualTo((int) response.get("coverageSolvedCount") + unsolved.size());
+
+    var resolution = new ConstraintContextService(compiler).compileAndResolve(source, fqn, null, "topology_gaps_");
+    var proof = generation.prove(fqn, resolution, false);
+    assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.INCOMPLETE);
+    assertThat(proof.reasonCode).isEqualTo("OBJECT_PATH_TOPOLOGY_INCOMPLETE");
+    assertThat(proof.coverageGaps).hasSameSizeAs(unsolved);
+    assertThat(proof.verification.cases).isNotEmpty().allSatisfy(test -> {
+      assertThat(test.validatorRan).isTrue();
+      assertThat(test.fixtureValid).isTrue();
+      assertThat(test.constraintExercised).isTrue();
+      assertThat(test.passed).isTrue();
+    });
+    for (String route : List.of("route 1: ", "route 2: ")) {
+      assertThat(proof.verification.cases).filteredOn(test -> test.name.startsWith(route))
+          .extracting(test -> test.targetViolationCount).contains(0, 1);
+    }
+  }
+
   @Test
   void incompleteConcreteRouteCannotBeHiddenByAnotherRoute() {
     String source = model("2.4", "MANDATORY CONSTRAINT target: INTERLIS.objectCount(mids->leaves) >= 2;")
