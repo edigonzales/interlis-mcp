@@ -146,5 +146,10 @@ public class ConstraintContextService {
     public boolean available() {
       return context != null;
     }
+
+    public boolean lookupFailed() {
+      return "CONSTRAINT_LOOKUP_FAILED".equals(reasonCode)
+          || "CONSTRAINT_LOOKUP_AMBIGUOUS".equals(reasonCode);
+    }
   }
 }

@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.math.BigDecimal;
 import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -236,6 +237,7 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
 
     assertThat(compiler.calls).isEqualTo(2);
     assertThat(result.status).isEqualTo(IliAuthoringResult.Status.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED);
+    assertThat(result.semanticDiff.astRoundTripVerified).isFalse();
     assertThat(result.updatedModelText).isNull();
     assertThat(result.candidateModelText).contains("Demo.custom(name)");
     assertThat(result.constraintProofs).singleElement().satisfies(proof -> {
@@ -436,6 +438,67 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     assertThat(compiler.lastCompilation.transferDescription().getElement(context + ".Positive"))
         .isInstanceOfSatisfying(MandatoryConstraint.class,
             constraint -> assertThat(constraint.getContainer().getScopedName()).isEqualTo(context));
+  }
+
+  @Test
+  void withholdsWholeBatchWhenAnEmbeddedConstraintCompilesWithAChangedBoundary() {
+    String source = model().replace("other : TEXT*10;", "other : TEXT*10;\n      age : MANDATORY 0..100;");
+    var addFirst = addConstraint("Demo.Data.Thing", ageConstraint("FirstBoundary", ">", 40));
+    var clazz = new ObjectMapper().readValue("""
+        {"operation":"ADD_CLASS","addClass":{"topicFqn":"Demo.Data","clazz":{"name":"Added",
+          "attributes":[{"name":"age","mandatory":true,"typeSpec":{"baseType":{"kind":"NUM_RANGE","min":0,"max":100}}}]}}}
+        """, IliModelChangeRequest.class);
+    clazz.getAddClass().clazz.constraints = List.of(ageConstraint("SecondBoundary", ">", 18));
+    var request = batch(List.of(addFirst, clazz), true);
+
+    var compiler = new CountingCompiler();
+    compiler.afterText = text -> {
+      assertThat(text).contains("age > 18");
+      return text.replace("age > 18", "age >= 18");
+    };
+    var result = service(compiler).apply(source, request, null, null, null);
+
+    assertThat(result.status).as("%s (%s)", result.reason, result.afterCompilation)
+        .isEqualTo(IliAuthoringResult.Status.AST_ROUND_TRIP_FAILED);
+    assertThat(compiler.calls).isEqualTo(2);
+    assertThat(result.reason).contains("Demo.Data.Added.SecondBoundary", "MANDATORY condition differs");
+    assertThat(result.beforeCompilation.valid()).isTrue();
+    assertThat(result.afterCompilation.valid()).isTrue();
+    assertThat(result.semanticDiff.astRoundTripVerified).isFalse();
+    assertThat(result.constraintProofs).isNull();
+    assertThat(result.updatedModelText).isNull();
+    assertThat(result.candidateModelText).contains("age > 40", "CLASS Added", "age > 18")
+        .doesNotContain("age >= 18");
+
+    // The exact compiled semantics pass both proofs when they are what was requested.
+    clazz.getAddClass().clazz.constraints = List.of(ageConstraint("SecondBoundary", ">=", 18));
+    var control = service(new CountingCompiler()).apply(source, request, null, null, null);
+    assertThat(control.status).as("%s (%s)", control.reason, control.afterCompilation)
+        .isEqualTo(IliAuthoringResult.Status.APPLIED);
+    assertThat(control.semanticDiff.astRoundTripVerified).isTrue();
+    assertThat(control.updatedModelText).isEqualTo(result.candidateModelText.replace("age > 18", "age >= 18"));
+    assertThat(control.constraintProofs).hasSize(2).allSatisfy(proof -> {
+      assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED);
+      assertThat(proof.coverageComplete).isTrue();
+    });
+  }
+
+  @Test
+  void withholdsBatchWhenRequestedConstraintIsMissingFromValidAst() {
+    String source = viewModel("2.4");
+    var requested = addConstraint("Demo.Data.Thing", ageConstraint("AdultAge", ">", 18));
+    var compiler = new CountingCompiler();
+    compiler.afterText = ignored -> source;
+    var result = service(compiler).apply(source, batch(requested, true), null, null, null);
+
+    assertThat(compiler.calls).isEqualTo(2);
+    assertThat(result.afterCompilation.valid()).isTrue();
+    assertThat(result.status).isEqualTo(IliAuthoringResult.Status.AST_ROUND_TRIP_FAILED);
+    assertThat(result.reason).contains("Demo.Data.Thing.AdultAge", "Constraint not found");
+    assertThat(result.semanticDiff.astRoundTripVerified).isFalse();
+    assertThat(result.constraintProofs).isNull();
+    assertThat(result.updatedModelText).isNull();
+    assertThat(result.candidateModelText).contains("age > 18");
   }
 
   @ParameterizedTest
@@ -660,6 +723,7 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     assertThat(result.status).as("%s", result).isIn(
         IliAuthoringResult.Status.PROOF_INCOMPLETE, IliAuthoringResult.Status.PROOF_FAILED);
     assertThat(result.afterCompilation.valid()).isTrue();
+    assertThat(result.semanticDiff.astRoundTripVerified).isTrue();
     assertThat(result.updatedModelText).isNull();
     assertThat(result.candidateModelText).contains("CLASS NestedClass", "ASSOCIATION Relation");
     assertThat(result.constraintProofs).extracting(proof -> proof.constraintFqn).containsExactlyInAnyOrder(
@@ -670,6 +734,12 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
           assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.INCOMPLETE);
           assertThat(proof.reasonCode).isEqualTo("STRUCTURE_OWNER_NOT_FOUND");
         });
+
+    var duplicate = service(compiler).apply(model(),
+        batch(List.of(request.changes.getFirst(), request.changes.getFirst()), true), null, null, null);
+    assertThat(duplicate.status).isEqualTo(IliAuthoringResult.Status.INVALID_SPEC);
+    assertThat(duplicate.reason).contains("DUPLICATE_CONSTRAINT_NAME", "Demo.Data.AddedClass.ValuePresent");
+    assertThat(compiler.calls).isEqualTo(3);
     assertThat(result.constraintProofs).filteredOn(proof -> proof.constraintFqn.contains("Class"))
         .allSatisfy(proof -> {
           assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED);
@@ -938,11 +1008,13 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
 
     private int calls;
     private CompilationResult lastCompilation;
+    private UnaryOperator<String> afterText = UnaryOperator.identity();
 
     @Override
     public CompilationResult compile(String text, String repositories, String prefix) {
       calls++;
-      lastCompilation = super.compile(text, repositories, prefix);
+      lastCompilation = super.compile(
+          prefix.equals("ili2c_model_changes_after_") ? afterText.apply(text) : text, repositories, prefix);
       return lastCompilation;
     }
   }

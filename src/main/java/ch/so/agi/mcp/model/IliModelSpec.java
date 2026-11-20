@@ -59,11 +59,11 @@ public class IliModelSpec {
     @JsonProperty(required = false) public @Nullable List<ClassSpec> classes;
     @JsonProperty(required = false) public @Nullable List<AssociationSpec> associations;
 
-    public void collectConstraints(String model, Map<String, Boolean> names) {
+    public void collectConstraints(String model, Map<String, IliConstraintSpec> requested) {
       String topic = model + "." + name.trim();
-      if (classes != null) classes.forEach(viewable -> viewable.collectConstraints(topic, names));
-      if (structures != null) structures.forEach(viewable -> viewable.collectConstraints(topic, names));
-      if (associations != null) associations.forEach(viewable -> viewable.collectConstraints(topic, names));
+      if (classes != null) classes.forEach(viewable -> viewable.collectConstraints(topic, requested));
+      if (structures != null) structures.forEach(viewable -> viewable.collectConstraints(topic, requested));
+      if (associations != null) associations.forEach(viewable -> viewable.collectConstraints(topic, requested));
     }
   }
 
@@ -73,11 +73,11 @@ public class IliModelSpec {
     @JsonProperty(required = false) public @Nullable List<AttributeLineRequest> attributes;
     @JsonProperty(required = false) public @Nullable List<IliConstraintSpec> constraints;
 
-    public void collectConstraints(String topic, Map<String, Boolean> names) {
+    public void collectConstraints(String topic, Map<String, IliConstraintSpec> requested) {
       if (constraints == null) return;
       String context = topic + "." + name.trim();
       for (IliConstraintSpec constraint : constraints) {
-        names.put(context + "." + constraint.name.trim(), constraint.hasExternalFunctionSemantics());
+        ConstraintSpecContract.collectConstraint(requested, context + "." + constraint.name.trim(), constraint);
       }
     }
   }

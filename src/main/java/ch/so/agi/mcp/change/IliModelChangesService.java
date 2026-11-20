@@ -13,6 +13,7 @@ import ch.interlis.ili2c.metamodel.View;
 import ch.interlis.ili2c.metamodel.Viewable;
 import ch.so.agi.mcp.analysis.ModelChangeReviewService;
 import ch.so.agi.mcp.analysis.ModelPurpose;
+import ch.so.agi.mcp.constraint.ConstraintAstComparison;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.constraint.ConstraintSourceEditService;
 import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
@@ -152,12 +153,13 @@ public final class IliModelChangesService {
     List<PendingInsertion> insertions = new ArrayList<>();
     List<ExpectedChange> expected = new ArrayList<>();
     LinkedHashSet<String> derivedImports = new LinkedHashSet<>();
+    Map<String, IliConstraintSpec> requestedConstraints = new LinkedHashMap<>();
 
     for (int index = 0; index < changes.size(); index++) {
       validateConstraintPayload(changes.get(index), iliVersion, "/request/changes/" + index);
       prepareOperation(
           changes.get(index), index, td, localModel, document, iliVersion, modelName,
-          replacements, insertions, expected, derivedImports, renderer.forProfile(ruleProfile));
+          replacements, insertions, expected, derivedImports, requestedConstraints, renderer.forProfile(ruleProfile));
     }
     addMissingDerivedImports(
         document, localModel, changes.size(), insertions, expected, derivedImports);
@@ -187,26 +189,15 @@ public final class IliModelChangesService {
     }
 
     TransferDescription afterTd = Objects.requireNonNull(after.transferDescription());
+    if (!ConstraintAstComparison.verify(requestedConstraints,
+        fqn -> constraintContextService.resolveCompiled(prepared.candidate(), fqn, modelRepositories, after),
+        result, prepared.candidate())) return result;
+
     String unexpected = unexpectedSemanticChange(Objects.requireNonNull(result.semanticDiff), expected, afterTd);
     if (unexpected != null) {
       return result.reject(Status.UNEXPECTED_SEMANTIC_CHANGE, unexpected, prepared.candidate());
     }
 
-    Map<String, Boolean> requestedConstraints = new LinkedHashMap<>();
-    for (var change : changes) {
-      switch (change.requireOperation()) {
-        case ADD_TOPIC -> change.getAddTopic().topic.collectConstraints(modelName, requestedConstraints);
-        case ADD_CLASS -> change.getAddClass().clazz.collectConstraints(change.getAddClass().topicFqn.trim(), requestedConstraints);
-        case ADD_STRUCTURE -> change.getAddStructure().structure.collectConstraints(change.getAddStructure().topicFqn.trim(), requestedConstraints);
-        case ADD_ASSOCIATION -> change.getAddAssociation().association.collectConstraints(change.getAddAssociation().topicFqn.trim(), requestedConstraints);
-        case ADD_CONSTRAINT -> {
-          var add = change.getAddConstraint();
-          requestedConstraints.put(add.containerFqn.trim() + "." + add.constraint.name.trim(),
-              add.constraint.hasExternalFunctionSemantics());
-        }
-        default -> { }
-      }
-    }
     Map<String, Integer> existing = new LinkedHashMap<>();
     for (String fqn : ConstraintContextService.declaredConstraintNames(td)) {
       existing.merge(fqn, 1, Integer::sum);
@@ -215,12 +206,13 @@ public final class IliModelChangesService {
     for (String fqn : ConstraintContextService.declaredConstraintNames(afterTd)) {
       if (existing.merge(fqn, -1, Integer::sum) < 0) required.add(fqn);
     }
-    // Explicit proof targets remain required even when absent from the compiled candidate.
     required.addAll(requestedConstraints.keySet());
-    var proofs = required.stream()
-        .map(fqn -> caseGenerationTools.prove(fqn, constraintContextService.resolveCompiled(
-            prepared.candidate(), fqn, modelRepositories, after), Boolean.TRUE.equals(requestedConstraints.get(fqn))))
-        .toList();
+    var proofs = required.stream().map(fqn -> {
+      IliConstraintSpec requested = requestedConstraints.get(fqn);
+      return caseGenerationTools.prove(fqn, constraintContextService.resolveCompiled(
+          prepared.candidate(), fqn, modelRepositories, after),
+          requested != null && requested.hasExternalFunctionSemantics());
+    }).toList();
     if (result.rejectFailedProof(proofs, prepared.candidate())) return result;
 
     if (!result.semanticDiff.potentiallyBreakingChanges.isEmpty() && !allowPotentiallyBreaking) {
@@ -271,7 +263,9 @@ public final class IliModelChangesService {
       List<IliTextPatch> replacements,
       List<PendingInsertion> insertions,
       List<ExpectedChange> expected,
-      Set<String> derivedImports, IliSpecRenderer renderer) {
+      Set<String> derivedImports,
+      Map<String, IliConstraintSpec> requestedConstraints,
+      IliSpecRenderer renderer) {
     switch (change.requireOperation()) {
       case REMOVE_COMMENTS -> {
         replacements.addAll(IliComments.removalPatches(document));
@@ -304,6 +298,7 @@ public final class IliModelChangesService {
             "ADD_TOPIC target must be the submitted model.");
         IliSpecRenderer.RenderedFragment rendered = renderer.renderTopic(
             payload.topic, iliVersion, modelName, derivedImports);
+        payload.topic.collectConstraints(modelName, requestedConstraints);
         addBeforeEnd(document, locateBlock(document, localModel), rendered.text(),
             operationIndex, "Add topic " + payload.topic.name, insertions);
         expected.add(new ExpectedChange(
@@ -344,6 +339,7 @@ public final class IliModelChangesService {
         Topic topic = (Topic) localContainer(td, payload.topicFqn, Topic.class);
         IliSpecRenderer.RenderedFragment rendered = renderer.renderClass(
             payload.clazz, iliVersion, modelName, derivedImports);
+        payload.clazz.collectConstraints(topic.getScopedName(), requestedConstraints);
         addBeforeEnd(document, locateBlock(document, topic), rendered.text(),
             operationIndex, "Add class " + payload.clazz.name, insertions);
         expected.add(new ExpectedChange(Direction.ADD, "CLASS",
@@ -355,6 +351,7 @@ public final class IliModelChangesService {
         Topic topic = (Topic) localContainer(td, payload.topicFqn, Topic.class);
         IliSpecRenderer.RenderedFragment rendered = renderer.renderStructure(
             payload.structure, iliVersion, modelName, derivedImports);
+        payload.structure.collectConstraints(topic.getScopedName(), requestedConstraints);
         addBeforeEnd(document, locateBlock(document, topic), rendered.text(),
             operationIndex, "Add structure " + payload.structure.name, insertions);
         expected.add(new ExpectedChange(Direction.ADD, "STRUCTURE",
@@ -366,6 +363,7 @@ public final class IliModelChangesService {
         Topic topic = (Topic) localContainer(td, payload.topicFqn, Topic.class);
         IliSpecRenderer.RenderedFragment rendered = renderer.renderAssociation(
             payload.association, iliVersion, modelName, derivedImports);
+        payload.association.collectConstraints(topic.getScopedName(), requestedConstraints);
         addBeforeEnd(document, locateBlock(document, topic), rendered.text(),
             operationIndex, "Add association " + payload.association.name, insertions);
         expected.add(new ExpectedChange(Direction.ADD, "ASSOCIATION",
@@ -388,6 +386,7 @@ public final class IliModelChangesService {
         require(td.getElement(constraintFqn) == null
                 && expected.stream().noneMatch(e -> e.scopedName().equals(constraintFqn)),
             "DUPLICATE_CONSTRAINT_NAME: " + constraintFqn);
+        ConstraintSpecContract.collectConstraint(requestedConstraints, constraintFqn, payload.constraint);
         String constraintText = renderer.renderConstraint(
             payload.constraint, iliVersion, modelName, derivedImports).text();
         IliTextPatch patch = constraintSourceEditService.planConstraintInsertion(
