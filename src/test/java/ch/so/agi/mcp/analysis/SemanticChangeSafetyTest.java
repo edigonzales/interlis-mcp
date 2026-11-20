@@ -113,6 +113,28 @@ class SemanticChangeSafetyTest {
         assertThat(((Map<?, ?>) item).get("scopedName")).isEqualTo("Demo.Topic.Thing.label"));
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"2.3", "2.4"})
+  void omittingAnExplicitDefaultRoleCardinalityDoesNotChangeTheModel(String version) {
+    String before = associationModel("{0..*}").replace("2.4;", version + ";");
+    assertNoChanges(before, before.replace("others -- {0..*} Other;", "others -- Other;"));
+  }
+
+  @Test
+  void roleMetadataChangeIsReportedOnceWithoutChangingRoleSemantics() {
+    String before = associationModel("{0..*}")
+        .replace("      others --", "      !!@ line=\"old\"\n      others --");
+    var review = changeTools().reviewIliChange(before, before.replace("\"old\"", "\"new\""), null, null);
+    assertThat(review.get("comparable")).as("%s", review).isEqualTo(true);
+    assertThat(review.get("impact")).isEqualTo("ADDITIVE_OR_METADATA_ONLY");
+    assertThat(review.get("changed")).asList().singleElement().satisfies(item -> {
+      Map<?, ?> change = (Map<?, ?>) item;
+      assertThat(change.get("kind")).isEqualTo("META_ATTRIBUTE");
+      assertThat(change.get("scopedName")).isEqualTo("Demo.Topic.Link.others!!@line");
+      assertThat(change.get("changedFields")).isEqualTo(List.of("value"));
+    });
+  }
+
   private void assertBreakingChange(String before, String after, String fqn, String... fields) {
     Map<String, Object> review = changeTools().reviewIliChange(before, after, null, null);
     assertThat(review.get("comparable")).as("%s", review).isEqualTo(true);

@@ -18,7 +18,8 @@ public class ModelChangeReviewService {
   private static final List<String> CATEGORIES = List.of(
       "models", "topics", "classes", "structures", "views", "domains", "units", "associations", "attributes", "constraints", "metaAttributes");
   private static final Set<String> IDENTITY_FIELDS = Set.of("kind", "name", "scopedName");
-  private static final Set<String> IGNORED_FIELDS = Set.of("line", "metaAttributes");
+  // Metadata is compared in its own category, and the compiled cardinality is compared in "cardinality".
+  private static final Set<String> IGNORED_FIELDS = Set.of("line", "metaAttributes", "cardinalityDefined");
 
   private final ModelAnalysisTools analysisTools;
   private final ModelingRuleTools ruleTools;
@@ -205,7 +206,7 @@ public class ModelChangeReviewService {
     normalized.put("kind", kind(item, category));
     for (Map.Entry<String, Object> entry : item.entrySet()) {
       if (!IGNORED_FIELDS.contains(entry.getKey())) {
-        normalized.put(entry.getKey(), withoutSourceLines(entry.getValue()));
+        normalized.put(entry.getKey(), withoutIgnoredFields(entry.getValue()));
       }
     }
     if (!normalized.containsKey("scopedName")) {
@@ -220,19 +221,18 @@ public class ModelChangeReviewService {
     return normalized;
   }
 
-  private Object withoutSourceLines(Object value) {
+  private Object withoutIgnoredFields(Object value) {
     if (value instanceof Map<?, ?> map) {
       Map<Object, Object> normalized = new LinkedHashMap<>();
       map.forEach((key, child) -> {
-        if (!"line".equals(key)) {
-          // Metadata keys are user-defined, including a possible key named "line".
-          normalized.put(key, "metaAttributes".equals(key) ? child : withoutSourceLines(child));
+        if (!IGNORED_FIELDS.contains(key)) {
+          normalized.put(key, withoutIgnoredFields(child));
         }
       });
       return normalized;
     }
     if (value instanceof List<?> list) {
-      return list.stream().map(this::withoutSourceLines).toList();
+      return list.stream().map(this::withoutIgnoredFields).toList();
     }
     return value;
   }
