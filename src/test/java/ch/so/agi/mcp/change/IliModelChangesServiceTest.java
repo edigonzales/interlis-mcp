@@ -33,6 +33,7 @@ import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.ObjectMapper;
 
@@ -437,32 +438,47 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
             constraint -> assertThat(constraint.getContainer().getScopedName()).isEqualTo(context));
   }
 
-  @Test
-  void batchGroupsTwoInlineConstraintsAtAViewEndOnTheSameLine() {
-    String source = viewModel("2.4").replace("ALL OF Base; !! Keep this comment.\n    END Selected;",
+  @ParameterizedTest
+  @CsvSource({"2.3, false", "2.4, true"})
+  void batchGroupsTwoInlineConstraintsAtAViewEndOnTheSameLine(String version, boolean crlf) {
+    String eol = crlf ? "\r\n" : "\n";
+    String endIndent = crlf ? "\t\t" : "    ";
+    String source = viewModel(version).replace("ALL OF Base; !! Keep this comment.\n    END Selected;",
         "ALL OF Base; END Selected;");
+    if (crlf) source = source.replace("  ", "\t").replace("\n", eol);
     String context = "Demo.Checks.Selected";
     var upperBound = ageConstraint("BelowMax", "<", 100);
     upperBound.iliDoc = "Keep the age below the maximum.\nThe maximum itself is excluded.";
     var compiler = new CountingCompiler();
-    var result = service(compiler).apply(source, batch(List.of(
+    var result = new IliModelChangeTools(service(compiler)).applyIliModelChanges(source, batch(List.of(
         addConstraint(context, ageConstraint("Positive", ">", 0)),
-        addConstraint(context, upperBound)), true), null, null, null);
+        addConstraint(context, upperBound)), true), null, null);
 
     assertThat(result.status).as(result.reason).isEqualTo(IliAuthoringResult.Status.APPLIED);
     assertThat(compiler.calls).isEqualTo(2);
     assertThat(result.constraintProofs).hasSize(2).allSatisfy(proof ->
         assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
     int anchor = source.indexOf("END Selected;");
+    String indent = endIndent + "  ";
+    String insertion = String.join(eol, "",
+        indent + "!!@ name=\"Positive\"",
+        indent + "MANDATORY CONSTRAINT (age > 0);",
+        indent + "/** Keep the age below the maximum.",
+        indent + " The maximum itself is excluded.",
+        indent + " */",
+        indent + "!!@ name=\"BelowMax\"",
+        indent + "MANDATORY CONSTRAINT (age < 100);",
+        endIndent);
     assertThat(result.sourceEdits).singleElement().satisfies(edit -> {
       assertThat(edit.startOffset).isEqualTo(anchor);
       assertThat(edit.endOffset).isEqualTo(anchor);
+      assertThat(edit.startLine).isEqualTo(14);
+      assertThat(edit.endLine).isEqualTo(14);
       assertThat(edit.before).isEmpty();
-      assertThat(edit.after).containsSubsequence("MANDATORY CONSTRAINT (age > 0);",
-          "The maximum itself is excluded.", "MANDATORY CONSTRAINT (age < 100);");
-      assertThat(result.updatedModelText).isEqualTo(source.substring(0, anchor)
-          + edit.after + source.substring(anchor));
+      assertThat(edit.after).isEqualTo(insertion);
     });
+    assertThat(result.updatedModelText).isEqualTo(source.substring(0, anchor)
+        + insertion + source.substring(anchor));
   }
 
   @Test

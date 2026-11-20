@@ -393,7 +393,8 @@ public final class IliModelChangesService {
         IliTextPatch patch = constraintSourceEditService.planConstraintInsertion(
             document, context, constraintText);
         insertions.add(new PendingInsertion(patch.span().startOffset(), patch.replacement(),
-            operationIndex, "Add constraint " + payload.constraint.name));
+            operationIndex, "Add constraint " + payload.constraint.name,
+            patch.replacement().startsWith(document.lineSeparator())));
         expected.add(new ExpectedChange(Direction.ADD, constraintKind(payload.constraint.kind()),
             constraintFqn, false));
       }
@@ -603,12 +604,23 @@ public final class IliModelChangesService {
         .forEach(insertion -> byAnchor.computeIfAbsent(
             insertion.anchor(), ignored -> new ArrayList<>()).add(insertion));
     List<IliTextPatch> result = new ArrayList<>();
+    String eol = document.lineSeparator();
     for (Map.Entry<Integer, List<PendingInsertion>> entry : byAnchor.entrySet()) {
-      String text = entry.getValue().stream().map(PendingInsertion::text)
-          .reduce("", String::concat);
+      StringBuilder text = new StringBuilder();
+      boolean previousSplitsEndLine = false;
+      for (PendingInsertion insertion : entry.getValue()) {
+        if (previousSplitsEndLine && insertion.splitsEndLine()) {
+          // Keep the previous line break and leave the END indentation to the last patch.
+          text.setLength(text.lastIndexOf(eol) + eol.length());
+          text.append(insertion.text(), eol.length(), insertion.text().length());
+        } else {
+          text.append(insertion.text());
+        }
+        previousSplitsEndLine = insertion.splitsEndLine();
+      }
       String description = entry.getValue().stream().map(PendingInsertion::description)
           .reduce((left, right) -> left + "; " + right).orElse("Insert model elements");
-      result.add(IliTextPatch.insert(document, entry.getKey(), text, description));
+      result.add(IliTextPatch.insert(document, entry.getKey(), text.toString(), description));
     }
     return result;
   }
@@ -952,7 +964,11 @@ public final class IliModelChangesService {
   }
 
   private record PendingInsertion(
-      int anchor, String text, int operationIndex, String description) {}
+      int anchor, String text, int operationIndex, String description, boolean splitsEndLine) {
+    PendingInsertion(int anchor, String text, int operationIndex, String description) {
+      this(anchor, text, operationIndex, description, false);
+    }
+  }
   private record Prepared(String candidate, List<SourceEdit> sourceEdits) {}
   private record ExistingAttribute(
       boolean mandatory, AttributeLineRequest.Collection collection, String typeText) {}
