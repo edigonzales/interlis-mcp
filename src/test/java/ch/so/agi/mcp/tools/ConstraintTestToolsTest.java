@@ -13,6 +13,8 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ConstraintTestToolsTest {
 
@@ -92,6 +94,35 @@ class ConstraintTestToolsTest {
 
   private final ConstraintTestTools tools = new ConstraintTestTools(new IliCompilerService());
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void rejectsCounterexampleWhenValidatorCannotResolveFunctionPath(boolean ili24) {
+    String model = afuModel(ili24).replace("Nebenauspraegung->Gewichtung", "missingFromValidatorPath");
+    var fixture = testCase("missing function path", false,
+        List.of(object(MAIN, "main99", 99)), List.of());
+
+    var result = tools.testIliConstraint(model, "GewichtungSumme100_Wald", List.of(fixture));
+
+    assertFunctionPathFailure(result, "missingFromValidatorPath");
+    assertThat(castList(result.get("cases")).getFirst())
+        .containsEntry("targetViolationCount", 1);
+  }
+
+  @Test
+  void reportsTheParserErrorOnceInsideNestedMathCalls() {
+    String model = AFU_GOLDEN_MODEL.substring(0, AFU_GOLDEN_MODEL.indexOf("MANDATORY CONSTRAINT")) + """
+        MANDATORY CONSTRAINT Math.add(Math.sum("missingNestedPath"), Gewichtung) == 100;
+        END;
+        END Bodeneinheiten;
+        END SO_AFU_Bodeneinheiten_20251210.
+        """;
+    var fixture = testCase("nested missing function path", false,
+        List.of(object(MAIN, "main99", 99)), List.of());
+
+    assertFunctionPathFailure(
+        tools.testIliConstraint(model, "GewichtungSumme100_Wald", List.of(fixture)), "missingNestedPath");
+  }
+
   @Test
   void keepsValidatorPathDiagnosticsOutOfConcurrentCompilations() throws Exception {
     String missingPath = "missingFromValidatorPath";
@@ -109,6 +140,10 @@ class ConstraintTestToolsTest {
           start.await(10, TimeUnit.SECONDS);
           results.add(validator.testIliConstraint(model, "GewichtungSumme100_Wald", List.of(fixture)));
         }
+        var unrelated = compiler.compile(
+            MANDATORY_BOOLEAN_MODEL.replace("value >= 10", "missingFromCompilation >= 10"), null);
+        assertThat(unrelated.valid()).isFalse();
+        assertThat(unrelated.messages().toString()).contains("missingFromCompilation").doesNotContain(missingPath);
         return results;
       });
       var compilations = executor.submit(() -> {
@@ -129,19 +164,22 @@ class ConstraintTestToolsTest {
         assertThat(result.transferDescription()).isNotNull();
       });
       assertThat(validations.get(25, TimeUnit.SECONDS)).allSatisfy(result ->
-          assertThat(result).containsEntry("compilerValid", true).containsEntry("tested", true));
+          assertFunctionPathFailure(result, missingPath));
     } finally {
       executor.shutdownNow();
     }
   }
 
-  @Test
-  void validatesExplicitAfuWitnessAndCounterexampleCases() {
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void validatesExplicitAfuWitnessAndCounterexampleCases(boolean ili24) {
     ConstraintTestTools.TestCase noSecondary = testCase(
         "100 without secondary",
         true,
         List.of(object(MAIN, "main100", 100)),
         List.of());
+    var emptyWrongSum = testCase("99 without secondary", false,
+        List.of(object(MAIN, "main99", 99)), List.of());
 
     ConstraintTestTools.TestCase sumToHundred = testCase(
         "60 plus 20 plus 20",
@@ -163,14 +201,14 @@ class ConstraintTestToolsTest {
         List.of(link("mainInvalid", "secondaryInvalid")));
 
     Map<String, Object> result = tools.testIliConstraint(
-        AFU_GOLDEN_MODEL,
+        afuModel(ili24),
         "GewichtungSumme100_Wald",
-        List.of(noSecondary, sumToHundred, wrongSum), true);
+        List.of(noSecondary, sumToHundred, wrongSum, emptyWrongSum), !ili24);
 
     assertEquals(true, result.get("tested"));
     assertEquals(true, result.get("compilerValid"));
-    assertEquals(3, result.get("caseCount"));
-    assertEquals(3, result.get("passedCount"));
+    assertEquals(4, result.get("caseCount"));
+    assertEquals(4, result.get("passedCount"));
     assertEquals(true, result.get("allPassed"));
     assertEquals(false, result.get("automaticCasesGenerated"));
 
@@ -179,11 +217,17 @@ class ConstraintTestToolsTest {
     assertEquals(true, cases.get(1).get("actualConstraintValid"));
     assertEquals(false, cases.get(2).get("actualConstraintValid"));
     assertEquals(1, ((Number) cases.get(2).get("targetViolationCount")).intValue());
-    assertEquals(true, cases.get(2).get("fixtureValid"));
+    assertEquals(false, cases.get(3).get("actualConstraintValid"));
+    assertEquals(1, cases.get(3).get("targetViolationCount"));
+    assertThat(cases).allSatisfy(test -> assertThat(test)
+        .containsEntry("fixtureValid", true).containsEntry("constraintExercised", true)
+        .containsEntry("fixtureErrors", List.of()));
 
-    String linkedXtf = String.valueOf(cases.get(1).get("xtfText"));
-    assertTrue(linkedXtf.contains("<Bodeneinheit REF=\"main60\""));
-    assertFalse(linkedXtf.contains("<" + ASSOCIATION));
+    if (!ili24) {
+      String linkedXtf = String.valueOf(cases.get(1).get("xtfText"));
+      assertTrue(linkedXtf.contains("<Bodeneinheit REF=\"main60\""));
+      assertFalse(linkedXtf.contains("<" + ASSOCIATION));
+    }
   }
 
   @Test
@@ -256,6 +300,31 @@ class ConstraintTestToolsTest {
     testCase.objects = objects;
     testCase.links = links;
     return testCase;
+  }
+
+  private static String afuModel(boolean ili24) {
+    return ili24 ? AFU_GOLDEN_MODEL
+        .replace("INTERLIS 2.3", "INTERLIS 2.4")
+        .replace("Math.add(Math.sum(\"Nebenauspraegung->Gewichtung\"), Gewichtung)",
+            "(Math_V2.sum(\"Nebenauspraegung->Gewichtung\") + Gewichtung)")
+        .replaceAll("\\bMath\\b", "Math_V2") : AFU_GOLDEN_MODEL;
+  }
+
+  private static void assertFunctionPathFailure(Map<String, Object> result, String path) {
+    assertThat(result).containsEntry("compilerValid", true).containsEntry("tested", true)
+        .containsEntry("allPassed", false);
+    var fixture = castList(result.get("cases")).getFirst();
+    assertThat(fixture).containsEntry("passed", false)
+        .containsEntry("fixtureValid", false)
+        .containsEntry("constraintExercised", false)
+        .containsEntry("fixturePreparationReasonCode", "CONSTRAINT_FUNCTION_EVALUATION_FAILED");
+    assertThat(castList(fixture.get("fixtureErrors"))).singleElement().satisfies(error -> {
+      assertThat(error).containsEntry("code", "CONSTRAINT_FUNCTION_EVALUATION_FAILED")
+          .containsEntry("severity", "ERROR");
+      assertThat(error.get("message").toString()).contains(path);
+      assertThat(castList(fixture.get("messages")))
+          .filteredOn(message -> message.containsKey("code")).containsExactly(error);
+    });
   }
 
   private ConstraintTestTools.TestObject object(String classFqn, String oid, int weight) {

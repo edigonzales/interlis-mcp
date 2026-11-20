@@ -1,9 +1,12 @@
 package ch.so.agi.mcp.tools;
 
 import ch.ehi.basics.logging.EhiLogger;
+import ch.ehi.basics.logging.LogEvent;
+import ch.ehi.basics.logging.LogListener;
 import ch.so.agi.mcp.model.ModelHashes;
 import ch.so.agi.mcp.model.TestXtfOutput;
 import ch.ehi.basics.settings.Settings;
+import ch.interlis.ili2c.CompilerLogEvent;
 import ch.interlis.ili2c.metamodel.AbstractClassDef;
 import ch.interlis.ili2c.metamodel.AbstractCoordType;
 import ch.interlis.ili2c.metamodel.AssociationDef;
@@ -91,6 +94,7 @@ import org.springframework.stereotype.Component;
 public class ConstraintTestTools {
 
   private static final String TARGET_VIOLATION_MARKER = "INTERLIS_MCP_TARGET_CONSTRAINT_VIOLATED";
+  private static final String FUNCTION_EVALUATION_FAILED = "CONSTRAINT_FUNCTION_EVALUATION_FAILED";
   private static final int MAX_AUTOMATIC_ASSOCIATION_ELEMENTS = 64;
 
   private final IliCompilerService compilerService;
@@ -342,7 +346,10 @@ public class ConstraintTestTools {
       if (includeSuccessfulTestXtf || !passed || validation.warningCount() > 0) {
         result.put("xtfText", Files.readString(xtfFile, StandardCharsets.UTF_8));
       }
-      if (!fixtureValid) {
+      if (fixtureErrors.stream().anyMatch(error -> FUNCTION_EVALUATION_FAILED.equals(error.get("code")))) {
+        result.put("fixturePreparationReasonCode", FUNCTION_EVALUATION_FAILED);
+        result.put("reason", "The validator reported a path parser error during function evaluation.");
+      } else if (!fixtureValid) {
         result.put("reason", "The generated fixture has non-target validation errors.");
         for(var error : fixtureErrors) {
           String message = String.valueOf(error.getOrDefault("message", ""));
@@ -914,16 +921,33 @@ public class ConstraintTestTools {
       Map<String, Map<String, Integer>> plannedCounts, Map<String, Map<String, CountShape>> plannedShapes) {
     CollectingIoxLogging logging = new CollectingIoxLogging(xtfFile, targetQName);
     Validator validator = new Validator(td, config, logging, new LogEventFactory(), new PipelinePool(), new Settings()) {
+      private boolean collectingFunctionErrors;
+
       @Override
       public Value evaluateExpression(IomObject parent, String parentAttr, String source, IomObject object,
           Evaluable expression, RoleDef oppositeRole) {
-        if (expression instanceof FunctionCall) {
-          // iox-ili functions such as Math.sum parse path strings and can log parser failures themselves.
-          synchronized (EhiLogger.getInstance()) {
+        if (!(expression instanceof FunctionCall) || collectingFunctionErrors) {
+          return super.evaluateExpression(parent, parentAttr, source, object, expression, oppositeRole);
+        }
+        // Runtime path parsing reports errors to EhiLogger even when ili2c returns a recovered path.
+        EhiLogger logger = EhiLogger.getInstance();
+        synchronized (logger) {
+          Thread owner = Thread.currentThread();
+          LogListener listener = event -> {
+            if (Thread.currentThread() == owner && event.getEventKind() == LogEvent.ERROR
+                && event instanceof CompilerLogEvent parserError) {
+              logging.addFunctionEvaluationError(parserError.getRawEventMsg());
+            }
+          };
+          logger.addListener(listener);
+          collectingFunctionErrors = true;
+          try {
             return super.evaluateExpression(parent, parentAttr, source, object, expression, oppositeRole);
+          } finally {
+            collectingFunctionErrors = false;
+            logger.removeListener(listener);
           }
         }
-        return super.evaluateExpression(parent, parentAttr, source, object, expression, oppositeRole);
       }
     };
     try {
@@ -933,7 +957,7 @@ public class ConstraintTestTools {
           objectsByBasket.values().stream().flatMap(List::stream), plannedCounts, plannedShapes, logging::addSyntheticError));
       // ilivalidator skips its EXISTENCE trace for an object with no attributes.
       // An omitted optional value is legal and needs no REQUIRED IN match.
-      boolean executed = completed && !logging.unsupportedCheck
+      boolean executed = completed && !logging.unsupportedCheck && !logging.functionEvaluationFailed
           && (logging.targetStarted || target instanceof ExistenceConstraint);
       return new ValidationOutcome(logging.messages, logging.errors, logging.warnings, diagnostics, executed);
     } finally {
@@ -1464,6 +1488,7 @@ public class ConstraintTestTools {
     private final String validationTraceSuffix;
     private boolean targetStarted;
     private boolean unsupportedCheck;
+    private boolean functionEvaluationFailed;
     private int errors;
     private int warnings;
 
@@ -1506,6 +1531,14 @@ public class ConstraintTestTools {
         message.put("line", sourceLine);
       }
       messages.add(message);
+    }
+
+    private void addFunctionEvaluationError(@Nullable String text) {
+      functionEvaluationFailed = true;
+      errors++;
+      messages.add(Map.of("severity", "ERROR", "code", FUNCTION_EVALUATION_FAILED,
+          "message", Objects.toString(text, "Unable to parse a function path.")
+              .replace(xtfPath, "<generated-constraint-fixture>")));
     }
 
     private void addSyntheticError(String text) {
