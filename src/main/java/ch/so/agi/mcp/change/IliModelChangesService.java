@@ -1,5 +1,6 @@
 package ch.so.agi.mcp.change;
 
+import ch.interlis.ili2c.generator.Interlis2Generator;
 import ch.interlis.ili2c.metamodel.AssociationDef;
 import ch.interlis.ili2c.metamodel.AttributeDef;
 import ch.interlis.ili2c.metamodel.Constraint;
@@ -9,9 +10,11 @@ import ch.interlis.ili2c.metamodel.Table;
 import ch.interlis.ili2c.metamodel.Topic;
 import ch.interlis.ili2c.metamodel.TransferDescription;
 import ch.interlis.ili2c.metamodel.View;
+import ch.interlis.ili2c.metamodel.Viewable;
 import ch.so.agi.mcp.analysis.ModelChangeReviewService;
 import ch.so.agi.mcp.analysis.ModelPurpose;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
+import ch.so.agi.mcp.constraint.ConstraintSourceEditService;
 import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
 import ch.so.agi.mcp.model.AttributeLineRequest;
 import ch.so.agi.mcp.model.IliAuthoringResult;
@@ -26,6 +29,7 @@ import ch.so.agi.mcp.service.IliCompilerService;
 import ch.so.agi.mcp.tools.ConstraintCaseGenerationTools;
 import ch.so.agi.mcp.util.AnnotationRenderer;
 import ch.so.agi.mcp.util.NameValidator;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
@@ -51,6 +55,7 @@ public final class IliModelChangesService {
   private final ModelChangeReviewService reviewService;
   private final IliSpecRenderer renderer;
   private final ConstraintContextService constraintContextService;
+  private final ConstraintSourceEditService constraintSourceEditService;
   private final ConstraintCaseGenerationTools caseGenerationTools;
   private final IliSourceLocator sourceLocator = new IliSourceLocator();
 
@@ -59,11 +64,13 @@ public final class IliModelChangesService {
       ModelChangeReviewService reviewService,
       IliSpecRenderer renderer,
       ConstraintContextService constraintContextService,
+      ConstraintSourceEditService constraintSourceEditService,
       ConstraintCaseGenerationTools caseGenerationTools) {
     this.compilerService = compilerService;
     this.reviewService = reviewService;
     this.renderer = renderer;
     this.constraintContextService = Objects.requireNonNull(constraintContextService);
+    this.constraintSourceEditService = Objects.requireNonNull(constraintSourceEditService);
     this.caseGenerationTools = Objects.requireNonNull(caseGenerationTools);
   }
 
@@ -179,7 +186,8 @@ public final class IliModelChangesService {
           "The complete batch candidate does not compile; no change was released.", prepared.candidate());
     }
 
-    String unexpected = unexpectedSemanticChange(Objects.requireNonNull(result.semanticDiff), expected);
+    TransferDescription afterTd = Objects.requireNonNull(after.transferDescription());
+    String unexpected = unexpectedSemanticChange(Objects.requireNonNull(result.semanticDiff), expected, afterTd);
     if (unexpected != null) {
       return result.reject(Status.UNEXPECTED_SEMANTIC_CHANGE, unexpected, prepared.candidate());
     }
@@ -204,7 +212,7 @@ public final class IliModelChangesService {
       existing.merge(fqn, 1, Integer::sum);
     }
     var required = new LinkedHashSet<String>();
-    for (String fqn : ConstraintContextService.declaredConstraintNames(Objects.requireNonNull(after.transferDescription()))) {
+    for (String fqn : ConstraintContextService.declaredConstraintNames(afterTd)) {
       if (existing.merge(fqn, -1, Integer::sum) < 0) required.add(fqn);
     }
     // Explicit proof targets remain required even when absent from the compiled candidate.
@@ -374,20 +382,21 @@ public final class IliModelChangesService {
       case ADD_CONSTRAINT -> {
         IliModelChangeRequest.AddConstraintChange payload = change.getAddConstraint();
         require(payload.constraint != null, "addConstraint.constraint is required.");
-        Element context = localContainer(
+        var context = (Viewable<?>) localContainer(
             td, payload.containerFqn, Table.class, AssociationDef.class, View.class);
         String constraintFqn = context.getScopedName() + "." + ident(payload.constraint.name, "constraint.name");
         require(td.getElement(constraintFqn) == null
                 && expected.stream().noneMatch(e -> e.scopedName().equals(constraintFqn)),
             "DUPLICATE_CONSTRAINT_NAME: " + constraintFqn);
-        String blockText = renderer.renderExternalConstraintBlock(
-            context.getScopedName(), payload.constraint, iliVersion, modelName, derivedImports);
-        Topic topic = containingTopic(context);
-        require(topic != null, "Constraint context must be inside a TOPIC.");
-        addBeforeEnd(document, locateBlock(document, topic), blockText,
-            operationIndex, "Add constraint " + payload.constraint.name, insertions);
+        String constraintText = renderer.renderConstraint(
+            payload.constraint, iliVersion, modelName, derivedImports).text();
+        IliTextPatch patch = constraintSourceEditService.planConstraintInsertion(
+            document, context, constraintText);
+        insertions.add(new PendingInsertion(patch.span().startOffset(), patch.replacement(),
+            operationIndex, "Add constraint " + payload.constraint.name,
+            patch.replacement().startsWith(document.lineSeparator())));
         expected.add(new ExpectedChange(Direction.ADD, constraintKind(payload.constraint.kind()),
-            context.getScopedName() + "." + ident(payload.constraint.name, "constraint.name"), false));
+            constraintFqn, false));
       }
     }
   }
@@ -595,12 +604,23 @@ public final class IliModelChangesService {
         .forEach(insertion -> byAnchor.computeIfAbsent(
             insertion.anchor(), ignored -> new ArrayList<>()).add(insertion));
     List<IliTextPatch> result = new ArrayList<>();
+    String eol = document.lineSeparator();
     for (Map.Entry<Integer, List<PendingInsertion>> entry : byAnchor.entrySet()) {
-      String text = entry.getValue().stream().map(PendingInsertion::text)
-          .reduce("", String::concat);
+      StringBuilder text = new StringBuilder();
+      boolean previousSplitsEndLine = false;
+      for (PendingInsertion insertion : entry.getValue()) {
+        if (previousSplitsEndLine && insertion.splitsEndLine()) {
+          // Keep the previous line break and leave the END indentation to the last patch.
+          text.setLength(text.lastIndexOf(eol) + eol.length());
+          text.append(insertion.text(), eol.length(), insertion.text().length());
+        } else {
+          text.append(insertion.text());
+        }
+        previousSplitsEndLine = insertion.splitsEndLine();
+      }
       String description = entry.getValue().stream().map(PendingInsertion::description)
           .reduce((left, right) -> left + "; " + right).orElse("Insert model elements");
-      result.add(IliTextPatch.insert(document, entry.getKey(), text, description));
+      result.add(IliTextPatch.insert(document, entry.getKey(), text.toString(), description));
     }
     return result;
   }
@@ -615,7 +635,7 @@ public final class IliModelChangesService {
   }
 
   private @Nullable String unexpectedSemanticChange(
-      SemanticDiff diff, List<ExpectedChange> expected) {
+      SemanticDiff diff, List<ExpectedChange> expected, TransferDescription after) {
     for (IliAuthoringResult.SemanticChange item : diff.added) {
       if (!matchesExpected(item, Direction.ADD, expected)) {
         return "Semantic diff contains an unexpected addition of " + describeSemanticChange(item);
@@ -627,7 +647,8 @@ public final class IliModelChangesService {
       }
     }
     for (IliAuthoringResult.SemanticChange item : diff.changed) {
-      if (!matchesExpected(item, Direction.CHANGE, expected)) {
+      if (!matchesExpected(item, Direction.CHANGE, expected)
+          && !viewDefinitionMatchesConstraintAdditions(item, expected, after)) {
         return "Semantic diff contains an unexpected change of " + describeSemanticChange(item);
       }
     }
@@ -640,6 +661,31 @@ public final class IliModelChangesService {
           + item.direction() + " for " + item.scopedName() + ".";
     }
     return null;
+  }
+
+  private boolean viewDefinitionMatchesConstraintAdditions(
+      IliAuthoringResult.SemanticChange item, List<ExpectedChange> expected, TransferDescription after) {
+    if (!"VIEW".equals(item.kind) || !item.changedFields.equals(List.of("definitionText"))
+        || item.before == null || item.after == null) return false;
+
+    // ili2c prints each inline constraint both in its own diff entry and in the enclosing view.
+    StringWriter additions = new StringWriter();
+    var generator = Interlis2Generator.generateElements(additions, after);
+    for (ExpectedChange change : expected) {
+      if (change.direction() == Direction.ADD && !change.includeDescendants()
+          && change.scopedName().startsWith(item.scopedName + ".")
+          && after.getElement(change.scopedName()) instanceof Constraint constraint
+          && item.scopedName.equals(constraint.getContainer().getScopedName())) {
+        generator.printConstraint(constraint);
+      }
+    }
+    if (additions.getBuffer().isEmpty()) return false;
+    String beforeDefinition = (String) item.before.get("definitionText");
+    int end = beforeDefinition.lastIndexOf('\n') + 1;
+    String eol = System.lineSeparator();
+    String block = indent(additions.toString(), "  ", eol) + eol;
+    return (beforeDefinition.substring(0, end) + block + beforeDefinition.substring(end))
+        .equals(item.after.get("definitionText"));
   }
 
   private String describeSemanticChange(IliAuthoringResult.SemanticChange item) {
@@ -839,15 +885,6 @@ public final class IliModelChangesService {
     return false;
   }
 
-  private @Nullable Topic containingTopic(Element element) {
-    Element current = element;
-    while (current != null) {
-      if (current instanceof Topic topic) return topic;
-      current = current.getContainer();
-    }
-    return null;
-  }
-
   private String iliVersion(String modelText) {
     Matcher matcher = ILI_VERSION.matcher(modelText);
     require(matcher.find(), "modelText must declare INTERLIS 2.3 or 2.4.");
@@ -927,7 +964,11 @@ public final class IliModelChangesService {
   }
 
   private record PendingInsertion(
-      int anchor, String text, int operationIndex, String description) {}
+      int anchor, String text, int operationIndex, String description, boolean splitsEndLine) {
+    PendingInsertion(int anchor, String text, int operationIndex, String description) {
+      this(anchor, text, operationIndex, description, false);
+    }
+  }
   private record Prepared(String candidate, List<SourceEdit> sourceEdits) {}
   private record ExistingAttribute(
       boolean mandatory, AttributeLineRequest.Collection collection, String typeText) {}

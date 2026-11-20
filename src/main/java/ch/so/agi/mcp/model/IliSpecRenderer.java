@@ -258,18 +258,6 @@ public final class IliSpecRenderer {
 
   }
 
-  public String renderExternalConstraintBlock(
-      String contextFqn,
-      IliConstraintSpec spec,
-      String iliVersion,
-      String currentModel,
-      Set<String> imports) {
-    String context = fqn(contextFqn, "constraint.contextFqn");
-    RenderedFragment inline = renderConstraint(spec, iliVersion, currentModel, imports);
-    return "CONSTRAINTS OF " + context + " =\n"
-        + indent(inline.text(), "  ") + "\nEND;";
-  }
-
   /** Canonical surface rendering used by kind-specific AST round-trip adapters. */
   public String renderExpression(
       IliConstraintSpec.ExpressionSpec expression,

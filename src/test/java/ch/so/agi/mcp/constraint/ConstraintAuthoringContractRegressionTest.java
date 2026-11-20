@@ -69,6 +69,7 @@ class ConstraintAuthoringContractRegressionTest {
     var review = new ModelChangeReviewService(analysis, new ModelingRuleTools(new KnowledgeRuleLoader(), analysis, compiler));
     var contexts = new ConstraintContextService(compiler);
     var service = new IliModelChangesService(compiler, review, renderer, contexts,
+        new ConstraintSourceEditService(),
         new ConstraintCaseGenerationTools(contexts, new ConstraintTestTools(compiler)));
     var payload=new IliModelChangeRequest.AddConstraintChange(); payload.containerFqn="ContractDemo.Data.Item"; payload.constraint=invalid;
     var change=new IliModelChangeRequest(); change.setOperation(IliModelChangeOperation.ADD_CONSTRAINT); change.setAddConstraint(payload);
