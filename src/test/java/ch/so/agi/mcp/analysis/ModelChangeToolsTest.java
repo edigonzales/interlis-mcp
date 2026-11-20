@@ -214,6 +214,66 @@ class ModelChangeToolsTest {
             .anySatisfy(item -> assertThat(item.toString()).contains("MODEL_PURPOSE")));
   }
 
+  @Test
+  void comparesRealImportsAndIgnoresCommentedImports() {
+    ModelChangeTools tools = changeTools(new IliCompilerService());
+    String before = minimalModel();
+    String commented = before.replace("  TOPIC", "  !! IMPORTS FakeExternal;\n  TOPIC");
+    Map<String, Object> commentOnly = tools.reviewIliChange(before, commented, null, null);
+    assertThat(commentOnly.get("comparable")).isEqualTo(true);
+    assertThat(commentOnly.get("hasChanges")).isEqualTo(false);
+    assertThat(commentOnly.get("impact")).isEqualTo("NONE");
+
+    String imported = commented.replace("  TOPIC", "  IMPORTS INTERLIS;\n  TOPIC");
+    Map<String, Object> added = tools.reviewIliChange(commented, imported, null, null);
+    Map<String, Object> removed = tools.reviewIliChange(imported, commented, null, null);
+    assertThat(added.get("comparable")).isEqualTo(true);
+    assertThat(removed.get("comparable")).isEqualTo(true);
+    assertThat(added.get("added")).isEqualTo(List.of(
+        Map.of("kind", "IMPORT", "model", "INTERLIS", "scopedName", "INTERLIS", "qualified", true)));
+    assertThat(removed.get("removed")).isEqualTo(added.get("added"));
+
+    String unqualified = imported.replace("IMPORTS INTERLIS;", "IMPORTS INTERLIS, UNQUALIFIED INTERLIS;");
+    Map<String, Object> qualification = tools.reviewIliChange(imported, unqualified, null, null);
+    assertThat(qualification.get("comparable")).isEqualTo(true);
+    assertThat(qualification.get("added")).asList().isEmpty();
+    assertThat(qualification.get("removed")).asList().isEmpty();
+    assertThat(qualification.get("changed")).asList().singleElement().satisfies(item ->
+        assertThat(((Map<?, ?>) item).get("changedFields")).isEqualTo(List.of("qualified")));
+  }
+
+  @Test
+  void reportsRemovalWhenAnotherModelStillImportsTheSameDependency() {
+    String before = """
+        INTERLIS 2.4;
+        MODEL First (de) AT "https://example.org/first" VERSION "2024-01-31" =
+          IMPORTS INTERLIS;
+        END First.
+        MODEL Second (de) AT "https://example.org/second" VERSION "2024-01-31" =
+          IMPORTS INTERLIS;
+        END Second.
+        """;
+    String after = before.replaceFirst("  IMPORTS INTERLIS;\n", "");
+    var review = changeTools(new IliCompilerService()).reviewIliChange(before, after, null, null);
+    assertThat(review.get("comparable")).as("%s", review).isEqualTo(true);
+    assertThat(review.get("removed")).isEqualTo(List.of(
+        Map.of("kind", "IMPORT", "model", "INTERLIS", "scopedName", "INTERLIS", "qualified", true)));
+  }
+
+  @Test
+  void comparesModelMetadataEvenWhenItsKeyIsLine() {
+    ModelChangeTools tools = changeTools(new IliCompilerService());
+    String before = minimalModel().replace("MODEL Demo", "!!@ line=\"first\"\nMODEL Demo");
+    Map<String, Object> review = tools.reviewIliChange(
+        before, before.replace("first", "second"), null, null);
+    assertThat(review.get("impact")).isEqualTo("ADDITIVE_OR_METADATA_ONLY");
+    assertThat(review.get("changed")).asList().singleElement().satisfies(item -> {
+      Map<?, ?> change = (Map<?, ?>) item;
+      assertThat(change.get("kind")).isEqualTo("META_ATTRIBUTE");
+      assertThat(change.get("changedFields")).isEqualTo(List.of("value"));
+    });
+  }
+
   private ModelChangeTools changeTools(IliCompilerService compiler) {
     ModelAnalysisTools analysisTools = new ModelAnalysisTools(compiler);
     ModelingRuleTools ruleTools = new ModelingRuleTools(

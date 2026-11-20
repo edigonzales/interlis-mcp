@@ -230,6 +230,70 @@ public class StdioE2eTest {
     }
 
     @Test
+    void comparesAssociationSemanticsAndAppliesAnOptionalAttributeOverStdio() throws Exception {
+        initializeSession();
+
+        String before = """
+                INTERLIS 2.4;
+                MODEL Demo (de) AT "https://example.org/demo" VERSION "2026-08-24" =
+                  IMPORTS INTERLIS;
+                  !! IMPORTS FakeExternal;
+                  TOPIC Topic =
+                    CLASS First =
+                    END First;
+                    CLASS Second =
+                    END Second;
+                    ASSOCIATION Link (OID) =
+                      OID AS INTERLIS.UUIDOID;
+                      first -- {1} First;
+                      second -- {0..*} Second;
+                    END Link;
+                  END Topic;
+                END Demo.
+                """;
+        var analysis = toolPayload(2, "analyzeIliModel", Map.of("modelText", before));
+        assertTrue(analysis.path("valid").asBoolean(), analysis.toString());
+        assertEquals(JSON.readTree("[{\"model\":\"INTERLIS\",\"qualified\":true}]"), analysis.path("imports"));
+        assertTrue(analysis.path("associations").path(0).path("identifiable").asBoolean());
+        assertEquals("INTERLIS.UUIDOID", analysis.path("associations").path(0).path("oid").asString());
+
+        String moved = before.replace("    ASSOCIATION", "\n    !! Link moved\n    ASSOCIATION")
+                .replace("FakeExternal", "OtherFake");
+        var unchanged = toolPayload(3, "reviewIliChange", Map.of("beforeModelText", before, "afterModelText", moved));
+        assertTrue(unchanged.path("comparable").asBoolean(), unchanged.toString());
+        assertFalse(unchanged.path("hasChanges").asBoolean(), unchanged.toString());
+        assertEquals("NONE", unchanged.path("impact").asString());
+
+        var oidChanged = toolPayload(4, "reviewIliChange", Map.of(
+                "beforeModelText", before, "afterModelText", moved.replace("UUIDOID", "STANDARDOID")));
+        assertTrue(oidChanged.path("hasChanges").asBoolean(), oidChanged.toString());
+        assertEquals("POTENTIALLY_BREAKING", oidChanged.path("impact").asString());
+        assertEquals(1, oidChanged.path("changed").size());
+        assertEquals("Demo.Topic.Link", oidChanged.path("changed").path(0).path("scopedName").asString());
+        assertEquals("[\"oid\"]", oidChanged.path("changed").path(0).path("changedFields").toString());
+
+        var request = JSON.readTree("""
+                {"changes":[{"operation":"ADD_ATTRIBUTE","addAttribute":{
+                  "containerFqn":"Demo.Topic.First",
+                  "attribute":{"name":"label","typeSpec":{"baseType":{"kind":"TEXT","length":20}}}
+                }}]}
+                """);
+        var applied = toolPayload(5, "applyIliModelChanges", Map.of("modelText", before, "request", request));
+        assertEquals("APPLIED", applied.path("status").asString(), applied.toString());
+        var diff = applied.path("semanticDiff");
+        assertEquals(1, diff.path("added").size());
+        assertEquals("Demo.Topic.First.label", diff.path("added").path(0).path("scopedName").asString());
+        assertTrue(diff.path("changed").isEmpty(), diff.toString());
+    }
+
+    private tools.jackson.databind.JsonNode toolPayload(int id, String tool, Map<String, ?> arguments) throws Exception {
+        String response = callTool(id, tool, JSON.writeValueAsString(arguments));
+        var result = JSON.readTree(response).path("result");
+        assertFalse(result.path("isError").asBoolean(), response);
+        return JSON.readTree(result.path("content").path(0).path("text").asString());
+    }
+
+    @Test
     void readModelExampleRejectsPathOutsideConfiguredCorpusOverStdio(@TempDir Path directory) throws Exception {
         initializeSession();
 

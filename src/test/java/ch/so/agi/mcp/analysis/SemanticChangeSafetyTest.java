@@ -5,8 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.so.agi.mcp.knowledge.KnowledgeRuleLoader;
 import ch.so.agi.mcp.knowledge.ModelingRuleTools;
 import ch.so.agi.mcp.service.IliCompilerService;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class SemanticChangeSafetyTest {
 
@@ -61,6 +64,72 @@ class SemanticChangeSafetyTest {
             .contains("roles")
             .contains("0..*")
             .contains("1..*"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2.3", "2.4"})
+  void associationOidIdentificationAndDomainChangesArePotentiallyBreaking(String version) {
+    String plain = associationModel("{0..*}").replace("2.4;", version + ";");
+    String identified = plain.replace("ASSOCIATION Link =", "ASSOCIATION Link (OID) =");
+    String uuid = identified.replace("(OID) =", "(OID) = OID AS INTERLIS.UUIDOID;");
+    assertBreakingChange(plain, identified, "Demo.Topic.Link", "identifiable");
+    assertBreakingChange(plain, uuid, "Demo.Topic.Link", "identifiable", "oid");
+    assertBreakingChange(uuid, plain, "Demo.Topic.Link", "identifiable", "oid");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2.3", "2.4"})
+  void associationOidDomainChangeIsPotentiallyBreaking(String version) {
+    String uuid = associationModel("{0..*}").replace("2.4;", version + ";")
+        .replace("ASSOCIATION Link =", "ASSOCIATION Link (OID) = OID AS INTERLIS.UUIDOID;");
+    assertBreakingChange(uuid, uuid.replace("UUIDOID", "STANDARDOID"), "Demo.Topic.Link", "oid");
+    assertNoChanges(uuid, uuid);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2.3", "2.4"})
+  void classOidDomainChangeIsPotentiallyBreaking(String version) {
+    String uuid = associationModel("{0..*}").replace("2.4;", version + ";")
+        .replace("CLASS Thing =", "CLASS Thing = OID AS INTERLIS.UUIDOID;");
+    assertBreakingChange(uuid, uuid.replace("UUIDOID", "STANDARDOID"),
+        "Demo.Topic.Thing", "oid");
+    assertNoChanges(uuid, uuid);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2.3", "2.4"})
+  void movingAssociationAndRolesDoesNotChangeTheirSemantics(String version) {
+    String before = associationModel("{0..*}").replace("2.4;", version + ";");
+    assertNoChanges(before, before.replace("    ASSOCIATION Link", "\n    ASSOCIATION Link"));
+    assertNoChanges(before, before.replace("    CLASS Thing", "    !! Thing comment\n    CLASS Thing"));
+
+    String after = before.replace("    END Thing;", "      label : TEXT*20;\n    END Thing;");
+    Map<String, Object> review = changeTools().reviewIliChange(before, after, null, null);
+    assertThat(review.get("comparable")).as("%s", review).isEqualTo(true);
+    assertThat(review.get("hasChanges")).isEqualTo(true);
+    assertThat(review.get("impact")).isEqualTo("ADDITIVE_OR_METADATA_ONLY");
+    assertThat(review.get("changed")).asList().isEmpty();
+    assertThat(review.get("added")).asList().singleElement().satisfies(item ->
+        assertThat(((Map<?, ?>) item).get("scopedName")).isEqualTo("Demo.Topic.Thing.label"));
+  }
+
+  private void assertBreakingChange(String before, String after, String fqn, String... fields) {
+    Map<String, Object> review = changeTools().reviewIliChange(before, after, null, null);
+    assertThat(review.get("comparable")).as("%s", review).isEqualTo(true);
+    assertThat(review.get("hasChanges")).as("%s", review).isEqualTo(true);
+    assertThat(review.get("impact")).as("%s", review).isEqualTo("POTENTIALLY_BREAKING");
+    assertThat(review.get("changed")).asList().singleElement().satisfies(item -> {
+      Map<?, ?> change = (Map<?, ?>) item;
+      assertThat(change.get("scopedName")).isEqualTo(fqn);
+      assertThat(change.get("changedFields")).isEqualTo(List.of(fields));
+    });
+  }
+
+  private void assertNoChanges(String before, String after) {
+    Map<String, Object> review = changeTools().reviewIliChange(before, after, null, null);
+    assertThat(review.get("comparable")).as("%s", review).isEqualTo(true);
+    assertThat(review.get("hasChanges")).as("%s", review).isEqualTo(false);
+    assertThat(review.get("impact")).isEqualTo("NONE");
   }
 
   @Test

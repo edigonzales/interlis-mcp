@@ -34,6 +34,7 @@ import ch.interlis.ili2c.metamodel.View;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -51,7 +52,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class ModelAnalysisTools {
 
-  private static final Pattern IMPORT_PATTERN = Pattern.compile("\\bIMPORTS\\s+(QUALIFIED\\s+)?([^;]+);", Pattern.CASE_INSENSITIVE);
   private static final Pattern META_PATTERN = Pattern.compile("^\\s*!!@\\s*([^=\\s]+)\\s*=", Pattern.MULTILINE);
   private final IliCompilerService compilerService;
 
@@ -200,7 +200,6 @@ public class ModelAnalysisTools {
 
   public AnalysisData analyzeCompiled(@Nullable TransferDescription td, String modelText) {
     AnalysisData data = new AnalysisData();
-    data.imports.addAll(parseImports(modelText));
     data.iliVersion = parseIliVersion(modelText);
 
     if (td == null) {
@@ -211,6 +210,10 @@ public class ModelAnalysisTools {
     for (Model model : td.getModelsFromLastFile()) {
       collectMetaAttributes(model, data);
       data.models.add(modelMap(model));
+      data.importsByModel.put(model.getName(), Arrays.stream(model.getImporting()).distinct()
+          .map(dependency -> Map.<String, Object>of("model", dependency.getName(),
+              "qualified", !model.isImporting(dependency, false)))
+          .toList());
       if (model.getIliVersion() != null && !model.getIliVersion().isBlank()) {
         data.iliVersion = model.getIliVersion();
       }
@@ -229,7 +232,7 @@ public class ModelAnalysisTools {
         Map.entry("messages", messages),
         Map.entry("iliVersion", data.iliVersion),
         Map.entry("models", data.models),
-        Map.entry("imports", data.imports),
+        Map.entry("imports", data.importsByModel.values().stream().flatMap(List::stream).toList()),
         Map.entry("topics", data.topics),
         Map.entry("classes", data.classes),
         Map.entry("structures", data.structures),
@@ -317,10 +320,7 @@ public class ModelAnalysisTools {
     map.put("abstract", table.isAbstract());
     map.put("final", table.isFinal());
     putExtending(map, table.getExtending());
-    Domain oid = table.getOid();
-    if (oid != null) {
-      map.put("oid", oid.getScopedName());
-    }
+    putOid(map, table.getOid());
     return map;
   }
 
@@ -351,6 +351,8 @@ public class ModelAnalysisTools {
     map.put("abstract", association.isAbstract());
     map.put("final", association.isFinal());
     putExtending(map, association.getExtending());
+    map.put("identifiable", association.isIdentifiable());
+    putOid(map, association.getOid());
 
     List<Map<String, Object>> roles = new ArrayList<>();
     Iterator<RoleDef> iterator = association.getDefinedRoles();
@@ -419,6 +421,12 @@ public class ModelAnalysisTools {
       case RoleDef.Kind.eCOMPOSITE -> "COMPOSITE";
       default -> "ASSOCIATE";
     };
+  }
+
+  private void putOid(Map<String, Object> map, @Nullable Domain oid) {
+    if (oid != null) {
+      map.put("oid", oid.getScopedName());
+    }
   }
 
   private void putExtending(Map<String, Object> map, @Nullable Element extending) {
@@ -656,25 +664,6 @@ public class ModelAnalysisTools {
     }
   }
 
-  private List<Map<String, Object>> parseImports(String modelText) {
-    List<Map<String, Object>> imports = new ArrayList<>();
-    Matcher matcher = IMPORT_PATTERN.matcher(modelText);
-    while (matcher.find()) {
-      String qualified = matcher.group(1);
-      String[] names = matcher.group(2).split(",");
-      for (String rawName : names) {
-        String name = rawName.trim();
-        if (!name.isBlank()) {
-          Map<String, Object> map = new LinkedHashMap<>();
-          map.put("model", name);
-          map.put("qualified", qualified != null && !qualified.isBlank());
-          imports.add(map);
-        }
-      }
-    }
-    return imports;
-  }
-
   private List<Map<String, Object>> parseMetaAttributes(String modelText) {
     List<Map<String, Object>> metaAttributes = new ArrayList<>();
     Matcher matcher = META_PATTERN.matcher(modelText);
@@ -738,7 +727,7 @@ public class ModelAnalysisTools {
   public static class AnalysisData {
     public String iliVersion = "";
     public final List<Map<String, Object>> models = new ArrayList<>();
-    public final List<Map<String, Object>> imports = new ArrayList<>();
+    final Map<String, List<Map<String, Object>>> importsByModel = new LinkedHashMap<>();
     public final List<Map<String, Object>> topics = new ArrayList<>();
     public final List<Map<String, Object>> classes = new ArrayList<>();
     public final List<Map<String, Object>> structures = new ArrayList<>();

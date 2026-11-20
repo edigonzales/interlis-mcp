@@ -72,6 +72,55 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
   }
 
   @Test
+  void addingOptionalTextBeforeAssociationPassesSemanticGate() {
+    var compiler = new CountingCompiler();
+    String before = modelWithAssociation();
+    var result = service(compiler).apply(before, batch(addAttribute("label", 20), false), null, null, null);
+
+    assertThat(result.afterCompilation.valid()).isTrue();
+    assertThat(result.status).as("%s", result.reason).isEqualTo(IliAuthoringResult.Status.APPLIED);
+    assertThat(result.semanticDiff.added).singleElement()
+        .satisfies(change -> assertThat(change.scopedName).isEqualTo("Demo.Data.Thing.label"));
+    assertThat(result.semanticDiff.changed).isEmpty();
+    assertThat(compiler.calls).isEqualTo(2);
+  }
+
+  @Test
+  void rejectsUnrequestedRoleCardinalityChangeInCompiledCandidate() {
+    var compiler = new IliCompilerService() {
+      @Override
+      public CompilationResult compile(String text, String repositories, String prefix) {
+        // Compile a candidate with two changes to exercise the gate with a real semantic diff.
+        if (text.contains("label :")) {
+          text = text.replace("others -- {0..*}", "others -- {1..*}");
+        }
+        return super.compile(text, repositories, prefix);
+      }
+    };
+    var result = service(compiler).apply(modelWithAssociation(),
+        batch(addAttribute("label", 20), true), null, null, null);
+
+    assertThat(result.afterCompilation.valid()).isTrue();
+    assertThat(result.status).as("%s", result.reason).isEqualTo(IliAuthoringResult.Status.UNEXPECTED_SEMANTIC_CHANGE);
+    assertThat(result.semanticDiff.changed).singleElement().satisfies(change -> {
+      assertThat(change.scopedName).isEqualTo("Demo.Data.Link");
+      assertThat(change.changedFields).containsExactly("roles");
+    });
+    assertThat(result.reason).contains("unexpected change", "ASSOCIATION", "Demo.Data.Link", "roles");
+    assertThat(result.updatedModelText).isNull();
+  }
+
+  private String modelWithAssociation() {
+    return model().replace("  END Data;", """
+            CLASS Other = END Other;
+            ASSOCIATION Link =
+              thing -- {1} Thing;
+              others -- {0..*} Other;
+            END Link;
+          END Data;""");
+  }
+
+  @Test
   void removeAttributeRemovesOwnedAnnotationsAndPreservesCrLf() {
     CountingCompiler compiler = new CountingCompiler();
     IliModelChangesService service = service(compiler);
