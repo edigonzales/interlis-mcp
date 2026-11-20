@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -72,13 +73,13 @@ public class ModelChangeReviewService {
     }
 
     for (String category : CATEGORIES) {
-      diffCategory(category, categoryItems(before, category), categoryItems(after, category), added, removed, changed);
+      diffCategory(category, null, categoryItems(before, category), categoryItems(after, category), added, removed, changed);
     }
 
     Set<String> importingModels = new LinkedHashSet<>(before.importsByModel.keySet());
     importingModels.addAll(after.importsByModel.keySet());
     for (String model : importingModels) {
-      diffCategory("imports", before.importsByModel.getOrDefault(model, List.of()),
+      diffCategory("imports", model, before.importsByModel.getOrDefault(model, List.of()),
           after.importsByModel.getOrDefault(model, List.of()), added, removed, changed);
     }
 
@@ -160,6 +161,7 @@ public class ModelChangeReviewService {
 
   private void diffCategory(
       String category,
+      @Nullable String importOwner,
       List<Map<String, Object>> beforeItems,
       List<Map<String, Object>> afterItems,
       List<Map<String, Object>> added,
@@ -169,24 +171,36 @@ public class ModelChangeReviewService {
     Map<String, Map<String, Object>> afterByKey = index(category, afterItems);
 
     for (Map.Entry<String, Map<String, Object>> entry : beforeByKey.entrySet()) {
+      Map<String, Object> beforeItem = entry.getValue();
       Map<String, Object> afterItem = afterByKey.get(entry.getKey());
       if (afterItem == null) {
-        removed.add(entry.getValue());
+        if (importOwner != null) {
+          beforeItem.put("owner", importOwner);
+        }
+        removed.add(beforeItem);
         continue;
       }
-      List<String> changedFields = changedFields(entry.getValue(), afterItem);
+      List<String> changedFields = changedFields(beforeItem, afterItem);
       if (!changedFields.isEmpty()) {
-        changed.add(Map.of(
-            "kind", kind(entry.getValue(), category),
-            "scopedName", identity(entry.getValue(), category),
+        Map<String, Object> change = Map.of(
+            "kind", kind(beforeItem, category),
+            "scopedName", identity(beforeItem, category),
             "changedFields", changedFields,
-            "before", entry.getValue(),
-            "after", afterItem));
+            "before", beforeItem,
+            "after", afterItem);
+        if (importOwner != null) {
+          change = new LinkedHashMap<>(change);
+          change.put("owner", importOwner);
+        }
+        changed.add(change);
       }
     }
 
     for (Map.Entry<String, Map<String, Object>> entry : afterByKey.entrySet()) {
       if (!beforeByKey.containsKey(entry.getKey())) {
+        if (importOwner != null) {
+          entry.getValue().put("owner", importOwner);
+        }
         added.add(entry.getValue());
       }
     }

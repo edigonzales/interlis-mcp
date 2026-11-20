@@ -230,6 +230,34 @@ public class StdioE2eTest {
     }
 
     @Test
+    void reportsMovingAnImportBetweenModelsOverStdio() throws Exception {
+        initializeSession();
+
+        String before = """
+                INTERLIS 2.4;
+                MODEL ModelA (de) AT "https://example.org/a" VERSION "2024-01-31" =
+                  IMPORTS INTERLIS;
+                END ModelA.
+                MODEL ModelB (de) AT "https://example.org/b" VERSION "2024-01-31" =
+                END ModelB.
+                """;
+        String after = before.replace("  IMPORTS INTERLIS;\n", "")
+                .replace("END ModelB.", "  IMPORTS INTERLIS;\nEND ModelB.");
+        var review = toolPayload(2, "reviewIliChange", Map.of("beforeModelText", before, "afterModelText", after));
+        assertTrue(review.path("comparable").asBoolean(), review.toString());
+        assertEquals(JSON.readTree("""
+                [{"kind":"IMPORT","model":"INTERLIS","scopedName":"INTERLIS","qualified":true,"owner":"ModelA"}]
+                """), review.path("removed"));
+        assertEquals(JSON.readTree("""
+                [{"kind":"IMPORT","model":"INTERLIS","scopedName":"INTERLIS","qualified":true,"owner":"ModelB"}]
+                """), review.path("added"));
+
+        var analysis = toolPayload(3, "analyzeIliModel", Map.of("modelText", after));
+        assertTrue(analysis.path("valid").asBoolean(), analysis.toString());
+        assertEquals(JSON.readTree("[{\"model\":\"INTERLIS\",\"qualified\":true}]"), analysis.path("imports"));
+    }
+
+    @Test
     void comparesAssociationSemanticsAndAppliesAnOptionalAttributeOverStdio() throws Exception {
         initializeSession();
 

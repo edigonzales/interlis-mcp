@@ -5,10 +5,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.so.agi.mcp.knowledge.KnowledgeRuleLoader;
 import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
 import ch.so.agi.mcp.knowledge.ModelingRuleTools;
+import ch.so.agi.mcp.model.IliAuthoringResult;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ModelChangeToolsTest {
 
@@ -230,7 +233,8 @@ class ModelChangeToolsTest {
     assertThat(added.get("comparable")).isEqualTo(true);
     assertThat(removed.get("comparable")).isEqualTo(true);
     assertThat(added.get("added")).isEqualTo(List.of(
-        Map.of("kind", "IMPORT", "model", "INTERLIS", "scopedName", "INTERLIS", "qualified", true)));
+        Map.of("kind", "IMPORT", "model", "INTERLIS", "scopedName", "INTERLIS",
+            "qualified", true, "owner", "Demo")));
     assertThat(removed.get("removed")).isEqualTo(added.get("added"));
 
     String unqualified = imported.replace("IMPORTS INTERLIS;", "IMPORTS INTERLIS, UNQUALIFIED INTERLIS;");
@@ -238,8 +242,50 @@ class ModelChangeToolsTest {
     assertThat(qualification.get("comparable")).isEqualTo(true);
     assertThat(qualification.get("added")).asList().isEmpty();
     assertThat(qualification.get("removed")).asList().isEmpty();
-    assertThat(qualification.get("changed")).asList().singleElement().satisfies(item ->
-        assertThat(((Map<?, ?>) item).get("changedFields")).isEqualTo(List.of("qualified")));
+    assertThat(qualification.get("changed")).isEqualTo(List.of(Map.of(
+        "kind", "IMPORT", "scopedName", "INTERLIS", "owner", "Demo",
+        "changedFields", List.of("qualified"),
+        "before", Map.of("kind", "IMPORT", "model", "INTERLIS", "scopedName", "INTERLIS", "qualified", true),
+        "after", Map.of("kind", "IMPORT", "model", "INTERLIS", "scopedName", "INTERLIS", "qualified", false))));
+    assertThat(IliAuthoringResult.semanticDiff(qualification).changed)
+        .extracting(change -> change.owner).containsExactly("Demo");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2.3", "2.4"})
+  void identifiesBothOwnersWhenAnImportMovesBetweenModels(String version) {
+    String before = """
+        INTERLIS %s;
+        MODEL ModelA (de) AT "https://example.org/a" VERSION "2024-01-31" =
+          IMPORTS INTERLIS;
+        END ModelA.
+        MODEL ModelB (de) AT "https://example.org/b" VERSION "2024-01-31" =
+        END ModelB.
+        """.formatted(version);
+    String after = before.replace("  IMPORTS INTERLIS;\n", "")
+        .replace("END ModelB.", "  IMPORTS INTERLIS;\nEND ModelB.");
+    ModelChangeTools tools = changeTools(new IliCompilerService());
+    var review = tools.reviewIliChange(before, after, null, null);
+
+    assertThat(review.get("comparable")).as("%s", review).isEqualTo(true);
+    assertThat(review.get("hasChanges")).isEqualTo(true);
+    assertThat(review.get("removed")).isEqualTo(List.of(
+        Map.of("kind", "IMPORT", "model", "INTERLIS", "scopedName", "INTERLIS",
+            "qualified", true, "owner", "ModelA")));
+    assertThat(review.get("added")).isEqualTo(List.of(
+        Map.of("kind", "IMPORT", "model", "INTERLIS", "scopedName", "INTERLIS",
+            "qualified", true, "owner", "ModelB")));
+    assertThat(review.get("changed")).asList().isEmpty();
+    assertThat(review.get("potentiallyBreakingChanges")).asList().isEmpty();
+    assertThat(review.get("impact")).isEqualTo("ADDITIVE_OR_METADATA_ONLY");
+
+    var typed = IliAuthoringResult.semanticDiff(review);
+    assertThat(typed.removed).extracting(change -> change.owner).containsExactly("ModelA");
+    assertThat(typed.added).extracting(change -> change.owner).containsExactly("ModelB");
+
+    var unchanged = tools.reviewIliChange(before, before.replace("  IMPORTS", "\n  IMPORTS"), null, null);
+    assertThat(unchanged.get("comparable")).isEqualTo(true);
+    assertThat(unchanged.get("hasChanges")).isEqualTo(false);
   }
 
   @Test
@@ -257,7 +303,10 @@ class ModelChangeToolsTest {
     var review = changeTools(new IliCompilerService()).reviewIliChange(before, after, null, null);
     assertThat(review.get("comparable")).as("%s", review).isEqualTo(true);
     assertThat(review.get("removed")).isEqualTo(List.of(
-        Map.of("kind", "IMPORT", "model", "INTERLIS", "scopedName", "INTERLIS", "qualified", true)));
+        Map.of("kind", "IMPORT", "model", "INTERLIS", "scopedName", "INTERLIS",
+            "qualified", true, "owner", "First")));
+    assertThat(review.get("added")).asList().isEmpty();
+    assertThat(review.get("changed")).asList().isEmpty();
   }
 
   @Test
