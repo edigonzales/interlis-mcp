@@ -7,6 +7,7 @@ import ch.so.agi.mcp.service.IliCompilerService;
 import ch.so.agi.mcp.tools.AttributeTools;
 import ch.so.agi.mcp.tools.DomainTools;
 import java.util.List;
+import java.util.Set;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 
@@ -126,6 +127,34 @@ class IliSpecRendererTest {
     spec.uri = "https://example.org/demo";
     assertThatThrownBy(() -> renderer().renderModel(spec))
         .hasMessageContaining("spec.version is required");
+  }
+
+  @Test
+  void rejectsMissingAssociationRoleNameAndCardinality() {
+    IliSpecRenderer renderer = renderer();
+    IliModelSpec.CardinalitySpec cardinality = new IliModelSpec.CardinalitySpec();
+    cardinality.min = 0;
+    cardinality.max = "*";
+    IliModelSpec.AssociationRoleSpec left = new IliModelSpec.AssociationRoleSpec();
+    left.classFqn = "Demo.Data.Left";
+    left.cardinality = cardinality;
+    IliModelSpec.AssociationRoleSpec right = new IliModelSpec.AssociationRoleSpec();
+    right.name = "right";
+    right.classFqn = "Demo.Data.Right";
+    right.cardinality = cardinality;
+    IliModelSpec.AssociationSpec association = new IliModelSpec.AssociationSpec();
+    association.name = "Link";
+    association.roles = List.of(left, right);
+
+    assertThatThrownBy(() -> renderer.renderAssociation(association, "2.4", "Demo", Set.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("association.roles[0].name is required.");
+
+    left.name = "left";
+    left.cardinality = null;
+    assertThatThrownBy(() -> renderer.renderAssociation(association, "2.4", "Demo", Set.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("association.roles[0].cardinality requires min and max.");
   }
 
   private AttributeLineRequest textAttribute(String name, boolean mandatory) {
