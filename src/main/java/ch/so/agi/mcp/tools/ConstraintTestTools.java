@@ -1,5 +1,6 @@
 package ch.so.agi.mcp.tools;
 
+import ch.ehi.basics.logging.EhiLogger;
 import ch.so.agi.mcp.model.ModelHashes;
 import ch.so.agi.mcp.model.TestXtfOutput;
 import ch.ehi.basics.settings.Settings;
@@ -15,8 +16,10 @@ import ch.interlis.ili2c.metamodel.Domain;
 import ch.interlis.ili2c.metamodel.Element;
 import ch.interlis.ili2c.metamodel.EnumTreeValueType;
 import ch.interlis.ili2c.metamodel.EnumerationType;
+import ch.interlis.ili2c.metamodel.Evaluable;
 import ch.interlis.ili2c.metamodel.ExistenceConstraint;
 import ch.interlis.ili2c.metamodel.Extendable;
+import ch.interlis.ili2c.metamodel.FunctionCall;
 import ch.interlis.ili2c.metamodel.Model;
 import ch.interlis.ili2c.metamodel.NumericType;
 import ch.interlis.ili2c.metamodel.NumericalType;
@@ -51,6 +54,7 @@ import ch.interlis.iox_j.StartTransferEvent;
 import ch.interlis.iox_j.logging.LogEventFactory;
 import ch.interlis.iox_j.validator.ValidationConfig;
 import ch.interlis.iox_j.validator.Validator;
+import ch.interlis.iox_j.validator.Value;
 import ch.so.agi.mcp.service.IliCompilerService;
 import ch.so.agi.mcp.constraint.CompiledConstraintContext;
 import ch.so.agi.mcp.constraint.ViewProofScope;
@@ -909,7 +913,19 @@ public class ConstraintTestTools {
       Path xtfFile, @Nullable ViewProofScope viewScope, Map<BasketKey, List<Iom_jObject>> objectsByBasket,
       Map<String, Map<String, Integer>> plannedCounts, Map<String, Map<String, CountShape>> plannedShapes) {
     CollectingIoxLogging logging = new CollectingIoxLogging(xtfFile, targetQName);
-    Validator validator = new Validator(td, config, logging, new LogEventFactory(), new PipelinePool(), new Settings());
+    Validator validator = new Validator(td, config, logging, new LogEventFactory(), new PipelinePool(), new Settings()) {
+      @Override
+      public Value evaluateExpression(IomObject parent, String parentAttr, String source, IomObject object,
+          Evaluable expression, RoleDef oppositeRole) {
+        if (expression instanceof FunctionCall) {
+          // iox-ili functions such as Math.sum parse path strings and can log parser failures themselves.
+          synchronized (EhiLogger.getInstance()) {
+            return super.evaluateExpression(parent, parentAttr, source, object, expression, oppositeRole);
+          }
+        }
+        return super.evaluateExpression(parent, parentAttr, source, object, expression, oppositeRole);
+      }
+    };
     try {
       boolean completed = validateTransfer(td, target, xtfFile, validator, logging);
       var diagnostics = viewDiagnostics(td, viewScope, objectsByBasket, validator, logging);

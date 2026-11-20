@@ -22,7 +22,6 @@ import ch.interlis.ili2c.metamodel.TextType;
 import ch.interlis.ili2c.metamodel.TransferDescription;
 import ch.interlis.ili2c.metamodel.Type;
 import ch.interlis.ili2c.metamodel.Viewable;
-import ch.interlis.ili2c.parser.Ili23Parser;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -598,7 +597,7 @@ public final class ConstraintModelSynthesizer {
       ConstraintExpression.Reference reference, Map<String,String> overrides) {
     String path = countedPath(reference);
     try {
-      ObjectPath parsed = Ili23Parser.parseObjectOrAttributePath(td, root, path);
+      ObjectPath parsed = ConstraintPathAnalysis.parseWithCompilerLock(td, root, path);
       if (!matchesParsedPath(parsed, path) || parsed.isAttributePath()) throw new IllegalArgumentException("OBJECT_PATH_UNSUPPORTED: expected an object-valued path: " + path);
       var steps = new ArrayList<NavigationBinding>();
       int stepIndex = 0;
@@ -804,7 +803,7 @@ public final class ConstraintModelSynthesizer {
       ConstraintExpression.Reference reference,
       Map<String, String> concreteTargetOverrides) {
     try {
-      ObjectPath objectPath = Ili23Parser.parseObjectOrAttributePath(td, root, reference.name());
+      ObjectPath objectPath = ConstraintPathAnalysis.parseWithCompilerLock(td, root, reference.name());
       if (!matchesParsedPath(objectPath, reference.name())) {
         throw new IllegalArgumentException("Unable to resolve expression path: " + reference.name());
       }

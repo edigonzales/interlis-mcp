@@ -1,5 +1,6 @@
 package ch.so.agi.mcp.constraint;
 
+import ch.ehi.basics.logging.EhiLogger;
 import ch.interlis.ili2c.Ili2cException;
 import ch.interlis.ili2c.metamodel.AbstractClassDef;
 import ch.interlis.ili2c.metamodel.AttributeDef;
@@ -60,11 +61,18 @@ public final class ConstraintPathAnalysis {
   }
 
   public static ObjectPath parse(TransferDescription td, Viewable<?> root, String path) throws Ili2cException {
-    ObjectPath parsed = Ili23Parser.parseObjectOrAttributePath(td, root, path);
+    ObjectPath parsed = parseWithCompilerLock(td, root, path);
     if (!matchesParsedPath(parsed, path)) {
       throw new IllegalArgumentException("Invalid object/attribute path: " + path);
     }
     return parsed;
+  }
+
+  static ObjectPath parseWithCompilerLock(TransferDescription td, Viewable<?> root, String path) throws Ili2cException {
+    // The compiler and XTF validator install temporary listeners on this global logger.
+    synchronized (EhiLogger.getInstance()) {
+      return Ili23Parser.parseObjectOrAttributePath(td, root, path);
+    }
   }
 
   public static Map<String, Object> describe(ObjectPath path) {
@@ -233,7 +241,7 @@ public final class ConstraintPathAnalysis {
       String segment = segments[i].trim();
       String prefix = String.join("->", java.util.Arrays.copyOfRange(segments, 0, i + 1));
       try {
-        ObjectPath parsed = Ili23Parser.parseObjectOrAttributePath(td, root, prefix);
+        ObjectPath parsed = parseWithCompilerLock(td, root, prefix);
         if (!matchesParsedPath(parsed, prefix)) {
           return new InvalidPathDiagnostic(segment, i, candidates(current));
         }
