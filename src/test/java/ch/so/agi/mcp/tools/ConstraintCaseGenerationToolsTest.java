@@ -1,13 +1,30 @@
 package ch.so.agi.mcp.tools;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mockStatic;
 
+import ch.interlis.iom_j.xtf.Xtf24Reader;
+import ch.interlis.iox.IoxException;
+import ch.so.agi.mcp.constraint.CompiledConstraintContext;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
+import ch.so.agi.mcp.model.IliAuthoringResult;
+import ch.so.agi.mcp.model.IliAuthoringResult.ConstraintProof;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofStatus;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofVerification;
 import ch.so.agi.mcp.service.IliCompilerService;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class ConstraintCaseGenerationToolsTest {
 
@@ -108,6 +125,108 @@ class ConstraintCaseGenerationToolsTest {
     assertEquals(ch.so.agi.mcp.model.IliAuthoringResult.ProofStatus.INCOMPLETE, proof.status);
     assertEquals("CONSTRAINT_LOOKUP_FAILED", proof.reasonCode);
     assertEquals(null, proof.verification);
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+      "unchanged, PASSED, true, true, true",
+      "unexpected, FAILED, true, true, true",
+      "invalid fixture, FAILED, true, false, true",
+      "no fixture, INCOMPLETE, false, false, false",
+      "no subject, INCOMPLETE, true, true, false"
+  })
+  void xtfOutputReadFailurePreservesValidatorFindings(String change, ProofStatus expected,
+      boolean validatorRan, boolean fixtureValid, boolean exercised) {
+    var contexts = new ConstraintContextService(compilerService);
+    var checking = new ConstraintTestTools(compilerService) {
+      @Override ProofVerification testCompiledConstraint(CompiledConstraintContext context, List<TestCase> cases) {
+        var test = cases.getFirst();
+        var object = test.objects.getFirst();
+        switch (change) {
+          case "unexpected" -> test.expectedConstraintValid = !test.expectedConstraintValid;
+          case "invalid fixture" -> object.values = Map.of("value", 101);
+          case "no fixture" -> object.classFqn = "Missing";
+          case "no subject" -> {
+            object.classFqn = "ConstraintAutoCases.Data.Choice";
+            object.values = Map.of();
+          }
+          default -> { }
+        }
+        return super.testCompiledConstraint(context, cases);
+      }
+    };
+    String fqn = "ConstraintAutoCases.Data.Item.ValueAtLeast10";
+    var resolution = contexts.compileAndResolve(MODEL, fqn, null, "proof_status_");
+    ConstraintProof proof;
+    var failedReads = new AtomicInteger();
+    // Fail only the XTF read for the response. ilivalidator reads the real fixture.
+    try (var files = mockStatic(Files.class, invocation -> {
+      if (invocation.getMethod().getName().equals("readString")
+          && invocation.getArgument(0) instanceof Path path
+          && path.getFileName().toString().startsWith("interlis-mcp-constraint-case-")) {
+        failedReads.incrementAndGet();
+        throw new IOException("Injected XTF output read failure");
+      }
+      return invocation.callRealMethod();
+    })) {
+      proof = new ConstraintCaseGenerationTools(contexts, checking).prove(fqn, resolution, false);
+    }
+    assertThat(proof.status).isEqualTo(expected);
+    assertThat(failedReads).hasValue((int) proof.verification.cases.stream().filter(test -> test.validatorRan).count());
+    assertThat(proof.verification.cases).allSatisfy(test -> assertThat(test.xtfText).isNull());
+    var checked = proof.verification.cases.getFirst();
+    assertThat(checked.validatorRan).isEqualTo(validatorRan);
+    assertThat(checked.fixtureValid).isEqualTo(fixtureValid);
+    assertThat(checked.constraintExercised).isEqualTo(exercised);
+    if (change.equals("unexpected")) {
+      assertThat(checked.actualConstraintValid).isNotEqualTo(checked.expectedConstraintValid);
+      assertThat(proof.verification.cases.subList(1, proof.verification.cases.size()))
+          .isNotEmpty().allSatisfy(test -> assertThat(test.passed).isTrue());
+    }
+  }
+
+  @Test
+  void xtfReaderFailureBeforeFirstEventLeavesProofIncomplete() {
+    String model = MODEL.replace("INTERLIS 2.3", "INTERLIS 2.4");
+    String fqn = "ConstraintAutoCases.Data.Item.ValueAtLeast10";
+    var contexts = new ConstraintContextService(compilerService);
+    var resolution = contexts.compileAndResolve(model, fqn, null, "proof_xtf_reader_failure_");
+    assertThat(resolution.available()).isTrue();
+
+    try (var reader = mockStatic(Xtf24Reader.class)) {
+      reader.when(() -> Xtf24Reader.createReader(any(File.class)))
+          .thenThrow(new IoxException("Injected XTF reader failure"));
+
+      var proof = tools.prove(fqn, resolution, false);
+      assertThat(proof.status).isEqualTo(ProofStatus.INCOMPLETE);
+      assertThat(proof.coverageComplete).isTrue();
+      assertThat(proof.verification.cases).isNotEmpty().allSatisfy(test -> {
+        assertThat(test.validatorRan).isFalse();
+        assertThat(test.fixtureValid).isFalse();
+        assertThat(test.constraintExercised).isFalse();
+        assertThat(test.passed).isFalse();
+        assertThat(test.xtfText).isNotBlank();
+        assertThat(test.fixtureErrors).anySatisfy(error -> assertThat(error)
+            .containsEntry("message", "Constraint test validation failed: Injected XTF reader failure"));
+      });
+    }
+  }
+
+  @Test
+  void externalSemanticsTakePriorityOverFailedAndIncompleteProofs() {
+    var incomplete = new ConstraintProof();
+    incomplete.status = ProofStatus.INCOMPLETE;
+    var failed = new ConstraintProof();
+    failed.status = ProofStatus.FAILED;
+    var external = new ConstraintProof();
+    external.status = ProofStatus.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED;
+    var result = new IliAuthoringResult();
+    assertThat(result.rejectFailedProof(List.of(incomplete, failed, external), MODEL)).isTrue();
+    assertThat(result.status).isEqualTo(IliAuthoringResult.Status.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED);
+    assertThat(result.rejectFailedProof(List.of(incomplete, failed), MODEL)).isTrue();
+    assertThat(result.status).isEqualTo(IliAuthoringResult.Status.PROOF_FAILED);
+    assertThat(result.rejectFailedProof(List.of(incomplete), MODEL)).isTrue();
+    assertThat(result.status).isEqualTo(IliAuthoringResult.Status.PROOF_INCOMPLETE);
   }
 
   @Test

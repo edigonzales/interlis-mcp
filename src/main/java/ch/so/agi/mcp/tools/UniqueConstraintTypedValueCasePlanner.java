@@ -16,6 +16,8 @@ import ch.interlis.ili2c.metamodel.UniquenessConstraint;
 import ch.so.agi.mcp.constraint.CompiledConstraintContext;
 import ch.so.agi.mcp.constraint.ConstraintExpression;
 import ch.so.agi.mcp.constraint.SemanticConstraint;
+import ch.so.agi.mcp.model.IliAuthoringResult.CoverageGap;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofCase;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -122,7 +124,7 @@ final class UniqueConstraintTypedValueCasePlanner {
     for (Key key : keys) same.put(key.name(), key.pair().same());
     List<ConstraintTestTools.TestObject> dependencies = dependencies(keys, null);
     List<ConstraintTestTools.TestCase> cases = new ArrayList<>();
-    List<Map<String, Object>> summaries = new ArrayList<>();
+    List<ProofCase> summaries = new ArrayList<>();
     add(cases, summaries, "single typed UNIQUE key", true, "WITNESS",
         dependencies, List.of(object(root, "unique_typed_single", same, null)), same);
     add(cases, summaries, "duplicate typed UNIQUE key in one basket", false, "COUNTEREXAMPLE",
@@ -153,7 +155,7 @@ final class UniqueConstraintTypedValueCasePlanner {
       }
     }
 
-    List<Map<String, Object>> gaps = new ArrayList<>();
+    List<CoverageGap> gaps = new ArrayList<>();
     boolean crossBasketReferenceAllowed = keys.stream()
         .filter(key -> key.referenceTarget() != null)
         .allMatch(Key::externalReference);
@@ -168,10 +170,9 @@ final class UniqueConstraintTypedValueCasePlanner {
           List.of(object(root, "unique_typed_cross_a", same, "basketA"),
               object(root, "unique_typed_cross_b", same, "basketB")), same);
     } else {
-      gaps.add(Map.of(
-          "reasonCode", "UNIQUE_REFERENCE_CROSS_BASKET_NOT_TRANSFERABLE",
-          "reason", "Cross-basket equality for a non-EXTERNAL reference cannot be represented as valid transfer data.",
-          "goal", "GLOBAL/BASKET boundary for reference key"));
+      gaps.add(new CoverageGap("UNIQUE_REFERENCE_CROSS_BASKET_NOT_TRANSFERABLE",
+          "Cross-basket equality for a non-EXTERNAL reference cannot be represented as valid transfer data.",
+          "GLOBAL/BASKET boundary for reference key"));
     }
     for (var testCase : cases) {
       var links = new ArrayList<ConstraintTestTools.TestLink>();
@@ -242,7 +243,7 @@ final class UniqueConstraintTypedValueCasePlanner {
 
   private static void add(
       List<ConstraintTestTools.TestCase> cases,
-      List<Map<String, Object>> summaries,
+      List<ProofCase> summaries,
       String name,
       boolean expected,
       String purpose,
@@ -257,17 +258,14 @@ final class UniqueConstraintTypedValueCasePlanner {
     testCase.objects = List.copyOf(objects);
     testCase.links = List.of();
     cases.add(testCase);
-    summaries.add(Map.of(
-        "name", name,
-        "purpose", purpose,
-        "expectedConstraintValid", expected,
-        "objectCount", objects.size(),
-        "values", values));
+    var summary = new ProofCase(name, purpose, expected);
+    summary.objectCount = objects.size();
+    summary.setSummaryValues(values);
+    summaries.add(summary);
   }
 
   private static UniqueConstraintCasePlanner.Plan gap(String code, String reason) {
     return new UniqueConstraintCasePlanner.Plan(
-        List.of(), List.of(), List.of(Map.of(
-            "reasonCode", code, "reason", reason, "goal", "typed UNIQUE proof")));
+        List.of(), List.of(), List.of(new CoverageGap(code, reason, "typed UNIQUE proof")));
   }
 }

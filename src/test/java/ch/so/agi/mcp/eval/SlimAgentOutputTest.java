@@ -25,25 +25,25 @@ class SlimAgentOutputTest {
   }
 
   @Test void onlyExplicitlySuccessfulWarningFreeCasesLoseTheirXtf() throws Exception {
-    var success = testCase(true, true, true, 0);
-    var negative = new LinkedHashMap<>(success); negative.put("expectedConstraintValid", false); negative.put("actualConstraintValid", false);
-    var missing = new LinkedHashMap<>(success); missing.remove("warningCount");
-    var nested = Map.of("xtfText", "unrelated");
-    var cases = List.of(success, negative, testCase(false, true, true, 0), testCase(true, false, true, 0),
-        testCase(true, true, false, 0), testCase(true, true, true, 1), missing);
-    Map<String,Object> full = Map.of("cases", cases, "details", nested, "allPassed", false);
-    String original = mapper.writeValueAsString(full);
-    assertThat(TestXtfOutput.prepare(full, null)).isEqualTo(TestXtfOutput.prepare(full, false));
-    assertThat(TestXtfOutput.prepare(full, true)).isSameAs(full);
-    var compact = TestXtfOutput.prepare(full, false);
+    var verification = new IliAuthoringResult.ProofVerification();
+    var negative = testCase(true, true, true, 0);
+    negative.expectedConstraintValid = false;
+    negative.actualConstraintValid = false;
+    verification.cases = List.of(testCase(true, true, true, 0), negative, testCase(false, true, true, 0),
+        testCase(true, false, true, 0), testCase(true, true, false, 0),
+        testCase(true, true, true, 1), testCase(true, true, true, null));
+    var full = TestXtfOutput.verificationResponse(verification, true);
+    var compact = TestXtfOutput.verificationResponse(verification, false);
+    TestXtfOutput.addOmittedCount(compact, verification, false);
     assertThat(compact.get("omittedSuccessfulTestXtfCount")).isEqualTo(2);
     var projected = (List<?>) compact.get("cases");
-    assertThat(((Map<?,?>)projected.get(0)).containsKey("xtfText")).isFalse();
-    assertThat(((Map<?,?>)projected.get(1)).containsKey("xtfText")).isFalse();
-    for (int i = 2; i < projected.size(); i++) assertThat(((Map<?,?>)projected.get(i)).containsKey("xtfText")).isTrue();
-    assertThat(compact.get("details")).isSameAs(nested);
-    assertThat(mapper.writeValueAsString(full)).isEqualTo(original);
-    assertThat(TestXtfOutput.prepare(Map.of("cases", List.of(missing)), false)).doesNotContainKey("omittedSuccessfulTestXtfCount");
+    assertThat(((Map<?, ?>) projected.get(0)).containsKey("xtfText")).isFalse();
+    assertThat(((Map<?, ?>) projected.get(1)).containsKey("xtfText")).isFalse();
+    for (int i = 2; i < projected.size(); i++) assertThat(((Map<?, ?>) projected.get(i)).containsKey("xtfText")).isTrue();
+    assertThat((List<?>) full.get("cases")).allSatisfy(test ->
+        assertThat(((Map<?, ?>) test).get("xtfText")).isEqualTo("transfer"));
+    assertThat(compact.get("allPassed")).isEqualTo(full.get("allPassed"));
+    assertThat(verification.cases).allSatisfy(test -> assertThat(test.xtfText).isEqualTo("transfer"));
   }
 
   @Test void typedProjectionPreservesAllOtherEvidenceAndIncludesCounterexamples() throws Exception {
@@ -113,10 +113,11 @@ class SlimAgentOutputTest {
         ProseConstraintWorkflowTest.simple("age > 18 AND age < 90"))) {
       var full = generator.generateIliConstraintCases(fixture, "Simple.Data.Person.Rule", true);
       int calls = compiler.calls;
-      var compact = TestXtfOutput.prepare(full,false);
+      var compact = generator.generateIliConstraintCases(fixture, "Simple.Data.Person.Rule", false);
+      assertThat(compact.get("generationVerified")).isEqualTo(full.get("generationVerified"));
       int fullBytes=mapper.writeValueAsBytes(full).length, compactBytes=mapper.writeValueAsBytes(compact).length;
       assertThat(compactBytes).isLessThan(fullBytes);
-      assertThat(compiler.calls).isEqualTo(calls);
+      assertThat(compiler.calls).isEqualTo(calls + 1);
     }
   }
 
@@ -135,8 +136,14 @@ class SlimAgentOutputTest {
     return new ConstraintAuthoringTools(new ConstraintAuthoringEngine(new ConstraintAuthoringWorkflow(compiler),
         new IliSpecRenderer(new AttributeTools(),new DomainTools()),generation,new ModelChangeReviewService(analysis,rules)));
   }
-  static Map<String,Object> testCase(boolean passed, boolean fixture, boolean exercised, int warnings) {
-    return Map.of("passed",passed,"fixtureValid",fixture,"constraintExercised",exercised,"warningCount",warnings,"xtfText","transfer");
+  static IliAuthoringResult.ProofCaseVerification testCase(boolean passed, boolean fixture, boolean exercised, Integer warnings) {
+    var test = new IliAuthoringResult.ProofCaseVerification();
+    test.passed = passed;
+    test.fixtureValid = fixture;
+    test.constraintExercised = exercised;
+    test.warningCount = warnings;
+    test.xtfText = "transfer";
+    return test;
   }
   static void assertHash(Map<String,Object> result, String text) { assertThat(result.get("modelHashes")).isEqualTo(ModelHashes.model(text)); }
 }

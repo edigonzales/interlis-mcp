@@ -1,5 +1,7 @@
 package ch.so.agi.mcp.constraint;
 
+import ch.so.agi.mcp.model.IliAuthoringResult.CoverageExclusion;
+import ch.so.agi.mcp.model.IliAuthoringResult.CoverageGoal;
 import ch.so.agi.mcp.constraint.ConstraintExpression.And;
 import ch.so.agi.mcp.constraint.ConstraintExpressionEngine.StateCondition;
 import ch.so.agi.mcp.constraint.ConstraintExpressionEngine.GoalKind;
@@ -70,16 +72,16 @@ public final class ConstraintCoveragePlanner {
     return plan.cases().stream().mapToInt(item -> item.coveredGoals().size()).sum();
   }
 
-  public static List<Map<String, Object>> excludedGoals(CoveragePlan plan, ConstraintExpression.IliVersion version) {
+  public static List<CoverageExclusion> excludedGoals(CoveragePlan plan, ConstraintExpression.IliVersion version) {
     return plan.excluded().stream().map(exclusion -> {
-      Map<String, Object> result = new LinkedHashMap<>(describeGoal(exclusion.goal(), version));
-      result.put("reasonCode", "PROVEN_UNREACHABLE");
-      result.put("justification", exclusion.justification());
+      var goal = describeGoal(exclusion.goal(), version);
+      var result = new CoverageExclusion(goal.goal, goal.reason, "PROVEN_UNREACHABLE", exclusion.justification());
+      result.expression = goal.expression;
       return result;
     }).toList();
   }
 
-  public static Map<String, Object> describeGoal(
+  public static CoverageGoal describeGoal(
       ConstraintExpressionEngine.TestGoal goal, ConstraintExpression.IliVersion version) {
     String description = goal.expression().toInterlis(version);
     if (!goal.conditions().isEmpty()) {
@@ -87,7 +89,7 @@ public final class ConstraintCoveragePlanner {
           .map(condition -> condition.state() + "[" + condition.expression().toInterlis(version) + "]")
           .collect(java.util.stream.Collectors.joining("; "));
     }
-    return Map.of("goal", goal.kind().name(), "reason", goal.reason(), "expression", description);
+    return new CoverageGoal(goal.kind().name(), goal.reason(), description);
   }
 
   private ConstraintCoveragePlanner() {

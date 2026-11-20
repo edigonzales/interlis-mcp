@@ -132,7 +132,10 @@ class ConstraintOrderedSemanticsTest {
     assertThat(blocked.get("reasonCode")).isEqualTo(ConstraintValidatorCompatibility.NATIVE_IMPLICATION);
     assertThat(blocked.get("generationVerified")).isEqualTo(false);
     assertThat(blocked.get("coverageComplete")).isEqualTo(false);
-    var typed = IliAuthoringResult.constraintProof("Ordered.Data.Item.Rule", IliAuthoringResult.ProofStatus.INCOMPLETE, blocked);
+    String fqn = "Ordered.Data.Item.Rule";
+    var context = new ConstraintContextService(compiler).compileAndResolve(nativeSource, fqn, null, "native_implication_");
+    var typed = generator.prove(fqn, context, false);
+    assertThat(typed.status).isEqualTo(IliAuthoringResult.ProofStatus.INCOMPLETE);
     assertThat(typed.reasonCode).isEqualTo(ConstraintValidatorCompatibility.NATIVE_IMPLICATION);
     var test = new ConstraintTestTools.TestCase(); test.name = "false antecedent"; test.expectedConstraintValid = false;
     var object = new ConstraintTestTools.TestObject(); object.classFqn = "Ordered.Data.Item";

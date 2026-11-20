@@ -2,20 +2,24 @@ package ch.so.agi.mcp.tools;
 
 import ch.interlis.ili2c.metamodel.Table;
 import ch.so.agi.mcp.constraint.*;
+import ch.so.agi.mcp.model.IliAuthoringResult.CoverageExclusion;
+import ch.so.agi.mcp.model.IliAuthoringResult.CoverageGap;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofCase;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofVerification;
 import java.util.*;
 
 /** Real population probes for reached filter states, with frozen target assignments. */
 final class ViewProofCoverage {
   private ViewProofCoverage() {}
 
-  static Map<String,Object> verify(CompiledConstraintContext context,
+  static ProofVerification verify(CompiledConstraintContext context,
       List<ConstraintTestTools.TestCase> original, ConstraintTestTools tools) {
     var scope=ViewProofScope.resolve(context.transferDescription(),context.constraint());
     if (scope==null) return tools.testCompiledConstraint(context,original);
     var cases=new ArrayList<>(ViewProofFixtures.prepare(context,original));
-    var goals=new ArrayList<Map<String,Object>>();
-    var gaps=new ArrayList<Map<String,Object>>();
-    var excluded=new ArrayList<Map<String,Object>>();
+    var goals = new ArrayList<ProofCase>();
+    var gaps = new ArrayList<CoverageGap>();
+    var excluded = new ArrayList<CoverageExclusion>();
     Set<String> targetRefs=targetReferences(context.semantics());
     for (int filter=0; filter<scope.filters().size();filter++) {
       var expression=scope.filters().get(filter);
@@ -59,22 +63,29 @@ final class ViewProofCoverage {
           }
           variant=ViewProofFixtures.prepare(context,List.of(variant),false).getFirst();
           cases.add(variant);
-          goals.add(Map.of("name",name,"purpose","VIEW_FILTER_SCOPE","filterIndex",filter,
-              "state",state.name(),"includedProbe",included>0,"expectedConstraintValid",variant.expectedConstraintValid));
+          var summary = new ProofCase(name, "VIEW_FILTER_SCOPE", variant.expectedConstraintValid);
+          summary.details.put("filterIndex", filter);
+          summary.details.put("state", state.name());
+          summary.details.put("includedProbe", included > 0);
+          goals.add(summary);
           solved=true;
           break;
         }
         if (!solved) {
           var reachability=ConstraintGoalReachability.analyze(goal,binding);
-          var item=Map.<String,Object>of("name",name,"reasonCode",
-              reachability.status()==ConstraintGoalReachability.Status.PROVEN_UNREACHABLE ? "PROVEN_UNREACHABLE" : "VIEW_SCOPE_UNSOLVED",
-              "reason",reachability.justification());
-          if (reachability.status()==ConstraintGoalReachability.Status.PROVEN_UNREACHABLE) excluded.add(item); else gaps.add(item);
+          if (reachability.status() == ConstraintGoalReachability.Status.PROVEN_UNREACHABLE) {
+            var exclusion = new CoverageExclusion(null, reachability.justification(), "PROVEN_UNREACHABLE", null);
+            exclusion.name = name;
+            excluded.add(exclusion);
+          } else {
+            var gap = new CoverageGap("VIEW_SCOPE_UNSOLVED", reachability.justification(), null);
+            gap.name = name;
+            gaps.add(gap);
+          }
         }
       }
     }
     var result=tools.testCompiledConstraint(context, cases);
-    var checked=(List<Map<String,Object>>)result.get("cases");
     for (int index=0;index<cases.size();index++) {
       int planned=0;
       for (var object:cases.get(index).objects) {
@@ -82,19 +93,18 @@ final class ViewProofCoverage {
         if (type instanceof Table table && (table==scope.base() || table.isExtending(scope.base()))
             && scope.includes(object.values==null ? Map.of() : object.values)) planned++;
       }
-      var item=checked.get(index);
-      item.put("plannedSubjectCount",planned);
-      if (!Integer.valueOf(planned).equals(item.get("subjectCount"))) {
-        item.put("passed",false);
-        item.put("fixturePreparationReasonCode","VIEW_SCOPE_VERIFICATION_FAILED");
-        item.put("reason","Planned View membership differs from the materialized validator population.");
+      var item = result.cases.get(index);
+      item.plannedSubjectCount = planned;
+      if (!Integer.valueOf(planned).equals(item.subjectCount)) {
+        item.passed = false;
+        item.fixturePreparationReasonCode = "VIEW_SCOPE_VERIFICATION_FAILED";
+        item.reason = "Planned View membership differs from the materialized validator population.";
       }
     }
-    result.put("passedCount", (int) checked.stream().filter(c -> Boolean.TRUE.equals(c.get("passed"))).count());
-    result.put("allPassed",gaps.isEmpty() && checked.stream().allMatch(c->Boolean.TRUE.equals(c.get("passed"))));
-    result.put("viewScopeGoals",goals);
-    result.put("viewScopeGaps",gaps);
-    result.put("viewScopeExcluded",excluded);
+    result.viewScopeChecked = true;
+    result.viewScopeGoals = goals;
+    result.viewScopeGaps = gaps;
+    result.viewScopeExcluded = excluded;
     return result;
   }
 

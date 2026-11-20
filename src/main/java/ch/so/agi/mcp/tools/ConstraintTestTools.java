@@ -5,6 +5,8 @@ import ch.ehi.basics.logging.LogEvent;
 import ch.ehi.basics.logging.LogListener;
 import ch.so.agi.mcp.model.ModelHashes;
 import ch.so.agi.mcp.model.TestXtfOutput;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofCaseVerification;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofVerification;
 import ch.ehi.basics.settings.Settings;
 import ch.interlis.ili2c.CompilerLogEvent;
 import ch.interlis.ili2c.metamodel.AbstractClassDef;
@@ -193,7 +195,8 @@ public class ConstraintTestTools {
       response.put("cases", cases.stream().map(c -> {
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("name", c == null ? null : c.name);
-        item.put("expectationSource", c == null || c.expectationSource == null ? ExpectationSource.UNSPECIFIED : c.expectationSource);
+        item.put("expectationSource", c == null || c.expectationSource == null
+            ? ExpectationSource.UNSPECIFIED.name() : c.expectationSource.name());
         item.put("tested", false);
         item.put("passed", false);
         item.put("reasonCode", "MODEL_INVALID");
@@ -209,57 +212,21 @@ public class ConstraintTestTools {
       throw new IllegalArgumentException("Constraint not found: " + constraint);
     }
 
-    Map<String, Object> response = testResolvedConstraint(td, target, constraints, cases, includeSuccessfulTestXtf);
+    var verification = testResolvedConstraint(td, target, constraints, cases, includeSuccessfulTestXtf);
+    var response = testResponse(target, verification, includeSuccessfulTestXtf);
     response.put("messages", compilation.messages());
+    TestXtfOutput.addOmittedCount(response, verification, includeSuccessfulTestXtf);
     return response;
   }
 
-  Map<String, Object> testCompiledConstraint(
-      CompiledConstraintContext context,
-      List<TestCase> cases) {
-    Objects.requireNonNull(context, "context");
-    McpInputLimits.requireConstraintCases(cases);
-    var td = context.transferDescription();
-    return testResolvedConstraint(td, context.constraint(), collectConstraints(td), cases, true);
-  }
-
-  private Map<String, Object> testResolvedConstraint(
-      TransferDescription td,
-      Constraint target,
-      List<Constraint> constraints,
-      List<TestCase> cases,
-      boolean includeSuccessfulTestXtf) {
-    String targetQName = constraintQName(target);
+  static Map<String, Object> testResponse(Constraint target, ProofVerification verification, boolean includeSuccessfulTestXtf) {
     String context = target.getContainer() != null ? target.getContainer().getScopedName(null) : "";
-    ValidationConfig config = validationConfig(target, targetQName, constraints);
-    List<Map<String, Object>> results = new ArrayList<>();
-    int passedCount = 0;
-    int omittedXtfCount = 0;
-
-    for (int i = 0; i < cases.size(); i++) {
-      TestCase testCase = requireCase(cases.get(i), i, target);
-      Map<String, Object> result = runCase(td, target, targetQName, config, testCase, i + 1, includeSuccessfulTestXtf);
-      result.put("expectationSource", testCase.expectationSource == null ? ExpectationSource.UNSPECIFIED : testCase.expectationSource);
-      results.add(result);
-      if (Boolean.TRUE.equals(result.get("passed"))) {
-        passedCount++;
-        if (!result.containsKey("xtfText")) omittedXtfCount++;
-      }
-    }
-
-    Map<String, Object> response = new LinkedHashMap<>();
+    var response = new LinkedHashMap<String, Object>();
     response.put("tested", true);
     response.put("compilerValid", true);
-    response.put("constraint", Map.of(
-        "name", target.getName(),
-        "scopedName", target.getScopedName(null),
-        "validatorQName", targetQName,
-        "context", context));
-    response.put("caseCount", results.size());
-    response.put("passedCount", passedCount);
-    response.put("allPassed", passedCount == results.size());
-    response.put("cases", results);
-    if (omittedXtfCount > 0) response.put("omittedSuccessfulTestXtfCount", omittedXtfCount);
+    response.put("constraint", Map.of("name", target.getName(), "scopedName", target.getScopedName(null),
+        "validatorQName", constraintQName(target), "context", context));
+    response.putAll(TestXtfOutput.verificationResponse(verification, includeSuccessfulTestXtf));
     response.put("automaticCasesGenerated", false);
     response.put("limitations", List.of(
         "Test cases are supplied explicitly by the agent; no witness or counterexample generation is performed.",
@@ -269,7 +236,34 @@ public class ConstraintTestTools {
     return response;
   }
 
-  private Map<String, Object> runCase(
+  ProofVerification testCompiledConstraint(
+      CompiledConstraintContext context,
+      List<TestCase> cases) {
+    Objects.requireNonNull(context, "context");
+    McpInputLimits.requireConstraintCases(cases);
+    var td = context.transferDescription();
+    return testResolvedConstraint(td, context.constraint(), collectConstraints(td), cases, true);
+  }
+
+  private ProofVerification testResolvedConstraint(
+      TransferDescription td,
+      Constraint target,
+      List<Constraint> constraints,
+      List<TestCase> cases,
+      boolean includeSuccessfulTestXtf) {
+    String targetQName = constraintQName(target);
+    ValidationConfig config = validationConfig(target, targetQName, constraints);
+    var results = new ArrayList<ProofCaseVerification>();
+    for (int i = 0; i < cases.size(); i++) {
+      var testCase = requireCase(cases.get(i), i, target);
+      results.add(runCase(td, target, targetQName, config, testCase, i + 1, includeSuccessfulTestXtf));
+    }
+    var verification = new ProofVerification();
+    verification.cases = results;
+    return verification;
+  }
+
+  private ProofCaseVerification runCase(
       TransferDescription td,
       Constraint target,
       String targetQName,
@@ -305,15 +299,16 @@ public class ConstraintTestTools {
       return fixtureFailure(testCase, 0, reasonCode, ex.getMessage());
     }
     Path xtfFile = null;
+    var result = new ProofCaseVerification();
     try {
       xtfFile = Files.createTempFile("interlis-mcp-constraint-case-", ".xtf");
       var baskets = writeCaseXtf(td, iomObjects, xtfFile);
-      ValidationOutcome validation = validateCase(td, target, targetQName, config, xtfFile, viewScope,
+      boolean targetExecuted = validateCase(td, target, targetQName, config, xtfFile, viewScope, result,
           iomObjects, testCase.plannedObjectCounts, testCase.plannedObjectShapes);
 
       int targetViolationCount = 0;
       var fixtureErrors = new ArrayList<Map<String, Object>>();
-      for (var message : validation.messages()) {
+      for (var message : result.messages) {
         if (TARGET_VIOLATION_MARKER.equals(message.get("message"))) {
           targetViolationCount++;
         } else if ("ERROR".equals(message.get("severity"))) {
@@ -323,48 +318,52 @@ public class ConstraintTestTools {
 
       boolean actualConstraintValid = targetViolationCount == 0;
       boolean fixtureValid = fixtureErrors.isEmpty();
-      if (viewScope != null) subjectCount = ((Number)validation.viewDiagnostics().getOrDefault("subjectCount",0)).intValue();
-      boolean setExecuted = target instanceof SetConstraint && validation.targetExecuted();
-      boolean exercised = validation.targetExecuted() && (subjectCount > 0 || viewScope != null && setExecuted);
-      boolean expected = testCase.expectedConstraintValid;
-      boolean passed = exercised && fixtureValid && actualConstraintValid == expected;
-
-      var result = caseOutcome(testCase, actualConstraintValid, passed, exercised, subjectCount);
+      boolean setExecuted = target instanceof SetConstraint && targetExecuted;
       if (viewScope != null) {
-        result.put("setExecuted", setExecuted);
+        subjectCount = result.subjectCount == null ? 0 : result.subjectCount;
+        result.setExecuted = setExecuted;
       }
-      result.putAll(validation.viewDiagnostics());
-      result.put("basketCount", baskets.size());
-      result.put("baskets", baskets);
-      result.put("fixtureValid", fixtureValid);
-      result.put("validatorValid", validation.errorCount() == 0);
-      result.put("targetViolationCount", targetViolationCount);
-      result.put("errorCount", validation.errorCount());
-      result.put("warningCount", validation.warningCount());
-      result.put("messages", validation.messages());
-      result.put("fixtureErrors", fixtureErrors);
-      if (includeSuccessfulTestXtf || !passed || validation.warningCount() > 0) {
-        result.put("xtfText", Files.readString(xtfFile, StandardCharsets.UTF_8));
-      }
+      boolean exercised = targetExecuted && (subjectCount > 0 || viewScope != null && setExecuted);
+      boolean expected = testCase.expectedConstraintValid;
+
+      result.name = testCase.name.trim();
+      result.expectationSource = Objects.requireNonNullElse(testCase.expectationSource, ExpectationSource.UNSPECIFIED).name();
+      result.expectedConstraintValid = expected;
+      result.actualConstraintValid = actualConstraintValid;
+      result.passed = exercised && fixtureValid && actualConstraintValid == expected;
+      result.constraintExercised = exercised;
+      result.subjectCount = subjectCount;
+      result.basketCount = baskets.size();
+      result.baskets = baskets;
+      result.fixtureValid = fixtureValid;
+      result.targetViolationCount = targetViolationCount;
+      result.fixtureErrors = fixtureErrors;
       if (fixtureErrors.stream().anyMatch(error -> FUNCTION_EVALUATION_FAILED.equals(error.get("code")))) {
-        result.put("fixturePreparationReasonCode", FUNCTION_EVALUATION_FAILED);
-        result.put("reason", "The validator reported a path parser error during function evaluation.");
+        result.fixturePreparationReasonCode = FUNCTION_EVALUATION_FAILED;
+        result.reason = "The validator reported a path parser error during function evaluation.";
       } else if (!fixtureValid) {
-        result.put("reason", "The generated fixture has non-target validation errors.");
+        result.reason = "The generated fixture has non-target validation errors.";
         for(var error : fixtureErrors) {
           String message = String.valueOf(error.getOrDefault("message", ""));
           for(String code : List.of("OBJECT_PATH_COUNT_MISMATCH", "OBJECT_PATH_TOPOLOGY_MISMATCH", "OBJECT_PATH_VERIFICATION_FAILED"))
-            if(message.contains(code)) result.put("fixturePreparationReasonCode", code);
+            if(message.contains(code)) result.fixturePreparationReasonCode = code;
         }
       } else if (!exercised) {
-        result.put("reason", "The validator did not exercise the selected constraint in this fixture.");
-        if (viewScope != null) result.put("fixturePreparationReasonCode", target instanceof SetConstraint
-            ? "VIEW_SET_NOT_EXECUTED" : "VIEW_SCOPE_NOT_EXERCISED");
+        result.reason = "The validator did not exercise the selected constraint in this fixture.";
+        if (viewScope != null) result.fixturePreparationReasonCode = target instanceof SetConstraint
+            ? "VIEW_SET_NOT_EXECUTED" : "VIEW_SCOPE_NOT_EXERCISED";
       } else if (actualConstraintValid != expected) {
-        result.put("reason", "Observed target constraint result differs from expectedConstraintValid.");
+        result.reason = "Observed target constraint result differs from expectedConstraintValid.";
+      }
+      if (includeSuccessfulTestXtf || !TestXtfOutput.canOmit(result)) {
+        result.xtfText = Files.readString(xtfFile, StandardCharsets.UTF_8);
       }
       return result;
     } catch (IOException e) {
+      if (result.validatorRan) {
+        System.err.println("Unable to read a temporary constraint-test XTF file.");
+        return result;
+      }
       String code = "FIXTURE_XTF_SERIALIZATION_FAILED";
       Throwable cause = e;
       while (cause.getCause() != null) cause = cause.getCause();
@@ -382,32 +381,24 @@ public class ConstraintTestTools {
     }
   }
 
-  private Map<String, Object> caseOutcome(
-      TestCase testCase, boolean actual, boolean passed, boolean exercised, int subjectCount) {
-    var result = new LinkedHashMap<String, Object>();
-    result.put("name", testCase.name.trim());
-    result.put("expectedConstraintValid", testCase.expectedConstraintValid);
-    result.put("actualConstraintValid", actual);
-    result.put("passed", passed);
-    result.put("constraintExercised", exercised);
-    result.put("subjectCount", subjectCount);
-    return result;
-  }
-
-  private Map<String, Object> fixtureFailure(
-      TestCase testCase, int subjectCount, String code, String reason) {
-    var result = caseOutcome(testCase, false, false, false, subjectCount);
-    result.put("fixtureValid", false);
-    result.put("fixturePreparationReasonCode", code);
-    result.put("fixtureErrors", List.of(Map.of("severity", "ERROR", "code", code, "message", reason)));
-    result.put("reason", reason);
-    result.put("basketCount", 0);
-    result.put("baskets", List.of());
-    result.put("validatorValid", false);
-    result.put("targetViolationCount", 0);
-    result.put("errorCount", 1);
-    result.put("warningCount", 0);
-    result.put("messages", result.get("fixtureErrors"));
+  private ProofCaseVerification fixtureFailure(TestCase testCase, int subjectCount, String code, String reason) {
+    var result = new ProofCaseVerification();
+    result.name = testCase.name.trim();
+    result.expectationSource = Objects.requireNonNullElse(testCase.expectationSource, ExpectationSource.UNSPECIFIED).name();
+    result.expectedConstraintValid = testCase.expectedConstraintValid;
+    result.actualConstraintValid = false;
+    result.passed = false;
+    result.constraintExercised = false;
+    result.subjectCount = subjectCount;
+    result.fixtureValid = false;
+    result.fixturePreparationReasonCode = code;
+    result.fixtureErrors = List.of(Map.of("severity", "ERROR", "code", code, "message", reason));
+    result.reason = reason;
+    result.basketCount = 0;
+    result.targetViolationCount = 0;
+    result.errorCount = 1;
+    result.warningCount = 0;
+    result.messages = result.fixtureErrors;
     return result;
   }
 
@@ -915,9 +906,9 @@ public class ConstraintTestTools {
     return config;
   }
 
-  private ValidationOutcome validateCase(
+  private boolean validateCase(
       TransferDescription td, Constraint target, String targetQName, ValidationConfig config,
-      Path xtfFile, @Nullable ViewProofScope viewScope, Map<BasketKey, List<Iom_jObject>> objectsByBasket,
+      Path xtfFile, @Nullable ViewProofScope viewScope, ProofCaseVerification result, Map<BasketKey, List<Iom_jObject>> objectsByBasket,
       Map<String, Map<String, Integer>> plannedCounts, Map<String, Map<String, CountShape>> plannedShapes) {
     CollectingIoxLogging logging = new CollectingIoxLogging(xtfFile, targetQName);
     Validator validator = new Validator(td, config, logging, new LogEventFactory(), new PipelinePool(), new Settings()) {
@@ -951,22 +942,25 @@ public class ConstraintTestTools {
       }
     };
     try {
-      boolean completed = validateTransfer(td, target, xtfFile, validator, logging);
-      var diagnostics = viewDiagnostics(td, viewScope, objectsByBasket, validator, logging);
-      diagnostics.put("objectCounts", ObjectCountVerification.verify(td, target, validator,
-          objectsByBasket.values().stream().flatMap(List::stream), plannedCounts, plannedShapes, logging::addSyntheticError));
+      boolean completed = validateTransfer(td, target, xtfFile, validator, logging, result);
+      if (viewScope != null) checkViewPopulation(td, viewScope, objectsByBasket, validator, logging, result);
+      result.objectCounts = ObjectCountVerification.verify(td, target, validator,
+          objectsByBasket.values().stream().flatMap(List::stream), plannedCounts, plannedShapes, logging::addSyntheticError);
       // ilivalidator skips its EXISTENCE trace for an object with no attributes.
       // An omitted optional value is legal and needs no REQUIRED IN match.
-      boolean executed = completed && !logging.unsupportedCheck && !logging.functionEvaluationFailed
+      result.messages = logging.messages;
+      result.errorCount = logging.errors;
+      result.warningCount = logging.warnings;
+      return completed && !logging.unsupportedCheck && !logging.functionEvaluationFailed
           && (logging.targetStarted || target instanceof ExistenceConstraint);
-      return new ValidationOutcome(logging.messages, logging.errors, logging.warnings, diagnostics, executed);
     } finally {
       validator.close();
     }
   }
 
   private boolean validateTransfer(
-      TransferDescription td, Constraint target, Path xtfFile, Validator validator, CollectingIoxLogging logging) {
+      TransferDescription td, Constraint target, Path xtfFile, Validator validator, CollectingIoxLogging logging,
+      ProofCaseVerification result) {
     IoxReader reader = null;
     try {
       // The current default XTF 2.3 reader ignores the normative EXTREF attribute.
@@ -979,6 +973,7 @@ public class ConstraintTestTools {
       }
       IoxEvent event;
       while ((event = reader.read()) != null) {
+        result.validatorRan = true;
         validator.validate(event);
         if (event instanceof EndTransferEvent) {
           return true;
@@ -1008,39 +1003,38 @@ public class ConstraintTestTools {
     return false;
   }
 
-  private Map<String, Object> viewDiagnostics(
-      TransferDescription td, @Nullable ViewProofScope viewScope,
-      Map<BasketKey, List<Iom_jObject>> objectsByBasket, Validator validator, CollectingIoxLogging logging) {
-    Map<String,Object> viewDiagnostics = new LinkedHashMap<>();
-    if (viewScope != null) {
-      viewDiagnostics.putAll(viewScope.diagnostics());
-      int baseCount=0, selected=0, skipped=0;
-      for (var basket : objectsByBasket.values()) {
-        for (var object : basket) {
-          var type = td.getElement(object.getobjecttag());
-          if (!(type instanceof Table table) || !(table == viewScope.base() || table.isExtending(viewScope.base()))) continue;
-          baseCount++;
-          boolean included=true;
-          for (var iterator=viewScope.view().iterator();iterator.hasNext();) {
-            var element=iterator.next();
-            if (!(element instanceof ch.interlis.ili2c.metamodel.ExpressionSelection selection)) continue;
-            var value=validator.evaluateExpression(null,null,viewScope.view().getScopedName(),object,selection.getCondition(),null);
-            if (value.isNotYetImplemented()) {
-              logging.addSyntheticError("VIEW_SCOPE_VERIFICATION_FAILED: View filter is not implemented by validator.");
-              return viewDiagnostics;
-            }
-            if (value.skipEvaluation()) { skipped++; continue; }
-            if (!value.isTrue()) { included=false; break; }
+  private void checkViewPopulation(
+      TransferDescription td, ViewProofScope viewScope,
+      Map<BasketKey, List<Iom_jObject>> objectsByBasket, Validator validator, CollectingIoxLogging logging,
+      ProofCaseVerification result) {
+    result.viewFqn = viewScope.view().getScopedName();
+    result.baseClassFqn = viewScope.base().getScopedName();
+    result.filterCount = viewScope.filters().size();
+    int baseCount=0, selected=0, skipped=0;
+    for (var basket : objectsByBasket.values()) {
+      for (var object : basket) {
+        var type = td.getElement(object.getobjecttag());
+        if (!(type instanceof Table table) || !(table == viewScope.base() || table.isExtending(viewScope.base()))) continue;
+        baseCount++;
+        boolean included=true;
+        for (var iterator=viewScope.view().iterator();iterator.hasNext();) {
+          var element=iterator.next();
+          if (!(element instanceof ch.interlis.ili2c.metamodel.ExpressionSelection selection)) continue;
+          var value=validator.evaluateExpression(null,null,viewScope.view().getScopedName(),object,selection.getCondition(),null);
+          if (value.isNotYetImplemented()) {
+            logging.addSyntheticError("VIEW_SCOPE_VERIFICATION_FAILED: View filter is not implemented by validator.");
+            return;
           }
-          if (included) selected++;
+          if (value.skipEvaluation()) { skipped++; continue; }
+          if (!value.isTrue()) { included=false; break; }
         }
+        if (included) selected++;
       }
-      viewDiagnostics.put("baseSubjectCount",baseCount);
-      viewDiagnostics.put("subjectCount",selected);
-      viewDiagnostics.put("excludedSubjectCount",baseCount-selected);
-      viewDiagnostics.put("skippedFilterCount",skipped);
     }
-    return viewDiagnostics;
+    result.baseSubjectCount = baseCount;
+    result.subjectCount = selected;
+    result.excludedSubjectCount = baseCount - selected;
+    result.skippedFilterCount = skipped;
   }
 
   private Iom_jObject materializeObject(
@@ -1443,7 +1437,7 @@ public class ConstraintTestTools {
     }
   }
 
-  private String constraintQName(Constraint constraint) {
+  private static String constraintQName(Constraint constraint) {
     Element container = constraint.getContainer();
     return (container != null ? container.getScopedName(null) + "." : "") + constraint.getName();
   }
@@ -1476,10 +1470,6 @@ public class ConstraintTestTools {
       List<PreparedLink> links,
       Map<String, PreparedObject> objectsByOid,
       Map<Topic, String> defaults) {
-  }
-
-  private record ValidationOutcome(List<Map<String, Object>> messages, int errorCount, int warningCount,
-      Map<String,Object> viewDiagnostics, boolean targetExecuted) {
   }
 
   private static final class CollectingIoxLogging implements IoxLogging {

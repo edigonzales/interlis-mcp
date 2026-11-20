@@ -1,14 +1,8 @@
 package ch.so.agi.mcp.tools;
 
-import ch.so.agi.mcp.model.ModelHashes;
-import ch.so.agi.mcp.model.IliAuthoringResult;
-import ch.so.agi.mcp.model.IliAuthoringResult.ConstraintProof;
-import ch.so.agi.mcp.model.IliAuthoringResult.ProofStatus;
-import ch.so.agi.mcp.constraint.ConstraintAnalysisService;
-import ch.so.agi.mcp.model.TestXtfOutput;
 import ch.interlis.ili2c.generator.Interlis2Generator;
-import ch.interlis.ili2c.metamodel.ExistenceConstraint;
 import ch.interlis.ili2c.metamodel.AttributeRef;
+import ch.interlis.ili2c.metamodel.ExistenceConstraint;
 import ch.interlis.ili2c.metamodel.MultiAreaType;
 import ch.interlis.ili2c.metamodel.MultiCoordType;
 import ch.interlis.ili2c.metamodel.MultiPolylineType;
@@ -16,12 +10,23 @@ import ch.interlis.ili2c.metamodel.MultiSurfaceType;
 import ch.interlis.ili2c.metamodel.PathElRefAttr;
 import ch.interlis.ili2c.metamodel.Type;
 import ch.so.agi.mcp.constraint.CompiledConstraintContext;
+import ch.so.agi.mcp.constraint.ConstraintAnalysisService;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.constraint.ConstraintCoveragePlanner;
+import ch.so.agi.mcp.constraint.ConstraintExplanation;
 import ch.so.agi.mcp.constraint.ConstraintExpression;
 import ch.so.agi.mcp.constraint.ConstraintExpressionEngine;
 import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer;
 import ch.so.agi.mcp.constraint.SemanticConstraint;
+import ch.so.agi.mcp.model.IliAuthoringResult.ConstraintProof;
+import ch.so.agi.mcp.model.IliAuthoringResult.CoverageExclusion;
+import ch.so.agi.mcp.model.IliAuthoringResult.CoverageGap;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofCase;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofCaseVerification;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofStatus;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofVerification;
+import ch.so.agi.mcp.model.ModelHashes;
+import ch.so.agi.mcp.model.TestXtfOutput;
 import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -30,6 +35,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
@@ -37,6 +43,11 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class ConstraintCaseGenerationTools {
+
+  private static final String EXTERNAL = "EXTERNAL_FUNCTION_SEMANTICS_REQUIRED";
+  private static final String EXTERNAL_REASON =
+      "Executable semantics for model-defined or validator-extension functions are unavailable.";
+  private static final String EXECUTION_FAILED = "PROOF_EXECUTION_FAILED";
 
   private final ConstraintContextService contextService;
   private final ConstraintTestTools testTools;
@@ -57,79 +68,44 @@ public class ConstraintCaseGenerationTools {
       @McpToolParam(description = "Vollstaendiger INTERLIS-2 Modelltext", required = true) String modelText,
       @McpToolParam(description = "Constraint-Name oder vollqualifizierter Constraint-Name", required = true) String constraint,
       @McpToolParam(description = TestXtfOutput.PARAMETER, required = false) @org.jspecify.annotations.Nullable Boolean includeSuccessfulTestXtf) {
-    return TestXtfOutput.prepare(ModelHashes.attach(generateIliConstraintCasesFull(modelText, constraint), ModelHashes.model(modelText)), includeSuccessfulTestXtf);
+    var resolution = contextService.compileAndResolve(modelText, constraint, null, "ili2c_constraint_cases_");
+    var proof = resolution.available()
+        ? generateCompiledConstraintCases(resolution.context())
+        : unavailable(resolution.reasonCode(), resolution.reason(), null);
+    var response = generationResponse(proof, resolution.context(), Boolean.TRUE.equals(includeSuccessfulTestXtf));
+    response.put("compilerValid", resolution.compilation().valid());
+    response.put("compilerMessages", resolution.compilation().messages());
+    return ModelHashes.attach(response, ModelHashes.model(modelText));
   }
 
   public Map<String, Object> generateIliConstraintCases(String modelText, String constraint) {
     return generateIliConstraintCases(modelText, constraint, null);
   }
 
-  private Map<String, Object> generateIliConstraintCasesFull(String modelText, String constraint) {
-    ConstraintContextService.Resolution resolution = contextService.compileAndResolve(
-        modelText,
-        constraint,
-        null,
-        "ili2c_constraint_cases_");
-    Map<String, Object> result = resolution.available()
-        ? generateCompiledConstraintCases(resolution.context())
-        : unavailable(resolution.reasonCode(), resolution.reason(), null, List.of());
-    result.put("compilerValid", resolution.compilation().valid());
-    result.put("compilerMessages", resolution.compilation().messages());
-    return result;
-  }
-
   public ConstraintProof prove(String fqn, ConstraintContextService.Resolution resolution, boolean declaredExternal) {
-    boolean lookupFailed = "CONSTRAINT_LOOKUP_FAILED".equals(resolution.reasonCode())
-        || "CONSTRAINT_LOOKUP_AMBIGUOUS".equals(resolution.reasonCode());
-    if (declaredExternal && !lookupFailed) {
-      var proof = IliAuthoringResult.constraintProof(fqn, ProofStatus.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED, null);
-      proof.reasonCode = "EXTERNAL_FUNCTION_SEMANTICS_REQUIRED";
-      proof.reason = "Executable semantics for model-defined or validator-extension functions are unavailable.";
-      return proof;
-    }
-    if (!resolution.available()) {
-      var proof = IliAuthoringResult.constraintProof(fqn, ProofStatus.INCOMPLETE, null);
+    ConstraintProof proof = new ConstraintProof();
+    if (declaredExternal && !resolution.lookupFailed()) {
+      proof.reasonCode = EXTERNAL;
+      proof.reason = EXTERNAL_REASON;
+    } else if (!resolution.available()) {
       proof.reasonCode = resolution.reasonCode();
       proof.reason = resolution.reason();
-      return proof;
-    }
-    Map<String, Object> generated;
-    try {
-      generated = generateCompiledConstraintCases(resolution.context());
-    } catch (IllegalArgumentException ex) {
-      var proof = IliAuthoringResult.constraintProof(fqn, ProofStatus.FAILED, null);
-      proof.reasonCode = "PROOF_EXECUTION_FAILED";
-      proof.reason = ex.getMessage();
-      return proof;
-    }
-    var proof = IliAuthoringResult.constraintProof(fqn, ProofStatus.INCOMPLETE, generated);
-    if ("EXTERNAL_FUNCTION_SEMANTICS_REQUIRED".equals(proof.reasonCode)) {
-      proof.status = ProofStatus.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED;
-    } else if (proof.verification != null && !proof.verification.cases.isEmpty()) {
-      var cases = proof.verification.cases;
-      boolean proofIncomplete = Boolean.TRUE.equals(generated.get("proofIncomplete"));
-      // The uncompressed case gets XTF only after the validator returns.
-      if (cases.stream().anyMatch(test -> !Boolean.TRUE.equals(test.passed)
-          && (Boolean.TRUE.equals(test.constraintExercised)
-              || test.xtfText != null && Boolean.FALSE.equals(test.fixtureValid)))) {
-        proof.status = ProofStatus.FAILED;
-      } else if (!proofIncomplete && Boolean.TRUE.equals(generated.get("generationVerified"))
-          && Boolean.TRUE.equals(proof.coverageComplete) && cases.stream().allMatch(test ->
-          Boolean.TRUE.equals(test.passed) && Boolean.TRUE.equals(test.fixtureValid)
-              && Boolean.TRUE.equals(test.constraintExercised))) {
-        proof.status = ProofStatus.PASSED;
+    } else {
+      try {
+        proof = generateCompiledConstraintCases(resolution.context());
+      } catch (IllegalArgumentException ex) {
+        proof.reasonCode = EXECUTION_FAILED;
+        proof.reason = ex.getMessage();
       }
     }
+    proof.constraintFqn = fqn;
+    proof.status = proofStatus(proof);
     if (proof.status == ProofStatus.INCOMPLETE && proof.reasonCode == null) {
-      if (proof.verification != null) {
-        for (var test : proof.verification.cases) {
-          if (test.fixturePreparationReasonCode == null) continue;
-          proof.reasonCode = test.fixturePreparationReasonCode;
-          proof.reason = test.reason;
-          break;
-        }
-      }
-      if (proof.reasonCode == null && !proof.coverageGaps.isEmpty()) {
+      var fixtureFailure = firstFixtureFailure(proof.verification);
+      if (fixtureFailure != null) {
+        proof.reasonCode = fixtureFailure.fixturePreparationReasonCode;
+        proof.reason = fixtureFailure.reason;
+      } else if (!proof.coverageGaps.isEmpty()) {
         var gap = proof.coverageGaps.getFirst();
         proof.reasonCode = gap.reasonCode;
         proof.reason = gap.reason;
@@ -138,63 +114,70 @@ public class ConstraintCaseGenerationTools {
     return proof;
   }
 
+  private static ProofStatus proofStatus(ConstraintProof proof) {
+    if (EXTERNAL.equals(proof.reasonCode)) return ProofStatus.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED;
+    if (EXECUTION_FAILED.equals(proof.reasonCode)) return ProofStatus.FAILED;
+    if (proof.verification == null || proof.verification.cases.isEmpty()) return ProofStatus.INCOMPLETE;
+    for (var test : proof.verification.cases) {
+      if (test.validatorRan && !Boolean.TRUE.equals(test.passed)
+          && (Boolean.FALSE.equals(test.fixtureValid) || Boolean.TRUE.equals(test.constraintExercised))) {
+        return ProofStatus.FAILED;
+      }
+    }
+    return proof.generationVerified() && Boolean.TRUE.equals(proof.coverageComplete) && proof.coverageGaps.isEmpty()
+        ? ProofStatus.PASSED : ProofStatus.INCOMPLETE;
+  }
+
   /** Reuses the compiled constraint and its AST for proof and explanation. */
-  private Map<String, Object> generateCompiledConstraintCases(CompiledConstraintContext context) {
+  private ConstraintProof generateCompiledConstraintCases(CompiledConstraintContext context) {
     var review = new ConstraintAnalysisService().reviewCompiled(context.transferDescription(), context.constraintFqn());
-    boolean external = ((List<?>) review.get("functions")).stream()
-        .map(Map.class::cast).anyMatch(function -> "MODEL_FUNCTION".equals(function.get("origin"))
-            && !"INTERLIS".equals(function.get("sourceModel")));
-    var result = external ? unavailable("EXTERNAL_FUNCTION_SEMANTICS_REQUIRED",
-        "Executable semantics for model-defined or validator-extension functions are unavailable.",
-        context, List.of()) : generateCompiledCases(context);
-    result.put("explanation", review.get("explanation"));
+    var explanation = (ConstraintExplanation) review.get("explanation");
+    var result = explanation.requiresExternalSemantics()
+        ? unavailable(EXTERNAL, EXTERNAL_REASON, context) : generateCompiledCases(context);
+    result.explanation = explanation;
     return result;
   }
 
-  /** Returns the mutable response that the caller augments with its explanation. */
-  private Map<String, Object> generateCompiledCases(CompiledConstraintContext context) {
+  private ConstraintProof generateCompiledCases(CompiledConstraintContext context) {
     try {
-      var result=generateScopedConstraintCases(context);
-      if (result.get("verification") instanceof Map<?,?> verification && verification.get("viewScopeGoals") instanceof List<?> goals) {
-        var summaries=new ArrayList<Object>((List<?>)result.getOrDefault("generatedCases",List.of()));
-        summaries.addAll(goals); result.put("generatedCases",summaries);
-        int gapCount=((List<?>)verification.get("viewScopeGaps")).size();
-        result.put("coverageGoalCount",((Number)result.getOrDefault("coverageGoalCount",0)).intValue()+goals.size()+gapCount);
-        result.put("coverageSolvedCount",((Number)result.getOrDefault("coverageSolvedCount",0)).intValue()+goals.size());
-        if (gapCount>0) {
-          result.put("coverageComplete",false);
-          result.put("proofIncomplete",true);
-          result.put("reasonCode","VIEW_SCOPE_UNSOLVED");
-          result.put("reason","View filter coverage has unresolved reached-state goals.");
-          var gaps=new ArrayList<Object>((List<?>)result.getOrDefault("coverageUnsolved",List.of()));
-          gaps.addAll((List<?>)verification.get("viewScopeGaps")); result.put("coverageUnsolved",gaps);
+      var result = generateScopedConstraintCases(context);
+      var verification = result.verification;
+      if (verification != null && verification.viewScopeChecked) {
+        result.generatedCases = Stream.concat(result.generatedCases.stream(), verification.viewScopeGoals.stream()).toList();
+        result.coverageGoalCount += verification.viewScopeGoals.size() + verification.viewScopeGaps.size();
+        result.coverageSolvedCount += verification.viewScopeGoals.size();
+        result.coverageExcludedGoals = Stream.concat(
+            result.coverageExcludedGoals.stream(), verification.viewScopeExcluded.stream()).toList();
+        result.coverageExcludedCount = result.coverageExcludedGoals.size();
+        if (!verification.viewScopeGaps.isEmpty()) {
+          result.coverageComplete = false;
+          result.reportIncomplete = true;
+          result.reasonCode = "VIEW_SCOPE_UNSOLVED";
+          result.reason = "View filter coverage has unresolved reached-state goals.";
+          result.coverageGaps = Stream.concat(result.coverageGaps.stream(), verification.viewScopeGaps.stream()).toList();
         }
-        var excluded=new ArrayList<Object>((List<?>)result.getOrDefault("coverageExcludedGoals",List.of()));
-        excluded.addAll((List<?>)verification.get("viewScopeExcluded")); result.put("coverageExcludedGoals",excluded);
-        result.put("coverageExcludedCount",excluded.size());
       }
       return result;
-    }
-    catch (ch.so.agi.mcp.constraint.ViewProofScope.ScopeException ex) {
-      return unavailable(ex.reasonCode(), ex.getMessage(), context, context.compilation().messages());
+    } catch (ch.so.agi.mcp.constraint.ViewProofScope.ScopeException ex) {
+      return unavailable(ex.reasonCode(), ex.getMessage(), context);
     } catch (IllegalArgumentException ex) {
       if(ex.getMessage()!=null && ex.getMessage().startsWith("OBJECT_PATH_") && ex.getMessage().contains(":"))
-        return unavailable(ex.getMessage().substring(0,ex.getMessage().indexOf(':')),ex.getMessage(),context,context.compilation().messages());
+        return unavailable(ex.getMessage().substring(0,ex.getMessage().indexOf(':')),ex.getMessage(),context);
       if (!(context.constraint().getContainer() instanceof ch.interlis.ili2c.metamodel.View)) throw ex;
-      return unavailable("VIEW_FIXTURE_MATERIALIZATION_FAILED", ex.getMessage(), context, context.compilation().messages());
+      return unavailable("VIEW_FIXTURE_MATERIALIZATION_FAILED", ex.getMessage(), context);
     }
   }
 
-  private Map<String, Object> generateScopedConstraintCases(CompiledConstraintContext context) {
+  private ConstraintProof generateScopedConstraintCases(CompiledConstraintContext context) {
     Objects.requireNonNull(context, "context");
     if (ch.so.agi.mcp.constraint.ConstraintValidatorCompatibility.hasNativeImplication(context)) {
-      Map<String, Object> response = unavailable(
+      var response = unavailable(
           ch.so.agi.mcp.constraint.ConstraintValidatorCompatibility.NATIVE_IMPLICATION,
           "The pinned iox-ili 1.24.4 runtime does not reliably evaluate native =>. "
               + "Automatic proof is unavailable; author implications using NOT(antecedent) OR consequent.",
-          context, context.compilation().messages());
-      response.put("proofIncomplete", true);
-      response.put("coverageComplete", false);
+          context);
+      response.reportIncomplete = true;
+      response.coverageComplete = false;
       return response;
     }
     var scope = ch.so.agi.mcp.constraint.ViewProofScope.resolve(context.transferDescription(), context.constraint());
@@ -218,24 +201,23 @@ public class ConstraintCaseGenerationTools {
         "UNSUPPORTED_CONSTRAINT_KIND",
         "Automatic semantic generation supports the five INTERLIS constraint kinds for their documented proof-capable subsets; got "
             + context.semantics().kind() + ".",
-        context,
-        context.compilation().messages());
+        context);
   }
 
-  private Map<String, Object> generateMandatoryConstraintCases(
+  private ConstraintProof generateMandatoryConstraintCases(
       CompiledConstraintContext context,
       SemanticConstraint.Mandatory mandatory) {
     List<Map<String,String>> routes;
     try { routes = ch.so.agi.mcp.constraint.ObjectPathRoutes.resolve(context.transferDescription(), mandatory.contextFqn(), mandatory.condition()); }
     catch (IllegalArgumentException ex) {
       String code = ex.getMessage().contains(":") ? ex.getMessage().substring(0,ex.getMessage().indexOf(':')) : "OBJECT_PATH_BINDING_UNAVAILABLE";
-      return unavailable(code,ex.getMessage(),context,context.compilation().messages());
+      return unavailable(code,ex.getMessage(),context);
     }
     var results = routes.stream().map(route -> generateMandatoryRoute(context, mandatory, route, routes)).toList();
     return ObjectPathProofResults.merge(results, routes);
   }
 
-  private Map<String,Object> generateMandatoryRoute(CompiledConstraintContext context,
+  private ConstraintProof generateMandatoryRoute(CompiledConstraintContext context,
       SemanticConstraint.Mandatory mandatory, Map<String, String> route, List<Map<String, String>> routes) {
     ConstraintExpression expression = mandatory.condition();
     ConstraintModelSynthesizer.ModelBinding binding;
@@ -245,7 +227,7 @@ public class ConstraintCaseGenerationTools {
     } catch (IllegalArgumentException ex) {
       String code=ex.getMessage()!=null && ex.getMessage().startsWith("OBJECT_PATH_") && ex.getMessage().contains(":")
           ? ex.getMessage().substring(0,ex.getMessage().indexOf(':')) : "MODEL_BINDING_UNAVAILABLE";
-      return unavailable(code, ex.getMessage(), context, context.compilation().messages());
+      return unavailable(code, ex.getMessage(), context);
     }
 
     ConstraintCoveragePlanner.CoveragePlan coverage = ConstraintCoveragePlanner.solve(expression, binding);
@@ -256,7 +238,7 @@ public class ConstraintCaseGenerationTools {
       String reason = coverage.unsolved().isEmpty()
           ? "No semantic coverage cases could be derived for the constraint."
           : coverage.unsolved().getFirst().reason();
-      Map<String, Object> response = unavailable(reasonCode, reason, context, context.compilation().messages());
+      var response = unavailable(reasonCode, reason, context);
       addCoverage(response, coverage, mandatory.version());
       return response;
     }
@@ -265,7 +247,7 @@ public class ConstraintCaseGenerationTools {
     try {
       generated = generateCases(expression, mandatory.version(), binding, coverage);
     } catch (IllegalArgumentException ex) {
-      return unavailable("OBJECT_GRAPH_SYNTHESIS_FAILED", ex.getMessage(), context, context.compilation().messages());
+      return unavailable("OBJECT_GRAPH_SYNTHESIS_FAILED", ex.getMessage(), context);
     }
 
     var topology = ObjectCountTopologyPlanner.plan(context.transferDescription(), expression, binding, routes);
@@ -276,39 +258,36 @@ public class ConstraintCaseGenerationTools {
     try {
       verifiedCases = verifyMandatoryCases(context, generated);
     } catch (ConstraintFixtureException ex) {
-      Map<String, Object> response = unavailable(ex.reasonCode(), ex.getMessage(), context, context.compilation().messages());
+      var response = unavailable(ex.reasonCode(), ex.getMessage(), context);
       addCoverage(response, coverage, mandatory.version());
       return response;
     }
     generated = verifiedCases.generated();
-    Map<String, Object> verification = verifiedCases.verification();
-    boolean verified = Boolean.TRUE.equals(verification.get("allPassed"));
-
+    var verification = verifiedCases.verification();
     var response = verifiedResponse(context, "SEMANTIC_IR_COVERAGE", generated.summaries(), verification);
     addCoverage(response, coverage, mandatory.version());
-    if (!topology.summaries().isEmpty() || !topology.gaps().isEmpty() || !topology.excluded().isEmpty()) {
-      response.put("objectPathGoals",topology.summaries()); response.put("objectPathGaps",topology.gaps()); response.put("objectPathExcluded",topology.excluded());
-      response.put("coverageGoalCount", ((Number)response.get("coverageGoalCount")).intValue()+topology.cases().size()+topology.gaps().size());
-      response.put("coverageSolvedCount", ((Number)response.get("coverageSolvedCount")).intValue()+topology.cases().size());
-      var exclusions = new ArrayList<>((List<Map<String,Object>>)response.get("coverageExcludedGoals")); exclusions.addAll(topology.excluded());
-      response.put("coverageExcludedGoals",exclusions); response.put("coverageExcludedCount",exclusions.size());
-      if (!topology.gaps().isEmpty()) {
-        var gaps = new ArrayList<>((List<Map<String,Object>>)response.getOrDefault("coverageUnsolved",List.of())); gaps.addAll(topology.gaps()); response.put("coverageUnsolved",gaps);
-        response.put("coverageComplete",false); response.put("automaticCasesAvailable",false); response.put("generationVerified",false);
-        response.put("reasonCode","OBJECT_PATH_TOPOLOGY_INCOMPLETE"); response.put("reason","Object-path topology obligations remain unresolved.");
-      }
+    response.objectPathGoals = topology.summaries();
+    response.objectPathGaps = topology.gaps();
+    response.objectPathExcluded = topology.excluded();
+    response.coverageGoalCount += topology.cases().size() + topology.gaps().size();
+    response.coverageSolvedCount += topology.cases().size();
+    response.coverageExcludedGoals = Stream.concat(response.coverageExcludedGoals.stream(), topology.excluded().stream()).toList();
+    response.coverageExcludedCount = response.coverageExcludedGoals.size();
+    if (!topology.gaps().isEmpty()) {
+      response.coverageGaps = Stream.concat(response.coverageGaps.stream(), topology.gaps().stream()).toList();
+      response.coverageComplete = false;
+      response.reasonCode = "OBJECT_PATH_TOPOLOGY_INCOMPLETE";
+      response.reason = "Object-path topology obligations remain unresolved.";
     }
-    if (!verified) {
-      addVerificationFailure(
-          response,
-          verification,
+    if (!verification.allPassed()) {
+      addVerificationFailure(response,
           verifiedCases.noViableRoute() ? "STRUCTURE_MATERIALIZATION_FAILED" : "GENERATED_CASES_NOT_VERIFIED",
           "Semantic cases were generated, but the real validator did not confirm all expected outcomes.");
     }
     return response;
   }
 
-  private Map<String, Object> generateUniqueConstraintCases(
+  private ConstraintProof generateUniqueConstraintCases(
       CompiledConstraintContext context,
       SemanticConstraint.Unique unique) {
     UniqueConstraintCasePlanner.Plan plan;
@@ -318,14 +297,14 @@ public class ConstraintCaseGenerationTools {
       return unavailable(
           "UNIQUE_PROOF_PLANNING_FAILED",
           ex.getMessage(),
-          context, context.compilation().messages());
+          context);
     }
 
     return verifyPlan(context, "UNIQUE_SEMANTIC_PROOF", "UNIQUE proof",
         plan.cases(), plan.summaries(), plan.cases().size(), plan.unsolved());
   }
 
-  private Map<String, Object> generateExistenceConstraintCases(
+  private ConstraintProof generateExistenceConstraintCases(
       CompiledConstraintContext context,
       SemanticConstraint.Existence existence) {
     ExistenceConstraintCasePlanner.Plan plan;
@@ -335,14 +314,14 @@ public class ConstraintCaseGenerationTools {
       return unavailable(
           "EXISTENCE_PROOF_PLANNING_FAILED",
           ex.getMessage(),
-          context, context.compilation().messages());
+          context);
     }
 
     return verifyPlan(context, "EXISTENCE_SEMANTIC_PROOF", "EXISTENCE proof",
         plan.cases(), plan.summaries(), plan.cases().size(), plan.unsolved());
   }
 
-  private Map<String, Object> generatePlausibilityConstraintCases(
+  private ConstraintProof generatePlausibilityConstraintCases(
       CompiledConstraintContext context,
       SemanticConstraint.Plausibility plausibility) {
     PlausibilityConstraintCasePlanner.Plan plan;
@@ -352,13 +331,13 @@ public class ConstraintCaseGenerationTools {
       return unavailable(
           "PLAUSIBILITY_PROOF_PLANNING_FAILED",
           ex.getMessage(),
-          context, context.compilation().messages());
+          context);
     }
 
     var response = verifyPlan(context, "PLAUSIBILITY_POPULATION_PROOF", "PLAUSIBILITY population",
         plan.cases(), plan.summaries(), plan.cases().size(), plan.unsolved());
     if (!plan.cases().isEmpty()) {
-      response.put("plausibility", Map.of(
+      response.generationDetails.put("plausibility", Map.of(
           "direction", plausibility.direction().name(),
           "percentage", plausibility.percentage().stripTrailingZeros().toPlainString(),
           "condition", plausibility.condition().toInterlis(plausibility.version())));
@@ -366,7 +345,7 @@ public class ConstraintCaseGenerationTools {
     return response;
   }
 
-  private Map<String, Object> generateSetConstraintCases(
+  private ConstraintProof generateSetConstraintCases(
       CompiledConstraintContext context,
       SemanticConstraint.Set set) {
     SetConstraintCasePlanner.Plan plan;
@@ -376,86 +355,72 @@ public class ConstraintCaseGenerationTools {
       return unavailable(
           "SET_PROOF_PLANNING_FAILED",
           ex.getMessage(),
-          context, context.compilation().messages());
+          context);
     }
 
     var response = verifyPlan(context, "SET_OBJECT_COUNT_PROOF", "SET objectCount",
         plan.cases(), plan.summaries(), plan.solvedGoalCount(), plan.unsolved());
     if (!plan.cases().isEmpty()) {
-      response.put("set", setSummary(set));
-      response.put("coverageExcludedCount", plan.excluded().size());
-      response.put("coverageExcludedGoals", plan.excluded());
+      response.generationDetails.put("set", setSummary(set));
+      response.coverageExcludedGoals = plan.excluded();
+      response.coverageExcludedCount = plan.excluded().size();
     }
     return response;
   }
 
-  private Map<String, Object> verifyPlan(
+  private ConstraintProof verifyPlan(
       CompiledConstraintContext context,
       String pattern,
       String description,
       List<ConstraintTestTools.TestCase> cases,
-      List<Map<String, Object>> summaries,
+      List<ProofCase> summaries,
       int solvedGoalCount,
-      List<Map<String, Object>> unsolved) {
+      List<CoverageGap> unsolved) {
     if (cases.isEmpty()) {
-      var first = unsolved.isEmpty() ? Map.of() : unsolved.getFirst();
-      return unavailable(
-          String.valueOf(first.getOrDefault("reasonCode", "NO_" + context.semantics().kind().name() + "_PROOF_CASES")),
-          String.valueOf(first.getOrDefault(
-              "reason",
-              "No validator-backed " + description + " case could be synthesized for this model shape.")),
-          context, context.compilation().messages());
+      if (!unsolved.isEmpty()) {
+        var gap = unsolved.getFirst();
+        return unavailable(gap.reasonCode, gap.reason, context);
+      }
+      return unavailable("NO_" + context.semantics().kind().name() + "_PROOF_CASES",
+          "No validator-backed " + description + " case could be synthesized for this model shape.", context);
     }
 
     var verification = ViewProofCoverage.verify(context, cases, testTools);
     var response = verifiedResponse(context, pattern, summaries, verification);
-    response.put("coverageGoalCount", solvedGoalCount + unsolved.size());
-    response.put("coverageSolvedCount", solvedGoalCount);
-    response.put("coverageComplete", unsolved.isEmpty());
-    if (!unsolved.isEmpty()) {
-      response.put("coverageUnsolved", unsolved);
-    }
-    if (!Boolean.TRUE.equals(verification.get("allPassed"))) {
-      String reason = description + " cases were generated, but the real validator did not confirm all expected outcomes.";
-      addVerificationFailure(response, verification, "GENERATED_CASES_NOT_VERIFIED", reason);
-      if (context.semantics() instanceof SemanticConstraint.Existence && !response.containsKey("proofIncomplete")) {
-        addExistenceValidatorFailure(context, response);
-      }
+    response.coverageGoalCount = solvedGoalCount + unsolved.size();
+    response.coverageSolvedCount = solvedGoalCount;
+    response.coverageComplete = unsolved.isEmpty();
+    response.coverageGaps = unsolved;
+    if (!verification.allPassed()) {
+      boolean fixtureFailure = addVerificationFailure(response, "GENERATED_CASES_NOT_VERIFIED",
+          description + " cases were generated, but the real validator did not confirm all expected outcomes.");
+      if (!fixtureFailure) addExistenceValidatorFailure(context, response);
     }
     return response;
   }
 
-  private void addExistenceValidatorFailure(CompiledConstraintContext context, Map<String, Object> response) {
+  private void addExistenceValidatorFailure(CompiledConstraintContext context, ConstraintProof response) {
     if (!(context.constraint() instanceof ExistenceConstraint raw) || raw.getRestrictedAttribute() == null) {
       return;
     }
     var lastPathElement = raw.getRestrictedAttribute().getLastPathEl();
     if (lastPathElement instanceof PathElRefAttr) {
-      response.put("reasonCode", "REFERENCE_EQUALITY_VALIDATOR_FAILURE");
-      response.put("reason", "The installed ilivalidator cannot execute REFERENCE-valued EXISTENCE equality without an internal error; the OID fixtures remain unproved.");
+      response.reasonCode = "REFERENCE_EQUALITY_VALIDATOR_FAILURE";
+      response.reason = "The installed ilivalidator cannot execute REFERENCE-valued EXISTENCE equality without an internal error; the OID fixtures remain unproved.";
     } else if (lastPathElement instanceof AttributeRef ref && isMultigeometry(ref.getAttr().getDomainOrDerivedDomain())) {
-      response.put("reasonCode", "GEOMETRY_EQUALITY_VALIDATOR_FAILURE");
-      response.put("reason", "The installed ilivalidator cannot execute multigeometry-valued EXISTENCE equality without an internal error; the valid fixtures remain unproved.");
+      response.reasonCode = "GEOMETRY_EQUALITY_VALIDATOR_FAILURE";
+      response.reason = "The installed ilivalidator cannot execute multigeometry-valued EXISTENCE equality without an internal error; the valid fixtures remain unproved.";
     }
   }
 
-  private Map<String, Object> verifiedResponse(
-      CompiledConstraintContext context,
-      String pattern,
-      List<Map<String, Object>> summaries,
-      Map<String, Object> verification) {
-    boolean verified = Boolean.TRUE.equals(verification.get("allPassed"));
-    var response = new LinkedHashMap<String, Object>();
-    response.put("automaticCasesAvailable", verified);
-    response.put("automaticCasesGenerated", true);
-    response.put("generationVerified", verified);
-    response.put("pattern", pattern);
-    response.put("constraint", constraintSummary(context));
-    response.put("context", contextSummary(context));
-    response.put("generatedCases", summaries);
-    response.put("verification", verification);
-    response.put("limitations", limitations());
-    return response;
+  private ConstraintProof verifiedResponse(CompiledConstraintContext context, String pattern,
+      List<ProofCase> summaries, ProofVerification verification) {
+    var result = unavailable(null, null, context);
+    result.pattern = pattern;
+    result.casesGenerated = true;
+    result.generatedCases = summaries;
+    result.verification = verification;
+    return result;
   }
 
   private Map<String, Object> setSummary(SemanticConstraint.Set set) {
@@ -487,7 +452,7 @@ public class ConstraintCaseGenerationTools {
   }
 
   private record VerifiedMandatory(
-      GeneratedCases generated, Map<String, Object> verification, boolean noViableRoute) {}
+      GeneratedCases generated, ProofVerification verification, boolean noViableRoute) {}
 
   private VerifiedMandatory verifyMandatoryCases(CompiledConstraintContext context, GeneratedCases generated) {
     if (!(context.constraint().getContainer() instanceof ch.interlis.ili2c.metamodel.Table table)
@@ -501,24 +466,20 @@ public class ConstraintCaseGenerationTools {
       GeneratedCases embedded;
       try {
         var cases = generated.cases().stream().map(route::embed).toList();
-        var summaries = generated.summaries().stream().map(original -> {
-          Map<String, Object> summary = new LinkedHashMap<>(original);
-          summary.put("ownerClassFqn", route.ownerFqn());
-          summary.put("structurePath", route.path());
-          return summary;
-        }).toList();
-        embedded = new GeneratedCases(cases, summaries);
+        embedded = new GeneratedCases(cases, generated.summaries());
       } catch (ConstraintFixtureException ex) {
         failure = ex;
         continue;
       }
-      Map<String, Object> verification = ViewProofCoverage.verify(context, embedded.cases(), testTools);
-      var results = (List<?>) verification.get("cases");
-      boolean fixtureValid = results.stream().allMatch(item ->
-          item instanceof Map<?, ?> result && Boolean.TRUE.equals(result.get("fixtureValid")));
-      boolean outcomeMismatch = results.stream().anyMatch(item -> item instanceof Map<?, ?> result
-          && Boolean.TRUE.equals(result.get("fixtureValid"))
-          && !Objects.equals(result.get("expectedConstraintValid"), result.get("actualConstraintValid")));
+      var verification = ViewProofCoverage.verify(context, embedded.cases(), testTools);
+      var results = verification.cases;
+      boolean fixtureValid = results.stream().allMatch(test -> Boolean.TRUE.equals(test.fixtureValid));
+      boolean outcomeMismatch = results.stream().anyMatch(test -> Boolean.TRUE.equals(test.fixtureValid)
+          && !Objects.equals(test.expectedConstraintValid, test.actualConstraintValid));
+      for (var summary : embedded.summaries()) {
+        summary.ownerClassFqn = route.ownerFqn();
+        summary.structurePath = route.path();
+      }
       last = new VerifiedMandatory(embedded, verification, !fixtureValid);
       // A different owner must never be used to hide an observed semantic mismatch.
       if (fixtureValid || outcomeMismatch) return last;
@@ -534,7 +495,7 @@ public class ConstraintCaseGenerationTools {
       ConstraintModelSynthesizer.ModelBinding binding,
       ConstraintCoveragePlanner.CoveragePlan coverage) {
     List<ConstraintTestTools.TestCase> cases = new ArrayList<>();
-    List<Map<String, Object>> summaries = new ArrayList<>();
+    List<ProofCase> summaries = new ArrayList<>();
     int index = 1;
     for (ConstraintCoveragePlanner.CoverageCase coverageCase : coverage.cases()) {
       Map<String, Object> assignment = coverageCase.solution().assignment();
@@ -548,18 +509,15 @@ public class ConstraintCaseGenerationTools {
           expectedValid, graph, binding, assignment);
       cases.add(testCase);
 
-      Map<String, Object> summary = new LinkedHashMap<>();
-      summary.put("purpose", expectedValid ? "WITNESS" : "COUNTEREXAMPLE");
-      summary.put("name", testCase.name);
-      summary.put("reason", coverageCase.goal().reason());
-      summary.put("source", coverageCase.goal().expression().toInterlis(version));
-      summary.put("coveredGoals", coverageCase.coveredGoals().stream()
-          .map(goal -> ConstraintCoveragePlanner.describeGoal(goal, version)).toList());
-      summary.put("expectedConstraintValid", expectedValid);
-      summary.put("values", summaryAssignment(assignment));
-      summary.put("objectCount", graph.objects().size());
-      summary.put("associationLinkCount", graph.links().size());
-      addSingleReferenceCompatibility(summary, assignment);
+      var summary = new ProofCase(testCase.name, expectedValid ? "WITNESS" : "COUNTEREXAMPLE", expectedValid);
+      summary.reason = coverageCase.goal().reason();
+      summary.details.put("source", coverageCase.goal().expression().toInterlis(version));
+      summary.coveredGoals = coverageCase.coveredGoals().stream()
+          .map(goal -> ConstraintCoveragePlanner.describeGoal(goal, version)).toList();
+      summary.setSummaryValues(summaryAssignment(assignment));
+      summary.objectCount = graph.objects().size();
+      summary.associationLinkCount = graph.links().size();
+      addSingleReferenceCompatibility(summary.details, assignment);
       summaries.add(summary);
       index++;
     }
@@ -601,26 +559,19 @@ public class ConstraintCaseGenerationTools {
     }
   }
 
-  private void addCoverage(Map<String, Object> response, ConstraintCoveragePlanner.CoveragePlan coverage,
+  private void addCoverage(ConstraintProof response, ConstraintCoveragePlanner.CoveragePlan coverage,
       ConstraintExpression.IliVersion version) {
-    int solvedGoalCount = ConstraintCoveragePlanner.solvedGoalCount(coverage);
-    response.put("coverageGoalCount", solvedGoalCount + coverage.unsolved().size());
-    response.put("coverageSolvedCount", solvedGoalCount);
-    response.put("coverageExcludedCount", coverage.excluded().size());
-    response.put("coverageExcludedGoals", ConstraintCoveragePlanner.excludedGoals(coverage, version));
-    response.put("coverageComplete", coverage.unsolved().isEmpty());
-    if (!coverage.unsolved().isEmpty()) response.put("coverageUnsolved", coverageUnsolved(coverage, version));
-  }
-
-  private List<Map<String, Object>> coverageUnsolved(
-      ConstraintCoveragePlanner.CoveragePlan coverage,
-      ConstraintExpression.IliVersion version) {
-    return coverage.unsolved().stream().map(solution -> {
-      Map<String, Object> result = new LinkedHashMap<>();
-      result.putAll(ConstraintCoveragePlanner.describeGoal(solution.goal(), version));
-      result.put("reasonCode", solution.reasonCode());
-      result.put("solverReason", solution.reason());
-      return result;
+    response.coverageSolvedCount = ConstraintCoveragePlanner.solvedGoalCount(coverage);
+    response.coverageGoalCount = response.coverageSolvedCount + coverage.unsolved().size();
+    response.coverageExcludedGoals = ConstraintCoveragePlanner.excludedGoals(coverage, version);
+    response.coverageExcludedCount = response.coverageExcludedGoals.size();
+    response.coverageComplete = coverage.unsolved().isEmpty();
+    response.coverageGaps = coverage.unsolved().stream().map(solution -> {
+      var goal = ConstraintCoveragePlanner.describeGoal(solution.goal(), version);
+      var gap = new CoverageGap(solution.reasonCode(), goal.reason, goal.goal);
+      gap.expression = goal.expression;
+      gap.solverReason = solution.reason();
+      return gap;
     }).toList();
   }
 
@@ -648,65 +599,87 @@ public class ConstraintCaseGenerationTools {
     return writer.toString().strip();
   }
 
-  private Map<String, Object> contextSummary(CompiledConstraintContext context) {
+  private Map<String, Object> contextSummary(CompiledConstraintContext context, String planningContextFqn) {
     Object container = context.constraint().getContainer();
     return Map.of(
-        "scopedName", context.contextFqn(),
+        "scopedName", planningContextFqn,
         "kind", container != null ? container.getClass().getSimpleName() : "UNKNOWN",
         "pathContextAvailable", container instanceof ch.interlis.ili2c.metamodel.Viewable<?>);
   }
 
-  private Map<String, Object> unavailable(
-      String reasonCode,
-      String reason,
-      @Nullable CompiledConstraintContext context,
-      List<?> compilerMessages) {
-    Map<String, Object> response = new LinkedHashMap<>();
-    response.put("automaticCasesAvailable", false);
-    response.put("automaticCasesGenerated", false);
-    response.put("generationVerified", false);
-    response.put("reasonCode", reasonCode);
-    response.put("reason", reason);
-    if (context != null) {
+  private ConstraintProof unavailable(@Nullable String reasonCode, @Nullable String reason,
+      @Nullable CompiledConstraintContext context) {
+    var result = new ConstraintProof();
+    result.reasonCode = reasonCode;
+    result.reason = reason;
+    if (context != null) result.planningContextFqn = context.contextFqn();
+    result.limitations = limitations();
+    return result;
+  }
+
+  private @Nullable ProofCaseVerification firstFixtureFailure(@Nullable ProofVerification verification) {
+    return verification == null ? null : verification.cases.stream()
+        .filter(test -> test.fixturePreparationReasonCode != null).findFirst().orElse(null);
+  }
+
+  private boolean addVerificationFailure(ConstraintProof result, String defaultReasonCode, String defaultReason) {
+    var failure = firstFixtureFailure(result.verification);
+    result.reasonCode = failure == null ? defaultReasonCode : failure.fixturePreparationReasonCode;
+    result.reason = failure == null ? defaultReason : failure.reason;
+    result.reportIncomplete = failure != null;
+    return failure != null;
+  }
+
+  private Map<String, Object> generationResponse(ConstraintProof proof, @Nullable CompiledConstraintContext context,
+      boolean includeSuccessfulTestXtf) {
+    var response = new LinkedHashMap<>(proof.generationDetails);
+    if (context != null && proof.planningContextFqn != null) {
       response.put("constraint", constraintSummary(context));
-      response.put("context", contextSummary(context));
+      response.put("context", contextSummary(context, proof.planningContextFqn));
     }
-    if (compilerMessages != null && !compilerMessages.isEmpty()) {
-      response.put("compilerMessages", compilerMessages);
+    boolean verified = proof.generationVerified();
+    response.put("automaticCasesAvailable", verified);
+    response.put("automaticCasesGenerated", proof.casesGenerated);
+    response.put("generationVerified", verified);
+    response.put("limitations", proof.limitations);
+    if (proof.explanation != null) response.put("explanation", proof.explanation);
+    if (proof.pattern != null) response.put("pattern", proof.pattern);
+    if (proof.reasonCode != null) {
+      response.put("reasonCode", proof.reasonCode);
+      response.put("reason", proof.reason);
     }
-    response.put("limitations", limitations());
-    return response;
-  }
-
-  private void addVerificationFailure(
-      Map<String, Object> response,
-      Map<String, Object> verification,
-      String defaultReasonCode,
-      String defaultReason) {
-    Map<?, ?> fixtureFailure = firstFixturePreparationFailure(verification);
-    if (fixtureFailure == null) {
-      response.put("reasonCode", defaultReasonCode);
-      response.put("reason", defaultReason);
-      return;
+    if (proof.reportIncomplete) response.put("proofIncomplete", true);
+    if (proof.coverageComplete != null) response.put("coverageComplete", proof.coverageComplete);
+    if (proof.coverageGoalCount != null) response.put("coverageGoalCount", proof.coverageGoalCount);
+    if (proof.coverageSolvedCount != null) response.put("coverageSolvedCount", proof.coverageSolvedCount);
+    if (proof.coverageExcludedCount != null) {
+      response.put("coverageExcludedCount", proof.coverageExcludedCount);
+      response.put("coverageExcludedGoals", proof.coverageExcludedGoals.stream().map(CoverageExclusion::toMap).toList());
     }
-    response.put("reasonCode", fixtureFailure.get("fixturePreparationReasonCode"));
-    response.put("reason", fixtureFailure.get("reason"));
-    response.put("proofIncomplete", true);
-  }
-
-  private @Nullable Map<?, ?> firstFixturePreparationFailure(
-      Map<String, Object> verification) {
-    Object rawCases = verification.get("cases");
-    if (!(rawCases instanceof List<?> cases)) {
-      return null;
+    if (proof.multipleRoutes || !proof.coverageGaps.isEmpty()) {
+      response.put("coverageUnsolved", proof.coverageGaps.stream().map(CoverageGap::toMap).toList());
     }
-    for (Object rawCase : cases) {
-      if (rawCase instanceof Map<?, ?> map
-          && map.get("fixturePreparationReasonCode") != null) {
-        return map;
+    if (proof.multipleRoutes || !proof.objectPathGoals.isEmpty() || !proof.objectPathGaps.isEmpty()
+        || !proof.objectPathExcluded.isEmpty()) {
+      response.put("objectPathGoals", proof.objectPathGoals.stream().map(goal -> goal.toMap(false)).toList());
+      response.put("objectPathGaps", proof.objectPathGaps.stream().map(CoverageGap::toMap).toList());
+      response.put("objectPathExcluded", proof.objectPathExcluded.stream().map(CoverageExclusion::toMap).toList());
+    }
+    if (proof.verification != null) {
+      var verification = proof.verification;
+      response.put("generatedCases", proof.generatedCases.stream().map(ProofCase::toMap).toList());
+      var check = proof.multipleRoutes ? TestXtfOutput.verificationResponse(verification, includeSuccessfulTestXtf)
+          : ConstraintTestTools.testResponse(context.constraint(), verification, includeSuccessfulTestXtf);
+      if (proof.multipleRoutes) check.put("allPassed", verified);
+      if (verification.viewScopeChecked) {
+        check.put("viewScopeGoals", verification.viewScopeGoals.stream().map(ProofCase::toMap).toList());
+        check.put("viewScopeGaps", verification.viewScopeGaps.stream().map(CoverageGap::toMap).toList());
+        check.put("viewScopeExcluded", verification.viewScopeExcluded.stream().map(CoverageExclusion::toMap).toList());
       }
+      response.put("verification", check);
+      TestXtfOutput.addOmittedCount(response, verification, includeSuccessfulTestXtf);
     }
-    return null;
+    return response;
   }
 
   private List<String> limitations() {
@@ -738,7 +711,7 @@ public class ConstraintCaseGenerationTools {
 
   private record GeneratedCases(
       List<ConstraintTestTools.TestCase> cases,
-      List<Map<String, Object>> summaries) {
+      List<ProofCase> summaries) {
   }
 
 }
