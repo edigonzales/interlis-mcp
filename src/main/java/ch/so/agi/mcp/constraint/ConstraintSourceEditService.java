@@ -56,56 +56,17 @@ public class ConstraintSourceEditService {
 
     TransferDescription td = beforeCompilation.transferDescription();
     Element context = td.getElement(contextFqn.trim());
-    if (!(context instanceof Viewable<?>)) {
+    if (!(context instanceof Viewable<?> viewable)) {
       throw new IllegalArgumentException("Constraint context is not a CLASS/STRUCTURE/ASSOCIATION/VIEW: " + contextFqn);
     }
-    Model owner = ownerModel(context);
-    if (owner == null || !belongsToLastFile(td, context)) {
+    Model owner = (Model) context.getContainer(Model.class);
+    if (owner == null || !belongsToLastFile(td, owner)) {
       throw new IllegalArgumentException("Constraint context is defined in an imported model: " + contextFqn);
     }
 
-    Topic topic = containingTopic(context);
-    if (topic == null) {
-      throw new IllegalArgumentException("Constraint context is not contained in a TOPIC: " + contextFqn);
-    }
-
     IliSourceDocument document = IliSourceDocument.of(modelText);
-    IliSourceLocator.BlockLocation topicBlock = topic.getSourceLine() > 0
-        ? sourceLocator.locateNamedBlock(
-            document,
-            IliSourceLocator.BlockKind.TOPIC,
-            topic.getName(),
-            topic.getSourceLine())
-        : sourceLocator.locateNamedBlock(
-            document,
-            IliSourceLocator.BlockKind.TOPIC,
-            topic.getName());
-
-    boolean inline = context instanceof View;
-    IliSourceLocator.BlockLocation insertionBlock = inline
-        ? sourceLocator.locateNamedBlock(document, IliSourceLocator.BlockKind.VIEW,
-            context.getName(), context.getSourceLine(), topicBlock)
-        : topicBlock;
-    String blockIndent = leadingIndent(document, insertionBlock.headerSpan().startLine());
-    String eol = document.lineSeparator();
-    String fragment = inline ? constraintText
-        : "CONSTRAINTS OF " + contextFqn.trim() + " =\n"
-            + indentBlock(constraintText, "  ", "\n") + "\nEND;";
-    String indentedBlock = indentBlock(fragment, blockIndent + "  ", eol);
-    int endLineStart = document.lineStartOffset(insertionBlock.endMarkerSpan().startLine());
-    int endStart = insertionBlock.endMarkerSpan().startOffset();
-    boolean endOnOwnLine = document.text().substring(endLineStart, endStart).isBlank();
-    int insertAt = endOnOwnLine ? endLineStart : endStart;
-    String insertion = (endOnOwnLine ? "" : eol) + indentedBlock + eol
-        + (inline ? "" : eol) + (endOnOwnLine ? "" : blockIndent);
-
     List<IliTextPatch> patches = new ArrayList<>();
-    IliTextPatch constraintPatch = IliTextPatch.insert(
-        document,
-        insertAt,
-        insertion,
-        "Insert constraint for " + contextFqn.trim());
-    patches.add(constraintPatch);
+    patches.add(planConstraintInsertion(document, viewable, constraintText));
 
     LinkedHashSet<String> missingImports = missingImports(owner, requiredImports);
     if (!missingImports.isEmpty()) {
@@ -121,6 +82,7 @@ public class ConstraintSourceEditService {
           ? document.lineStartOffset(modelBlock.headerSpan().endLine() + 1)
           : headerEnd;
       String modelIndent = leadingIndent(document, modelBlock.headerSpan().startLine());
+      String eol = document.lineSeparator();
       StringBuilder importText = new StringBuilder(importAt == headerEnd ? eol : "");
       for (String imported : missingImports) {
         importText.append(modelIndent).append("  IMPORTS ").append(imported)
@@ -143,6 +105,50 @@ public class ConstraintSourceEditService {
         patch.replacement(),
         patch.description())).toList();
     return new PreparedInsertion(updatedModelText, sourceEdits);
+  }
+
+  /** Plans an insertion in the original document for a validated compiled context. */
+  public IliTextPatch planConstraintInsertion(
+      IliSourceDocument document, Viewable<?> context, String constraintText) {
+    String contextFqn = context.getScopedName();
+    Topic topic = (Topic) context.getContainer(Topic.class);
+    if (topic == null) {
+      throw new IllegalArgumentException("Constraint context is not contained in a TOPIC: " + contextFqn);
+    }
+    IliSourceLocator.BlockLocation topicBlock = topic.getSourceLine() > 0
+        ? sourceLocator.locateNamedBlock(
+            document,
+            IliSourceLocator.BlockKind.TOPIC,
+            topic.getName(),
+            topic.getSourceLine())
+        : sourceLocator.locateNamedBlock(
+            document,
+            IliSourceLocator.BlockKind.TOPIC,
+            topic.getName());
+
+    boolean inline = context instanceof View;
+    IliSourceLocator.BlockLocation insertionBlock = inline
+        ? sourceLocator.locateNamedBlock(document, IliSourceLocator.BlockKind.VIEW,
+            context.getName(), context.getSourceLine(), topicBlock)
+        : topicBlock;
+    String blockIndent = leadingIndent(document, insertionBlock.headerSpan().startLine());
+    String eol = document.lineSeparator();
+    String fragment = inline ? constraintText
+        : "CONSTRAINTS OF " + contextFqn + " =\n"
+            + indentBlock(constraintText, "  ", "\n") + "\nEND;";
+    String indentedBlock = indentBlock(fragment, blockIndent + "  ", eol);
+    int endLineStart = document.lineStartOffset(insertionBlock.endMarkerSpan().startLine());
+    int endStart = insertionBlock.endMarkerSpan().startOffset();
+    boolean endOnOwnLine = document.text().substring(endLineStart, endStart).isBlank();
+    int insertAt = endOnOwnLine ? endLineStart : endStart;
+    String insertion = (endOnOwnLine ? "" : eol) + indentedBlock + eol
+        + (inline ? "" : eol) + (endOnOwnLine ? "" : blockIndent);
+
+    return IliTextPatch.insert(
+        document,
+        insertAt,
+        insertion,
+        "Insert constraint for " + contextFqn);
   }
 
   private String leadingIndent(IliSourceDocument document, int line) {
@@ -176,12 +182,6 @@ public class ConstraintSourceEditService {
     return false;
   }
 
-  private Model ownerModel(Element element) {
-    Element current = element;
-    while (current != null && !(current instanceof Model)) current = current.getContainer();
-    return current instanceof Model model ? model : null;
-  }
-
   private String indentBlock(String block, String indent, String eol) {
     String normalized = block.replace("\r\n", "\n").replace('\r', '\n');
     String[] lines = normalized.split("\n", -1);
@@ -195,25 +195,7 @@ public class ConstraintSourceEditService {
     return result.toString();
   }
 
-  private Topic containingTopic(Element element) {
-    Element current = element;
-    while (current != null) {
-      if (current instanceof Topic topic) {
-        return topic;
-      }
-      current = current.getContainer();
-    }
-    return null;
-  }
-
-  private boolean belongsToLastFile(TransferDescription td, Element element) {
-    Element current = element;
-    while (current != null && !(current instanceof Model)) {
-      current = current.getContainer();
-    }
-    if (!(current instanceof Model owner)) {
-      return false;
-    }
+  private boolean belongsToLastFile(TransferDescription td, Model owner) {
     for (Model model : td.getModelsFromLastFile()) {
       if (model == owner || Objects.equals(model.getScopedName(), owner.getScopedName())) {
         return true;

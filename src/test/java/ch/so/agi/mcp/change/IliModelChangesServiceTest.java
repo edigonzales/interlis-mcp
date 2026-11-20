@@ -2,10 +2,12 @@ package ch.so.agi.mcp.change;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.interlis.ili2c.metamodel.MandatoryConstraint;
 import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.analysis.ModelChangeReviewService;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.constraint.ConstraintFixtures;
+import ch.so.agi.mcp.constraint.ConstraintSourceEditService;
 import ch.so.agi.mcp.knowledge.KnowledgeRuleLoader;
 import ch.so.agi.mcp.knowledge.ModelingRuleTools;
 import ch.so.agi.mcp.model.IliAuthoringResult;
@@ -24,11 +26,15 @@ import ch.so.agi.mcp.tools.ConstraintTestTools;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.math.BigDecimal;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import tools.jackson.databind.ObjectMapper;
 
 class IliModelChangesServiceTest {
 
@@ -377,6 +383,200 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     var twice = service.apply(model(), batch(List.of(operation, operation), true), null, null, null);
     assertThat(twice.status).isEqualTo(IliAuthoringResult.Status.INVALID_SPEC);
     assertThat(twice.reason).contains("DUPLICATE_CONSTRAINT_NAME");
+
+    var wrongContext = service.apply(model(), batch(addConstraint("Demo.Data", constraint), true), null, null, null);
+    assertThat(wrongContext.status).isEqualTo(IliAuthoringResult.Status.INVALID_SPEC);
+    assertThat(wrongContext.reason).contains("wrong element kind");
+    assertThat(wrongContext.updatedModelText).isNull();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2.3", "2.4"})
+  void batchAndSingleAuthoringInsertTheSameConstraintInAView(String version) {
+    String source = viewModel(version).replace("  ", "\t").replace("\n", "\r\n");
+    String context = "Demo.Checks.Selected";
+    var spec = ageConstraint("Positive", ">", 0);
+    CountingCompiler compiler = new CountingCompiler();
+    var result = new IliModelChangeTools(service(compiler)).applyIliModelChanges(
+        source, batch(addConstraint(context, spec), true), null, null);
+
+    assertThat(result.status).as("%s %s", result.reason, result.afterCompilation)
+        .isEqualTo(IliAuthoringResult.Status.APPLIED);
+    assertThat(compiler.calls).isEqualTo(2);
+    assertThat(compiler.lastCompilation.valid()).isTrue();
+    assertThat(compiler.lastCompilation.transferDescription().getElement(context + ".Positive"))
+        .isInstanceOfSatisfying(MandatoryConstraint.class,
+            constraint -> assertThat(constraint.getContainer().getScopedName()).isEqualTo(context));
+    String insertion = "\t\t  !!@ name=\"Positive\"\r\n"
+        + "\t\t  MANDATORY CONSTRAINT (age > 0);\r\n";
+    int anchor = source.indexOf("\t\tEND Selected;");
+    assertThat(result.updatedModelText).isEqualTo(source.substring(0, anchor)
+        + insertion + source.substring(anchor)).doesNotContain("CONSTRAINTS OF");
+    assertThat(result.sourceEdits).singleElement().satisfies(edit -> {
+      assertThat(edit.startOffset).isEqualTo(anchor);
+      assertThat(edit.endOffset).isEqualTo(anchor);
+      assertThat(edit.before).isEmpty();
+      assertThat(edit.after).isEqualTo(insertion);
+    });
+    assertThat(result.constraintProofs).singleElement().satisfies(proof -> {
+      assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED);
+      assertThat(proof.coverageComplete).isTrue();
+      assertThat(proof.verification.cases).allSatisfy(test -> {
+        assertThat(test.fixtureValid).isTrue();
+        assertThat(test.constraintExercised).isTrue();
+      }).anySatisfy(test -> assertThat(test.targetViolationCount).isZero())
+          .anySatisfy(test -> assertThat(test.targetViolationCount).isEqualTo(1));
+    });
+
+    var single = ConstraintFixtures.authoring(compiler).authorIliConstraint(source, context, spec, null, null, null);
+    assertThat(single.status).as(single.reason).isEqualTo(IliAuthoringResult.Status.GENERATED);
+    assertThat(compiler.calls).isEqualTo(4);
+    assertThat(single.updatedModelText).isEqualTo(result.updatedModelText);
+    assertThat(compiler.lastCompilation.transferDescription().getElement(context + ".Positive"))
+        .isInstanceOfSatisfying(MandatoryConstraint.class,
+            constraint -> assertThat(constraint.getContainer().getScopedName()).isEqualTo(context));
+  }
+
+  @Test
+  void batchGroupsTwoInlineConstraintsAtAViewEndOnTheSameLine() {
+    String source = viewModel("2.4").replace("ALL OF Base; !! Keep this comment.\n    END Selected;",
+        "ALL OF Base; END Selected;");
+    String context = "Demo.Checks.Selected";
+    var upperBound = ageConstraint("BelowMax", "<", 100);
+    upperBound.iliDoc = "Keep the age below the maximum.\nThe maximum itself is excluded.";
+    var compiler = new CountingCompiler();
+    var result = service(compiler).apply(source, batch(List.of(
+        addConstraint(context, ageConstraint("Positive", ">", 0)),
+        addConstraint(context, upperBound)), true), null, null, null);
+
+    assertThat(result.status).as(result.reason).isEqualTo(IliAuthoringResult.Status.APPLIED);
+    assertThat(compiler.calls).isEqualTo(2);
+    assertThat(result.constraintProofs).hasSize(2).allSatisfy(proof ->
+        assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
+    int anchor = source.indexOf("END Selected;");
+    assertThat(result.sourceEdits).singleElement().satisfies(edit -> {
+      assertThat(edit.startOffset).isEqualTo(anchor);
+      assertThat(edit.endOffset).isEqualTo(anchor);
+      assertThat(edit.before).isEmpty();
+      assertThat(edit.after).containsSubsequence("MANDATORY CONSTRAINT (age > 0);",
+          "The maximum itself is excluded.", "MANDATORY CONSTRAINT (age < 100);");
+      assertThat(result.updatedModelText).isEqualTo(source.substring(0, anchor)
+          + edit.after + source.substring(anchor));
+    });
+  }
+
+  @Test
+  void rejectsAViewFilterChangeInAdditionToTheRequestedConstraint() {
+    var compiler = new IliCompilerService() {
+      @Override
+      public CompilationResult compile(String text, String repositories, String prefix) {
+        if (text.contains("MANDATORY CONSTRAINT (age > 0);")) {
+          text = text.replace("PROJECTION OF Base ~ Demo.Data.Thing;",
+              "PROJECTION OF Base ~ Demo.Data.Thing;\n      WHERE Base->age < 50;");
+        }
+        return super.compile(text, repositories, prefix);
+      }
+    };
+    var operation = addConstraint("Demo.Checks.Selected", ageConstraint("Positive", ">", 0));
+    var result = service(compiler).apply(viewModel("2.4"), batch(operation, true), null, null, null);
+
+    assertThat(result.afterCompilation.valid()).isTrue();
+    assertThat(result.status).isEqualTo(IliAuthoringResult.Status.UNEXPECTED_SEMANTIC_CHANGE);
+    assertThat(result.reason).contains("unexpected change of VIEW Demo.Checks.Selected");
+    assertThat(result.updatedModelText).isNull();
+  }
+
+  @Test
+  void associationConstraintCompilesInAnExternalBlockAndStillRequiresAProof() {
+    String source = modelWithAssociation().replace("others -- {0..*} Other;",
+        "others -- {0..*} Other;\n      age : MANDATORY 0 .. 100;");
+    var compiler = new CountingCompiler();
+    var operation = addConstraint("Demo.Data.Link", ageConstraint("Positive", ">", 0));
+    var result = service(compiler).apply(source, batch(operation, true), null, null, null);
+
+    assertThat(compiler.calls).isEqualTo(2);
+    assertThat(result.afterCompilation.valid()).isTrue();
+    assertThat(result.candidateModelText).contains("CONSTRAINTS OF Demo.Data.Link =");
+    assertThat(compiler.lastCompilation.transferDescription().getElement("Demo.Data.Link.Positive"))
+        .isInstanceOfSatisfying(MandatoryConstraint.class,
+            constraint -> assertThat(constraint.getContainer().getScopedName()).isEqualTo("Demo.Data.Link"));
+    assertThat(result.status).isEqualTo(IliAuthoringResult.Status.PROOF_INCOMPLETE);
+    assertThat(result.updatedModelText).isNull();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"derived", "explicit", "existing"})
+  void mixedBatchGroupsExternalConstraintsAndAddsMathImportOnce(String importMode) {
+    String source = modelWithAssociation().replace("INTERLIS 2.4", "INTERLIS 2.3")
+        .replace("other : TEXT*10;", "measure : MANDATORY -100 .. 100;")
+        .replace("CLASS Other = END Other;", "CLASS Other = measure : MANDATORY -100 .. 100; END Other;");
+    String importLine = "  IMPORTS Math;\n";
+    int modelBody = source.indexOf("  TOPIC Data =");
+    if (importMode.equals("existing")) {
+      source = source.substring(0, modelBody) + importLine + source.substring(modelBody);
+    }
+    var operations = new ArrayList<IliModelChangeRequest>();
+    operations.add(addConstraint("Demo.Data.Thing", absoluteMinimum("First")));
+    operations.add(operation(IliModelChangeOperation.ADD_CLASS, change -> {
+      var add = new IliModelChangeRequest.AddClassChange();
+      add.topicFqn = "Demo.Data";
+      add.clazz = new IliModelSpec.ClassSpec();
+      add.clazz.name = "Extra";
+      change.setAddClass(add);
+    }));
+    operations.add(addConstraint("Demo.Data.Other", absoluteMinimum("Second")));
+    if (importMode.equals("explicit")) {
+      operations.add(operation(IliModelChangeOperation.ADD_IMPORT, change -> {
+        var add = new IliModelChangeRequest.AddImportChange();
+        add.modelFqn = "Demo";
+        add.importModel = "Math";
+        change.setAddImport(add);
+      }));
+    }
+
+    var compiler = new CountingCompiler();
+    var result = new IliModelChangeTools(service(compiler)).applyIliModelChanges(
+        source, batch(operations, true), null, null);
+    assertThat(result.status).as("%s %s", result.reason, compiler.lastCompilation.messages())
+        .isEqualTo(IliAuthoringResult.Status.APPLIED);
+    assertThat(compiler.calls).isEqualTo(2);
+    assertThat(result.derivedImports).containsExactly("Math");
+    assertThat(result.constraintProofs).hasSize(2).allSatisfy(proof ->
+        assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
+
+    int topicEnd = source.indexOf("END Data;");
+    String additions = """
+            CONSTRAINTS OF Demo.Data.Thing =
+              !!@ name="First"
+              MANDATORY CONSTRAINT (Math.abs(measure) >= 10);
+            END;
+
+            CLASS Extra =
+            END Extra;
+
+            CONSTRAINTS OF Demo.Data.Other =
+              !!@ name="Second"
+              MANDATORY CONSTRAINT (Math.abs(measure) >= 10);
+            END;
+
+        """;
+    boolean addsImport = !importMode.equals("existing");
+    assertThat(result.sourceEdits).hasSize(addsImport ? 2 : 1);
+    var grouped = result.sourceEdits.getLast();
+    assertThat(grouped.startOffset).isEqualTo(topicEnd);
+    assertThat(grouped.endOffset).isEqualTo(topicEnd);
+    assertThat(grouped.before).isEmpty();
+    assertThat(grouped.after).isEqualTo(additions);
+    if (addsImport) {
+      var imported = result.sourceEdits.getFirst();
+      assertThat(imported.startOffset).isEqualTo(modelBody);
+      assertThat(imported.endOffset).isEqualTo(modelBody);
+      assertThat(imported.before).isEmpty();
+      assertThat(imported.after).isEqualTo(importLine);
+    }
+    assertThat(result.updatedModelText).isEqualTo(source.substring(0, modelBody)
+        + (addsImport ? importLine : "") + source.substring(modelBody, topicEnd)
+        + additions + source.substring(topicEnd));
   }
 
   @Test
@@ -562,6 +762,53 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     return change;
   }
 
+  private IliModelChangeRequest addConstraint(String context, IliConstraintSpec spec) {
+    return operation(IliModelChangeOperation.ADD_CONSTRAINT, change -> {
+      var add = new IliModelChangeRequest.AddConstraintChange();
+      add.containerFqn = context;
+      add.constraint = spec;
+      change.setAddConstraint(add);
+    });
+  }
+
+  private IliConstraintSpec absoluteMinimum(String name) {
+    return new ObjectMapper().readValue("""
+        {"kind":"MANDATORY","name":"%s","condition":{"kind":"COMPARE","operator":">=","children":[
+          {"kind":"FUNCTION","name":"NUMERIC_ABS","functionOrigin":"STANDARD",
+           "children":[{"kind":"ATTRIBUTE","name":"measure"}]},
+          {"kind":"NUMERIC","value":10}]}}
+        """.formatted(name), IliConstraintSpec.class);
+  }
+
+  private IliConstraintSpec.Mandatory ageConstraint(String name, String operator, int limit) {
+    return new ObjectMapper().readValue("""
+        {"kind":"MANDATORY","name":"%s","condition":{"kind":"COMPARE","operator":"%s",
+         "children":[{"kind":"ATTRIBUTE","name":"age"},{"kind":"NUMERIC","value":%d}]}}
+        """.formatted(name, operator, limit), IliConstraintSpec.Mandatory.class);
+  }
+
+  private String viewModel(String version) {
+    return """
+        INTERLIS %s;
+        MODEL Demo (en) AT "https://example.org/demo" VERSION "1" =
+          TOPIC Data =
+            CLASS Thing =
+              age : MANDATORY 0 .. 100;
+            END Thing;
+          END Data;
+          VIEW TOPIC Checks =
+            DEPENDS ON Data;
+            /** Keep this documentation. */
+            !!@ review="preserve"
+            VIEW Selected PROJECTION OF Base ~ Demo.Data.Thing;
+            =
+              ALL OF Base; !! Keep this comment.
+            END Selected;
+          END Checks;
+        END Demo.
+        """.formatted(version);
+  }
+
   private IliModelSpec.AssociationRoleSpec role(String name, String target) {
     IliModelSpec.CardinalitySpec cardinality = new IliModelSpec.CardinalitySpec();
     cardinality.min = 0;
@@ -643,7 +890,8 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     ConstraintContextService contexts = new ConstraintContextService(compiler);
     ConstraintCaseGenerationTools cases = new ConstraintCaseGenerationTools(
         contexts, new ConstraintTestTools(compiler));
-    return new IliModelChangesService(compiler, review, renderer, contexts, cases);
+    return new IliModelChangesService(compiler, review, renderer, contexts,
+        new ConstraintSourceEditService(), cases);
   }
 
   private String model() {
@@ -673,11 +921,13 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     }
 
     private int calls;
+    private CompilationResult lastCompilation;
 
     @Override
     public CompilationResult compile(String text, String repositories, String prefix) {
       calls++;
-      return super.compile(text, repositories, prefix);
+      lastCompilation = super.compile(text, repositories, prefix);
+      return lastCompilation;
     }
   }
 }

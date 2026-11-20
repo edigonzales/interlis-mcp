@@ -123,7 +123,7 @@ class AuthoringWorkflowResultTest {
   }
   @Test void rejectedBatchPreservesActuallyPerformedInputCompilation() {
     var service = new ch.so.agi.mcp.change.IliModelChangesService(compiler, changes, renderer,
-        contexts, generation);
+        contexts, new ConstraintSourceEditService(), generation);
     var request = new ch.so.agi.mcp.change.IliModelChangesRequest(); request.changes = List.of();
     var result = service.apply(model, request, null, null, null);
     assertThat(result.status).isEqualTo(IliAuthoringResult.Status.INVALID_SPEC);
