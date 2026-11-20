@@ -6,6 +6,7 @@ import ch.so.agi.mcp.model.IliConstraintSpec.*;
 import ch.so.agi.mcp.util.NameValidator;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
 
@@ -157,6 +158,13 @@ public final class ConstraintSpecContract {
 
   public static void constraints(List<IliConstraintSpec> specs, String version, String path) {
     if (specs != null) for (int i = 0; i < specs.size(); i++) validate(specs.get(i), version, path + "/" + i);
+  }
+
+  public static void collectConstraint(
+      Map<String, IliConstraintSpec> requested, String fqn, IliConstraintSpec spec) {
+    if (requested.putIfAbsent(fqn, spec) != null) {
+      throw new IllegalArgumentException("DUPLICATE_CONSTRAINT_NAME: " + fqn);
+    }
   }
 
   private static Object field(ExpressionSpec s, String field) {

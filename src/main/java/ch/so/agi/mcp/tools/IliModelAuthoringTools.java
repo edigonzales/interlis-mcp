@@ -4,10 +4,12 @@ import ch.so.agi.mcp.model.ModelHashes;
 import ch.so.agi.mcp.model.TestXtfOutput;
 import ch.so.agi.mcp.analysis.ModelChangeReviewService;
 import ch.so.agi.mcp.analysis.ModelPurpose;
+import ch.so.agi.mcp.constraint.ConstraintAstComparison;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
 import ch.so.agi.mcp.model.IliAuthoringResult;
 import ch.so.agi.mcp.model.IliAuthoringResult.Status;
+import ch.so.agi.mcp.model.IliConstraintSpec;
 import ch.so.agi.mcp.model.SpecValidationException;
 import ch.so.agi.mcp.model.IliModelSpec;
 import ch.so.agi.mcp.model.IliSpecRenderer;
@@ -89,8 +91,12 @@ public final class IliModelAuthoringTools {
 
   private IliAuthoringResult authorIliModelFull(IliModelSpec spec, @Nullable ModelPurpose modelPurpose, @Nullable ModelingRuleProfile ruleProfile) {
     IliSpecRenderer.RenderedModel rendered;
+    Map<String, IliConstraintSpec> requestedConstraints = new LinkedHashMap<>();
     try {
       rendered = renderer.forProfile(ruleProfile).renderModel(spec);
+      if (spec.topics != null) {
+        spec.topics.forEach(topic -> topic.collectConstraints(spec.name.trim(), requestedConstraints));
+      }
     } catch (IllegalArgumentException ex) {
       return SpecValidationException.attach(
           new IliAuthoringResult().reject(Status.INVALID_SPEC, ex.getMessage(), null), ex);
@@ -119,15 +125,13 @@ public final class IliModelAuthoringTools {
     result.semanticDiff.kind = "NEW_MODEL";
     result.semanticDiff.modelName = spec.name.trim();
     result.semanticDiff.astGenerated = true;
-    Map<String, Boolean> requestedConstraints = new LinkedHashMap<>();
-    if (spec.topics != null) spec.topics.forEach(topic -> topic.collectConstraints(spec.name.trim(), requestedConstraints));
     if (!reviewAndProve(result, rendered.modelText(), compilation, modelPurpose, ruleProfile, requestedConstraints)) return result;
     return result.release(Status.GENERATED, rendered.modelText());
   }
 
   private boolean reviewAndProve(IliAuthoringResult result, String modelText,
       IliCompilerService.CompilationResult compilation, @Nullable ModelPurpose purpose,
-      @Nullable ModelingRuleProfile profile, Map<String, Boolean> requestedConstraints) {
+      @Nullable ModelingRuleProfile profile, Map<String, IliConstraintSpec> requestedConstraints) {
     var constraints = ConstraintContextService.declaredConstraintNames(compilation.transferDescription());
     var review = reviewService.reviewCompiledModel(compilation, modelText,
         ModelPurpose.normalize(purpose), ModelingRuleProfile.normalize(profile));
@@ -138,10 +142,15 @@ public final class IliModelAuthoringTools {
       result.reject(Status.INVALID_SPEC, "Declared constraint names must be unique.", modelText);
       return false;
     }
-    required.addAll(requestedConstraints.keySet());
-    var proofs = required.stream().map(fqn -> caseGenerationTools.prove(fqn,
-        constraintContextService.resolveCompiled(modelText, fqn, null, compilation),
-        Boolean.TRUE.equals(requestedConstraints.get(fqn)))).toList();
+    if (!ConstraintAstComparison.verify(requestedConstraints,
+        fqn -> constraintContextService.resolveCompiled(modelText, fqn, null, compilation),
+        result, modelText)) return false;
+    var proofs = required.stream().map(fqn -> {
+      IliConstraintSpec requested = requestedConstraints.get(fqn);
+      return caseGenerationTools.prove(fqn,
+          constraintContextService.resolveCompiled(modelText, fqn, null, compilation),
+          requested != null && requested.hasExternalFunctionSemantics());
+    }).toList();
     if (result.rejectFailedProof(proofs, modelText)) return false;
     if (!result.openQuestions.isEmpty()) {
       result.reasonCode = "MODEL_PURPOSE_REQUIRED";

@@ -5,8 +5,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.analysis.ModelChangeReviewService;
 import ch.so.agi.mcp.analysis.ModelPurpose;
+import ch.so.agi.mcp.change.IliModelChangeOperation;
+import ch.so.agi.mcp.change.IliModelChangeRequest;
+import ch.so.agi.mcp.change.IliModelChangeTools;
+import ch.so.agi.mcp.change.IliModelChangesRequest;
+import ch.so.agi.mcp.change.IliModelChangesService;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
 import ch.so.agi.mcp.constraint.ConstraintFixtures;
+import ch.so.agi.mcp.constraint.ConstraintSourceEditService;
 import ch.so.agi.mcp.knowledge.KnowledgeRuleLoader;
 import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
 import ch.so.agi.mcp.knowledge.ModelingRuleTools;
@@ -21,7 +27,11 @@ import ch.so.agi.mcp.model.TypeSpec;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class IliModelAuthoringToolsTest {
 
@@ -41,6 +51,7 @@ class IliModelAuthoringToolsTest {
     var compiler = new CountingCompiler();
     var result = tools(compiler).verifyIliModel(text, ModelPurpose.VALIDATION, ModelingRuleProfile.CORE, null);
     assertThat(result.status).isEqualTo(IliAuthoringResult.Status.VERIFIED);
+    assertThat(result.semanticDiff).isNull();
     assertThat(result.updatedModelText).isNull();
     assertThat(result.modelHashes).isEqualTo(ch.so.agi.mcp.model.ModelHashes.model(text));
     assertThat(result.constraintProofs).hasSize(1);
@@ -58,6 +69,7 @@ void soDataKeepsAllFiveConstraintNamesWithoutMetadataComments() throws Exception
   var result = tools(compiler).authorIliModel(spec, ModelPurpose.VALIDATION, ModelingRuleProfile.SO_DATA);
   assertThat(result.constraintProofs).isNotEmpty().allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
   assertThat(result.constraintProofs).hasSize(5);
+  assertThat(result.semanticDiff.astRoundTripVerified).isTrue();
   String text = result.updatedModelText != null ? result.updatedModelText : result.candidateModelText;
   assertThat(ch.so.agi.mcp.change.IliComments.spans(text)).isEmpty();
   assertThat(text).contains("MANDATORY CONSTRAINT ", "UNIQUE ", "EXISTENCE CONSTRAINT ");
@@ -75,7 +87,7 @@ void soDataKeepsAllFiveConstraintNamesWithoutMetadataComments() throws Exception
     assertThat(compiler.calls).isEqualTo(1);
     assertThat(result.status).as("%s (%s)", result, result.afterCompilation).isEqualTo(IliAuthoringResult.Status.GENERATED);
     assertThat(result.semanticDiff.astGenerated).isTrue();
-    assertThat(result.semanticDiff.astRoundTripVerified).isNull();
+    assertThat(result.semanticDiff.astRoundTripVerified).isTrue();
     assertThat(result.constraintProofs).hasSize(5)
         .allSatisfy(proof -> assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED));
     assertThat(result.derivedImports).containsExactly("GeometryCHLV95_V2");
@@ -85,6 +97,130 @@ void soDataKeepsAllFiveConstraintNamesWithoutMetadataComments() throws Exception
         .contains("UNIQUE code;")
         .contains("EXISTENCE CONSTRAINT");
     assertThat(result.candidateModelText).isNull();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2.3", "2.4"})
+  void allFiveKindsPassTheFullSingleAndBatchWorkflows(String version) {
+    var spec = completeSpec();
+    spec.iliVersion = version;
+    var item = spec.topics.getFirst().classes.get(1);
+    // The CHBase import is covered separately. These constraints only use code.
+    item.attributes = item.attributes.subList(0, 2);
+    var compiler = new CountingCompiler();
+    var full = tools(compiler).authorIliModel(spec, ModelPurpose.VALIDATION, ModelingRuleProfile.CORE);
+    assertVerifiedProofs(full, IliAuthoringResult.Status.GENERATED, 5);
+    assertThat(compiler.calls).isEqualTo(1);
+
+    var constraints = item.constraints;
+    item.constraints = List.of();
+    var renderer = new IliSpecRenderer(new AttributeTools(), new DomainTools());
+    String before = renderer.renderModel(spec).modelText();
+    String context = "AuthorDemo.Data.Item";
+    for (var constraint : constraints) {
+      int beforeSingle = compiler.calls;
+      var single = ConstraintFixtures.authoring(compiler)
+          .authorIliConstraint(before, context, constraint, ModelPurpose.VALIDATION, ModelingRuleProfile.CORE, null);
+      assertVerifiedProofs(single, IliAuthoringResult.Status.GENERATED, 1);
+      assertThat(compiler.calls - beforeSingle).isEqualTo(2);
+    }
+
+    var request = new IliModelChangesRequest();
+    request.allowPotentiallyBreaking = true;
+    request.changes = constraints.stream().map(constraint -> {
+      var payload = new IliModelChangeRequest.AddConstraintChange();
+      payload.containerFqn = context;
+      payload.constraint = constraint;
+      var change = new IliModelChangeRequest();
+      change.setOperation(IliModelChangeOperation.ADD_CONSTRAINT);
+      change.setAddConstraint(payload);
+      return change;
+    }).toList();
+    var contexts = new ConstraintContextService(compiler);
+    var service = new IliModelChangesService(compiler, review(compiler), renderer, contexts,
+        new ConstraintSourceEditService(), new ConstraintCaseGenerationTools(contexts, new ConstraintTestTools(compiler)));
+    int beforeBatch = compiler.calls;
+    var batch = new IliModelChangeTools(service)
+        .applyIliModelChanges(before, request, ModelPurpose.VALIDATION, ModelingRuleProfile.CORE, null);
+    assertVerifiedProofs(batch, IliAuthoringResult.Status.APPLIED, 5);
+    assertThat(compiler.calls - beforeBatch).isEqualTo(2);
+  }
+
+  private void assertVerifiedProofs(IliAuthoringResult result, IliAuthoringResult.Status status, int count) {
+    assertThat(result.status).as("%s (%s)", result.reason, result.afterCompilation).isEqualTo(status);
+    assertThat(result.semanticDiff.astRoundTripVerified).isTrue();
+    assertThat(result.constraintProofs).hasSize(count).allSatisfy(proof -> {
+      assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED);
+      assertThat(proof.coverageComplete).isTrue();
+    });
+  }
+
+  @ParameterizedTest
+  @CsvSource(delimiter = '|', textBlock = """
+      MANDATORY CONSTRAINT DEFINED(code); | MANDATORY CONSTRAINT DEFINED(other); | CodeDefined | MANDATORY condition differs
+      UNIQUE code; | UNIQUE other; | UniqueCode | UNIQUE keys differ
+      AuthorDemo.Data.Target : code; | AuthorDemo.Data.Target : other; | CodeExists | EXISTENCE targets differ
+      >= 0% DEFINED(code); | >= 40% DEFINED(code); | UsuallyDefined | PLAUSIBILITY percentage differs
+      objectCount(ALL) >= 2; | objectCount(ALL) >= 3; | AtLeastTwo | SET objectCount threshold differs
+      """)
+  void refusesCompiledModelWithDifferentConstraintSemantics(
+      String original, String replacement, String name, String mismatch) {
+    var compiler = new CountingCompiler();
+    compiler.compileText = text -> {
+      assertThat(text).contains(original);
+      return text.replace(original, replacement);
+    };
+    var spec = completeSpec();
+    spec.topics.getFirst().classes.getFirst().attributes =
+        List.of(textAttribute("code", false), textAttribute("other", false));
+    var result = tools(compiler).authorIliModel(spec, ModelPurpose.VALIDATION, ModelingRuleProfile.CORE);
+
+    assertRejectedAst(result, "AuthorDemo.Data.Item." + name, mismatch);
+    assertThat(result.candidateModelText).contains(original).doesNotContain(replacement);
+    assertThat(compiler.calls).isEqualTo(1);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void refusesMissingConstraintEvenWhenTheSameNameExistsInAnotherContext(boolean moveToTarget) {
+    var compiler = new CountingCompiler();
+    compiler.compileText = text -> {
+      String rule = "!!@ name=\"UniqueCode\"\n      UNIQUE code;";
+      assertThat(text).contains(rule);
+      String withoutRule = text.replace(rule, "");
+      return moveToTarget ? withoutRule.replace("END Target;", rule + "\n    END Target;") : withoutRule;
+    };
+    var result = tools(compiler).authorIliModel(completeSpec(), ModelPurpose.VALIDATION, ModelingRuleProfile.CORE);
+
+    assertRejectedAst(result, "AuthorDemo.Data.Item.UniqueCode", "Constraint not found");
+    assertThat(result.reasonCode).isEqualTo("CONSTRAINT_LOOKUP_FAILED");
+    boolean foundInTarget = compiler.lastCompilation.transferDescription()
+        .getElement("AuthorDemo.Data.Target.UniqueCode") != null;
+    assertThat(foundInTarget).isEqualTo(moveToTarget);
+    assertThat(compiler.calls).isEqualTo(1);
+  }
+
+  @Test
+  void rejectsDuplicateRequestedConstraintFqnsBeforeCompilation() {
+    var compiler = new CountingCompiler();
+    var spec = completeSpec();
+    spec.topics.getFirst().classes.get(1).constraints = List.of(unique(), unique());
+    var result = tools(compiler).authorIliModel(spec, ModelPurpose.VALIDATION, ModelingRuleProfile.CORE);
+    assertThat(result.status).isEqualTo(IliAuthoringResult.Status.INVALID_SPEC);
+    assertThat(result.reason).contains("DUPLICATE_CONSTRAINT_NAME", "AuthorDemo.Data.Item.UniqueCode");
+    assertThat(result.updatedModelText).isNull();
+    assertThat(compiler.calls).isZero();
+  }
+
+  private void assertRejectedAst(IliAuthoringResult result, String fqn, String mismatch) {
+    assertThat(result.afterCompilation.valid()).as("%s", result.afterCompilation).isTrue();
+    assertThat(result.status).isEqualTo(IliAuthoringResult.Status.AST_ROUND_TRIP_FAILED);
+    assertThat(result.reason).contains(fqn, mismatch);
+    assertThat(result.updatedModelText).isNull();
+    assertThat(result.candidateModelText).isNotBlank();
+    assertThat(result.semanticDiff.astGenerated).isTrue();
+    assertThat(result.semanticDiff.astRoundTripVerified).isFalse();
+    assertThat(result.constraintProofs).isNull();
   }
 
   @Test
@@ -113,6 +249,7 @@ void soDataKeepsAllFiveConstraintNamesWithoutMetadataComments() throws Exception
 
     assertThat(compiler.calls).isEqualTo(1);
     assertThat(result.status).isEqualTo(IliAuthoringResult.Status.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED);
+    assertThat(result.semanticDiff.astRoundTripVerified).isFalse();
     assertThat(result.updatedModelText).isNull();
     assertThat(result.candidateModelText).contains("Text_V2.startsWith(code, \"A\")");
     assertThat(result.constraintProofs).anySatisfy(proof ->
@@ -124,11 +261,14 @@ void soDataKeepsAllFiveConstraintNamesWithoutMetadataComments() throws Exception
     ConstraintContextService contexts = new ConstraintContextService(compiler);
     ConstraintCaseGenerationTools cases = new ConstraintCaseGenerationTools(
         contexts, new ConstraintTestTools(compiler));
+    return new IliModelAuthoringTools(renderer, compiler, contexts, cases, review(compiler));
+  }
+
+  private ModelChangeReviewService review(IliCompilerService compiler) {
     ModelAnalysisTools analysis = new ModelAnalysisTools(compiler);
     ModelingRuleTools rules = new ModelingRuleTools(
         new KnowledgeRuleLoader(), analysis, compiler);
-    ModelChangeReviewService review = new ModelChangeReviewService(analysis, rules);
-    return new IliModelAuthoringTools(renderer, compiler, contexts, cases, review);
+    return new ModelChangeReviewService(analysis, rules);
   }
 
   private IliModelSpec completeSpec() {
@@ -287,6 +427,8 @@ void soDataKeepsAllFiveConstraintNamesWithoutMetadataComments() throws Exception
 
   private static final class CountingCompiler extends IliCompilerService {
     private int calls;
+    private UnaryOperator<String> compileText = UnaryOperator.identity();
+    private CompilationResult lastCompilation;
 
     CountingCompiler() {
       super(ConstraintFixtures.repositories());
@@ -295,7 +437,8 @@ void soDataKeepsAllFiveConstraintNamesWithoutMetadataComments() throws Exception
     @Override
     public CompilationResult compile(String text, String repositories, String prefix) {
       calls++;
-      return super.compile(text, repositories, prefix);
+      lastCompilation = super.compile(compileText.apply(text), repositories, prefix);
+      return lastCompilation;
     }
   }
 }
