@@ -1,12 +1,17 @@
 package ch.so.agi.mcp.tools;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ch.so.agi.mcp.service.IliCompilerService;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 class ConstraintTestToolsTest {
@@ -86,6 +91,49 @@ class ConstraintTestToolsTest {
       "SO_AFU_Bodeneinheiten_20251210.Bodeneinheiten.Bodeneinheit_Nebenauspraegungen_Wald";
 
   private final ConstraintTestTools tools = new ConstraintTestTools(new IliCompilerService());
+
+  @Test
+  void keepsValidatorPathDiagnosticsOutOfConcurrentCompilations() throws Exception {
+    String missingPath = "missingFromValidatorPath";
+    String model = AFU_GOLDEN_MODEL.replace("Nebenauspraegung->Gewichtung", missingPath);
+    var fixture = testCase("runtime path lookup", false, List.of(object(MAIN, "main60", 60)), List.of());
+    var compiler = new IliCompilerService(".");
+    var validator = new ConstraintTestTools(compiler);
+    int rounds = 30;
+    var start = new CyclicBarrier(2);
+    var executor = Executors.newFixedThreadPool(2, Thread.ofPlatform().daemon().factory());
+    try {
+      var validations = executor.submit(() -> {
+        var results = new ArrayList<Map<String, Object>>();
+        for (int round = 0; round < rounds; round++) {
+          start.await(10, TimeUnit.SECONDS);
+          results.add(validator.testIliConstraint(model, "GewichtungSumme100_Wald", List.of(fixture)));
+        }
+        return results;
+      });
+      var compilations = executor.submit(() -> {
+        var results = new ArrayList<IliCompilerService.CompilationResult>();
+        for (int round = 0; round < rounds; round++) {
+          start.await(10, TimeUnit.SECONDS);
+          // Keep compiling while the other request writes its XTF and evaluates Math.sum.
+          for (int attempt = 0; attempt < 15; attempt++) {
+            results.add(compiler.compile(MANDATORY_BOOLEAN_MODEL, null));
+          }
+        }
+        return results;
+      });
+
+      assertThat(compilations.get(25, TimeUnit.SECONDS)).allSatisfy(result -> {
+        assertThat(result.messages()).isEmpty();
+        assertThat(result.valid()).isTrue();
+        assertThat(result.transferDescription()).isNotNull();
+      });
+      assertThat(validations.get(25, TimeUnit.SECONDS)).allSatisfy(result ->
+          assertThat(result).containsEntry("compilerValid", true).containsEntry("tested", true));
+    } finally {
+      executor.shutdownNow();
+    }
+  }
 
   @Test
   void validatesExplicitAfuWitnessAndCounterexampleCases() {

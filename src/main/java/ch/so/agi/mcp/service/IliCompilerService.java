@@ -33,7 +33,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class IliCompilerService {
 
-  // Initialize the library's lazy singleton before concurrent requests can reach it.
+  // Initialize the library's lazy singleton at service startup. MCP path and validator calls require this service.
   private static final EhiLogger LOGGER = EhiLogger.getInstance();
   private static final int SOURCE_CONTEXT_LINES = 2;
   private static final String SUBMITTED_MODEL_NAME = "<submitted-model>";
