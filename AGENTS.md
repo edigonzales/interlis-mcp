@@ -10,6 +10,12 @@ und baut `build/libs/interlis-mcp.jar`. `./gradlew buildImage` baut das
 Docker-Image. Der Server verändert keine Benutzerdateien. Eingabe- und
 Ressourcenlimits, Pfadgrenzen und isolierte temporäre Arbeitsbereiche erhalten.
 
+ili2c verwendet teilweise globalen Diagnosezustand. Compiler- und Parseraufrufe
+müssen auch bei parallelen MCP-Anfragen voneinander isoliert bleiben.
+Fachliche Änderungen anhand kompilierter Modelleigenschaften beurteilen.
+Quellpositionen, Formatierung und Kommentare dürfen keine semantischen
+Änderungen vortäuschen.
+
 Fachliche Tests prüfen das Produkt über tatsächliche Compiler- und
 Validatorergebnisse. Kompilierbarkeit allein belegt keine fachliche
 Korrektheit. Strukturvalides XTF allein belegt keinen Constraint. Eine
