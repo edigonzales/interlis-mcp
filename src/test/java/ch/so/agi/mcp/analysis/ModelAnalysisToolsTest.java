@@ -27,6 +27,27 @@ class ModelAnalysisToolsTest {
   }
 
   @Test
+  void readsActualImportsAndQualificationFromCompiledModels() {
+    String source = """
+        INTERLIS 2.4;
+        MODEL First (de) AT "https://example.org/first" VERSION "2024-01-31" =
+        END First.
+        MODEL Second (de) AT "https://example.org/second" VERSION "2024-01-31" =
+        END Second.
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-31" =
+          !! IMPORTS FakeExternal;
+          /* IMPORTS AlsoFake; */
+          IMPORTS First, UNQUALIFIED Second;
+        END Demo.
+        """;
+    Map<String, Object> response = tools.analyzeIliModel(source, null);
+    assertThat(response.get("valid")).as("%s", response).isEqualTo(true);
+    assertThat(response.get("imports")).isEqualTo(List.of(
+        Map.of("model", "First", "qualified", true),
+        Map.of("model", "Second", "qualified", false)));
+  }
+
+  @Test
   void exposesModelVersionAndElementDocumentation() {
     Map<String, Object> response = tools.analyzeIliModel(documentedModel(), ModelPurpose.CAPTURE);
 

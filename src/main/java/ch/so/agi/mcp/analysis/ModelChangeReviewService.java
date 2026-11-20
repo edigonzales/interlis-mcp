@@ -16,9 +16,10 @@ import org.springframework.stereotype.Service;
 public class ModelChangeReviewService {
 
   private static final List<String> CATEGORIES = List.of(
-      "models", "imports", "topics", "classes", "structures", "views", "domains", "units", "associations", "attributes", "constraints", "metaAttributes");
+      "models", "topics", "classes", "structures", "views", "domains", "units", "associations", "attributes", "constraints", "metaAttributes");
   private static final Set<String> IDENTITY_FIELDS = Set.of("kind", "name", "scopedName");
-  private static final Set<String> IGNORED_FIELDS = Set.of("line", "metaAttributes");
+  // Metadata is compared in its own category, and the compiled cardinality is compared in "cardinality".
+  private static final Set<String> IGNORED_FIELDS = Set.of("line", "metaAttributes", "cardinalityDefined");
 
   private final ModelAnalysisTools analysisTools;
   private final ModelingRuleTools ruleTools;
@@ -72,6 +73,13 @@ public class ModelChangeReviewService {
 
     for (String category : CATEGORIES) {
       diffCategory(category, categoryItems(before, category), categoryItems(after, category), added, removed, changed);
+    }
+
+    Set<String> importingModels = new LinkedHashSet<>(before.importsByModel.keySet());
+    importingModels.addAll(after.importsByModel.keySet());
+    for (String model : importingModels) {
+      diffCategory("imports", before.importsByModel.getOrDefault(model, List.of()),
+          after.importsByModel.getOrDefault(model, List.of()), added, removed, changed);
     }
 
     List<Map<String, Object>> potentiallyBreaking = potentiallyBreaking(added, removed, changed);
@@ -198,7 +206,7 @@ public class ModelChangeReviewService {
     normalized.put("kind", kind(item, category));
     for (Map.Entry<String, Object> entry : item.entrySet()) {
       if (!IGNORED_FIELDS.contains(entry.getKey())) {
-        normalized.put(entry.getKey(), entry.getValue());
+        normalized.put(entry.getKey(), withoutIgnoredFields(entry.getValue()));
       }
     }
     if (!normalized.containsKey("scopedName")) {
@@ -211,6 +219,22 @@ public class ModelChangeReviewService {
       }
     }
     return normalized;
+  }
+
+  private Object withoutIgnoredFields(Object value) {
+    if (value instanceof Map<?, ?> map) {
+      Map<Object, Object> normalized = new LinkedHashMap<>();
+      map.forEach((key, child) -> {
+        if (!IGNORED_FIELDS.contains(key)) {
+          normalized.put(key, withoutIgnoredFields(child));
+        }
+      });
+      return normalized;
+    }
+    if (value instanceof List<?> list) {
+      return list.stream().map(this::withoutIgnoredFields).toList();
+    }
+    return value;
   }
 
   private List<String> changedFields(Map<String, Object> before, Map<String, Object> after) {
@@ -262,6 +286,9 @@ public class ModelChangeReviewService {
         result.add(impactFinding(change, "Changing a unit definition may change the meaning of existing numeric values."));
       } else if ("TOPIC".equals(kind) && hasAny(fields, "extends", "dependsOn", "abstract", "final")) {
         result.add(impactFinding(change, "Changing topic inheritance, dependencies or modifiers may affect model compatibility."));
+      } else if (("CLASS".equals(kind) || "ASSOCIATION".equals(kind))
+          && hasAny(fields, "identifiable", "oid")) {
+        result.add(impactFinding(change, "Changing object identification may affect transfers, references or existing data."));
       } else if (("CLASS".equals(kind) || "STRUCTURE".equals(kind))
           && hasAny(fields, "extends", "abstract", "final")) {
         result.add(impactFinding(change, "Changing inheritance or class/structure modifiers may affect existing data or consumers."));
@@ -305,7 +332,6 @@ public class ModelChangeReviewService {
   private List<Map<String, Object>> categoryItems(ModelAnalysisTools.AnalysisData data, String category) {
     return switch (category) {
       case "models" -> data.models;
-      case "imports" -> data.imports;
       case "topics" -> data.topics;
       case "classes" -> data.classes;
       case "structures" -> data.structures;

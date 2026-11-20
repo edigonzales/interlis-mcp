@@ -618,17 +618,17 @@ public final class IliModelChangesService {
       SemanticDiff diff, List<ExpectedChange> expected) {
     for (IliAuthoringResult.SemanticChange item : diff.added) {
       if (!matchesExpected(item, Direction.ADD, expected)) {
-        return "Semantic diff contains an unexpected addition: " + item;
+        return "Semantic diff contains an unexpected addition of " + describeSemanticChange(item);
       }
     }
     for (IliAuthoringResult.SemanticChange item : diff.removed) {
       if (!matchesExpected(item, Direction.REMOVE, expected)) {
-        return "Semantic diff contains an unexpected removal: " + item;
+        return "Semantic diff contains an unexpected removal of " + describeSemanticChange(item);
       }
     }
     for (IliAuthoringResult.SemanticChange item : diff.changed) {
       if (!matchesExpected(item, Direction.CHANGE, expected)) {
-        return "Semantic diff contains an unexpected change: " + item;
+        return "Semantic diff contains an unexpected change of " + describeSemanticChange(item);
       }
     }
     for (ExpectedChange item : expected) {
@@ -640,6 +640,13 @@ public final class IliModelChangesService {
           + item.direction() + " for " + item.scopedName() + ".";
     }
     return null;
+  }
+
+  private String describeSemanticChange(IliAuthoringResult.SemanticChange item) {
+    String name = "META_ATTRIBUTE".equals(item.kind) && item.owner != null
+        ? item.owner + "!!@" + item.name : item.scopedName;
+    String fields = item.changedFields.isEmpty() ? "" : " (fields " + String.join(", ", item.changedFields) + ")";
+    return item.kind + " " + name + fields + ".";
   }
 
   private boolean matchesExpected(
