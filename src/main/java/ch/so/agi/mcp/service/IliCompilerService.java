@@ -33,6 +33,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class IliCompilerService {
 
+  // Initialize the library's lazy singleton before concurrent requests can reach it.
+  private static final EhiLogger LOGGER = EhiLogger.getInstance();
   private static final int SOURCE_CONTEXT_LINES = 2;
   private static final String SUBMITTED_MODEL_NAME = "<submitted-model>";
 
@@ -88,12 +90,11 @@ public class IliCompilerService {
     cfg.setGenerateWarnings(true);
 
     TransferDescription transferDescription = null;
-    EhiLogger logger = EhiLogger.getInstance();
-    synchronized (logger) {
+    synchronized (LOGGER) {
       StdListener stdListener = StdListener.getInstance();
       stdListener.skipInfo(true);
-      logger.addListener(collector);
-      logger.removeListener(stdListener);
+      LOGGER.addListener(collector);
+      LOGGER.removeListener(stdListener);
       try {
         transferDescription = ch.interlis.ili2c.Main.runCompiler(cfg, settings, null);
       } catch (Exception e) {
@@ -102,8 +103,8 @@ public class IliCompilerService {
         error.put("message", normalizeDiagnosticText("ili2c failed: " + e.getMessage(), tempFile));
         messages.add(error);
       } finally {
-        logger.addListener(stdListener);
-        logger.removeListener(collector);
+        LOGGER.addListener(stdListener);
+        LOGGER.removeListener(collector);
         stdListener.skipInfo(false);
       }
     }

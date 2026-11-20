@@ -1,7 +1,6 @@
 package ch.so.agi.mcp.constraint;
 
 import ch.interlis.ili2c.metamodel.*;
-import ch.interlis.ili2c.parser.Ili23Parser;
 import java.util.*;
 
 /** Deterministic concrete type choices keyed by path position, never by class alone. */
@@ -15,7 +14,7 @@ public final class ObjectPathRoutes {
         .sorted(Comparator.comparing(ConstraintExpression.Reference::name)).toList()) {
       String path = ConstraintModelSynthesizer.countedPath(reference);
       ObjectPath parsed;
-      try { parsed = Ili23Parser.parseObjectOrAttributePath(td, (Viewable<?>)td.getElement(context), path); }
+      try { parsed = ConstraintPathAnalysis.parseWithCompilerLock(td, (Viewable<?>)td.getElement(context), path); }
       catch (Exception ex) { throw new IllegalArgumentException("OBJECT_PATH_UNSUPPORTED: " + path, ex); }
       if (parsed == null || parsed.isAttributePath()) throw new IllegalArgumentException("OBJECT_PATH_UNSUPPORTED: " + path);
       var steps = parsed.getPathElements();

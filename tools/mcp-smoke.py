@@ -3,6 +3,7 @@
 import concurrent.futures
 import json
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -91,6 +92,28 @@ def probe(url):
             assert diagnostic['valid'] is False, diagnostic
             assert any('MissingSmokeDomain' in message['message'] for message in diagnostic['messages']), diagnostic
 
+            path_model = MODEL.replace('Smoke', 'PathSmoke')
+            missing_path = 'missingFromPathSmoke'
+            start = threading.Barrier(2, timeout=30)
+
+            def repeat_tool(name, arguments, first_id):
+                replies = []
+                for request_id in range(first_id, first_id + 20):
+                    start.wait()
+                    replies.append(tool(name, arguments, request_id))
+                return replies
+
+            compilations = executor.submit(repeat_tool, 'validateIliModel', {'modelText': MODEL}, 100)
+            paths = executor.submit(repeat_tool, 'resolveConstraintPath', {
+                'modelText': path_model, 'context': 'PathSmoke.Data.Item', 'path': missing_path,
+            }, 200)
+            for compiled in compilations.result():
+                assert compiled['valid'] is True and compiled['messages'] == [], compiled
+            for resolved in paths.result():
+                assert resolved['valid'] is False and resolved['failedSegment'] == missing_path, resolved
+                assert resolved['failedSegmentIndex'] == 0 and resolved['message'], resolved
+                assert {'name': 'day', 'kind': 'ATTRIBUTE'} in resolved['candidates'], resolved
+
         catalog = call('tools/list', {}, 4)
         assert len(catalog['tools']) == 21, catalog
         author = next(spec for spec in catalog['tools'] if spec['name'] == 'authorIliConstraint')
@@ -140,4 +163,4 @@ def probe(url):
 
 if __name__ == '__main__':
     probe(sys.argv[1])
-    print('Streamable HTTP: parallel verification and compiler error, typed authoring, schema rejection, resources and prompts OK')
+    print('Streamable HTTP: parallel compiler/path diagnostics, verification, typed authoring, schema rejection, resources and prompts OK')
