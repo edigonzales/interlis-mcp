@@ -77,7 +77,7 @@ class AuthoringWorkflowResultTest {
     assertThat((List<?>) explicit.get("cases")).anySatisfy(raw -> {
       var test = (Map<?, ?>) raw;
       assertThat(test.get("name")).isEqualTo("age18");
-      assertThat(test.get("expectationSource")).isEqualTo(ConstraintTestTools.ExpectationSource.USER_PROVIDED);
+      assertThat(test.get("expectationSource")).isEqualTo(ConstraintTestTools.ExpectationSource.USER_PROVIDED.name());
       assertThat(test.get("constraintExercised")).isEqualTo(true);
       assertThat(test.get("fixtureValid")).isEqualTo(true);
       assertThat(test.get("targetViolationCount")).isEqualTo(1);

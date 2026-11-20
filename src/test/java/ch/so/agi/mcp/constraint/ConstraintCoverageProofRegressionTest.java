@@ -226,11 +226,12 @@ class ConstraintCoverageProofRegressionTest {
         END CoverageSet.
         """;
     IliCompilerService compiler = new IliCompilerService();
-    var response = new ConstraintCaseGenerationTools(new ConstraintContextService(compiler), new ConstraintTestTools(compiler))
-        .generateIliConstraintCases(model, "CoverageSet.Data.Item.Rule");
-    assertThat(response.get("coverageComplete")).as(response.toString()).isEqualTo(true);
-    assertThat(response.get("generationVerified")).isEqualTo(true);
-    var proof = IliAuthoringResult.constraintProof("CoverageSet.Data.Item.Rule", IliAuthoringResult.ProofStatus.PASSED, response);
+    String fqn = "CoverageSet.Data.Item.Rule";
+    var contexts = new ConstraintContextService(compiler);
+    var context = contexts.compileAndResolve(model, fqn, null, "set_coverage_");
+    var proof = new ConstraintCaseGenerationTools(contexts, new ConstraintTestTools(compiler)).prove(fqn, context, false);
+    assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED);
+    assertThat(proof.coverageComplete).isTrue();
     assertThat(proof.coverageExcludedGoals).isNotEmpty();
     assertThat(proof.coverageGoalCount).isEqualTo(proof.coverageSolvedCount);
     assertThat(proof.generatedCases.stream().mapToInt(item -> item.coveredGoals.size()).sum())

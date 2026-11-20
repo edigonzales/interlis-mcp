@@ -105,11 +105,11 @@ class ProseConstraintWorkflowTest {
         age(18, true, ConstraintTestTools.ExpectationSource.USER_CONFIRMED), age(19, true, ConstraintTestTools.ExpectationSource.AGENT_DERIVED));
     var result = tests.testIliConstraint(source, "Simple.Data.Person.Rule", cases);
     assertThat(result.get("allPassed")).isEqualTo(false);
-    assertThat(list(result.get("cases")).get(1)).containsEntry("expectationSource", ConstraintTestTools.ExpectationSource.USER_CONFIRMED).containsEntry("passed", false);
+    assertThat(list(result.get("cases")).get(1)).containsEntry("expectationSource", ConstraintTestTools.ExpectationSource.USER_CONFIRMED.name()).containsEntry("passed", false);
     var invalid = tests.testIliConstraint(source, "Simple.Data.Person.Rule", List.of(age(101, true, null)));
-    assertThat(list(invalid.get("cases")).getFirst()).containsEntry("expectationSource", ConstraintTestTools.ExpectationSource.UNSPECIFIED).containsEntry("fixtureValid", false);
+    assertThat(list(invalid.get("cases")).getFirst()).containsEntry("expectationSource", ConstraintTestTools.ExpectationSource.UNSPECIFIED.name()).containsEntry("fixtureValid", false);
     var badModel = tests.testIliConstraint("INVALID", "Missing", cases);
-    assertThat(list(badModel.get("cases")).get(2)).containsEntry("expectationSource", ConstraintTestTools.ExpectationSource.AGENT_DERIVED).containsEntry("tested", false);
+    assertThat(list(badModel.get("cases")).get(2)).containsEntry("expectationSource", ConstraintTestTools.ExpectationSource.AGENT_DERIVED.name()).containsEntry("tested", false);
   }
   @Test void noExplanationIsInventedForInvalidSource() {
     var compiler = new Counter();

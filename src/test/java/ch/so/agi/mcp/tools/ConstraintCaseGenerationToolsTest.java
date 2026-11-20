@@ -1,13 +1,21 @@
 package ch.so.agi.mcp.tools;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import ch.so.agi.mcp.constraint.CompiledConstraintContext;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
+import ch.so.agi.mcp.model.IliAuthoringResult;
+import ch.so.agi.mcp.model.IliAuthoringResult.ConstraintProof;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofStatus;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofVerification;
 import ch.so.agi.mcp.service.IliCompilerService;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class ConstraintCaseGenerationToolsTest {
 
@@ -108,6 +116,69 @@ class ConstraintCaseGenerationToolsTest {
     assertEquals(ch.so.agi.mcp.model.IliAuthoringResult.ProofStatus.INCOMPLETE, proof.status);
     assertEquals("CONSTRAINT_LOOKUP_FAILED", proof.reasonCode);
     assertEquals(null, proof.verification);
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+      "unchanged, PASSED, true, true, true",
+      "unexpected, FAILED, true, true, true",
+      "invalid fixture, FAILED, true, false, true",
+      "no fixture, INCOMPLETE, false, false, false",
+      "no subject, INCOMPLETE, true, true, false"
+  })
+  void statusUsesTheRealValidatorFindings(String change, ProofStatus expected,
+      boolean validatorRan, boolean fixtureValid, boolean exercised) {
+    var contexts = new ConstraintContextService(compilerService);
+    var checking = new ConstraintTestTools(compilerService) {
+      @Override ProofVerification testCompiledConstraint(CompiledConstraintContext context, List<TestCase> cases) {
+        var test = cases.getFirst();
+        var object = test.objects.getFirst();
+        switch (change) {
+          case "unexpected" -> test.expectedConstraintValid = !test.expectedConstraintValid;
+          case "invalid fixture" -> object.values = Map.of("value", 101);
+          case "no fixture" -> object.classFqn = "Missing";
+          case "no subject" -> {
+            object.classFqn = "ConstraintAutoCases.Data.Choice";
+            object.values = Map.of();
+          }
+          default -> { }
+        }
+        var verification = super.testCompiledConstraint(context, cases);
+        // The findings still drive status when there is no XTF in the response.
+        verification.cases.forEach(checked -> checked.xtfText = null);
+        return verification;
+      }
+    };
+    String fqn = "ConstraintAutoCases.Data.Item.ValueAtLeast10";
+    var resolution = contexts.compileAndResolve(MODEL, fqn, null, "proof_status_");
+    var proof = new ConstraintCaseGenerationTools(contexts, checking).prove(fqn, resolution, false);
+    assertThat(proof.status).isEqualTo(expected);
+    var checked = proof.verification.cases.getFirst();
+    assertThat(checked.validatorRan).isEqualTo(validatorRan);
+    assertThat(checked.fixtureValid).isEqualTo(fixtureValid);
+    assertThat(checked.constraintExercised).isEqualTo(exercised);
+    if (change.equals("unexpected")) {
+      assertThat(checked.actualConstraintValid).isNotEqualTo(checked.expectedConstraintValid);
+      assertThat(proof.verification.cases.subList(1, proof.verification.cases.size()))
+          .isNotEmpty().allSatisfy(test -> assertThat(test.passed).isTrue());
+    }
+  }
+
+  @Test
+  void externalSemanticsTakePriorityOverFailedAndIncompleteProofs() {
+    var incomplete = new ConstraintProof();
+    incomplete.status = ProofStatus.INCOMPLETE;
+    var failed = new ConstraintProof();
+    failed.status = ProofStatus.FAILED;
+    var external = new ConstraintProof();
+    external.status = ProofStatus.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED;
+    var result = new IliAuthoringResult();
+    assertThat(result.rejectFailedProof(List.of(incomplete, failed, external), MODEL)).isTrue();
+    assertThat(result.status).isEqualTo(IliAuthoringResult.Status.EXTERNAL_FUNCTION_SEMANTICS_REQUIRED);
+    assertThat(result.rejectFailedProof(List.of(incomplete, failed), MODEL)).isTrue();
+    assertThat(result.status).isEqualTo(IliAuthoringResult.Status.PROOF_FAILED);
+    assertThat(result.rejectFailedProof(List.of(incomplete), MODEL)).isTrue();
+    assertThat(result.status).isEqualTo(IliAuthoringResult.Status.PROOF_INCOMPLETE);
   }
 
   @Test

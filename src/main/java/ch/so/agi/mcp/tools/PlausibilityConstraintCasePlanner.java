@@ -8,10 +8,11 @@ import ch.so.agi.mcp.constraint.ConstraintExpressionEngine;
 import ch.so.agi.mcp.constraint.ConstraintGoalSolver;
 import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer;
 import ch.so.agi.mcp.constraint.SemanticConstraint;
+import ch.so.agi.mcp.model.IliAuthoringResult.CoverageGap;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofCase;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -24,8 +25,8 @@ final class PlausibilityConstraintCasePlanner {
 
   record Plan(
       List<ConstraintTestTools.TestCase> cases,
-      List<Map<String, Object>> summaries,
-      List<Map<String, Object>> unsolved) {
+      List<ProofCase> summaries,
+      List<CoverageGap> unsolved) {
 
     Plan {
       cases = cases == null ? List.of() : List.copyOf(cases);
@@ -76,8 +77,8 @@ final class PlausibilityConstraintCasePlanner {
         "PLAUSIBILITY condition false population member");
 
     List<ConstraintTestTools.TestCase> cases = new ArrayList<>();
-    List<Map<String, Object>> summaries = new ArrayList<>();
-    List<Map<String, Object>> unsolved = new ArrayList<>();
+    List<ProofCase> summaries = new ArrayList<>();
+    List<CoverageGap> unsolved = new ArrayList<>();
 
     int caseIndex = 1;
     for (RatioTarget target : ratioTargets(plausibility)) {
@@ -89,13 +90,11 @@ final class PlausibilityConstraintCasePlanner {
         missing.add("FALSE");
       }
       if (!missing.isEmpty()) {
-        unsolved.add(Map.of(
-            "reasonCode", "PLAUSIBILITY_POPULATION_MEMBER_UNSOLVED",
-            "reason", "The finite-domain solver could not synthesize every condition result needed for this population boundary.",
-            "goal", target.boundary(),
-            "missingConditionResults", List.copyOf(missing),
-            "trueSolverReason", solverReason(trueSolution),
-            "falseSolverReason", solverReason(falseSolution)));
+        var gap = new CoverageGap("PLAUSIBILITY_POPULATION_MEMBER_UNSOLVED", "The finite-domain solver could not synthesize every condition result needed for this population boundary.", target.boundary());
+        gap.details.put("missingConditionResults", List.copyOf(missing));
+        gap.details.put("trueSolverReason", solverReason(trueSolution));
+        gap.details.put("falseSolverReason", solverReason(falseSolution));
+        unsolved.add(gap);
         continue;
       }
 
@@ -109,10 +108,7 @@ final class PlausibilityConstraintCasePlanner {
             target,
             caseIndex);
       } catch (IllegalArgumentException ex) {
-        unsolved.add(Map.of(
-            "reasonCode", "PLAUSIBILITY_POPULATION_GRAPH_UNSAFE",
-            "reason", ex.getMessage(),
-            "goal", target.boundary()));
+        unsolved.add(new CoverageGap("PLAUSIBILITY_POPULATION_GRAPH_UNSAFE", ex.getMessage(), target.boundary()));
         continue;
       }
 
@@ -124,24 +120,21 @@ final class PlausibilityConstraintCasePlanner {
       testCase.links = population.links();
       cases.add(testCase);
 
-      Map<String, Object> summary = new LinkedHashMap<>();
-      summary.put("purpose", target.expectedValid() ? "WITNESS" : "COUNTEREXAMPLE");
-      summary.put("name", testCase.name);
-      summary.put("boundary", target.boundary());
-      summary.put("direction", plausibility.direction().name());
-      summary.put("thresholdPercentage", display(plausibility.percentage()));
-      summary.put("actualPercentage", display(target.actualPercentage()));
-      summary.put("successfulCount", target.successful());
-      summary.put("failedCount", target.failed());
-      summary.put("populationSize", target.total());
-      summary.put("expectedConstraintValid", target.expectedValid());
+      var summary = new ProofCase(testCase.name, target.expectedValid() ? "WITNESS" : "COUNTEREXAMPLE", target.expectedValid());
+      summary.details.put("boundary", target.boundary());
+      summary.details.put("direction", plausibility.direction().name());
+      summary.details.put("thresholdPercentage", display(plausibility.percentage()));
+      summary.details.put("actualPercentage", display(target.actualPercentage()));
+      summary.details.put("successfulCount", target.successful());
+      summary.details.put("failedCount", target.failed());
+      summary.details.put("populationSize", target.total());
       if (target.successful() > 0) {
-        summary.put("conditionTrueValues", summaryAssignment(trueSolution.assignment()));
+        summary.details.put("conditionTrueValues", summaryAssignment(trueSolution.assignment()));
       }
       if (target.failed() > 0) {
-        summary.put("conditionFalseValues", summaryAssignment(falseSolution.assignment()));
+        summary.details.put("conditionFalseValues", summaryAssignment(falseSolution.assignment()));
       }
-      summaries.add(Map.copyOf(summary));
+      summaries.add(summary);
       caseIndex++;
     }
 
@@ -172,25 +165,19 @@ final class PlausibilityConstraintCasePlanner {
         testCase.links = population.links();
         cases.add(testCase);
 
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("purpose", undefinedTarget.expectedValid() ? "WITNESS" : "COUNTEREXAMPLE");
-        summary.put("name", testCase.name);
-        summary.put("boundary", undefinedTarget.boundary());
-        summary.put("direction", plausibility.direction().name());
-        summary.put("thresholdPercentage", display(plausibility.percentage()));
-        summary.put("actualPercentage", "100");
-        summary.put("successfulCount", 1);
-        summary.put("failedCount", 0);
-        summary.put("populationSize", 1);
-        summary.put("expectedConstraintValid", undefinedTarget.expectedValid());
-        summary.put("conditionUndefinedValues", summaryAssignment(undefinedSolution.assignment()));
-        summary.put("validatorSemantics", "skipEvaluation counts as successful");
-        summaries.add(Map.copyOf(summary));
+        var summary = new ProofCase(testCase.name, undefinedTarget.expectedValid() ? "WITNESS" : "COUNTEREXAMPLE", undefinedTarget.expectedValid());
+        summary.details.put("boundary", undefinedTarget.boundary());
+        summary.details.put("direction", plausibility.direction().name());
+        summary.details.put("thresholdPercentage", display(plausibility.percentage()));
+        summary.details.put("actualPercentage", "100");
+        summary.details.put("successfulCount", 1);
+        summary.details.put("failedCount", 0);
+        summary.details.put("populationSize", 1);
+        summary.details.put("conditionUndefinedValues", summaryAssignment(undefinedSolution.assignment()));
+        summary.details.put("validatorSemantics", "skipEvaluation counts as successful");
+        summaries.add(summary);
       } catch (IllegalArgumentException ex) {
-        unsolved.add(Map.of(
-            "reasonCode", "PLAUSIBILITY_UNDEFINED_GRAPH_UNSAFE",
-            "reason", ex.getMessage(),
-            "goal", "UNDEFINED_COUNTS_AS_SUCCESS"));
+        unsolved.add(new CoverageGap("PLAUSIBILITY_UNDEFINED_GRAPH_UNSAFE", ex.getMessage(), "UNDEFINED_COUNTS_AS_SUCCESS"));
       }
     }
 

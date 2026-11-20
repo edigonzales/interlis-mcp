@@ -4,8 +4,9 @@ import ch.interlis.ili2c.metamodel.ExistenceConstraint;
 import ch.interlis.ili2c.metamodel.PathElRefAttr;
 import ch.so.agi.mcp.constraint.CompiledConstraintContext;
 import ch.so.agi.mcp.constraint.SemanticConstraint;
+import ch.so.agi.mcp.model.IliAuthoringResult.CoverageGap;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofCase;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /** Dispatches EXISTENCE proof planning between scalar B7 and special-type B8 semantics. */
@@ -13,8 +14,8 @@ final class ExistenceConstraintCasePlanner {
 
   record Plan(
       List<ConstraintTestTools.TestCase> cases,
-      List<Map<String, Object>> summaries,
-      List<Map<String, Object>> unsolved) {
+      List<ProofCase> summaries,
+      List<CoverageGap> unsolved) {
 
     Plan {
       cases = cases == null ? List.of() : List.copyOf(cases);

@@ -107,11 +107,6 @@ public record ViewProofScope(Projection view, Table base, List<ConstraintExpress
     return new CompiledConstraintContext(original.modelText(),original.modelRepositories(),original.compilation(),original.transferDescription(),original.constraint(),mapped);
   }
 
-  public Map<String,Object> diagnostics() {
-    return Map.of("viewFqn",view.getScopedName(),"baseClassFqn",base.getScopedName(),"filterCount",filters.size(),
-        "filterPolicy","PINNED_VALIDATOR_SKIP_INCLUDES");
-  }
-
   public static ScopeException failure(String code,String reason) { return new ScopeException(code,reason); }
   public static final class ScopeException extends IllegalArgumentException {
     private final String reasonCode;

@@ -10,10 +10,12 @@ import ch.so.agi.mcp.constraint.ConstraintGoalSolver;
 import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer;
 import ch.so.agi.mcp.constraint.ObjectPathRoutes;
 import ch.so.agi.mcp.constraint.SemanticConstraint;
+import ch.so.agi.mcp.model.IliAuthoringResult.CoverageExclusion;
+import ch.so.agi.mcp.model.IliAuthoringResult.CoverageGap;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofCase;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -27,13 +29,13 @@ final class SetConstraintCasePlanner {
 
   record Plan(
       List<ConstraintTestTools.TestCase> cases,
-      List<Map<String, Object>> summaries,
-      List<Map<String, Object>> unsolved,
+      List<ProofCase> summaries,
+      List<CoverageGap> unsolved,
       int solvedGoalCount,
-      List<Map<String, Object>> excluded) {
+      List<CoverageExclusion> excluded) {
 
-    Plan(List<ConstraintTestTools.TestCase> cases, List<Map<String, Object>> summaries,
-        List<Map<String, Object>> unsolved) {
+    Plan(List<ConstraintTestTools.TestCase> cases, List<ProofCase> summaries,
+        List<CoverageGap> unsolved) {
       this(cases, summaries, unsolved, cases.size(), List.of());
     }
 
@@ -67,8 +69,8 @@ final class SetConstraintCasePlanner {
     Objects.requireNonNull(set, "set");
 
     List<ConstraintTestTools.TestCase> cases = new ArrayList<>();
-    List<Map<String, Object>> summaries = new ArrayList<>();
-    List<Map<String, Object>> unsolved = new ArrayList<>();
+    List<ProofCase> summaries = new ArrayList<>();
+    List<CoverageGap> unsolved = new ArrayList<>();
 
     if (set.condition() instanceof SemanticConstraint.ValueSetCondition valueCondition) {
       return planBooleanExpression(context, set, valueCondition.expression());
@@ -77,10 +79,9 @@ final class SetConstraintCasePlanner {
       String reasonCode = set.condition() instanceof SemanticConstraint.UntranslatedSetCondition untranslated
           ? untranslated.reasonCode()
           : "SET_CONDITION_PROOF_UNSUPPORTED";
-      unsolved.add(Map.of(
-          "reasonCode", reasonCode,
-          "reason", "Automatic SET proof requires a translated objectCount comparison or boolean expression.",
-          "conditionKind", set.condition().getClass().getSimpleName()));
+      var gap = new CoverageGap(reasonCode, "Automatic SET proof requires a translated objectCount comparison or boolean expression.", null);
+      gap.details.put("conditionKind", set.condition().getClass().getSimpleName());
+      unsolved.add(gap);
       return new Plan(cases, summaries, unsolved);
     }
 
@@ -88,25 +89,22 @@ final class SetConstraintCasePlanner {
       if (objectCount.objects() instanceof SemanticConstraint.NavigatedObjects navigated) {
         return planNavigatedObjectCount(context, set, objectCount, navigated);
       }
-      unsolved.add(Map.of(
-          "reasonCode", "SET_OBJECT_SET_EXPRESSION_UNSUPPORTED",
-          "reason", "The compiled SET object-set expression is unsupported."));
+      unsolved.add(new CoverageGap("SET_OBJECT_SET_EXPRESSION_UNSUPPORTED",
+            "The compiled SET object-set expression is unsupported.", null));
       return new Plan(cases, summaries, unsolved);
     }
     if (!all.plain()) {
-      unsolved.add(Map.of(
-          "reasonCode", "SET_ALL_RESTRICTION_PROOF_UNSUPPORTED",
-          "reason", "ALL(base/restriction) metadata is preserved in the semantic IR but automatic proof currently supports plain ALL only.",
-          "baseFqn", all.baseFqn() == null ? "" : all.baseFqn(),
-          "restrictedToFqns", all.restrictedToFqns()));
+      var gap = new CoverageGap("SET_ALL_RESTRICTION_PROOF_UNSUPPORTED", "ALL(base/restriction) metadata is preserved in the semantic IR but automatic proof currently supports plain ALL only.", null);
+      gap.details.put("baseFqn", all.baseFqn() == null ? "" : all.baseFqn());
+      gap.details.put("restrictedToFqns", all.restrictedToFqns());
+      unsolved.add(gap);
       return new Plan(cases, summaries, unsolved);
     }
     if (!set.contextFqn().equals(all.contextFqn())) {
-      unsolved.add(Map.of(
-          "reasonCode", "SET_ALL_CONTEXT_MISMATCH",
-          "reason", "ALL semantic context differs from the SET constraint context.",
-          "constraintContext", set.contextFqn(),
-          "allContext", all.contextFqn()));
+      var gap = new CoverageGap("SET_ALL_CONTEXT_MISMATCH", "ALL semantic context differs from the SET constraint context.", null);
+      gap.details.put("constraintContext", set.contextFqn());
+      gap.details.put("allContext", all.contextFqn());
+      unsolved.add(gap);
       return new Plan(cases, summaries, unsolved);
     }
 
@@ -115,22 +113,14 @@ final class SetConstraintCasePlanner {
       try {
         where = whereTemplates(context, set);
       } catch (IllegalArgumentException ex) {
-        unsolved.add(Map.of(
-            "reasonCode", "SET_WHERE_BINDING_UNAVAILABLE",
-            "reason", ex.getMessage()));
+        unsolved.add(new CoverageGap("SET_WHERE_BINDING_UNAVAILABLE", ex.getMessage(), null));
         return new Plan(cases, summaries, unsolved);
       }
       if (!where.included().solved()) {
-        unsolved.add(Map.of(
-            "reasonCode", "SET_WHERE_TRUE_UNSOLVED",
-            "reason", solverReason(where.included()),
-            "goal", "WHERE_INCLUDED_MEMBER"));
+        unsolved.add(new CoverageGap("SET_WHERE_TRUE_UNSOLVED", solverReason(where.included()), "WHERE_INCLUDED_MEMBER"));
       }
       if (!where.excluded().solved()) {
-        unsolved.add(Map.of(
-            "reasonCode", "SET_WHERE_FALSE_UNSOLVED",
-            "reason", solverReason(where.excluded()),
-            "goal", "WHERE_EXCLUDED_MEMBER"));
+        unsolved.add(new CoverageGap("SET_WHERE_FALSE_UNSOLVED", solverReason(where.excluded()), "WHERE_EXCLUDED_MEMBER"));
       }
       if (!where.included().solved() || !where.excluded().solved()) {
         return new Plan(cases, summaries, unsolved);
@@ -139,9 +129,7 @@ final class SetConstraintCasePlanner {
         requireSimpleMemberGraph(set, where.binding(), where.included().assignment(), "WHERE true");
         requireSimpleMemberGraph(set, where.binding(), where.excluded().assignment(), "WHERE false");
       } catch (IllegalArgumentException ex) {
-        unsolved.add(Map.of(
-            "reasonCode", "SET_WHERE_GRAPH_UNSAFE",
-            "reason", ex.getMessage()));
+        unsolved.add(new CoverageGap("SET_WHERE_GRAPH_UNSAFE", ex.getMessage(), null));
         return new Plan(cases, summaries, unsolved);
       }
     }
@@ -149,11 +137,9 @@ final class SetConstraintCasePlanner {
     int caseIndex = 1;
     for (CountCandidate candidate : branchCandidates(objectCount)) {
       if (candidate.count() == 0 && where == null && !(context.constraint().getContainer() instanceof ch.interlis.ili2c.metamodel.Projection)) {
-        unsolved.add(Map.of(
-            "reasonCode", "SET_ZERO_COUNT_FIXTURE_UNAVAILABLE",
-            "reason", "A plain-ALL zero-count SET proof has no constraint-context object, so the explicit fixture harness cannot mark the constraint as exercised.",
-            "goal", candidate.boundary(),
-            "selectedCount", 0));
+        var gap = new CoverageGap("SET_ZERO_COUNT_FIXTURE_UNAVAILABLE", "A plain-ALL zero-count SET proof has no constraint-context object, so the explicit fixture harness cannot mark the constraint as exercised.", candidate.boundary());
+        gap.details.put("selectedCount", 0);
+        unsolved.add(gap);
         continue;
       }
       var objects = population(
@@ -170,17 +156,15 @@ final class SetConstraintCasePlanner {
       testCase.links = List.of();
       cases.add(testCase);
 
-      Map<String, Object> summary = baseSummary(set, objectCount, testCase);
-      summary.put("purpose", candidate.expectedValid() ? "WITNESS" : "COUNTEREXAMPLE");
-      summary.put("boundary", candidate.boundary());
-      summary.put("selectedCount", candidate.count());
-      summary.put("excludedByWhereCount", where == null ? 0 : 1);
-      summary.put("expectedConstraintValid", candidate.expectedValid());
+      var summary = baseSummary(set, objectCount, testCase, candidate.expectedValid() ? "WITNESS" : "COUNTEREXAMPLE");
+      summary.details.put("boundary", candidate.boundary());
+      summary.details.put("selectedCount", candidate.count());
+      summary.details.put("excludedByWhereCount", where == null ? 0 : 1);
       if (where != null) {
-        summary.put("whereIncludedValues", summaryAssignment(where.included().assignment()));
-        summary.put("whereExcludedValues", summaryAssignment(where.excluded().assignment()));
+        summary.details.put("whereIncludedValues", summaryAssignment(where.included().assignment()));
+        summary.details.put("whereExcludedValues", summaryAssignment(where.excluded().assignment()));
       }
-      summaries.add(Map.copyOf(summary));
+      summaries.add(summary);
       caseIndex++;
     }
 
@@ -192,10 +176,8 @@ final class SetConstraintCasePlanner {
       scope = new BasketScope(1, 1, valid, valid);
     }
     if (scope == null) {
-      unsolved.add(Map.of(
-          "reasonCode", "SET_BASKET_SCOPE_NOT_DISTINGUISHABLE_WITHIN_LIMIT",
-          "reason", "No two-basket population within the automatic fixture limit distinguishes global from (BASKET) SET semantics.",
-          "goal", "BASKET_SCOPE"));
+      unsolved.add(new CoverageGap("SET_BASKET_SCOPE_NOT_DISTINGUISHABLE_WITHIN_LIMIT",
+            "No two-basket population within the automatic fixture limit distinguishes global from (BASKET) SET semantics.", "BASKET_SCOPE"));
     } else {
       var first = population(set, where, scope.first(), "set_scope_a", "set_scope_a");
       var second = population(set, where, scope.second(), "set_scope_b", "set_scope_b");
@@ -211,17 +193,15 @@ final class SetConstraintCasePlanner {
       testCase.links = List.of();
       cases.add(testCase);
 
-      Map<String, Object> summary = baseSummary(set, objectCount, testCase);
-      summary.put("purpose", "SCOPE_PROOF");
-      summary.put("boundary", "BASKET_SCOPE");
-      summary.put("basketASelectedCount", scope.first());
-      summary.put("basketBSelectedCount", scope.second());
-      summary.put("globalSelectedCount", scope.first() + scope.second());
-      summary.put("globalConstraintValid", scope.globalValid());
-      summary.put("perBasketConstraintValid", scope.perBasketValid());
-      summary.put("declaredPerBasket", set.perBasket());
-      summary.put("expectedConstraintValid", expected);
-      summaries.add(Map.copyOf(summary));
+      var summary = baseSummary(set, objectCount, testCase, "SCOPE_PROOF");
+      summary.details.put("boundary", "BASKET_SCOPE");
+      summary.details.put("basketASelectedCount", scope.first());
+      summary.details.put("basketBSelectedCount", scope.second());
+      summary.details.put("globalSelectedCount", scope.first() + scope.second());
+      summary.details.put("globalConstraintValid", scope.globalValid());
+      summary.details.put("perBasketConstraintValid", scope.perBasketValid());
+      summary.details.put("declaredPerBasket", set.perBasket());
+      summaries.add(summary);
     }
 
     return new Plan(cases, summaries, unsolved);
@@ -233,13 +213,11 @@ final class SetConstraintCasePlanner {
       SemanticConstraint.ObjectCountSetCondition condition,
       SemanticConstraint.NavigatedObjects objects) {
     List<ConstraintTestTools.TestCase> cases = new ArrayList<>();
-    List<Map<String, Object>> summaries = new ArrayList<>();
-    List<Map<String, Object>> unsolved = new ArrayList<>();
+    List<ProofCase> summaries = new ArrayList<>();
+    List<CoverageGap> unsolved = new ArrayList<>();
     if (set.preCondition() != null) {
-      unsolved.add(Map.of(
-          "reasonCode", "SET_NAVIGATED_OBJECTS_WHERE_PROOF_UNAVAILABLE",
-          "reason", "Navigated objectCount with WHERE requires a combined root/selection graph solver.",
-          "goal", "NAVIGATED_OBJECT_SET_WHERE"));
+      unsolved.add(new CoverageGap("SET_NAVIGATED_OBJECTS_WHERE_PROOF_UNAVAILABLE",
+            "Navigated objectCount with WHERE requires a combined root/selection graph solver.", "NAVIGATED_OBJECT_SET_WHERE"));
       return new Plan(cases, summaries, unsolved);
     }
     ConstraintExpression.ObjectCount count;
@@ -252,14 +230,11 @@ final class SetConstraintCasePlanner {
       bindings = routes.stream()
           .map(route -> ConstraintModelSynthesizer.bind(td, set.contextFqn(), count, route)).toList();
     } catch (IllegalArgumentException ex) {
-      unsolved.add(Map.of(
-          "reasonCode", "SET_NAVIGATED_OBJECTS_BINDING_UNAVAILABLE",
-          "reason", ex.getMessage(),
-          "goal", objects.path().path()));
+      unsolved.add(new CoverageGap("SET_NAVIGATED_OBJECTS_BINDING_UNAVAILABLE", ex.getMessage(), objects.path().path()));
       return new Plan(cases, summaries, unsolved);
     }
 
-    var excluded = new ArrayList<Map<String,Object>>();
+    var excluded = new ArrayList<CoverageExclusion>();
     int index = 1;
     var candidates = branchCandidates(condition);
     var expression = new ConstraintExpression.Comparison(condition.operator(), count,
@@ -270,8 +245,10 @@ final class SetConstraintCasePlanner {
       String targetFqn = reference.navigation().getLast().targetClassFqn();
       for (CountCandidate candidate : candidates) {
         if (!domain.contains(BigDecimal.valueOf(candidate.count()))) {
-          excluded.add(Map.of("reasonCode","PROVEN_UNREACHABLE","reason",candidate.boundary(),
-              "justification","Compiled path cardinalities exclude count " + candidate.count(), "routeTargetFqn",targetFqn));
+          var exclusion = new CoverageExclusion(null, candidate.boundary(), "PROVEN_UNREACHABLE",
+              "Compiled path cardinalities exclude count " + candidate.count());
+          exclusion.details.put("routeTargetFqn", targetFqn);
+          excluded.add(exclusion);
           continue;
         }
         try {
@@ -285,25 +262,20 @@ final class SetConstraintCasePlanner {
               graph);
           testCase.plannedObjectCounts = Map.of(graph.objects().getFirst().oid(), Map.of(objects.path().path(), candidate.count()));
           cases.add(testCase);
-          Map<String, Object> summary = new LinkedHashMap<>();
-          summary.put("name", testCase.name);
-          summary.put("purpose", candidate.expectedValid() ? "WITNESS" : "COUNTEREXAMPLE");
-          summary.put("boundary", candidate.boundary());
-          summary.put("objectSet", "PATH");
-          summary.put("objectPath", objects.path().path());
-          summary.put("routeTargetFqn", targetFqn);
-          summary.put("selectedCount", candidate.count());
-          summary.put("expectedConstraintValid", candidate.expectedValid());
-          summary.put("objectCount", graph.objects().size());
-          summary.put("associationLinkCount", graph.links().size());
-          summaries.add(Map.copyOf(summary));
+          var summary = new ProofCase(testCase.name, candidate.expectedValid() ? "WITNESS" : "COUNTEREXAMPLE", candidate.expectedValid());
+          summary.details.put("boundary", candidate.boundary());
+          summary.details.put("objectSet", "PATH");
+          summary.details.put("objectPath", objects.path().path());
+          summary.routeTargetFqn = targetFqn;
+          summary.details.put("selectedCount", candidate.count());
+          summary.objectCount = graph.objects().size();
+          summary.associationLinkCount = graph.links().size();
+          summaries.add(summary);
         } catch (IllegalArgumentException ex) {
-          unsolved.add(Map.of(
-              "reasonCode", "SET_NAVIGATED_OBJECTS_CARDINALITY_UNAVAILABLE",
-              "reason", ex.getMessage(),
-              "goal", candidate.boundary(),
-              "routeTargetFqn", targetFqn,
-              "selectedCount", candidate.count()));
+          var gap = new CoverageGap("SET_NAVIGATED_OBJECTS_CARDINALITY_UNAVAILABLE", ex.getMessage(), candidate.boundary());
+          gap.details.put("routeTargetFqn", targetFqn);
+          gap.details.put("selectedCount", candidate.count());
+          unsolved.add(gap);
         }
         index++;
       }
@@ -315,7 +287,7 @@ final class SetConstraintCasePlanner {
     // between baskets therefore cannot turn their per-object path counts into one global count;
     // only objectCount(ALL) has a distinct cross-basket population goal.
     if (cases.stream().noneMatch(c -> Boolean.TRUE.equals(c.expectedConstraintValid))
-        || cases.stream().noneMatch(c -> Boolean.FALSE.equals(c.expectedConstraintValid))) unsolved.add(Map.of("reasonCode","OBJECT_PATH_REQUIRED_OUTCOME_UNAVAILABLE","reason","Witness and counterexample remain obligatory."));
+        || cases.stream().noneMatch(c -> Boolean.FALSE.equals(c.expectedConstraintValid))) unsolved.add(new CoverageGap("OBJECT_PATH_REQUIRED_OUTCOME_UNAVAILABLE", "Witness and counterexample remain obligatory.", null));
     return new Plan(cases, summaries, unsolved, cases.size(), excluded);
   }
 
@@ -324,13 +296,11 @@ final class SetConstraintCasePlanner {
       SemanticConstraint.Set set,
       ConstraintExpression expression) {
     List<ConstraintTestTools.TestCase> cases = new ArrayList<>();
-    List<Map<String, Object>> summaries = new ArrayList<>();
-    List<Map<String, Object>> unsolved = new ArrayList<>();
+    List<ProofCase> summaries = new ArrayList<>();
+    List<CoverageGap> unsolved = new ArrayList<>();
     if (set.preCondition() != null) {
-      unsolved.add(Map.of(
-          "reasonCode", "SET_BOOLEAN_WHERE_COMBINED_PROOF_UNAVAILABLE",
-          "reason", "Boolean SET expressions with WHERE require a combined population solver; the candidate is retained instead of approximated.",
-          "goal", "WHERE_AND_BOOLEAN_CONDITION"));
+      unsolved.add(new CoverageGap("SET_BOOLEAN_WHERE_COMBINED_PROOF_UNAVAILABLE",
+            "Boolean SET expressions with WHERE require a combined population solver; the candidate is retained instead of approximated.", "WHERE_AND_BOOLEAN_CONDITION"));
       return new Plan(cases, summaries, unsolved);
     }
     ConstraintModelSynthesizer.ModelBinding binding;
@@ -338,10 +308,7 @@ final class SetConstraintCasePlanner {
       binding = ch.so.agi.mcp.constraint.ViewProofScope.bind(
           context, set.contextFqn(), expression);
     } catch (IllegalArgumentException ex) {
-      unsolved.add(Map.of(
-          "reasonCode", "SET_BOOLEAN_BINDING_UNAVAILABLE",
-          "reason", ex.getMessage(),
-          "goal", "BOOLEAN_EXPRESSION"));
+      unsolved.add(new CoverageGap("SET_BOOLEAN_BINDING_UNAVAILABLE", ex.getMessage(), "BOOLEAN_EXPRESSION"));
       return new Plan(cases, summaries, unsolved);
     }
     ConstraintCoveragePlanner.CoveragePlan coverage = ConstraintCoveragePlanner.solve(
@@ -358,26 +325,21 @@ final class SetConstraintCasePlanner {
           expected,
           graph);
       cases.add(testCase);
-      Map<String, Object> summary = new LinkedHashMap<>();
-      summary.put("name", testCase.name);
-      summary.put("purpose", expected ? "WITNESS" : "COUNTEREXAMPLE");
-      summary.put("reason", coverageCase.goal().reason());
-      summary.put("source", coverageCase.goal().expression().toInterlis(set.version()));
-      summary.put("coveredGoals", coverageCase.coveredGoals().stream()
-          .map(goal -> ConstraintCoveragePlanner.describeGoal(goal, set.version())).toList());
-      summary.put("expectedConstraintValid", expected);
-      summary.put("values", summaryAssignment(assignment));
-      summary.put("objectCount", graph.objects().size());
-      summary.put("associationLinkCount", graph.links().size());
-      summaries.add(Map.copyOf(summary));
+      var summary = new ProofCase(testCase.name, expected ? "WITNESS" : "COUNTEREXAMPLE", expected);
+      summary.reason = coverageCase.goal().reason();
+      summary.details.put("source", coverageCase.goal().expression().toInterlis(set.version()));
+      summary.coveredGoals = coverageCase.coveredGoals().stream()
+          .map(goal -> ConstraintCoveragePlanner.describeGoal(goal, set.version())).toList();
+      summary.setSummaryValues(summaryAssignment(assignment));
+      summary.objectCount = graph.objects().size();
+      summary.associationLinkCount = graph.links().size();
+      summaries.add(summary);
       index++;
     }
     for (ConstraintGoalSolver.Solution solution : coverage.unsolved()) {
-      unsolved.add(Map.of(
-          "reasonCode", solution.reasonCode(),
-          "reason", solution.reason(),
-          "goal", solution.goal().reason(),
-          "expression", solution.goal().expression().toInterlis(set.version())));
+      var gap = new CoverageGap(solution.reasonCode(), solution.reason(), solution.goal().reason());
+      gap.expression = solution.goal().expression().toInterlis(set.version());
+      unsolved.add(gap);
     }
     return new Plan(cases, summaries, unsolved, ConstraintCoveragePlanner.solvedGoalCount(coverage),
         ConstraintCoveragePlanner.excludedGoals(coverage, set.version()));
@@ -574,17 +536,16 @@ final class SetConstraintCasePlanner {
     return null;
   }
 
-  private static Map<String, Object> baseSummary(
+  private static ProofCase baseSummary(
       SemanticConstraint.Set set,
       SemanticConstraint.ObjectCountSetCondition objectCount,
-      ConstraintTestTools.TestCase testCase) {
-    Map<String, Object> summary = new LinkedHashMap<>();
-    summary.put("name", testCase.name);
-    summary.put("operator", objectCount.operator().interlis());
-    summary.put("threshold", objectCount.threshold().stripTrailingZeros().toPlainString());
-    summary.put("objectSet", "ALL");
-    summary.put("perBasket", set.perBasket());
-    summary.put("wherePresent", set.preCondition() != null);
+      ConstraintTestTools.TestCase testCase, String purpose) {
+    var summary = new ProofCase(testCase.name, purpose, testCase.expectedConstraintValid);
+    summary.details.put("operator", objectCount.operator().interlis());
+    summary.details.put("threshold", objectCount.threshold().stripTrailingZeros().toPlainString());
+    summary.details.put("objectSet", "ALL");
+    summary.details.put("perBasket", set.perBasket());
+    summary.details.put("wherePresent", set.preCondition() != null);
     return summary;
   }
 

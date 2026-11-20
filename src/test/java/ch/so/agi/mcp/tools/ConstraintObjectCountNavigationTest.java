@@ -82,6 +82,36 @@ class ConstraintObjectCountNavigationTest {
     assertThat(cases).anySatisfy(c->assertThat(c.get("concreteRoute").toString()).contains("Second"));
   }
 
+  @Test
+  void incompleteConcreteRouteCannotBeHiddenByAnotherRoute() {
+    String source = model("2.4", "MANDATORY CONSTRAINT target: INTERLIS.objectCount(mids->leaves) >= 2;")
+        .replace("CLASS Mid = END Mid;",
+            "CLASS Mid (ABSTRACT) = END Mid; CLASS First EXTENDS Mid = END First; CLASS Second EXTENDS Mid = END Second;");
+    String fqn = "Objects.T.Root.target";
+    var contexts = new ConstraintContextService(compiler);
+    var resolution = contexts.compileAndResolve(source, fqn, null, "route_proof_");
+    var failSecondRoute = new ConstraintTestTools(compiler) {
+      private int route;
+
+      @Override IliAuthoringResult.ProofVerification testCompiledConstraint(
+          CompiledConstraintContext context, List<TestCase> cases) {
+        if (++route == 2) cases.getFirst().objects.getFirst().classFqn = "Missing";
+        return super.testCompiledConstraint(context, cases);
+      }
+    };
+    var proof = new ConstraintCaseGenerationTools(contexts, failSecondRoute).prove(fqn, resolution, false);
+    assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.INCOMPLETE);
+    assertThat(proof.reasonCode).isEqualTo("FIXTURE_MATERIALIZATION_FAILED");
+    assertThat(proof.coverageGoalCount).isGreaterThan(0).isEqualTo(proof.coverageSolvedCount);
+    assertThat(proof.verification.cases).filteredOn(c -> c.name.startsWith("route 1: "))
+        .isNotEmpty().allSatisfy(c -> assertThat(c.passed).isTrue());
+    assertThat(proof.verification.cases).anySatisfy(c -> {
+      assertThat(c.name).startsWith("route 2: ");
+      assertThat(c.validatorRan).isFalse();
+      assertThat(c.passed).isFalse();
+    });
+  }
+
   @ParameterizedTest @ValueSource(strings={"2.3","2.4"})
   void threeMultiValuedStepsHaveEmptyAndBranchCoverage(String version) {
     String source=model(version,"MANDATORY CONSTRAINT target: INTERLIS.objectCount(mids->leaves->tips) >= 2;")
@@ -141,10 +171,21 @@ class ConstraintObjectCountNavigationTest {
       var root=new ConstraintTestTools.TestObject();root.classFqn=base+"Leitung";root.oid="r";root.values=Map.of("FunktionHierarchisch","SAA.andere","FunktionHydraulisch",hydraulic,"Nutzungsart_Ist","Reinabwasser");c.objects.add(root);
       for(int index=0;index<count;index++) {var node=new ConstraintTestTools.TestObject();node.classFqn=base+"Knoten";node.oid="k"+index;c.objects.add(node);var edge=new ConstraintTestTools.TestLink();edge.associationFqn=base+"Leitung_Knoten_vonAssoc";edge.roles=Map.of("Knoten_vonRef",node.oid,"Leitung_Knoten_vonAssocRef","r");c.links.add(edge);}
       var prepared=ViewProofFixtures.prepare(context,List.of(c));
-      var checked=((List<Map<String,Object>>)verifier.testCompiledConstraint(context,prepared).get("cases")).getFirst();
-      if(count==2) assertThat(checked).as(checked.toString()).containsEntry("passed",false).containsEntry("fixtureValid",false).containsEntry("fixturePreparationReasonCode","OBJECT_PATH_CARDINALITY_VIOLATION");
-      else { assertThat(checked).as(checked.toString()).containsEntry("passed",true).containsEntry("fixtureValid",true).containsEntry("subjectCount",1).containsEntry("constraintExercised",true)
-          .containsEntry("targetViolationCount",count==0 ? 1 : 0).containsEntry("actualConstraintValid",count==1); }
+      var checked = verifier.testCompiledConstraint(context, prepared).cases.getFirst();
+      if (count == 2) {
+        assertThat(checked.passed).isFalse();
+        assertThat(checked.fixtureValid).isFalse();
+        assertThat(checked.validatorRan).isFalse();
+        assertThat(checked.fixturePreparationReasonCode).isEqualTo("OBJECT_PATH_CARDINALITY_VIOLATION");
+      } else {
+        assertThat(checked.passed).isTrue();
+        assertThat(checked.fixtureValid).isTrue();
+        assertThat(checked.validatorRan).isTrue();
+        assertThat(checked.subjectCount).isEqualTo(1);
+        assertThat(checked.constraintExercised).isTrue();
+        assertThat(checked.targetViolationCount).isEqualTo(count == 0 ? 1 : 0);
+        assertThat(checked.actualConstraintValid).isEqualTo(count == 1);
+      }
     }
   }
 

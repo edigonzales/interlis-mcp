@@ -10,9 +10,10 @@ import ch.interlis.ili2c.metamodel.Table;
 import ch.interlis.ili2c.metamodel.Type;
 import ch.so.agi.mcp.constraint.CompiledConstraintContext;
 import ch.so.agi.mcp.constraint.SemanticConstraint;
+import ch.so.agi.mcp.model.IliAuthoringResult.CoverageGap;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofCase;
 import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
@@ -41,8 +42,8 @@ final class ExistenceConstraintReferenceCasePlanner {
     }
 
     List<ConstraintTestTools.TestCase> cases = new ArrayList<>();
-    List<Map<String, Object>> summaries = new ArrayList<>();
-    List<Map<String, Object>> unsolved = new ArrayList<>();
+    List<ProofCase> summaries = new ArrayList<>();
+    List<CoverageGap> unsolved = new ArrayList<>();
     ConstraintTestTools.TestObject sameTarget = object(
         sourceTarget.getScopedName(null), "existence_ref_same", Map.of());
     ConstraintTestTools.TestObject source = object(
@@ -138,7 +139,7 @@ final class ExistenceConstraintReferenceCasePlanner {
 
   private static void addCase(
       List<ConstraintTestTools.TestCase> cases,
-      List<Map<String, Object>> summaries,
+      List<ProofCase> summaries,
       String name,
       boolean expected,
       String purpose,
@@ -150,13 +151,10 @@ final class ExistenceConstraintReferenceCasePlanner {
     testCase.objects = List.copyOf(objects);
     testCase.links = List.of();
     cases.add(testCase);
-    Map<String, Object> summary = new LinkedHashMap<>();
-    summary.put("name", name);
-    summary.put("purpose", purpose);
-    summary.put("expectedConstraintValid", expected);
-    summary.put("objectCount", objects.size());
-    summary.put("values", values);
-    summaries.add(Map.copyOf(summary));
+    var summary = new ProofCase(name, purpose, expected);
+    summary.setSummaryValues(values);
+    summary.objectCount = objects.size();
+    summaries.add(summary);
   }
 
   private static ExistenceConstraintCasePlanner.Plan unsolved(
@@ -165,7 +163,7 @@ final class ExistenceConstraintReferenceCasePlanner {
         List.of(), List.of(), List.of(gap(reasonCode, reason, "REFERENCE")));
   }
 
-  private static Map<String, Object> gap(String code, String reason, String goal) {
-    return Map.of("reasonCode", code, "reason", reason, "goal", goal);
+  private static CoverageGap gap(String code, String reason, String goal) {
+    return new CoverageGap(code, reason, goal);
   }
 }

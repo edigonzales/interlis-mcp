@@ -1,19 +1,20 @@
 package ch.so.agi.mcp.constraint;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.*;
 
 /** A description of compiler semantics, never a claim of business acceptance. */
 public record ConstraintExplanation(Status status, String constraintFqn, String contextFqn,
     String kind, String description, List<String> referencedElements, List<String> notes,
-    List<String> limitations) {
+    List<String> limitations, @JsonIgnore boolean requiresExternalSemantics) {
   public enum Status { COMPLETE, PARTIAL, UNAVAILABLE }
 
   public static ConstraintExplanation unavailable(String fqn) {
     return new ConstraintExplanation(Status.UNAVAILABLE, fqn, "", "UNKNOWN", "Keine kompilierte Regel verfügbar.",
-        List.of(), List.of(), List.of("Keine fachliche Abnahme."));
+        List.of(), List.of(), List.of("Keine fachliche Abnahme."), false);
   }
 
-  public static ConstraintExplanation fromReview(Map<String, Object> review) {
+  public static ConstraintExplanation fromReview(Map<String, Object> review, boolean requiresExternalSemantics) {
     Map<?, ?> info = map(review.get("constraint")), context = map(review.get("context"));
     Map<?, ?> ast = map(review.get("ast"));
     var renderer = new Renderer();
@@ -44,7 +45,7 @@ public record ConstraintExplanation(Status status, String constraintFqn, String 
     }
     return new ConstraintExplanation(renderer.gaps.isEmpty() && Boolean.TRUE.equals(review.get("astComplete"))
         ? Status.COMPLETE : Status.PARTIAL, String.valueOf(info.get("scopedName")),
-        String.valueOf(context.get("scopedName")), kind, description, List.copyOf(refs), notes, List.copyOf(renderer.gaps));
+        String.valueOf(context.get("scopedName")), kind, description, List.copyOf(refs), notes, List.copyOf(renderer.gaps), requiresExternalSemantics);
   }
 
   private static Map<?, ?> map(Object value) { return value instanceof Map<?, ?> m ? m : Map.of(); }

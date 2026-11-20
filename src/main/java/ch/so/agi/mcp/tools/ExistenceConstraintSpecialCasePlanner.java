@@ -16,6 +16,8 @@ import ch.interlis.ili2c.metamodel.TextType;
 import ch.interlis.ili2c.metamodel.Type;
 import ch.so.agi.mcp.constraint.CompiledConstraintContext;
 import ch.so.agi.mcp.constraint.SemanticConstraint;
+import ch.so.agi.mcp.model.IliAuthoringResult.CoverageGap;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofCase;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -85,8 +87,8 @@ final class ExistenceConstraintSpecialCasePlanner {
       AttributeDef restricted,
       TypedValueFixtureFactory.ValuePair pair) {
     List<ConstraintTestTools.TestCase> cases = new ArrayList<>();
-    List<Map<String, Object>> summaries = new ArrayList<>();
-    List<Map<String, Object>> unsolved = new ArrayList<>();
+    List<ProofCase> summaries = new ArrayList<>();
+    List<CoverageGap> unsolved = new ArrayList<>();
     Table sourceClass = identifiableRoot(raw.getRestrictedAttribute());
     if (sourceClass == null) {
       return unsolvedOnly(
@@ -178,8 +180,8 @@ final class ExistenceConstraintSpecialCasePlanner {
       AttributeDef restricted,
       CompositionType restrictedType) {
     List<ConstraintTestTools.TestCase> cases = new ArrayList<>();
-    List<Map<String, Object>> summaries = new ArrayList<>();
-    List<Map<String, Object>> unsolved = new ArrayList<>();
+    List<ProofCase> summaries = new ArrayList<>();
+    List<CoverageGap> unsolved = new ArrayList<>();
 
     Table sourceClass = identifiableRoot(raw.getRestrictedAttribute());
     if (sourceClass == null) {
@@ -529,7 +531,7 @@ final class ExistenceConstraintSpecialCasePlanner {
 
   private static void addCase(
       List<ConstraintTestTools.TestCase> cases,
-      List<Map<String, Object>> summaries,
+      List<ProofCase> summaries,
       String name,
       boolean expected,
       String purpose,
@@ -543,14 +545,11 @@ final class ExistenceConstraintSpecialCasePlanner {
     testCase.links = List.of();
     cases.add(testCase);
 
-    Map<String, Object> summary = new LinkedHashMap<>();
-    summary.put("purpose", purpose);
-    summary.put("name", name);
-    summary.put("reason", reason);
-    summary.put("expectedConstraintValid", expected);
-    summary.put("values", values);
-    summary.put("objectCount", objects.size());
-    summaries.add(Map.copyOf(summary));
+    var summary = new ProofCase(name, purpose, expected);
+    summary.reason = reason;
+    summary.setSummaryValues(values);
+    summary.objectCount = objects.size();
+    summaries.add(summary);
   }
 
   private static ExistenceConstraintCasePlanner.Plan unsolvedOnly(
@@ -563,11 +562,8 @@ final class ExistenceConstraintSpecialCasePlanner {
         List.of(unsolved(reasonCode, reason, goal)));
   }
 
-  private static Map<String, Object> unsolved(String reasonCode, String reason, String goal) {
-    return Map.of(
-        "reasonCode", reasonCode,
-        "reason", reason,
-        "goal", goal);
+  private static CoverageGap unsolved(String reasonCode, String reason, String goal) {
+    return new CoverageGap(reasonCode, reason, goal);
   }
 
   private record StructureTemplate(

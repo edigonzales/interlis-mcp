@@ -115,7 +115,7 @@ public final class ConstraintAnalysisService {
     response.put("edgeCases", new ArrayList<>(accumulator.edgeCases.values()));
     response.put("findings", findings);
     response.put("limitations", limitations());
-    response.put("explanation", ConstraintExplanation.fromReview(response));
+    response.put("explanation", ConstraintExplanation.fromReview(response, accumulator.requiresExternalSemantics));
     return response;
   }
 
@@ -277,6 +277,7 @@ public final class ConstraintAnalysisService {
       if (owner != null) {
         functionInfo.put("sourceModel", owner.getScopedName());
       }
+      accumulator.requiresExternalSemantics |= owner == null || !"INTERLIS".equals(owner.getScopedName());
       functionInfo.put("returns", describeType(function.getDomain()));
     }
     accumulator.addFunction(functionInfo);
@@ -605,6 +606,7 @@ public final class ConstraintAnalysisService {
   }
 
   private static final class ReviewAccumulator {
+    private boolean requiresExternalSemantics;
     private final Map<String, Map<String, Object>> functionCatalog;
     private final Map<String, Map<String, Object>> referencedElements = new LinkedHashMap<>();
     private final Map<String, Map<String, Object>> functions = new LinkedHashMap<>();

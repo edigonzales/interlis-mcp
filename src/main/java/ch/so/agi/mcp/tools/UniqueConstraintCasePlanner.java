@@ -9,6 +9,8 @@ import ch.so.agi.mcp.constraint.ConstraintExpressionEngine;
 import ch.so.agi.mcp.constraint.ConstraintGoalSolver;
 import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer;
 import ch.so.agi.mcp.constraint.SemanticConstraint;
+import ch.so.agi.mcp.model.IliAuthoringResult.CoverageGap;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofCase;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -33,8 +35,8 @@ final class UniqueConstraintCasePlanner {
 
   record Plan(
       List<ConstraintTestTools.TestCase> cases,
-      List<Map<String, Object>> summaries,
-      List<Map<String, Object>> unsolved) {
+      List<ProofCase> summaries,
+      List<CoverageGap> unsolved) {
 
     Plan {
       cases = cases == null ? List.of() : List.copyOf(cases);
@@ -75,8 +77,8 @@ final class UniqueConstraintCasePlanner {
       CompiledConstraintContext context,
       SemanticConstraint.Unique unique) {
     List<ConstraintTestTools.TestCase> cases = new ArrayList<>();
-    List<Map<String, Object>> summaries = new ArrayList<>();
-    List<Map<String, Object>> unsolved = new ArrayList<>();
+    List<ProofCase> summaries = new ArrayList<>();
+    List<CoverageGap> unsolved = new ArrayList<>();
 
     List<ConstraintExpression> keyExpressions;
     ConstraintExpression keyDefined;
@@ -214,8 +216,8 @@ final class UniqueConstraintCasePlanner {
       CompiledConstraintContext context,
       SemanticConstraint.Unique unique) {
     List<ConstraintTestTools.TestCase> cases = new ArrayList<>();
-    List<Map<String, Object>> summaries = new ArrayList<>();
-    List<Map<String, Object>> unsolved = new ArrayList<>();
+    List<ProofCase> summaries = new ArrayList<>();
+    List<CoverageGap> unsolved = new ArrayList<>();
 
     SemanticConstraint.ConstraintPath prefix = unique.prefix();
     if (prefix == null
@@ -358,7 +360,7 @@ final class UniqueConstraintCasePlanner {
       CompiledConstraintContext context,
       SemanticConstraint.Unique unique,
       boolean participating,
-      List<Map<String, Object>> unsolved) {
+      List<CoverageGap> unsolved) {
     if (unique.preCondition() == null) {
       if (!participating) {
         return null;
@@ -410,8 +412,8 @@ final class UniqueConstraintCasePlanner {
       ConstraintExpression keyDefined,
       ConstraintModelSynthesizer.ModelBinding binding,
       List<ConstraintTestTools.TestCase> cases,
-      List<Map<String, Object>> summaries,
-      List<Map<String, Object>> unsolved,
+      List<ProofCase> summaries,
+      List<CoverageGap> unsolved,
       boolean local,
       @Nullable LocalUndefinedContext localContext) {
     for (int i = 0; i < keyExpressions.size(); i++) {
@@ -509,7 +511,7 @@ final class UniqueConstraintCasePlanner {
       CompiledConstraintContext context,
       String prefixName,
       List<ConstraintTestTools.TestCase> cases,
-      List<Map<String, Object>> summaries,
+      List<ProofCase> summaries,
       String name,
       boolean expected,
       String purpose,
@@ -568,7 +570,7 @@ final class UniqueConstraintCasePlanner {
   private static void addCase(
       CompiledConstraintContext context,
       List<ConstraintTestTools.TestCase> cases,
-      List<Map<String, Object>> summaries,
+      List<ProofCase> summaries,
       String name,
       boolean expected,
       String purpose,
@@ -632,7 +634,7 @@ final class UniqueConstraintCasePlanner {
     return explicit.isEmpty() ? 1 : explicit.size();
   }
 
-  private static Map<String, Object> summary(
+  private static ProofCase summary(
       String purpose,
       String name,
       String reason,
@@ -640,26 +642,19 @@ final class UniqueConstraintCasePlanner {
       Object values,
       int objectCount,
       int basketCount) {
-    Map<String, Object> result = new LinkedHashMap<>();
-    result.put("purpose", purpose);
-    result.put("name", name);
-    result.put("reason", reason);
-    result.put("expectedConstraintValid", expected);
-    result.put("values", summarize(values));
-    result.put("objectCount", objectCount);
-    result.put("basketCount", basketCount);
+    var result = new ProofCase(name, purpose, expected);
+    result.reason = reason;
+    result.setSummaryValues(summarize(values));
+    result.objectCount = objectCount;
+    result.details.put("basketCount", basketCount);
     return result;
   }
 
-  private static Map<String, Object> unsolved(
+  private static CoverageGap unsolved(
       String reasonCode,
       String reason,
       String goal) {
-    Map<String, Object> result = new LinkedHashMap<>();
-    result.put("goal", goal);
-    result.put("reasonCode", reasonCode);
-    result.put("reason", reason == null ? "" : reason);
-    return result;
+    return new CoverageGap(reasonCode, reason == null ? "" : reason, goal);
   }
 
   private static ConstraintGoalSolver.Solution solveTrue(

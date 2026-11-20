@@ -128,6 +128,17 @@ class ConstraintViewProofTest {
   }
 
   @Test
+  void unreachableCounterexampleInTheViewLeavesRequiredCoverageIncomplete() {
+    String source = model("2.4", "WHERE K->Value > 5;", "MANDATORY CONSTRAINT target: Value > 5;");
+    String fqn = "ViewProof.Checks.Selected.target";
+    var context = new ConstraintContextService(compiler).compileAndResolve(source, fqn, null, "view_coverage_");
+    var proof = generation.prove(fqn, context, false);
+    assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.INCOMPLETE);
+    assertThat(proof.coverageComplete).isFalse();
+    assertThat(proof.coverageGaps).anySatisfy(gap -> assertThat(gap.reason).isEqualTo("constraint counterexample"));
+  }
+
+  @Test
   void automaticallyMaterializedBaseObjectsCannotSilentlyChangeThePopulation() {
     String source=model("2.4","","MANDATORY CONSTRAINT target: Value > 0;")
         .replace("END Data;", """
@@ -137,9 +148,16 @@ class ConstraintViewProofTest {
             END Pair;
             END Data;
             """);
-    var result=generation.generateIliConstraintCases(source,"ViewProof.Checks.Selected.target");
-    assertThat(result.get("generationVerified")).as(result.toString()).isEqualTo(false);
-    assertThat(result.get("reasonCode")).isEqualTo("VIEW_SCOPE_VERIFICATION_FAILED");
+    String fqn = "ViewProof.Checks.Selected.target";
+    var context = new ConstraintContextService(compiler).compileAndResolve(source, fqn, null, "view_population_");
+    var proof = generation.prove(fqn, context, false);
+    assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.FAILED);
+    assertThat(proof.reasonCode).isEqualTo("VIEW_SCOPE_VERIFICATION_FAILED");
+    assertThat(proof.verification.cases).anySatisfy(test -> {
+      assertThat(test.validatorRan).isTrue();
+      assertThat(test.plannedSubjectCount).isNotEqualTo(test.subjectCount);
+      assertThat(test.passed).isFalse();
+    });
   }
 
   @Test

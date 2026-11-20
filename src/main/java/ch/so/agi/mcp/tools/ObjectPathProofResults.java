@@ -1,50 +1,69 @@
 package ch.so.agi.mcp.tools;
 
-import java.util.*;
+import ch.so.agi.mcp.model.IliAuthoringResult.ConstraintProof;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofVerification;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
-/** Every concrete route must prove the same requested constraint; no best-route selection. */
+/** Every concrete route must prove the same requested constraint. */
 final class ObjectPathProofResults {
   private ObjectPathProofResults() {}
-  static Map<String,Object> merge(List<Map<String,Object>> results, List<Map<String,String>> routes) {
-    if (results.size()==1) return results.getFirst();
-    var merged=new LinkedHashMap<>(results.getFirst());
-    for (String flag:List.of("automaticCasesAvailable","automaticCasesGenerated","generationVerified","coverageComplete"))
-      merged.put(flag,results.stream().allMatch(r->Boolean.TRUE.equals(r.get(flag))));
-    for(String field:List.of("coverageGoalCount","coverageSolvedCount","coverageExcludedCount"))
-      merged.put(field,results.stream().mapToInt(r->((Number)r.getOrDefault(field,0)).intValue()).sum());
-    for(String field:List.of("generatedCases","coverageUnsolved","coverageExcludedGoals","objectPathGoals","objectPathGaps","objectPathExcluded")) {
-      var list=new ArrayList<Object>();
-      for(int index=0;index<results.size();index++) {
-        for(Object item:(List<?>)results.get(index).getOrDefault(field,List.of())) {
-          var copy=new LinkedHashMap<>((Map<String,Object>)item);
-          if(copy.get("name")!=null)copy.put("name","route "+(index+1)+": "+copy.get("name"));
-          copy.put("concreteRoute",routes.get(index));list.add(copy);
-        }
+
+  static ConstraintProof merge(List<ConstraintProof> results, List<Map<String, String>> routes) {
+    if (results.size() == 1) return results.getFirst();
+    var merged = results.getFirst();
+    var firstUnverified = results.stream()
+        .filter(result -> !result.generationVerified() || !Boolean.TRUE.equals(result.coverageComplete))
+        .findFirst().orElse(null);
+    if (firstUnverified != null && firstUnverified.reasonCode != null) {
+      merged.reasonCode = firstUnverified.reasonCode;
+      merged.reason = firstUnverified.reason;
+      merged.reportIncomplete |= firstUnverified.reportIncomplete;
+    }
+
+    var verification = new ProofVerification();
+    verification.cases = new ArrayList<>();
+    verification.viewScopeChecked = true;
+    verification.viewScopeGoals = new ArrayList<>();
+    verification.viewScopeGaps = new ArrayList<>();
+    verification.viewScopeExcluded = new ArrayList<>();
+    for (int index = 0; index < results.size(); index++) {
+      var result = results.get(index);
+      var route = routes.get(index);
+      String prefix = "route " + (index + 1) + ": ";
+      for (var summary : result.generatedCases) {
+        summary.name = prefix + summary.name;
+        summary.details.put("concreteRoute", route);
       }
-      merged.put(field,list);
-    }
-    var verification=new LinkedHashMap<String,Object>();
-    for(String field:List.of("cases","viewScopeGoals","viewScopeGaps","viewScopeExcluded")) {
-      var list=new ArrayList<Object>();
-      for(int index=0;index<results.size();index++) {
-        var checked=(Map<?,?>)results.get(index).getOrDefault("verification",Map.of());
-        Object raw=checked.get(field);
-        if(raw instanceof List<?> items)for(var item:items) {
-          var copy=new LinkedHashMap<>((Map<String,Object>)item);
-          if(copy.get("name")!=null)copy.put("name","route "+(index+1)+": "+copy.get("name"));
-          list.add(copy);
-        }
+      result.coverageGaps.forEach(gap -> gap.details.put("concreteRoute", route));
+      result.coverageExcludedGoals.forEach(exclusion -> exclusion.details.put("concreteRoute", route));
+      if (result.verification != null) {
+        var checked = result.verification;
+        checked.cases.forEach(test -> test.name = prefix + test.name);
+        checked.viewScopeGoals.forEach(goal -> goal.name = prefix + goal.name);
+        checked.viewScopeGaps.forEach(gap -> gap.name = prefix + gap.name);
+        checked.viewScopeExcluded.forEach(exclusion -> exclusion.name = prefix + exclusion.name);
+        verification.cases.addAll(checked.cases);
+        verification.viewScopeGoals.addAll(checked.viewScopeGoals);
+        verification.viewScopeGaps.addAll(checked.viewScopeGaps);
+        verification.viewScopeExcluded.addAll(checked.viewScopeExcluded);
       }
-      verification.put(field,list);
     }
-    verification.put("allPassed",Boolean.TRUE.equals(merged.get("generationVerified")));
-    var cases=(List<Map<String,Object>>)verification.get("cases");
-    verification.put("caseCount",cases.size());verification.put("passedCount",(int)cases.stream().filter(c->Boolean.TRUE.equals(c.get("passed"))).count());
-    merged.put("verification",verification);
-    for(var result:results)if(!Boolean.TRUE.equals(result.get("generationVerified")) || !Boolean.TRUE.equals(result.get("coverageComplete"))) {
-      for(String field:List.of("reasonCode","reason","proofIncomplete"))if(result.containsKey(field))merged.put(field,result.get(field));
-      break;
-    }
+    merged.coverageComplete = results.stream().allMatch(result -> Boolean.TRUE.equals(result.coverageComplete));
+    merged.casesGenerated = results.stream().allMatch(result -> result.casesGenerated);
+    merged.coverageGoalCount = results.stream().mapToInt(result -> Objects.requireNonNullElse(result.coverageGoalCount, 0)).sum();
+    merged.coverageSolvedCount = results.stream().mapToInt(result -> Objects.requireNonNullElse(result.coverageSolvedCount, 0)).sum();
+    merged.coverageGaps = results.stream().flatMap(result -> result.coverageGaps.stream()).toList();
+    merged.coverageExcludedGoals = results.stream().flatMap(result -> result.coverageExcludedGoals.stream()).toList();
+    merged.coverageExcludedCount = merged.coverageExcludedGoals.size();
+    merged.generatedCases = results.stream().flatMap(result -> result.generatedCases.stream()).toList();
+    merged.objectPathGoals = results.stream().flatMap(result -> result.objectPathGoals.stream()).toList();
+    merged.objectPathGaps = results.stream().flatMap(result -> result.objectPathGaps.stream()).toList();
+    merged.objectPathExcluded = results.stream().flatMap(result -> result.objectPathExcluded.stream()).toList();
+    merged.verification = verification;
+    merged.multipleRoutes = true;
     return merged;
   }
 }

@@ -1,8 +1,8 @@
 package ch.so.agi.mcp.model;
 
-import java.util.ArrayList;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofCaseVerification;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofVerification;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
@@ -11,9 +11,9 @@ public final class TestXtfOutput {
   private TestXtfOutput() {}
   public static final String PARAMETER = "true liefert auch Test-XTFs bestandener, ausgeübter Fälle mit gültiger Fixture und ohne Warnungen. Standard false.";
 
-  private static boolean omit(Object passed, Object fixtureValid, Object exercised, Object warnings) {
-    return Boolean.TRUE.equals(passed) && Boolean.TRUE.equals(fixtureValid) && Boolean.TRUE.equals(exercised)
-        && warnings instanceof Number count && count.doubleValue() == 0;
+  public static boolean canOmit(ProofCaseVerification test) {
+    return Boolean.TRUE.equals(test.passed) && Boolean.TRUE.equals(test.fixtureValid)
+        && Boolean.TRUE.equals(test.constraintExercised) && Integer.valueOf(0).equals(test.warningCount);
   }
 
   /** The typed result is a fresh public response; internal validator results are not modified. */
@@ -23,7 +23,7 @@ public final class TestXtfOutput {
     for (var proof : result.constraintProofs) {
       if (proof.verification == null) continue;
       for (var test : proof.verification.cases) {
-        if (test.xtfText != null && omit(test.passed, test.fixtureValid, test.constraintExercised, test.warningCount)) {
+        if (test.xtfText != null && canOmit(test)) {
           test.xtfText = null;
           omitted++;
         }
@@ -33,34 +33,18 @@ public final class TestXtfOutput {
     return result;
   }
 
-  public static Map<String, Object> prepare(Map<String, Object> result, @Nullable Boolean include) {
-    if (Boolean.TRUE.equals(include)) return result;
-    var response = new LinkedHashMap<>(result);
-    int omitted = projectCases(response);
-    if (result.get("verification") instanceof Map<?, ?> raw) {
-      var verification = new LinkedHashMap<String, Object>();
-      raw.forEach((key, value) -> verification.put((String) key, value));
-      omitted += projectCases(verification);
-      response.put("verification", verification);
-    }
+  public static void addOmittedCount(Map<String, Object> response, ProofVerification verification, boolean include) {
+    if (include) return;
+    int omitted = (int) verification.cases.stream().filter(TestXtfOutput::canOmit).count();
     if (omitted > 0) response.put("omittedSuccessfulTestXtfCount", omitted);
-    return response;
   }
 
-  private static int projectCases(Map<String, Object> container) {
-    if (!(container.get("cases") instanceof List<?> cases)) return 0;
-    int omitted = 0;
-    var projected = new ArrayList<Object>(cases.size());
-    for (Object item : cases) {
-      if (item instanceof Map<?, ?> test && test.get("xtfText") instanceof String
-          && omit(test.get("passed"), test.get("fixtureValid"), test.get("constraintExercised"), test.get("warningCount"))) {
-        var copy = new LinkedHashMap<>(test);
-        copy.remove("xtfText");
-        projected.add(copy);
-        omitted++;
-      } else projected.add(item);
-    }
-    container.put("cases", projected);
-    return omitted;
+  public static Map<String, Object> verificationResponse(ProofVerification verification, boolean include) {
+    var response = new LinkedHashMap<String, Object>();
+    response.put("cases", verification.cases.stream().map(test -> test.toMap(include || !canOmit(test))).toList());
+    response.put("caseCount", verification.cases.size());
+    response.put("passedCount", verification.passedCount());
+    response.put("allPassed", verification.allPassed());
+    return response;
   }
 }

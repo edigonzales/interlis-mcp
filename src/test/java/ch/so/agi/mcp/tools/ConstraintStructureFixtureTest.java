@@ -100,17 +100,26 @@ class ConstraintStructureFixtureTest {
   void semanticMismatchDoesNotRetryAnotherOwner() {
     int[] calls = {0};
     var mismatch = new ConstraintTestTools(compiler) {
-      @Override Map<String, Object> testCompiledConstraint(CompiledConstraintContext context, List<TestCase> cases) {
+      @Override IliAuthoringResult.ProofVerification testCompiledConstraint(
+          CompiledConstraintContext context, List<TestCase> cases) {
         calls[0]++;
-        return Map.of("allPassed", false, "cases", List.of(Map.of(
-            "fixtureValid", true, "expectedConstraintValid", true, "actualConstraintValid", false)));
+        cases.getFirst().expectedConstraintValid = !cases.getFirst().expectedConstraintValid;
+        cases.getLast().objects.getFirst().classFqn = "Missing";
+        return super.testCompiledConstraint(context, cases);
       }
     };
-    var tools = new ConstraintCaseGenerationTools(new ConstraintContextService(compiler), mismatch);
-    var response = tools.generateIliConstraintCases(model(STRUCTURE
-        + "CLASS A = s : S; END A; CLASS B = s : S; END B;"), "StructureProof.Data.S.Rule");
+    var contexts = new ConstraintContextService(compiler);
+    var tools = new ConstraintCaseGenerationTools(contexts, mismatch);
+    String fqn = "StructureProof.Data.S.Rule";
+    var resolution = contexts.compileAndResolve(
+        model(STRUCTURE + "CLASS A = s : S; END A; CLASS B = s : S; END B;"), fqn, null, "structure_mismatch_");
+    var proof = tools.prove(fqn, resolution, false);
     assertThat(calls[0]).isEqualTo(1);
-    assertThat(response.get("generationVerified")).isEqualTo(false);
+    assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.FAILED);
+    var counterexample = proof.verification.cases.getFirst();
+    assertThat(counterexample.fixtureValid).isTrue();
+    assertThat(counterexample.constraintExercised).isTrue();
+    assertThat(counterexample.actualConstraintValid).isNotEqualTo(counterexample.expectedConstraintValid);
   }
 
   @Test
@@ -334,6 +343,7 @@ class ConstraintStructureFixtureTest {
     assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.INCOMPLETE);
     assertThat(proof.generatedCases).allSatisfy(c -> assertThat(c.ownerClassFqn).endsWith(".A7"));
     assertThat(proof.verification.cases).allSatisfy(c -> {
+      assertThat(c.validatorRan).isFalse();
       assertThat(c.fixturePreparationReasonCode).isEqualTo("FIXTURE_MATERIALIZATION_FAILED");
       assertThat(c.fixtureValid).isFalse();
       assertThat(c.fixtureErrors).isNotEmpty();
@@ -341,9 +351,9 @@ class ConstraintStructureFixtureTest {
   }
 
   private IliAuthoringResult.ConstraintProof proof(String model) {
-    var response = generator.generateIliConstraintCases(model, "StructureProof.Data.S.Rule", true);
-    assertThat(response.get("generationVerified")).as(response.toString()).isEqualTo(true);
-    return IliAuthoringResult.constraintProof("StructureProof.Data.S.Rule", IliAuthoringResult.ProofStatus.PASSED, response);
+    String fqn = "StructureProof.Data.S.Rule";
+    var resolution = new ConstraintContextService(compiler).compileAndResolve(model, fqn, null, "structure_proof_");
+    return generator.prove(fqn, resolution, false);
   }
 
   private List<Map<String,Object>> verify(String model, List<ConstraintTestTools.TestCase> cases) {

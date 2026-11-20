@@ -8,9 +8,10 @@ import ch.so.agi.mcp.constraint.ConstraintExpressionEngine;
 import ch.so.agi.mcp.constraint.ConstraintGoalSolver;
 import ch.so.agi.mcp.constraint.ConstraintModelSynthesizer;
 import ch.so.agi.mcp.constraint.SemanticConstraint;
+import ch.so.agi.mcp.model.IliAuthoringResult.CoverageGap;
+import ch.so.agi.mcp.model.IliAuthoringResult.ProofCase;
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -45,8 +46,8 @@ final class ExistenceConstraintScalarCasePlanner {
     Objects.requireNonNull(existence, "existence");
 
     List<ConstraintTestTools.TestCase> cases = new ArrayList<>();
-    List<Map<String, Object>> summaries = new ArrayList<>();
-    List<Map<String, Object>> unsolved = new ArrayList<>();
+    List<ProofCase> summaries = new ArrayList<>();
+    List<CoverageGap> unsolved = new ArrayList<>();
 
     BoundPath source;
     try {
@@ -157,8 +158,8 @@ final class ExistenceConstraintScalarCasePlanner {
 
   private static void addDifferentTargetCounterexample(
       List<ConstraintTestTools.TestCase> cases,
-      List<Map<String, Object>> summaries,
-      List<Map<String, Object>> unsolved,
+      List<ProofCase> summaries,
+      List<CoverageGap> unsolved,
       BoundPath source,
       BoundPath target,
       SharedValue shared) {
@@ -296,7 +297,7 @@ final class ExistenceConstraintScalarCasePlanner {
 
   private static void addCase(
       List<ConstraintTestTools.TestCase> cases,
-      List<Map<String, Object>> summaries,
+      List<ProofCase> summaries,
       String name,
       boolean expected,
       String purpose,
@@ -317,14 +318,11 @@ final class ExistenceConstraintScalarCasePlanner {
     testCase.links = List.copyOf(links);
     cases.add(testCase);
 
-    Map<String, Object> summary = new LinkedHashMap<>();
-    summary.put("purpose", purpose);
-    summary.put("name", name);
-    summary.put("reason", reason);
-    summary.put("expectedConstraintValid", expected);
-    summary.put("values", values);
-    summary.put("objectCount", objects.size());
-    summaries.add(Map.copyOf(summary));
+    var summary = new ProofCase(name, purpose, expected);
+    summary.reason = reason;
+    summary.setSummaryValues(values);
+    summary.objectCount = objects.size();
+    summaries.add(summary);
   }
 
   private static ConstraintExpression literal(
@@ -353,12 +351,8 @@ final class ExistenceConstraintScalarCasePlanner {
     };
   }
 
-  private static Map<String, Object> unsolved(String reasonCode, String reason, String goal) {
-    Map<String, Object> result = new LinkedHashMap<>();
-    result.put("reasonCode", reasonCode);
-    result.put("reason", reason == null ? "" : reason);
-    result.put("goal", goal);
-    return Map.copyOf(result);
+  private static CoverageGap unsolved(String reasonCode, String reason, String goal) {
+    return new CoverageGap(reasonCode, reason == null ? "" : reason, goal);
   }
 
   private static String nonBlank(String value, String fallback) {

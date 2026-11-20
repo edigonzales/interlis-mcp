@@ -1,5 +1,6 @@
 package ch.so.agi.mcp.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import ch.so.agi.mcp.constraint.ConstraintInteractionAnalysis;
 import ch.so.agi.mcp.service.IliCompilerService;
@@ -226,6 +227,20 @@ public class IliAuthoringResult {
     public @Nullable String reasonCode;
     public @Nullable String reason;
     public List<String> limitations = List.of();
+
+    @JsonIgnore public boolean casesGenerated;
+    @JsonIgnore public boolean reportIncomplete;
+    @JsonIgnore public boolean multipleRoutes;
+    @JsonIgnore public List<ProofCase> objectPathGoals = List.of();
+    @JsonIgnore public List<CoverageGap> objectPathGaps = List.of();
+    @JsonIgnore public List<CoverageExclusion> objectPathExcluded = List.of();
+    @JsonIgnore public @Nullable String planningContextFqn;
+    @JsonIgnore public Map<String, Object> generationDetails = new LinkedHashMap<>();
+
+    @JsonIgnore
+    public boolean generationVerified() {
+      return casesGenerated && objectPathGaps.isEmpty() && verification != null && verification.allPassed();
+    }
   }
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -233,6 +248,16 @@ public class IliAuthoringResult {
     public @Nullable String goal;
     public @Nullable String reason;
     public @Nullable String expression;
+
+    public CoverageGoal(String goal, String reason, String expression) {
+      this.goal = goal;
+      this.reason = reason;
+      this.expression = expression;
+    }
+
+    public Map<String, Object> toMap() {
+      return Map.of("goal", goal, "reason", reason, "expression", expression);
+    }
   }
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -242,6 +267,20 @@ public class IliAuthoringResult {
     public @Nullable String expression;
     public @Nullable String reasonCode;
     public @Nullable String justification;
+    @JsonIgnore public @Nullable String name;
+    @JsonIgnore public Map<String, Object> details = new LinkedHashMap<>();
+
+    public CoverageExclusion(@Nullable String goal, @Nullable String reason, String reasonCode, @Nullable String justification) {
+      this.goal = goal;
+      this.reason = reason;
+      this.reasonCode = reasonCode;
+      this.justification = justification;
+    }
+
+    public Map<String, Object> toMap() {
+      return withFields(details, "name", name, "goal", goal, "reason", reason, "reasonCode", reasonCode,
+          "expression", expression, "justification", justification);
+    }
   }
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -251,6 +290,19 @@ public class IliAuthoringResult {
     public @Nullable String expression;
     public @Nullable String reasonCode;
     public @Nullable String solverReason;
+    @JsonIgnore public @Nullable String name;
+    @JsonIgnore public Map<String, Object> details = new LinkedHashMap<>();
+
+    public CoverageGap(String reasonCode, String reason, @Nullable String goal) {
+      this.reasonCode = reasonCode;
+      this.reason = reason;
+      this.goal = goal;
+    }
+
+    public Map<String, Object> toMap() {
+      return withFields(details, "name", name, "goal", goal, "reason", reason, "reasonCode", reasonCode,
+          "expression", expression, "solverReason", solverReason);
+    }
   }
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -269,6 +321,39 @@ public class IliAuthoringResult {
     public @Nullable String structurePath;
     public Map<String, Object> values = Map.of();
     public List<Map<String, Object>> objects = List.of();
+    @JsonIgnore public Map<String, Object> details = new LinkedHashMap<>();
+
+    public ProofCase(String name, String purpose, boolean expectedConstraintValid) {
+      this.name = name;
+      this.purpose = purpose;
+      this.expectedConstraintValid = expectedConstraintValid;
+    }
+
+    @JsonIgnore private boolean hasValues;
+
+    @SuppressWarnings("unchecked")
+    public void setSummaryValues(Object values) {
+      if (values instanceof Map<?, ?> map) {
+        this.values = (Map<String, Object>) map;
+        hasValues = true;
+      } else {
+        details.put("values", values);
+      }
+    }
+
+    public Map<String, Object> toMap() {
+      return toMap(true);
+    }
+
+    public Map<String, Object> toMap(boolean includeOwner) {
+      return withFields(details, "name", name, "purpose", purpose, "reason", reason,
+          "expectedConstraintValid", expectedConstraintValid, "expectedViolationCount", expectedViolationCount,
+          "objectCount", objectCount, "associationLinkCount", associationLinkCount, "basketId", basketId,
+          "routeTargetFqn", routeTargetFqn, "ownerClassFqn", includeOwner ? ownerClassFqn : null, "structurePath", includeOwner ? structurePath : null,
+          "values", hasValues ? values : null,
+          "objects", objects.isEmpty() ? null : objects,
+          "coveredGoals", coveredGoals.isEmpty() ? null : coveredGoals.stream().map(CoverageGoal::toMap).toList());
+    }
 
     @Override
     public String toString() {
@@ -280,6 +365,18 @@ public class IliAuthoringResult {
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public static final class ProofVerification {
     public List<ProofCaseVerification> cases = List.of();
+    @JsonIgnore public List<ProofCase> viewScopeGoals = List.of();
+    @JsonIgnore public List<CoverageGap> viewScopeGaps = List.of();
+    @JsonIgnore public List<CoverageExclusion> viewScopeExcluded = List.of();
+    @JsonIgnore public boolean viewScopeChecked;
+
+    public int passedCount() {
+      return (int) cases.stream().filter(test -> Boolean.TRUE.equals(test.passed)).count();
+    }
+
+    public boolean allPassed() {
+      return viewScopeGaps.isEmpty() && cases.stream().allMatch(test -> Boolean.TRUE.equals(test.passed));
+    }
   }
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -310,6 +407,33 @@ public class IliAuthoringResult {
     public List<Map<String, Object>> messages = List.of();
     public @Nullable String reason;
     public @Nullable String xtfText;
+    @JsonIgnore public boolean validatorRan;
+    @JsonIgnore public int errorCount;
+    @JsonIgnore public @Nullable Integer filterCount;
+
+    public Map<String, Object> toMap(boolean includeXtf) {
+      return withFields(Map.of(), "name", name, "expectedConstraintValid", expectedConstraintValid,
+          "actualConstraintValid", actualConstraintValid, "passed", passed,
+          "constraintExercised", constraintExercised, "subjectCount", subjectCount, "setExecuted", setExecuted,
+          "viewFqn", viewFqn, "baseClassFqn", baseClassFqn, "filterCount", filterCount,
+          "filterPolicy", filterCount == null ? null : "PINNED_VALIDATOR_SKIP_INCLUDES",
+          "baseSubjectCount", baseSubjectCount, "excludedSubjectCount", excludedSubjectCount,
+          "skippedFilterCount", skippedFilterCount, "objectCounts", validatorRan ? objectCounts : null,
+          "plannedSubjectCount", plannedSubjectCount, "basketCount", basketCount, "baskets", baskets,
+          "fixtureValid", fixtureValid, "validatorValid", errorCount == 0,
+          "targetViolationCount", targetViolationCount, "errorCount", errorCount, "warningCount", warningCount,
+          "messages", messages, "fixtureErrors", fixtureErrors, "xtfText", includeXtf ? xtfText : null,
+          "fixturePreparationReasonCode", fixturePreparationReasonCode, "reason", reason,
+          "expectationSource", expectationSource);
+    }
+  }
+
+  private static Map<String, Object> withFields(Map<String, Object> details, Object... fields) {
+    var result = new LinkedHashMap<>(details);
+    for (int i = 0; i < fields.length; i += 2) {
+      if (fields[i + 1] != null) result.put((String) fields[i], fields[i + 1]);
+    }
+    return result;
   }
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -375,28 +499,6 @@ public class IliAuthoringResult {
     review.manualChecks = reviewFindings(map.get("manualChecks"));
     afterReview = review;
     openQuestions = openQuestions(map.get("openQuestions"), questionsBlock ? "BLOCKING" : "ADVISORY");
-  }
-
-  public static ConstraintProof constraintProof(
-      String constraintFqn, ProofStatus status, @Nullable Map<String, Object> proof) {
-    ConstraintProof result = new ConstraintProof();
-    result.constraintFqn = constraintFqn;
-    result.status = status;
-    if (proof == null) return result;
-    result.explanation = (ch.so.agi.mcp.constraint.ConstraintExplanation) proof.get("explanation");
-    result.pattern = nullableString(proof.get("pattern"));
-    result.coverageGoalCount = nullableInteger(proof.get("coverageGoalCount"));
-    result.coverageSolvedCount = nullableInteger(proof.get("coverageSolvedCount"));
-    result.coverageExcludedCount = nullableInteger(proof.get("coverageExcludedCount"));
-    result.coverageExcludedGoals = coverageExclusions(proof.get("coverageExcludedGoals"));
-    result.coverageComplete = bool(proof.get("coverageComplete"));
-    result.coverageGaps = coverageGaps(proof.get("coverageUnsolved"));
-    result.generatedCases = proofCases(proof.get("generatedCases"));
-    result.verification = proofVerification(proof.get("verification"));
-    result.reasonCode = nullableString(proof.get("reasonCode"));
-    result.reason = nullableString(proof.get("reason"));
-    result.limitations = strings(proof.get("limitations"));
-    return result;
   }
 
   private static List<OpenQuestion> openQuestions(@Nullable Object value, String impact) {
@@ -476,135 +578,6 @@ public class IliAuthoringResult {
       finding.sourceSection = nullableString(map.get("sourceSection"));
       finding.location = nullableString(map.get("location"));
       result.add(finding);
-    }
-    return List.copyOf(result);
-  }
-
-  private static List<CoverageExclusion> coverageExclusions(@Nullable Object value) {
-    if (!(value instanceof List<?> list)) return List.of();
-    List<CoverageExclusion> result = new ArrayList<>();
-    for (Object item : list) {
-      if (!(item instanceof Map<?, ?> raw)) continue;
-      Map<String, Object> map = stringMap(raw);
-      CoverageExclusion exclusion = new CoverageExclusion();
-      exclusion.goal = nullableString(map.get("goal"));
-      exclusion.reason = nullableString(map.get("reason"));
-      exclusion.expression = nullableString(map.get("expression"));
-      exclusion.reasonCode = nullableString(map.get("reasonCode"));
-      exclusion.justification = nullableString(map.get("justification"));
-      result.add(exclusion);
-    }
-    return List.copyOf(result);
-  }
-
-  private static List<CoverageGoal> coveredGoals(@Nullable Object value) {
-    if (!(value instanceof List<?> list)) return List.of();
-    List<CoverageGoal> result = new ArrayList<>();
-    for (Object item : list) {
-      if (!(item instanceof Map<?, ?> raw)) continue;
-      Map<String, Object> map = stringMap(raw);
-      CoverageGoal goal = new CoverageGoal();
-      goal.goal = nullableString(map.get("goal"));
-      goal.reason = nullableString(map.get("reason"));
-      goal.expression = nullableString(map.get("expression"));
-      result.add(goal);
-    }
-    return List.copyOf(result);
-  }
-
-  private static List<CoverageGap> coverageGaps(@Nullable Object value) {
-    if (!(value instanceof List<?> list)) return List.of();
-    List<CoverageGap> result = new ArrayList<>();
-    for (Object item : list) {
-      if (!(item instanceof Map<?, ?> raw)) continue;
-      Map<String, Object> map = stringMap(raw);
-      CoverageGap gap = new CoverageGap();
-      gap.goal = nullableString(map.get("goal"));
-      gap.reason = nullableString(map.get("reason"));
-      gap.expression = nullableString(map.get("expression"));
-      gap.reasonCode = nullableString(map.get("reasonCode"));
-      gap.solverReason = nullableString(map.get("solverReason"));
-      result.add(gap);
-    }
-    return List.copyOf(result);
-  }
-
-  private static List<ProofCase> proofCases(@Nullable Object value) {
-    if (!(value instanceof List<?> list)) return List.of();
-    List<ProofCase> result = new ArrayList<>();
-    for (Object item : list) {
-      if (!(item instanceof Map<?, ?> raw)) continue;
-      Map<String, Object> map = stringMap(raw);
-      ProofCase proofCase = new ProofCase();
-      proofCase.coveredGoals = coveredGoals(map.get("coveredGoals"));
-      proofCase.name = nullableString(map.get("name"));
-      proofCase.purpose = nullableString(map.get("purpose"));
-      proofCase.reason = nullableString(map.get("reason"));
-      proofCase.expectedConstraintValid = bool(map.get("expectedConstraintValid"));
-      proofCase.expectedViolationCount = nullableInteger(map.get("expectedViolationCount"));
-      proofCase.objectCount = nullableInteger(map.get("objectCount"));
-      proofCase.associationLinkCount = nullableInteger(map.get("associationLinkCount"));
-      proofCase.basketId = nullableString(map.get("basketId"));
-      proofCase.routeTargetFqn = nullableString(map.get("routeTargetFqn"));
-      proofCase.ownerClassFqn = nullableString(map.get("ownerClassFqn"));
-      proofCase.structurePath = nullableString(map.get("structurePath"));
-      Map<String, Object> values = mapValue(map.get("values"));
-      proofCase.values = values == null ? Map.of() : values;
-      proofCase.objects = mapList(map.get("objects"));
-      result.add(proofCase);
-    }
-    return List.copyOf(result);
-  }
-
-  private static @Nullable ProofVerification proofVerification(@Nullable Object value) {
-    if (!(value instanceof Map<?, ?> raw)) return null;
-    Map<String, Object> map = stringMap(raw);
-    ProofVerification result = new ProofVerification();
-    Object caseValue = map.get("cases");
-    if (caseValue instanceof List<?> list) {
-      List<ProofCaseVerification> cases = new ArrayList<>();
-      for (Object item : list) {
-        if (!(item instanceof Map<?, ?> caseRaw)) continue;
-        Map<String, Object> entry = stringMap(caseRaw);
-        ProofCaseVerification checked = new ProofCaseVerification();
-        checked.warningCount = nullableInteger(entry.get("warningCount"));
-        checked.name = nullableString(entry.get("name"));
-        checked.passed = bool(entry.get("passed"));
-        checked.expectedConstraintValid = bool(entry.get("expectedConstraintValid"));
-        checked.actualConstraintValid = bool(entry.get("actualConstraintValid"));
-        checked.viewFqn = nullableString(entry.get("viewFqn"));
-        checked.baseClassFqn = nullableString(entry.get("baseClassFqn"));
-        checked.objectCounts = entry.get("objectCounts") instanceof List<?> counts ? counts.stream().filter(Map.class::isInstance).map(countEntry -> stringMap((Map<?, ?>) countEntry)).toList() : List.of();
-        checked.plannedSubjectCount = nullableInteger(entry.get("plannedSubjectCount"));
-        checked.baseSubjectCount = nullableInteger(entry.get("baseSubjectCount"));
-        checked.excludedSubjectCount = nullableInteger(entry.get("excludedSubjectCount"));
-        checked.skippedFilterCount = nullableInteger(entry.get("skippedFilterCount"));
-        checked.setExecuted = bool(entry.get("setExecuted"));
-        checked.subjectCount = nullableInteger(entry.get("subjectCount"));
-        checked.constraintExercised = bool(entry.get("constraintExercised"));
-        checked.fixtureValid = bool(entry.get("fixtureValid"));
-        checked.fixturePreparationReasonCode = nullableString(entry.get("fixturePreparationReasonCode"));
-        checked.fixtureErrors = mapList(entry.get("fixtureErrors"));
-        checked.expectedViolationCount = nullableInteger(entry.get("expectedViolationCount"));
-        checked.targetViolationCount = nullableInteger(entry.get("targetViolationCount"));
-        checked.expectationSource = nullableString(entry.get("expectationSource"));
-        checked.basketCount = nullableInteger(entry.get("basketCount"));
-        checked.baskets = mapList(entry.get("baskets"));
-        checked.messages = mapList(entry.get("messages"));
-        checked.reason = nullableString(entry.get("reason"));
-        checked.xtfText = nullableString(entry.get("xtfText"));
-        cases.add(checked);
-      }
-      result.cases = List.copyOf(cases);
-    }
-    return result;
-  }
-
-  private static List<Map<String, Object>> mapList(@Nullable Object value) {
-    if (!(value instanceof List<?> list)) return List.of();
-    List<Map<String, Object>> result = new ArrayList<>();
-    for (Object item : list) {
-      if (item instanceof Map<?, ?> map) result.add(Map.copyOf(stringMap(map)));
     }
     return List.copyOf(result);
   }
