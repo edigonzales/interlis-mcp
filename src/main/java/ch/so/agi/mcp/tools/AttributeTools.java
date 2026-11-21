@@ -5,9 +5,8 @@ import ch.so.agi.mcp.model.AttributeLineRequest.Collection;
 import ch.so.agi.mcp.util.AnnotationRenderer;
 import ch.so.agi.mcp.util.NameValidator;
 import java.math.BigDecimal;
-
-import org.springframework.ai.mcp.annotation.McpTool;
-import org.springframework.ai.mcp.annotation.McpToolParam;
+import java.util.ArrayList;
+import java.util.List;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -21,16 +20,6 @@ public class AttributeTools {
 
   public AttributeTools(GeometryTypeRenderer geometryRenderer) {
     this.geometryRenderer = geometryRenderer;
-  }
-
-  /**
-   * New, strict version that supports numeric ranges and simple NUMERIC variants.
-   * Input: AttributeLineRequest (name, mandatory?, collection?, typeSpec oneOf).
-   * Output: AttributeLineResponse with a single ILI line.
-   */
-  public AttributeLineResponse createAttributeLine(
-      AttributeLineRequest req) {
-    return renderAttribute(req, "2.4").response();
   }
 
   public RenderedAttribute renderAttribute(AttributeLineRequest req, String iliVersion) {
@@ -49,10 +38,11 @@ public class AttributeTools {
     Object selectedType = req.getTypeSpec().requireSingleType();
 
     // ---- build RHS (type)
-    java.util.List<String> requiredImports = new java.util.ArrayList<>();
+    List<String> referencedFqns = new ArrayList<>();
     String rhs = switch (selectedType) {
       case TypeSpec.NamedType namedType -> {
         nv.validateFqn(namedType.fqn(), namedType.structure() ? "Structure FQN" : "Domain FQN");
+        referencedFqns.add(namedType.fqn());
         yield namedType.fqn().trim();
       }
       case BaseType bt -> {
@@ -64,13 +54,14 @@ public class AttributeTools {
         yield switch (bt.getKind()) {
           case TEXT -> (bt.getLength() == null) ? "TEXT" : "TEXT*" + bt.getLength();
           case MTEXT -> (bt.getLength() == null) ? "MTEXT" : "MTEXT*" + bt.getLength();
-          case NUMERIC, NUM_RANGE -> numericFragment(bt);
+          case NUMERIC, NUM_RANGE -> numericFragment(bt, referencedFqns);
           case BOOLEAN -> "BOOLEAN";
         };
       }
       case ReferenceTypeSpec ref -> {
         ref.validate();
         nv.validateFqn(ref.getTargetClassFqn(), "Reference target FQN");
+        referencedFqns.add(ref.getTargetClassFqn());
         yield "REFERENCE TO" + (Boolean.TRUE.equals(ref.getExternal()) ? " (EXTERNAL) " : " ")
             + ref.getTargetClassFqn().trim();
       }
@@ -81,28 +72,32 @@ public class AttributeTools {
       case EnumTreeValueTypeSpec enumTreeValueType -> {
         enumTreeValueType.validate();
         nv.validateFqn(enumTreeValueType.getEnumTreeDomainFqn(), "Enum tree domain FQN");
+        referencedFqns.add(enumTreeValueType.getEnumTreeDomainFqn());
         yield enumTreeValueType.getEnumTreeDomainFqn().trim();
       }
       case BasketTypeSpec basket -> {
         basket.validate();
         nv.validateFqn(basket.getTopicFqn(), "Basket topic FQN");
+        referencedFqns.add(basket.getTopicFqn());
         String kind = basket.getKind() == null ? "" : " (" + basket.getKind().name() + ")";
         yield "BASKET" + kind + " OF " + basket.getTopicFqn().trim();
       }
       case ObjectTypeSpec objectType -> {
         objectType.validate();
         nv.validateFqn(objectType.getTargetClassFqn(), "Object target FQN");
+        referencedFqns.add(objectType.getTargetClassFqn());
         yield (Boolean.TRUE.equals(objectType.getObjects()) ? "OBJECTS OF " : "OBJECT OF ")
             + objectType.getTargetClassFqn().trim();
       }
       case MetaobjectTypeSpec metaobjectType -> {
         metaobjectType.validate();
         nv.validateFqn(metaobjectType.getTableFqn(), "Metaobject table FQN");
+        referencedFqns.add(metaobjectType.getTableFqn());
         yield "METAOBJECT OF " + metaobjectType.getTableFqn().trim();
       }
       case GeometryTypeSpec geometryType -> {
         GeometryTypeRenderer.RenderedGeometry rendered = geometryRenderer.render(geometryType, iliVersion);
-        requiredImports.addAll(rendered.requiredImports());
+        referencedFqns.add(rendered.domainFqn());
         yield rendered.typeText();
       }
       default -> throw new IllegalArgumentException("Unsupported typeSpec configuration.");
@@ -119,13 +114,13 @@ public class AttributeTools {
 
     String line = req.getName().trim() + " : " + prefix + collectionPrefix + rhs + ";";
     return new RenderedAttribute(
-        new AttributeLineResponse(AnnotationRenderer.renderAnnotations(req.getIliDoc(), req.getMetaAttributes()) + line),
-        java.util.List.copyOf(requiredImports));
+        AnnotationRenderer.renderAnnotations(req.getIliDoc(), req.getMetaAttributes()) + line,
+        List.copyOf(referencedFqns));
   }
 
-  public record RenderedAttribute(AttributeLineResponse response, java.util.List<String> requiredImports) {}
+  public record RenderedAttribute(String text, List<String> referencedFqns) {}
 
-  private String numericFragment(BaseType bt) {
+  private String numericFragment(BaseType bt, List<String> referencedFqns) {
     boolean hasUnit = bt.getUnitFqn() != null && !bt.getUnitFqn().isBlank();
     var sb = new StringBuilder();
     if (bt.getKind() == BaseType.Kind.NUM_RANGE) {
@@ -137,6 +132,7 @@ public class AttributeTools {
     }
 
     if (hasUnit) {
+      referencedFqns.add(bt.getUnitFqn());
       sb.append(" [").append(bt.getUnitFqn().trim()).append("]");
     }
 
@@ -145,6 +141,7 @@ public class AttributeTools {
     if (hasRefSys || circular) {
       sb.append(" {");
       if (hasRefSys) {
+        referencedFqns.add(bt.getRefSysFqn());
         sb.append("REFSYS ").append(bt.getRefSysFqn().trim());
         if (circular) sb.append(" CIRCULAR");
       } else {

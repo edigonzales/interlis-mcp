@@ -2,7 +2,6 @@ package ch.so.agi.mcp.tools;
 
 import ch.so.agi.mcp.model.AttributeLineRequest;
 import ch.so.agi.mcp.model.AttributeLineRequest.Collection;
-import ch.so.agi.mcp.model.AttributeLineResponse;
 import ch.so.agi.mcp.model.BaseType;
 import ch.so.agi.mcp.model.BasketTypeSpec;
 import ch.so.agi.mcp.model.BlackboxTypeSpec;
@@ -25,20 +24,20 @@ class AttributeToolsTest {
     private final AttributeTools attributeTools = new AttributeTools();
 
     @Test
-    void createAttributeLineV2_usesDomainWhenPresent() {
+    void renderAttribute_usesDomainWhenPresent() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("farbe");
         TypeSpec spec = new TypeSpec();
         spec.setDomainFqn("Demo.Core.Farbe");
         request.setTypeSpec(spec);
 
-        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+        AttributeTools.RenderedAttribute rendered = attributeTools.renderAttribute(request, "2.4");
 
-        assertEquals("farbe : Demo.Core.Farbe;", response.getIliSnippet());
+        assertEquals("farbe : Demo.Core.Farbe;", rendered.text());
     }
 
     @Test
-    void createAttributeLineV2_usesStructureWhenPresent() {
+    void renderAttribute_usesStructureWhenPresent() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("addresses");
         request.setCollection(Collection.LIST_OF);
@@ -46,13 +45,13 @@ class AttributeToolsTest {
         spec.setStructureFqn("Demo.Core.Address");
         request.setTypeSpec(spec);
 
-        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+        AttributeTools.RenderedAttribute rendered = attributeTools.renderAttribute(request, "2.4");
 
-        assertEquals("addresses : LIST OF Demo.Core.Address;", response.getIliSnippet());
+        assertEquals("addresses : LIST OF Demo.Core.Address;", rendered.text());
     }
 
     @Test
-    void createAttributeLineV2_formatsBaseTypeRange() {
+    void renderAttribute_formatsBaseTypeRange() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("hoehe");
         request.setMandatory(true);
@@ -68,13 +67,13 @@ class AttributeToolsTest {
         spec.setBaseType(baseType);
         request.setTypeSpec(spec);
 
-        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+        AttributeTools.RenderedAttribute rendered = attributeTools.renderAttribute(request, "2.4");
 
-        assertEquals("hoehe : MANDATORY LIST OF 0.0 .. 100.0 [INTERLIS.m];", response.getIliSnippet());
+        assertEquals("hoehe : MANDATORY LIST OF 0.0 .. 100.0 [INTERLIS.m];", rendered.text());
     }
 
     @Test
-    void createAttributeLineV2_formatsIntegerRangeWithoutNumericKeyword() {
+    void renderAttribute_formatsIntegerRangeWithoutNumericKeyword() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("BFSNr");
         request.setMandatory(true);
@@ -88,13 +87,13 @@ class AttributeToolsTest {
         spec.setBaseType(baseType);
         request.setTypeSpec(spec);
 
-        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+        AttributeTools.RenderedAttribute rendered = attributeTools.renderAttribute(request, "2.4");
 
-        assertEquals("BFSNr : MANDATORY 2000 .. 3000;", response.getIliSnippet());
+        assertEquals("BFSNr : MANDATORY 2000 .. 3000;", rendered.text());
     }
 
     @Test
-    void createAttributeLineV2_preservesHighPrecisionRange() {
+    void renderAttribute_preservesHighPrecisionRange() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("wert");
 
@@ -107,13 +106,13 @@ class AttributeToolsTest {
         spec.setBaseType(baseType);
         request.setTypeSpec(spec);
 
-        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+        AttributeTools.RenderedAttribute rendered = attributeTools.renderAttribute(request, "2.4");
 
-        assertEquals("wert : 0.000000000000000001 .. 0.000000000000000009;", response.getIliSnippet());
+        assertEquals("wert : 0.000000000000000001 .. 0.000000000000000009;", rendered.text());
     }
 
     @Test
-    void createAttributeLineV2_rejectsInvalidAttributeName() {
+    void renderAttribute_rejectsInvalidAttributeName() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("1invalid");
         TypeSpec spec = new TypeSpec();
@@ -123,12 +122,12 @@ class AttributeToolsTest {
         request.setTypeSpec(spec);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> attributeTools.createAttributeLine(request));
+                () -> attributeTools.renderAttribute(request, "2.4"));
         assertTrue(ex.getMessage().contains("Attribute name"));
     }
 
     @Test
-    void createAttributeLineV2_formatsBareNumeric() {
+    void renderAttribute_formatsBareNumeric() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("winkel");
 
@@ -139,13 +138,13 @@ class AttributeToolsTest {
         spec.setBaseType(baseType);
         request.setTypeSpec(spec);
 
-        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+        AttributeTools.RenderedAttribute rendered = attributeTools.renderAttribute(request, "2.4");
 
-        assertEquals("winkel : NUMERIC;", response.getIliSnippet());
+        assertEquals("winkel : NUMERIC;", rendered.text());
     }
 
     @Test
-    void createAttributeLineV2_formatsNumericWithUnitAndRefSysCircular() {
+    void renderAttribute_formatsNumericWithUnitAndRefSysCircular() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("azimut");
 
@@ -159,13 +158,13 @@ class AttributeToolsTest {
         spec.setBaseType(baseType);
         request.setTypeSpec(spec);
 
-        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+        AttributeTools.RenderedAttribute rendered = attributeTools.renderAttribute(request, "2.4");
 
-        assertEquals("azimut : NUMERIC [INTERLIS.deg] {REFSYS MyModel.AngleRef CIRCULAR};", response.getIliSnippet());
+        assertEquals("azimut : NUMERIC [INTERLIS.deg] {REFSYS MyModel.AngleRef CIRCULAR};", rendered.text());
     }
 
     @Test
-    void createAttributeLineV2_formatsNumericWithCircularOnly() {
+    void renderAttribute_formatsNumericWithCircularOnly() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("phase");
 
@@ -177,13 +176,13 @@ class AttributeToolsTest {
         spec.setBaseType(baseType);
         request.setTypeSpec(spec);
 
-        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+        AttributeTools.RenderedAttribute rendered = attributeTools.renderAttribute(request, "2.4");
 
-        assertEquals("phase : NUMERIC {CIRCULAR};", response.getIliSnippet());
+        assertEquals("phase : NUMERIC {CIRCULAR};", rendered.text());
     }
 
     @Test
-    void createAttributeLineV2_rendersIliDocAndMetaAttributes() {
+    void renderAttribute_rendersIliDocAndMetaAttributes() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("phase");
         request.setIliDoc("Attributdoku");
@@ -196,16 +195,16 @@ class AttributeToolsTest {
         spec.setBaseType(baseType);
         request.setTypeSpec(spec);
 
-        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+        AttributeTools.RenderedAttribute rendered = attributeTools.renderAttribute(request, "2.4");
 
         assertEquals(String.join("\n",
                 "/** Attributdoku */",
                 "!!@ ch.so.attr=TRUE",
-                "phase : BOOLEAN;"), response.getIliSnippet());
+                "phase : BOOLEAN;"), rendered.text());
     }
 
     @Test
-    void createAttributeLineV2_rejectsInvalidMetaAttributeDefinition() {
+    void renderAttribute_rejectsInvalidMetaAttributeDefinition() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("phase");
         request.setMetaAttributes(List.of(meta("ch.so.attr", "x", "Y")));
@@ -218,12 +217,12 @@ class AttributeToolsTest {
         request.setTypeSpec(spec);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> attributeTools.createAttributeLine(request));
+                () -> attributeTools.renderAttribute(request, "2.4"));
         assertTrue(ex.getMessage().contains("exactly one"));
     }
 
     @Test
-    void createAttributeLineV2_formatsReferenceType() {
+    void renderAttribute_formatsReferenceType() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("ziel");
 
@@ -235,13 +234,13 @@ class AttributeToolsTest {
         spec.setReferenceType(referenceType);
         request.setTypeSpec(spec);
 
-        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+        AttributeTools.RenderedAttribute rendered = attributeTools.renderAttribute(request, "2.4");
 
-        assertEquals("ziel : REFERENCE TO (EXTERNAL) Demo.Topic.Target;", response.getIliSnippet());
+        assertEquals("ziel : REFERENCE TO (EXTERNAL) Demo.Topic.Target;", rendered.text());
     }
 
     @Test
-    void createAttributeLineV2_formatsBlackboxType() {
+    void renderAttribute_formatsBlackboxType() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("payload");
 
@@ -252,13 +251,13 @@ class AttributeToolsTest {
         spec.setBlackboxType(blackboxType);
         request.setTypeSpec(spec);
 
-        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+        AttributeTools.RenderedAttribute rendered = attributeTools.renderAttribute(request, "2.4");
 
-        assertEquals("payload : BLACKBOX XML;", response.getIliSnippet());
+        assertEquals("payload : BLACKBOX XML;", rendered.text());
     }
 
     @Test
-    void createAttributeLineV2_formatsEnumTreeValueType() {
+    void renderAttribute_formatsEnumTreeValueType() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("statusPfad");
 
@@ -269,13 +268,13 @@ class AttributeToolsTest {
         spec.setEnumTreeValueType(enumTreeValueType);
         request.setTypeSpec(spec);
 
-        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+        AttributeTools.RenderedAttribute rendered = attributeTools.renderAttribute(request, "2.4");
 
-        assertEquals("statusPfad : Demo.Topic.StatusTree;", response.getIliSnippet());
+        assertEquals("statusPfad : Demo.Topic.StatusTree;", rendered.text());
     }
 
     @Test
-    void createAttributeLineV2_formatsBasketType() {
+    void renderAttribute_formatsBasketType() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("korb");
 
@@ -287,13 +286,13 @@ class AttributeToolsTest {
         spec.setBasketType(basketType);
         request.setTypeSpec(spec);
 
-        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+        AttributeTools.RenderedAttribute rendered = attributeTools.renderAttribute(request, "2.4");
 
-        assertEquals("korb : BASKET (DATA) OF Demo.Topic;", response.getIliSnippet());
+        assertEquals("korb : BASKET (DATA) OF Demo.Topic;", rendered.text());
     }
 
     @Test
-    void createAttributeLineV2_formatsObjectType() {
+    void renderAttribute_formatsObjectType() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("objekte");
 
@@ -305,13 +304,13 @@ class AttributeToolsTest {
         spec.setObjectType(objectType);
         request.setTypeSpec(spec);
 
-        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+        AttributeTools.RenderedAttribute rendered = attributeTools.renderAttribute(request, "2.4");
 
-        assertEquals("objekte : OBJECTS OF Demo.Topic.Target;", response.getIliSnippet());
+        assertEquals("objekte : OBJECTS OF Demo.Topic.Target;", rendered.text());
     }
 
     @Test
-    void createAttributeLineV2_formatsMetaobjectType() {
+    void renderAttribute_formatsMetaobjectType() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("meta");
 
@@ -322,13 +321,13 @@ class AttributeToolsTest {
         spec.setMetaobjectType(metaobjectType);
         request.setTypeSpec(spec);
 
-        AttributeLineResponse response = attributeTools.createAttributeLine(request);
+        AttributeTools.RenderedAttribute rendered = attributeTools.renderAttribute(request, "2.4");
 
-        assertEquals("meta : METAOBJECT OF Demo.Topic.MetaCatalog;", response.getIliSnippet());
+        assertEquals("meta : METAOBJECT OF Demo.Topic.MetaCatalog;", rendered.text());
     }
 
     @Test
-    void createAttributeLineV2_rejectsMultipleTypeFamilies() {
+    void renderAttribute_rejectsMultipleTypeFamilies() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("phase");
 
@@ -344,12 +343,12 @@ class AttributeToolsTest {
         request.setTypeSpec(spec);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-            () -> attributeTools.createAttributeLine(request));
+            () -> attributeTools.renderAttribute(request, "2.4"));
         assertTrue(ex.getMessage().contains("exactly one"));
     }
 
     @Test
-    void createAttributeLineV2_generatedReferenceCompiles() {
+    void renderAttribute_generatedReferenceCompiles() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("ziel");
 
@@ -360,7 +359,7 @@ class AttributeToolsTest {
         spec.setReferenceType(referenceType);
         request.setTypeSpec(spec);
 
-        String line = attributeTools.createAttributeLine(request).getIliSnippet();
+        String line = attributeTools.renderAttribute(request, "2.4").text();
         assertCompiles("""
             INTERLIS 2.4;
 
@@ -379,7 +378,7 @@ class AttributeToolsTest {
     }
 
     @Test
-    void createAttributeLineV2_generatedBlackboxCompiles() {
+    void renderAttribute_generatedBlackboxCompiles() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("payload");
 
@@ -390,7 +389,7 @@ class AttributeToolsTest {
         spec.setBlackboxType(blackboxType);
         request.setTypeSpec(spec);
 
-        String line = attributeTools.createAttributeLine(request).getIliSnippet();
+        String line = attributeTools.renderAttribute(request, "2.4").text();
         assertCompiles("""
             INTERLIS 2.4;
 
@@ -407,7 +406,7 @@ class AttributeToolsTest {
     }
 
     @Test
-    void createAttributeLineV2_generatedEnumTreeValueCompiles() {
+    void renderAttribute_generatedEnumTreeValueCompiles() {
         AttributeLineRequest request = new AttributeLineRequest();
         request.setName("pfad");
 
@@ -418,7 +417,7 @@ class AttributeToolsTest {
         spec.setEnumTreeValueType(enumTreeValueType);
         request.setTypeSpec(spec);
 
-        String line = attributeTools.createAttributeLine(request).getIliSnippet();
+        String line = attributeTools.renderAttribute(request, "2.4").text();
         assertCompiles("""
             INTERLIS 2.4;
 
@@ -460,14 +459,14 @@ class AttributeToolsTest {
             BaseType base = mapper.readValue("{\"kind\":\"NUM_RANGE\",\"min\":\"" + bounds.get(0) + "\",\"max\":\"" + bounds.get(1) + "\"}", BaseType.class);
             TypeSpec spec = new TypeSpec(); spec.setBaseType(base);
             AttributeLineRequest request = new AttributeLineRequest(); request.setName("value"); request.setTypeSpec(spec);
-            assertEquals("value : " + bounds.get(0) + " .. " + bounds.get(1) + ";", attributeTools.createAttributeLine(request).getIliSnippet());
+            assertEquals("value : " + bounds.get(0) + " .. " + bounds.get(1) + ";", attributeTools.renderAttribute(request, "2.4").text());
         }
         BaseType invalid = mapper.readValue("{\"kind\":\"NUM_RANGE\",\"min\":\"0.0\",\"max\":\"100.00\"}", BaseType.class);
         TypeSpec invalidSpec = new TypeSpec(); invalidSpec.setBaseType(invalid);
         AttributeLineRequest invalidRequest = new AttributeLineRequest();
         invalidRequest.setName("percentage"); invalidRequest.setTypeSpec(invalidSpec);
         String message = assertThrows(IllegalArgumentException.class,
-            () -> attributeTools.createAttributeLine(invalidRequest)).getMessage();
+            () -> attributeTools.renderAttribute(invalidRequest, "2.4")).getMessage();
         assertTrue(message.contains("percentage"));
         assertTrue(message.contains("min=0.0 (scale=1)"));
         assertTrue(message.contains("max=100.00 (scale=2)"));

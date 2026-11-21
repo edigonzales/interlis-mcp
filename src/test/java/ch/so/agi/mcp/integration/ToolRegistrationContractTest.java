@@ -373,7 +373,9 @@ class ToolRegistrationContractTest {
     assertThat(structured.get("status")).isEqualTo("APPLIED");
     assertThat(structured.get("updatedModelText").toString())
         .contains("egid : MANDATORY TEXT*14;");
-    assertThat(structured).containsKeys("sourceEdits", "afterReview", "semanticDiff");
+    assertThat(structured).containsKeys("derivedImports", "sourceEdits", "afterReview", "semanticDiff");
+    assertThat(mapper.writeValueAsString(applyIliModelChanges.tool().outputSchema()))
+        .contains("\"derivedImports\"", "\"sourceEdits\"", "\"startOffset\"", "\"endOffset\"");
     assertThat(((Map<?, ?>) structured.get("semanticDiff")).containsKey("potentiallyBreakingChanges")).isTrue();
   }
 

@@ -7,21 +7,15 @@ import ch.so.agi.mcp.util.AnnotationRenderer;
 import ch.so.agi.mcp.util.NameValidator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
-import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
-import tools.jackson.databind.ObjectMapper;
 
 @Component
 public class DomainTools {
-
-  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   public static final class CoordinateAxis {
     @JsonProperty(required = true)
@@ -64,31 +58,29 @@ public class DomainTools {
     }
   }
 
-  public Map<String,Object> createEnumDomain(
-      @McpToolParam(description = "Domain-Name", required = true) String name,
-      @McpToolParam(description = "Enum-Items in Reihenfolge (einfache Variante ohne Item-Metaattribute)", required = false) @Nullable List<String> items,
-      @McpToolParam(description = "Annotierte Enum-Items in Reihenfolge mit optional iliDoc und metaAttributes", required = false) @Nullable List<EnumValueItem> itemSpecs,
-      @McpToolParam(description = "IliDoc-Blockkommentar direkt vor der DOMAIN", required = false) @Nullable String iliDoc,
-      @McpToolParam(description = "INTERLIS-Metaattribute direkt vor der DOMAIN", required = false) @Nullable List<MetaAttributeSpec> metaAttributes
+  public String renderEnumDomain(
+      String name,
+      @Nullable List<EnumValueItem> itemSpecs,
+      @Nullable String iliDoc,
+      @Nullable List<MetaAttributeSpec> metaAttributes
   ) {
     if (name == null || name.isBlank()) {
       throw new IllegalArgumentException("Domain name is required.");
     }
 
     NameValidator.ascii().validateIdent(name.trim(), "Domain name");
-    List<EnumValueItem> normalizedItems = normalizeFlatEnumItems(items, itemSpecs);
-    String snippet = AnnotationRenderer.renderAnnotations(iliDoc, metaAttributes)
-        + "DOMAIN\n  " + name.trim() + " = " + renderFlatEnumItems(normalizedItems, 1) + ";";
-    return Map.of("iliSnippet", snippet);
+    validateFlatEnumItems(itemSpecs, "itemSpecs");
+    return AnnotationRenderer.renderAnnotations(iliDoc, metaAttributes)
+        + "DOMAIN\n  " + name.trim() + " = " + renderFlatEnumItems(itemSpecs, 1) + ";";
   }
 
-  public Map<String,Object> createNumericDomain(
-      @McpToolParam(description = "Domain-Name", required = true) String name,
-      @McpToolParam(description = "Minimum", required = true) String min,
-      @McpToolParam(description = "Maximum", required = true) String max,
-      @McpToolParam(description = "Einheits-FQN, z. B. 'INTERLIS.m'", required = false) @Nullable String unitFqn,
-      @McpToolParam(description = "IliDoc-Blockkommentar direkt vor der DOMAIN", required = false) @Nullable String iliDoc,
-      @McpToolParam(description = "INTERLIS-Metaattribute direkt vor der DOMAIN", required = false) @Nullable List<MetaAttributeSpec> metaAttributes
+  public String renderNumericDomain(
+      String name,
+      String min,
+      String max,
+      @Nullable String unitFqn,
+      @Nullable String iliDoc,
+      @Nullable List<MetaAttributeSpec> metaAttributes
   ) {
     if (name == null || name.isBlank() || min == null || min.isBlank() || max == null || max.isBlank()) {
       throw new IllegalArgumentException("Numeric domain requires name, min and max.");
@@ -119,17 +111,16 @@ public class DomainTools {
       unit = " [" + unitFqn.trim() + "]";
     }
     String range = normalizedMin + " .. " + normalizedMax;
-    String snippet = AnnotationRenderer.renderAnnotations(iliDoc, metaAttributes)
+    return AnnotationRenderer.renderAnnotations(iliDoc, metaAttributes)
         + "DOMAIN\n  " + normalizedName + " = " + range + unit + ";";
-    return Map.of("iliSnippet", snippet);
   }
 
-  public Map<String,Object> createUnit(
-      @McpToolParam(description = "Einheiten-Name", required = true) String name,
-      @McpToolParam(description = "Positiver Faktor zur Basis-Einheit, z. B. 1000 für Kilometer", required = true) BigDecimal factor,
-      @McpToolParam(description = "Basis-Unit, z. B. 'INTERLIS.m'", required = true) String base,
-      @McpToolParam(description = "IliDoc-Blockkommentar direkt vor der UNIT", required = false) @Nullable String iliDoc,
-      @McpToolParam(description = "INTERLIS-Metaattribute direkt vor der UNIT", required = false) @Nullable List<MetaAttributeSpec> metaAttributes
+  public String renderUnit(
+      String name,
+      BigDecimal factor,
+      String base,
+      @Nullable String iliDoc,
+      @Nullable List<MetaAttributeSpec> metaAttributes
   ) {
     if (name == null || name.isBlank()) {
       throw new IllegalArgumentException("Unit name is required.");
@@ -147,19 +138,18 @@ public class DomainTools {
     validator.validateIdent(trimmedName, "Unit name");
     validator.validateFqn(trimmedBase, "Base unit reference");
 
-    String snippet = AnnotationRenderer.renderAnnotations(iliDoc, metaAttributes)
+    return AnnotationRenderer.renderAnnotations(iliDoc, metaAttributes)
         + "UNIT\n  " + trimmedName + " = " + factor.stripTrailingZeros().toPlainString()
         + " [" + trimmedBase + "];";
-    return Map.of("iliSnippet", snippet);
   }
 
-  public Map<String, Object> createCoordDomainSnippet(
-      @McpToolParam(description = "Domain-Name", required = true) String name,
-      @McpToolParam(description = "Zwei oder drei Achsen mit min, max und unitFqn", required = true) List<CoordinateAxis> axes,
-      @McpToolParam(description = "Optionale erste ROTATION-Achse (1-basiert; nur zusammen mit rotationTo)", required = false) @Nullable Integer rotationFrom,
-      @McpToolParam(description = "Optionale zweite ROTATION-Achse (1-basiert; nur zusammen mit rotationFrom)", required = false) @Nullable Integer rotationTo,
-      @McpToolParam(description = "IliDoc-Blockkommentar direkt vor der DOMAIN", required = false) @Nullable String iliDoc,
-      @McpToolParam(description = "INTERLIS-Metaattribute direkt vor der DOMAIN", required = false) @Nullable List<MetaAttributeSpec> metaAttributes
+  public String renderCoordinateDomain(
+      String name,
+      List<CoordinateAxis> axes,
+      @Nullable Integer rotationFrom,
+      @Nullable Integer rotationTo,
+      @Nullable String iliDoc,
+      @Nullable List<MetaAttributeSpec> metaAttributes
   ) {
     if (name == null || name.isBlank()) {
       throw new IllegalArgumentException("Domain name is required.");
@@ -219,66 +209,27 @@ public class DomainTools {
     definition.setLength(definition.length() - 1);
     definition.append(";");
 
-    String snippet = AnnotationRenderer.renderAnnotations(iliDoc, metaAttributes)
-        + definition;
-    return Map.of("iliSnippet", snippet);
+    return AnnotationRenderer.renderAnnotations(iliDoc, metaAttributes) + definition;
   }
 
-  public Map<String, Object> createEnumTreeDomainSnippet(
-      @McpToolParam(description = "Domain-Name", required = true) String name,
-      @McpToolParam(description = "Rekursiver Enum-Baum. Jedes Element ist ein Objekt mit name (required) und optional iliDoc, metaAttributes und children mit derselben Struktur.", required = true) List<?> items,
-      @McpToolParam(description = "IliDoc-Blockkommentar direkt vor der DOMAIN", required = false) @Nullable String iliDoc,
-      @McpToolParam(description = "INTERLIS-Metaattribute direkt vor der DOMAIN", required = false) @Nullable List<MetaAttributeSpec> metaAttributes
+  public String renderEnumTreeDomain(
+      String name,
+      @Nullable List<EnumTreeItem> items,
+      @Nullable String iliDoc,
+      @Nullable List<MetaAttributeSpec> metaAttributes
   ) {
     if (name == null || name.isBlank()) {
       throw new IllegalArgumentException("Domain name is required.");
     }
 
     NameValidator.ascii().validateIdent(name.trim(), "Domain name");
-    List<EnumTreeItem> normalizedItems = normalizeEnumTreeItems(items);
-    validateEnumTreeItems(normalizedItems, "items");
+    validateEnumTreeItems(items, "items");
 
-    String snippet = AnnotationRenderer.renderAnnotations(iliDoc, metaAttributes)
-        + "DOMAIN\n  " + name.trim() + " = " + renderEnumTree(normalizedItems, 1) + ";";
-    return Map.of("iliSnippet", snippet);
+    return AnnotationRenderer.renderAnnotations(iliDoc, metaAttributes)
+        + "DOMAIN\n  " + name.trim() + " = " + renderEnumTree(items, 1) + ";";
   }
 
-  private List<EnumValueItem> normalizeFlatEnumItems(
-      @Nullable List<String> items,
-      @Nullable List<EnumValueItem> itemSpecs) {
-    boolean hasItems = items != null && !items.isEmpty();
-    boolean hasItemSpecs = itemSpecs != null && !itemSpecs.isEmpty();
-    if (hasItems == hasItemSpecs) {
-      throw new IllegalArgumentException("Exactly one of 'items' or 'itemSpecs' must be provided.");
-    }
-
-    if (hasItemSpecs) {
-      return validateFlatEnumItems(itemSpecs, "itemSpecs");
-    }
-
-    List<EnumValueItem> normalized = new ArrayList<>();
-    for (int i = 0; i < items.size(); i++) {
-      String itemName = items.get(i);
-      if (itemName == null || itemName.isBlank()) {
-        throw new IllegalArgumentException("items[" + i + "] must not be blank.");
-      }
-
-      EnumValueItem item = new EnumValueItem();
-      item.setName(itemName.trim());
-      normalized.add(item);
-    }
-    return validateFlatEnumItems(normalized, "items");
-  }
-
-  private List<EnumTreeItem> normalizeEnumTreeItems(List<?> items) {
-    return items.stream()
-        .map(item -> item instanceof EnumTreeItem treeItem
-            ? treeItem
-            : OBJECT_MAPPER.convertValue(item, EnumTreeItem.class))
-        .toList();
-  }
-
-  private List<EnumValueItem> validateFlatEnumItems(List<EnumValueItem> items, String path) {
+  private void validateFlatEnumItems(List<EnumValueItem> items, String path) {
     if (items == null || items.isEmpty()) {
       throw new IllegalArgumentException(path + " must not be empty.");
     }
@@ -301,7 +252,6 @@ public class DomainTools {
       item.setName(trimmedName);
       AnnotationRenderer.normalizeMetaAttributes(item.getMetaAttributes(), false, true);
     }
-    return items;
   }
 
   private void validateEnumTreeItems(@Nullable List<EnumTreeItem> items, String path) {

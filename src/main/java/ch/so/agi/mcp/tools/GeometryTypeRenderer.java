@@ -69,7 +69,7 @@ public final class GeometryTypeRenderer {
         + spec.getInterlisKind().name() + " " + lineForm
         + "\n    VERTEX " + coord
         + "\n    WITHOUT OVERLAPS > " + overlap;
-    return new RenderedGeometry(rendered, List.of());
+    return new RenderedGeometry(rendered, coord);
   }
 
   private RenderedGeometry renderChBase(GeometryTypeSpec spec, String iliVersion) {
@@ -97,7 +97,8 @@ public final class GeometryTypeRenderer {
       throw new IllegalArgumentException(
           "Unsupported CHBASE geometry type '" + local + "' for INTERLIS " + iliVersion + ".");
     }
-    return new RenderedGeometry(model + "." + canonical, List.of(model));
+    String domain = model + "." + canonical;
+    return new RenderedGeometry(domain, domain);
   }
 
   private Map<String, String> chBaseTypes(String iliVersion) {
@@ -143,5 +144,5 @@ public final class GeometryTypeRenderer {
     return iliVersion;
   }
 
-  public record RenderedGeometry(String typeText, List<String> requiredImports) {}
+  public record RenderedGeometry(String typeText, String domainFqn) {}
 }
