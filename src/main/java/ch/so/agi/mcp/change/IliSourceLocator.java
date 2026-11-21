@@ -30,7 +30,8 @@ public final class IliSourceLocator {
       IliSourceSpan declarationSpan,
       IliSourceSpan headerSpan,
       IliSourceSpan bodySpan,
-      IliSourceSpan endMarkerSpan) {}
+      IliSourceSpan endMarkerSpan,
+      int endPreludeOffset) {}
 
   /** Exact attribute declaration plus the IliDoc/meta-attribute prelude owned by it. */
   public record AttributeLocation(
@@ -45,7 +46,7 @@ public final class IliSourceLocator {
     SYMBOL
   }
 
-  private record Token(TokenKind kind, String text, int startOffset, int endOffset, int line) {
+  private record Token(TokenKind kind, String text, int startOffset, int endOffset, int annotationStart) {
     boolean isIdentifier(String expected) {
       return kind == TokenKind.IDENTIFIER && text.equals(expected);
     }
@@ -299,7 +300,8 @@ public final class IliSourceLocator {
           document.span(openingToken.startOffset(), terminator.endOffset()),
           document.span(openingToken.startOffset(), equalsToken.endOffset()),
           document.span(equalsToken.endOffset(), token.startOffset()),
-          document.span(token.startOffset(), terminator.endOffset())));
+          document.span(token.startOffset(), terminator.endOffset()),
+          token.annotationStart() < 0 ? token.startOffset() : token.annotationStart()));
     }
 
     result.sort(Comparator.comparingInt(block -> block.declarationSpan().startOffset()));
@@ -376,6 +378,7 @@ public final class IliSourceLocator {
     String source = document.text();
     List<Token> tokens = new ArrayList<>();
     int i = 0;
+    int annotationStart = -1;
     while (i < source.length()) {
       char c = source.charAt(i);
 
@@ -384,10 +387,12 @@ public final class IliSourceLocator {
         continue;
       }
       if (c == '!' && i + 1 < source.length() && source.charAt(i + 1) == '!') {
+        if (annotationStart < 0 && source.startsWith("!!@", i)) annotationStart = i;
         i = skipLineComment(source, i + 2);
         continue;
       }
       if (c == '/' && i + 1 < source.length() && source.charAt(i + 1) == '*') {
+        if (annotationStart < 0 && source.startsWith("/**", i)) annotationStart = i;
         i = skipBlockComment(source, i + 2);
         continue;
       }
@@ -398,7 +403,8 @@ public final class IliSourceLocator {
       }
       if (c == '"') {
         int end = scanString(source, i);
-        tokens.add(new Token(TokenKind.STRING, source.substring(i, end), i, end, document.lineOfOffset(i)));
+        tokens.add(new Token(TokenKind.STRING, source.substring(i, end), i, end, annotationStart));
+        annotationStart = -1;
         i = end;
         continue;
       }
@@ -407,12 +413,14 @@ public final class IliSourceLocator {
         while (end < source.length() && isIdentifierPart(source.charAt(end))) {
           end++;
         }
-        tokens.add(new Token(TokenKind.IDENTIFIER, source.substring(i, end), i, end, document.lineOfOffset(i)));
+        tokens.add(new Token(TokenKind.IDENTIFIER, source.substring(i, end), i, end, annotationStart));
+        annotationStart = -1;
         i = end;
         continue;
       }
 
-      tokens.add(new Token(TokenKind.SYMBOL, String.valueOf(c), i, i + 1, document.lineOfOffset(i)));
+      tokens.add(new Token(TokenKind.SYMBOL, String.valueOf(c), i, i + 1, annotationStart));
+      annotationStart = -1;
       i++;
     }
     return tokens;

@@ -120,12 +120,13 @@ public final class IliSourceDocument {
 
   public IliTextPatch insertBeforeEnd(
       BlockLocation block, String fragment, boolean blankLine, String description) {
-    IliSourceSpan end = block.endMarkerSpan();
-    int lineStart = lineStartOffset(end.startLine());
-    if (skipHorizontalSpace(lineStart) == end.startOffset()) {
+    // Trailing annotations must not attach to the inserted declaration.
+    int offset = block.endPreludeOffset();
+    int lineStart = lineStartOffset(lineOfOffset(offset));
+    if (skipHorizontalSpace(lineStart) == offset) {
       return insertLines(lineStart, fragment, bodyIndent(block), blankLine ? lineSeparator : "", description);
     }
-    return insertLines(end.startOffset(), fragment, bodyIndent(block),
+    return insertLines(offset, fragment, bodyIndent(block),
         leadingIndent(block.headerSpan().startLine()), description);
   }
 

@@ -748,7 +748,7 @@ public final class IliModelChangesService {
     }
 
     IliSourceSpan prefix = sourceLocator.attributeSectionStart(document, block);
-    if (document.text().substring(prefix.endOffset(), block.endMarkerSpan().startOffset()).isBlank()) {
+    if (document.text().substring(prefix.endOffset(), block.endPreludeOffset()).isBlank()) {
       return document.insertBeforeEnd(block, fragment, false, description);
     }
     return document.insertAfter(prefix, fragment, indent, description);

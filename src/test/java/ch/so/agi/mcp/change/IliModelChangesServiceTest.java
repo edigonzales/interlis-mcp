@@ -822,6 +822,35 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
   }
 
   @ParameterizedTest
+  @CsvSource({"2.3, false", "2.4, true"})
+  void declarationsDoNotInheritAnnotationsBeforeEnd(String version, boolean compact) {
+    String annotationLine = compact ? " " : "\n    ";
+    String source = """
+        INTERLIS %s;
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "1" =
+          TOPIC Data =
+            CLASS Thing = END Thing;%s/** Trailing documentation. */
+            !!@ note="keep"
+          END Data;
+        END Demo.
+        """.formatted(version, annotationLine);
+    var compiler = new CountingCompiler();
+    var result = service(compiler).apply(source, batch(addClass("Extra"), true), null, null, null);
+    assertThat(result.status).as(result.reason).isEqualTo(IliAuthoringResult.Status.APPLIED);
+    assertThat(compiler.calls).isEqualTo(2);
+    var extra = compiler.lastCompilation.transferDescription().getElement("Demo.Data.Extra");
+    assertThat(extra.getDocumentation()).isNull();
+    assertThat(extra.getMetaValues()).isNull();
+    assertThat(result.sourceEdits).singleElement().satisfies(edit -> {
+      int commentAt = source.indexOf("/** Trailing documentation. */");
+      assertInsertion(edit, compact ? commentAt : commentAt - 4, compact ? 4 : 5,
+          compact ? "\n    CLASS Extra =\n    END Extra;\n  "
+              : "    CLASS Extra =\n    END Extra;\n\n");
+    });
+    assertReplay(source, result);
+  }
+
+  @ParameterizedTest
   @CsvSource({"false, ''", "false, '  '", "true, ' '"})
   void importsFollowModelSettingsAndPrecedeDeclarationsAtAnEmptyModelEnd(
       boolean settings, String gap, @TempDir Path repository) throws IOException {
