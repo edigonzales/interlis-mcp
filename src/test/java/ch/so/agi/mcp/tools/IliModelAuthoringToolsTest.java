@@ -2,6 +2,8 @@ package ch.so.agi.mcp.tools;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.interlis.ili2c.metamodel.AttributeDef;
+import ch.interlis.ili2c.metamodel.SurfaceType;
 import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.analysis.ModelChangeReviewService;
 import ch.so.agi.mcp.analysis.ModelPurpose;
@@ -25,15 +27,75 @@ import ch.so.agi.mcp.model.IliModelSpec;
 import ch.so.agi.mcp.model.IliSpecRenderer;
 import ch.so.agi.mcp.model.TypeSpec;
 import ch.so.agi.mcp.service.IliCompilerService;
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class IliModelAuthoringToolsTest {
+
+  @ParameterizedTest
+  @CsvSource({"2.3,false", "2.4,false", "2.4,true"})
+  void authorsExplicitSurfaceWithExactlyOneCoordinateModelImport(
+      String version, boolean explicitImport, @TempDir Path repository) throws IOException {
+    Files.writeString(repository.resolve("CoordLib.ili"), """
+        INTERLIS %s;
+        MODEL CoordLib AT "https://example.org" VERSION "1" =
+          DOMAIN Coord2 = COORD 0.000 .. 100.000 [INTERLIS.m], 0.000 .. 100.000 [INTERLIS.m];
+        END CoordLib.
+        """.formatted(version));
+
+    IliModelSpec spec = new IliModelSpec();
+    spec.name = "SurfaceDemo";
+    spec.uri = "https://example.org";
+    spec.version = "1";
+    spec.iliVersion = version;
+    if (explicitImport) spec.imports = List.of("CoordLib");
+
+    GeometryTypeSpec geometry = new GeometryTypeSpec();
+    geometry.setProvider(GeometryTypeSpec.Provider.INTERLIS);
+    geometry.setInterlisKind(GeometryTypeSpec.InterlisKind.SURFACE);
+    geometry.setCoordDomainFqn("CoordLib.Coord2");
+    geometry.setArcs(false);
+    geometry.setOverlapMm(BigDecimal.ONE);
+    TypeSpec type = new TypeSpec();
+    type.setGeometryType(geometry);
+    AttributeLineRequest footprint = new AttributeLineRequest();
+    footprint.setName("footprint");
+    footprint.setTypeSpec(type);
+    IliModelSpec.ClassSpec parcel = new IliModelSpec.ClassSpec();
+    parcel.name = "Parcel";
+    parcel.attributes = List.of(footprint);
+    IliModelSpec.TopicSpec data = new IliModelSpec.TopicSpec();
+    data.name = "Data";
+    data.classes = List.of(parcel);
+    spec.topics = List.of(data);
+
+    var compiler = new CountingCompiler(repository.toString());
+    var result = tools(compiler).authorIliModel(spec, ModelPurpose.CAPTURE, ModelingRuleProfile.CORE);
+
+    assertThat(result.status).as("%s %s", result.reason, compiler.lastCompilation.messages())
+        .isEqualTo(IliAuthoringResult.Status.GENERATED);
+    assertThat(compiler.calls).isOne();
+    assertThat(result.derivedImports).containsExactly("CoordLib");
+    assertThat(result.updatedModelText).containsOnlyOnce("IMPORTS CoordLib;")
+        .contains("SURFACE WITH (STRAIGHTS)", "VERTEX CoordLib.Coord2", "WITHOUT OVERLAPS > 0.001");
+    var attribute = (AttributeDef) compiler.lastCompilation.transferDescription()
+        .getElement("SurfaceDemo.Data.Parcel.footprint");
+    assertThat(attribute.getDomain()).isInstanceOfSatisfying(SurfaceType.class, surface -> {
+      assertThat(surface.getControlPointDomain().getScopedName()).isEqualTo("CoordLib.Coord2");
+      assertThat(surface.getLineForms()).containsExactly(
+          compiler.lastCompilation.transferDescription().INTERLIS.STRAIGHTS);
+      assertThat(surface.getMaxOverlap().toString()).isEqualTo("0.001");
+    });
+  }
 
   @Test
   void verifiesUnchangedDateModelAndRejectsDuplicateNames() {
@@ -431,7 +493,11 @@ void soDataKeepsAllFiveConstraintNamesWithoutMetadataComments() throws Exception
     private CompilationResult lastCompilation;
 
     CountingCompiler() {
-      super(ConstraintFixtures.repositories());
+      this(ConstraintFixtures.repositories());
+    }
+
+    CountingCompiler(String repositories) {
+      super(repositories);
     }
 
     @Override

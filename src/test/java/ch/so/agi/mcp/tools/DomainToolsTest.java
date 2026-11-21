@@ -17,8 +17,8 @@ class DomainToolsTest {
   private final DomainTools domainTools = new DomainTools();
 
   @Test
-  void createCoordDomainSnippet_usesExplicitAxesWithoutInventingRanges() {
-    Map<String, Object> result = domainTools.createCoordDomainSnippet(
+  void renderCoordinateDomain_usesExplicitAxesWithoutInventingRanges() {
+    String result = domainTools.renderCoordinateDomain(
         "LocalCoord",
         List.of(axis("0.00", "100.00", "INTERLIS.m"), axis("10.00", "200.00", "INTERLIS.m")),
         null,
@@ -32,12 +32,12 @@ class DomainToolsTest {
               LocalCoord = COORD
                 0.00 .. 100.00 [INTERLIS.m],
                 10.00 .. 200.00 [INTERLIS.m];""",
-        result.get("iliSnippet"));
+        result);
   }
 
   @Test
-  void createCoordDomainSnippet_rendersThreeAxesAndExplicitRotation() {
-    Map<String, Object> result = domainTools.createCoordDomainSnippet(
+  void renderCoordinateDomain_rendersThreeAxesAndExplicitRotation() {
+    String result = domainTools.renderCoordinateDomain(
         "Coord3",
         List.of(
             axis("2600000.0", "2600100.0", "INTERLIS.m"),
@@ -56,27 +56,27 @@ class DomainToolsTest {
                 1200000.0 .. 1200100.0 [INTERLIS.m],
                 -200.0 .. 5000.0 [INTERLIS.m],
                 ROTATION 2 -> 1;""",
-        result.get("iliSnippet"));
+        result);
   }
 
   @Test
-  void createCoordDomainSnippet_rejectsInvalidAxes() {
+  void renderCoordinateDomain_rejectsInvalidAxes() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> domainTools.createCoordDomainSnippet(
+        () -> domainTools.renderCoordinateDomain(
             "CoordX", List.of(axis("10", "0", "INTERLIS.m"), axis("0", "1", "INTERLIS.m")),
             null, null, null, null));
   }
 
   @Test
-  void createCoordDomainSnippet_generatedThreeDimensionalDomainCompiles() {
-    String snippet = String.valueOf(domainTools.createCoordDomainSnippet(
+  void renderCoordinateDomain_generatedThreeDimensionalDomainCompiles() {
+    String snippet = domainTools.renderCoordinateDomain(
         "Coord3",
         List.of(
             axis("2600000.0", "2600100.0", "INTERLIS.m"),
             axis("1200000.0", "1200100.0", "INTERLIS.m"),
             axis("-200.0", "5000.0", "INTERLIS.m")),
-        2, 1, null, null).get("iliSnippet"));
+        2, 1, null, null);
 
     IliCompilerService.CompilationResult compilation = new IliCompilerService().compile("""
         INTERLIS 2.4;
@@ -99,29 +99,29 @@ class DomainToolsTest {
   }
 
   @Test
-  void createUnitSnippet_rendersIliDoc() {
-    Map<String, Object> result = domainTools.createUnit(
+  void renderUnit_rendersIliDoc() {
+    String result = domainTools.renderUnit(
         "Kilometer", new BigDecimal("1000"), "INTERLIS.m", "Einheit", List.of());
 
     assertEquals(String.join("\n",
         "/** Einheit */",
         "UNIT",
-        "  Kilometer = 1000 [INTERLIS.m];"), result.get("iliSnippet"));
+        "  Kilometer = 1000 [INTERLIS.m];"), result);
   }
 
   @Test
-  void createNumericDomainRejectsInvertedRangeAndInvalidUnit() {
+  void renderNumericDomainRejectsInvertedRangeAndInvalidUnit() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> domainTools.createNumericDomain("Height", "10", "0", "INTERLIS.m", null, null));
+        () -> domainTools.renderNumericDomain("Height", "10", "0", "INTERLIS.m", null, null));
     assertThrows(
         IllegalArgumentException.class,
-        () -> domainTools.createNumericDomain("Height", "0", "10", "invalid unit", null, null));
+        () -> domainTools.renderNumericDomain("Height", "0", "10", "invalid unit", null, null));
   }
 
   @Test
-  void createUnitSnippet_generatedUnitCompiles() {
-    Map<String, Object> result = domainTools.createUnit(
+  void renderUnit_generatedUnitCompiles() {
+    String result = domainTools.renderUnit(
         "Kilometer", new BigDecimal("1000"), "INTERLIS.m", null, null);
 
     ValidationTools validationTools = new ValidationTools(new IliCompilerService());
@@ -130,7 +130,7 @@ class DomainToolsTest {
 
         MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-01" =
         """
-        + result.get("iliSnippet") + "\n\n"
+        + result + "\n\n"
         + """
         END Demo.
         """);
@@ -139,21 +139,20 @@ class DomainToolsTest {
   }
 
   @Test
-  void createUnitSnippet_rejectsInvalidFactorAndMissingBase() {
+  void renderUnit_rejectsInvalidFactorAndMissingBase() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> domainTools.createUnit("Meter", BigDecimal.ZERO, "INTERLIS.m", null, null));
+        () -> domainTools.renderUnit("Meter", BigDecimal.ZERO, "INTERLIS.m", null, null));
     assertThrows(
         IllegalArgumentException.class,
-        () -> domainTools.createUnit("Meter", BigDecimal.ONE, " ", null, null));
+        () -> domainTools.renderUnit("Meter", BigDecimal.ONE, " ", null, null));
   }
 
   @Test
-  void createEnumDomainSnippet_legacyItemsStillWork() {
-    Map<String, Object> result = domainTools.createEnumDomain(
+  void renderEnumDomain_preservesItemOrder() {
+    String result = domainTools.renderEnumDomain(
         "Status",
-        List.of("A", "B"),
-        null,
+        List.of(enumValue("A", null, null), enumValue("B", null, null)),
         null,
         null);
 
@@ -162,14 +161,13 @@ class DomainToolsTest {
           Status = (
             A,
             B
-          );""", result.get("iliSnippet"));
+          );""", result);
   }
 
   @Test
-  void createEnumDomainSnippet_itemSpecsRenderItemAnnotations() {
-    Map<String, Object> result = domainTools.createEnumDomain(
+  void renderEnumDomain_itemSpecsRenderItemAnnotations() {
+    String result = domainTools.renderEnumDomain(
         "GebaeudeArt",
-        null,
         List.of(
             enumValue("Wohnhaus", "Wohngebaeude", List.of(meta("ili2db.dispName", "Wohngebaeude", null))),
             enumValue("Gewerbe", null, null)),
@@ -183,28 +181,23 @@ class DomainToolsTest {
             !!@ ili2db.dispName="Wohngebaeude"
             Wohnhaus,
             Gewerbe
-          );""", result.get("iliSnippet"));
+          );""", result);
   }
 
   @Test
-  void createEnumDomainSnippet_rejectsItemsAndItemSpecsTogether() {
+  void renderEnumDomain_rejectsInvalidAndDuplicateNames() {
+    assertThrows(IllegalArgumentException.class, () -> domainTools.renderEnumDomain(
+        "Status", List.of(enumValue("invalid name", null, null)), null, null));
     IllegalArgumentException ex = assertThrows(
-        IllegalArgumentException.class,
-        () -> domainTools.createEnumDomain(
-            "Status",
-            List.of("A"),
-            List.of(enumValue("B", null, null)),
-            null,
-            null));
-
-    assertTrue(ex.getMessage().contains("Exactly one of 'items' or 'itemSpecs'"));
+        IllegalArgumentException.class, () -> domainTools.renderEnumDomain(
+            "Status", List.of(enumValue("A", null, null), enumValue(" A ", null, null)), null, null));
+    assertTrue(ex.getMessage().contains("Duplicate enum item 'A'"));
   }
 
   @Test
-  void createEnumDomainSnippet_generatedDomainWithItemMetaCompiles() {
-    Map<String, Object> result = domainTools.createEnumDomain(
+  void renderEnumDomain_generatedDomainWithItemMetaCompiles() {
+    String result = domainTools.renderEnumDomain(
         "GebaeudeArt",
-        null,
         List.of(
             enumValue("Wohnhaus", null, List.of(meta("ili2db.dispName", "Wohngebaeude", null))),
             enumValue("Gewerbe", null, null)),
@@ -217,7 +210,7 @@ class DomainToolsTest {
 
         MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-01" =
         """
-        + result.get("iliSnippet") + "\n\n"
+        + result + "\n\n"
         + """
         END Demo.
         """);
@@ -226,8 +219,8 @@ class DomainToolsTest {
   }
 
   @Test
-  void createEnumTreeDomainSnippet_rendersNestedTree() {
-    Map<String, Object> result = domainTools.createEnumTreeDomainSnippet(
+  void renderEnumTreeDomain_rendersNestedTree() {
+    String result = domainTools.renderEnumTreeDomain(
         "StatusTree",
         List.of(
             item("A", List.of(item("B", null), item("C", null))),
@@ -243,12 +236,12 @@ class DomainToolsTest {
               C
             ),
             D
-          );""", result.get("iliSnippet"));
+          );""", result);
   }
 
   @Test
-  void createEnumTreeDomainSnippet_rendersItemAnnotations() {
-    Map<String, Object> result = domainTools.createEnumTreeDomainSnippet(
+  void renderEnumTreeDomain_rendersItemAnnotations() {
+    String result = domainTools.renderEnumTreeDomain(
         "StatusTree",
         List.of(
             treeItem("A", "Elternwert", List.of(meta("ili2db.dispName", "Eltern", null)),
@@ -265,12 +258,12 @@ class DomainToolsTest {
               !!@ ili2db.dispName="Kind"
               B
             )
-          );""", result.get("iliSnippet"));
+          );""", result);
   }
 
   @Test
-  void createEnumTreeDomainSnippet_rendersAnnotations() {
-    Map<String, Object> result = domainTools.createEnumTreeDomainSnippet(
+  void renderEnumTreeDomain_rendersAnnotations() {
+    String result = domainTools.renderEnumTreeDomain(
         "StatusTree",
         List.of(item("A", null)),
         "Baum",
@@ -282,14 +275,14 @@ class DomainToolsTest {
         DOMAIN
           StatusTree = (
             A
-          );""", result.get("iliSnippet"));
+          );""", result);
   }
 
   @Test
-  void createEnumTreeDomainSnippet_rejectsDuplicateSiblingNames() {
+  void renderEnumTreeDomain_rejectsDuplicateSiblingNames() {
     IllegalArgumentException ex = assertThrows(
         IllegalArgumentException.class,
-        () -> domainTools.createEnumTreeDomainSnippet(
+        () -> domainTools.renderEnumTreeDomain(
             "StatusTree",
             List.of(item("A", null), item("A", null)),
             null,
@@ -299,10 +292,10 @@ class DomainToolsTest {
   }
 
   @Test
-  void createEnumTreeDomainSnippet_rejectsInvalidItemMetaAttribute() {
+  void renderEnumTreeDomain_rejectsInvalidItemMetaAttribute() {
     IllegalArgumentException ex = assertThrows(
         IllegalArgumentException.class,
-        () -> domainTools.createEnumTreeDomainSnippet(
+        () -> domainTools.renderEnumTreeDomain(
             "StatusTree",
             List.of(treeItem("A", null, List.of(meta("ili2db.dispName", "x", "Y")), null)),
             null,
@@ -312,8 +305,8 @@ class DomainToolsTest {
   }
 
   @Test
-  void createEnumTreeDomainSnippet_generatedDomainCompiles() {
-    Map<String, Object> result = domainTools.createEnumTreeDomainSnippet(
+  void renderEnumTreeDomain_generatedDomainCompiles() {
+    String result = domainTools.renderEnumTreeDomain(
         "StatusTree",
         List.of(
             treeItem("A", null, List.of(meta("ili2db.dispName", "A-Name", null)),
@@ -328,7 +321,7 @@ class DomainToolsTest {
 
         MODEL Demo (de) AT "https://example.org/demo" VERSION "2024-01-01" =
         """
-        + result.get("iliSnippet") + "\n\n"
+        + result + "\n\n"
         + """
         END Demo.
         """);

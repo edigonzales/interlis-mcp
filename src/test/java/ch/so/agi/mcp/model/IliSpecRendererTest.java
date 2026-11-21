@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import ch.so.agi.mcp.service.IliCompilerService;
 import ch.so.agi.mcp.tools.AttributeTools;
 import ch.so.agi.mcp.tools.DomainTools;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.math.BigDecimal;
@@ -106,10 +107,10 @@ class IliSpecRendererTest {
     attribute.setName("status");
     attribute.setTypeSpec(type);
 
-    IliSpecRenderer.RenderedAttribute rendered =
-        renderer().renderAttribute(attribute, "2.4", "Demo");
-
-    assertThat(rendered.derivedImports()).containsExactly("ExternalModel");
+    Set<String> imports = new LinkedHashSet<>();
+    assertThat(renderer().renderAttribute(attribute, "2.4", "Demo", imports))
+        .isEqualTo("status : ExternalModel.Status;");
+    assertThat(imports).containsExactly("ExternalModel");
   }
 
   @Test

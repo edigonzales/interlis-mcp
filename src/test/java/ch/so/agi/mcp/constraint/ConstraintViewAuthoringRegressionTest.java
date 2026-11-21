@@ -59,7 +59,7 @@ class ConstraintViewAuthoringRegressionTest {
     String constraintFqn = fixture.contextFqn() + "." + fixture.spec().name;
     assertThat(before.transferDescription().getElement(constraintFqn)).isNull();
     var prepared = workflow.insertAndResolve(source, before, fixture.contextFqn(),
-        fragment.text(), constraintFqn, "view_regression_after_", imports);
+        fragment, constraintFqn, "view_regression_after_", imports);
     var after = prepared.resolution().compilation();
     assertThat(compiler.calls).isEqualTo(2);
     assertThat(after.valid()).as(after.messages().toString()).isTrue();

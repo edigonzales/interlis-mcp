@@ -283,10 +283,10 @@ public final class IliModelChangesService {
         String target = fqn(payload.modelFqn, "addTopic.modelFqn");
         require(target.equals(localModel.getScopedName()),
             "ADD_TOPIC target must be the submitted model.");
-        IliSpecRenderer.RenderedFragment rendered = renderer.renderTopic(
+        String rendered = renderer.renderTopic(
             payload.topic, iliVersion, modelName, derivedImports);
         payload.topic.collectConstraints(modelName, requestedConstraints);
-        addBeforeEnd(document, locateBlock(document, localModel), rendered.text(),
+        addBeforeEnd(document, locateBlock(document, localModel), rendered,
             operationIndex, "Add topic " + payload.topic.name, insertions);
         expected.add(new ExpectedChange(
             Direction.ADD, "TOPIC", modelName + "." + ident(payload.topic.name, "topic.name"), true));
@@ -295,16 +295,8 @@ public final class IliModelChangesService {
         IliModelChangeRequest.AddDomainChange payload = change.getAddDomain();
         require(payload.domain != null, "addDomain.domain is required.");
         Element container = localContainer(td, payload.containerFqn, Model.class, Topic.class);
-        IliSpecRenderer.RenderedFragment rendered = renderer.renderDomain(payload.domain);
-        deriveFromFqn(payload.domain.unitFqn, modelName, derivedImports);
-        if (payload.domain.axes != null) {
-          for (var axis : payload.domain.axes) {
-            if (axis != null) {
-              deriveFromFqn(axis.getUnitFqn(), modelName, derivedImports);
-            }
-          }
-        }
-        addBeforeEnd(document, locateBlock(document, container), rendered.text(),
+        String rendered = renderer.renderDomain(payload.domain, modelName, derivedImports);
+        addBeforeEnd(document, locateBlock(document, container), rendered,
             operationIndex, "Add domain " + payload.domain.name, insertions);
         expected.add(new ExpectedChange(Direction.ADD, "DOMAIN",
             container.getScopedName() + "." + ident(payload.domain.name, "domain.name"), false));
@@ -313,9 +305,8 @@ public final class IliModelChangesService {
         IliModelChangeRequest.AddUnitChange payload = change.getAddUnit();
         require(payload.unit != null, "addUnit.unit is required.");
         Element container = localContainer(td, payload.containerFqn, Model.class, Topic.class);
-        IliSpecRenderer.RenderedFragment rendered = renderer.renderUnit(payload.unit);
-        deriveFromFqn(payload.unit.baseUnitFqn, modelName, derivedImports);
-        addBeforeEnd(document, locateBlock(document, container), rendered.text(),
+        String rendered = renderer.renderUnit(payload.unit, modelName, derivedImports);
+        addBeforeEnd(document, locateBlock(document, container), rendered,
             operationIndex, "Add unit " + payload.unit.name, insertions);
         expected.add(new ExpectedChange(Direction.ADD, "UNIT",
             container.getScopedName() + "." + ident(payload.unit.name, "unit.name"), false));
@@ -324,10 +315,10 @@ public final class IliModelChangesService {
         IliModelChangeRequest.AddClassChange payload = change.getAddClass();
         require(payload.clazz != null, "addClass.clazz is required.");
         Topic topic = (Topic) localContainer(td, payload.topicFqn, Topic.class);
-        IliSpecRenderer.RenderedFragment rendered = renderer.renderClass(
+        String rendered = renderer.renderClass(
             payload.clazz, iliVersion, modelName, derivedImports);
         payload.clazz.collectConstraints(topic.getScopedName(), requestedConstraints);
-        addBeforeEnd(document, locateBlock(document, topic), rendered.text(),
+        addBeforeEnd(document, locateBlock(document, topic), rendered,
             operationIndex, "Add class " + payload.clazz.name, insertions);
         expected.add(new ExpectedChange(Direction.ADD, "CLASS",
             topic.getScopedName() + "." + ident(payload.clazz.name, "class.name"), true));
@@ -336,10 +327,10 @@ public final class IliModelChangesService {
         IliModelChangeRequest.AddStructureChange payload = change.getAddStructure();
         require(payload.structure != null, "addStructure.structure is required.");
         Topic topic = (Topic) localContainer(td, payload.topicFqn, Topic.class);
-        IliSpecRenderer.RenderedFragment rendered = renderer.renderStructure(
+        String rendered = renderer.renderStructure(
             payload.structure, iliVersion, modelName, derivedImports);
         payload.structure.collectConstraints(topic.getScopedName(), requestedConstraints);
-        addBeforeEnd(document, locateBlock(document, topic), rendered.text(),
+        addBeforeEnd(document, locateBlock(document, topic), rendered,
             operationIndex, "Add structure " + payload.structure.name, insertions);
         expected.add(new ExpectedChange(Direction.ADD, "STRUCTURE",
             topic.getScopedName() + "." + ident(payload.structure.name, "structure.name"), true));
@@ -348,10 +339,10 @@ public final class IliModelChangesService {
         IliModelChangeRequest.AddAssociationChange payload = change.getAddAssociation();
         require(payload.association != null, "addAssociation.association is required.");
         Topic topic = (Topic) localContainer(td, payload.topicFqn, Topic.class);
-        IliSpecRenderer.RenderedFragment rendered = renderer.renderAssociation(
+        String rendered = renderer.renderAssociation(
             payload.association, iliVersion, modelName, derivedImports);
         payload.association.collectConstraints(topic.getScopedName(), requestedConstraints);
-        addBeforeEnd(document, locateBlock(document, topic), rendered.text(),
+        addBeforeEnd(document, locateBlock(document, topic), rendered,
             operationIndex, "Add association " + payload.association.name, insertions);
         expected.add(new ExpectedChange(Direction.ADD, "ASSOCIATION",
             topic.getScopedName() + "." + ident(payload.association.name, "association.name"), true));
@@ -375,7 +366,7 @@ public final class IliModelChangesService {
             "DUPLICATE_CONSTRAINT_NAME: " + constraintFqn);
         ConstraintSpecContract.collectConstraint(requestedConstraints, constraintFqn, payload.constraint);
         String constraintText = renderer.renderConstraint(
-            payload.constraint, iliVersion, modelName, derivedImports).text();
+            payload.constraint, iliVersion, modelName, derivedImports);
         IliTextPatch patch = constraintSourceEditService.planConstraintInsertion(
             document, context, constraintText);
         insertions.add(new PendingInsertion(IliTextPatch.replace(patch.span(), patch.replacement(),
@@ -406,11 +397,9 @@ public final class IliModelChangesService {
     String name = ident(attribute.getName(), "addAttribute.attribute.name");
     require(findAttributeInHierarchy(table, name) == null,
         "Attribute already exists in the hierarchy: " + containerFqn + "." + name);
-    IliSpecRenderer.RenderedAttribute rendered = renderer.renderAttribute(
-        attribute, iliVersion, modelName);
-    derivedImports.addAll(rendered.derivedImports());
+    String rendered = renderer.renderAttribute(attribute, iliVersion, modelName, derivedImports);
     IliSourceLocator.BlockLocation block = locateBlock(document, table);
-    IliTextPatch patch = insertAttribute(document, table, block, rendered.text(),
+    IliTextPatch patch = insertAttribute(document, table, block, rendered,
         "Add attribute " + containerFqn + "." + name);
     insertions.add(new PendingInsertion(patch, operationIndex, false));
     expected.add(new ExpectedChange(
@@ -448,10 +437,7 @@ public final class IliModelChangesService {
       request.setMandatory(mandatory);
       request.setCollection(collection);
       request.setTypeSpec(payload.patch.typeSpec);
-      IliSpecRenderer.RenderedAttribute rendered = renderer.renderAttribute(
-          request, iliVersion, modelName);
-      declaration = rendered.text();
-      derivedImports.addAll(rendered.derivedImports());
+      declaration = renderer.renderAttribute(request, iliVersion, modelName, derivedImports);
     } else {
       declaration = attribute.getName() + " : "
           + (mandatory ? "MANDATORY " : "")
@@ -870,13 +856,6 @@ public final class IliModelChangesService {
     String normalized = value.trim();
     NameValidator.ascii().validateFqn(normalized, label);
     return normalized;
-  }
-
-  private void deriveFromFqn(@Nullable String value, String currentModel, Set<String> imports) {
-    if (value == null || value.isBlank() || !value.contains(".")) return;
-    String normalized = fqn(value, "referenced FQN");
-    String model = normalized.substring(0, normalized.indexOf('.'));
-    if (!model.equals(currentModel) && !model.equals("INTERLIS")) imports.add(model);
   }
 
   private void require(boolean condition, String message) {

@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
@@ -60,11 +59,12 @@ public final class IliSpecRenderer {
     LinkedHashSet<String> explicitImports = normalizedFqns(spec.imports, "spec.imports", false);
     LinkedHashSet<String> derivedImports = new LinkedHashSet<>();
     StringBuilder body = new StringBuilder();
-    appendDefinitions(body, spec.units, spec.domains, iliVersion, modelName, derivedImports, "  ");
+    appendDefinitions(body, spec.units, spec.domains, modelName, derivedImports, "  ");
     for (IliModelSpec.TopicSpec topic : safe(spec.topics)) {
       appendSeparated(body, indent(
-          renderTopic(topic, iliVersion, modelName, derivedImports).text(), "  "));
+          renderTopic(topic, iliVersion, modelName, derivedImports), "  "));
     }
+
     derivedImports.remove(modelName);
     derivedImports.remove("INTERLIS");
 
@@ -92,7 +92,7 @@ public final class IliSpecRenderer {
     return new RenderedModel(result.toString(), List.copyOf(derivedImports));
   }
 
-  public RenderedFragment renderTopic(
+  public String renderTopic(
       IliModelSpec.TopicSpec spec,
       String iliVersion,
       String currentModel,
@@ -117,7 +117,7 @@ public final class IliSpecRenderer {
       result.append("  DEPENDS ON ").append(normalized).append(";\n");
     }
     StringBuilder body = new StringBuilder();
-    appendDefinitions(body, spec.units, spec.domains, iliVersion, currentModel, derivedImports, "  ");
+    appendDefinitions(body, spec.units, spec.domains, currentModel, derivedImports, "  ");
     for (IliModelSpec.StructureSpec structure : safe(spec.structures)) {
       appendSeparated(body, indent(renderViewable(
           "STRUCTURE", structure, iliVersion, currentModel, derivedImports, null), "  "));
@@ -128,30 +128,26 @@ public final class IliSpecRenderer {
     }
     for (IliModelSpec.AssociationSpec association : safe(spec.associations)) {
       appendSeparated(body, indent(renderAssociation(
-          association, iliVersion, currentModel, derivedImports).text(), "  "));
+          association, iliVersion, currentModel, derivedImports), "  "));
     }
     if (body.length() > 0 && result.charAt(result.length() - 1) != '\n') {
       result.append('\n');
     }
     result.append(body).append("END ").append(name).append(';');
-    return new RenderedFragment(result.toString(), List.copyOf(derivedImports));
+    return result.toString();
   }
 
-  public RenderedFragment renderClass(
+  public String renderClass(
       IliModelSpec.ClassSpec spec, String iliVersion, String currentModel, Set<String> imports) {
-    return new RenderedFragment(
-        renderViewable("CLASS", spec, iliVersion, currentModel, imports, spec.oidDomainFqn),
-        List.copyOf(imports));
+    return renderViewable("CLASS", spec, iliVersion, currentModel, imports, spec.oidDomainFqn);
   }
 
-  public RenderedFragment renderStructure(
+  public String renderStructure(
       IliModelSpec.StructureSpec spec, String iliVersion, String currentModel, Set<String> imports) {
-    return new RenderedFragment(
-        renderViewable("STRUCTURE", spec, iliVersion, currentModel, imports, null),
-        List.copyOf(imports));
+    return renderViewable("STRUCTURE", spec, iliVersion, currentModel, imports, null);
   }
 
-  public RenderedFragment renderAssociation(
+  public String renderAssociation(
       IliModelSpec.AssociationSpec spec,
       String iliVersion,
       String currentModel,
@@ -186,46 +182,51 @@ public final class IliSpecRenderer {
     appendAttributesAndConstraints(result, spec.attributes, spec.constraints,
         iliVersion, currentModel, imports, "  ", true);
     result.append("END ").append(name).append(';');
-    return new RenderedFragment(result.toString(), List.copyOf(imports));
+    return result.toString();
   }
 
-  public RenderedFragment renderUnit(IliModelSpec.UnitSpec spec) {
+  public String renderUnit(IliModelSpec.UnitSpec spec, String currentModel, Set<String> imports) {
     require(spec != null, "unit is required.");
-    Map<String, Object> rendered = domainTools.createUnit(
+    String text = domainTools.renderUnit(
         spec.name, spec.factor, spec.baseUnitFqn, spec.iliDoc, spec.metaAttributes);
-    return new RenderedFragment(String.valueOf(rendered.get("iliSnippet")), List.of());
+    deriveFromFqn(spec.baseUnitFqn, currentModel, imports);
+    return text;
   }
 
-  public RenderedFragment renderDomain(IliModelSpec.DomainSpec spec) {
+  public String renderDomain(IliModelSpec.DomainSpec spec, String currentModel, Set<String> imports) {
     require(spec != null && spec.kind != null, "domain.kind is required.");
-    Map<String, Object> rendered = switch (spec.kind) {
-      case NUMERIC -> domainTools.createNumericDomain(
-          spec.name, spec.min, spec.max, spec.unitFqn, spec.iliDoc, spec.metaAttributes);
-      case ENUM -> domainTools.createEnumDomain(
-          spec.name, null, spec.enumItems, spec.iliDoc, spec.metaAttributes);
-      case ENUM_TREE -> domainTools.createEnumTreeDomainSnippet(
+    return switch (spec.kind) {
+      case NUMERIC -> {
+        String text = domainTools.renderNumericDomain(
+            spec.name, spec.min, spec.max, spec.unitFqn, spec.iliDoc, spec.metaAttributes);
+        deriveFromFqn(spec.unitFqn, currentModel, imports);
+        yield text;
+      }
+      case ENUM -> domainTools.renderEnumDomain(
+          spec.name, spec.enumItems, spec.iliDoc, spec.metaAttributes);
+      case ENUM_TREE -> domainTools.renderEnumTreeDomain(
           spec.name, spec.enumTreeItems, spec.iliDoc, spec.metaAttributes);
-      case COORD -> domainTools.createCoordDomainSnippet(
-          spec.name, spec.axes, spec.rotationFrom, spec.rotationTo, spec.iliDoc, spec.metaAttributes);
+      case COORD -> {
+        String text = domainTools.renderCoordinateDomain(
+            spec.name, spec.axes, spec.rotationFrom, spec.rotationTo, spec.iliDoc, spec.metaAttributes);
+        for (var axis : spec.axes) {
+          deriveFromFqn(axis.getUnitFqn(), currentModel, imports);
+        }
+        yield text;
+      }
     };
-    return new RenderedFragment(String.valueOf(rendered.get("iliSnippet")), List.of());
   }
 
-  public RenderedAttribute renderAttribute(AttributeLineRequest attribute, String iliVersion) {
+  public String renderAttribute(
+      AttributeLineRequest attribute, String iliVersion, String currentModel, Set<String> imports) {
     AttributeTools.RenderedAttribute rendered = attributeTools.renderAttribute(attribute, iliVersion);
-    return new RenderedAttribute(
-        rendered.response().getIliSnippet(), rendered.requiredImports());
+    for (String reference : rendered.referencedFqns()) {
+      deriveFromFqn(reference, currentModel, imports);
+    }
+    return rendered.text();
   }
 
-  public RenderedAttribute renderAttribute(
-      AttributeLineRequest attribute, String iliVersion, String currentModel) {
-    RenderedAttribute rendered = renderAttribute(attribute, iliVersion);
-    LinkedHashSet<String> imports = new LinkedHashSet<>(rendered.derivedImports());
-    collectTypeImports(attribute.getTypeSpec(), currentModel, imports);
-    return new RenderedAttribute(rendered.text(), List.copyOf(imports));
-  }
-
-  public RenderedFragment renderConstraint(
+  public String renderConstraint(
       IliConstraintSpec spec,
       String iliVersion,
       String currentModel,
@@ -254,7 +255,7 @@ public final class IliSpecRenderer {
       if (!prefix.find()) throw new IllegalArgumentException("Constraint prefix unavailable.");
       statement = statement.substring(0, prefix.end()) + " " + name + ":" + statement.substring(prefix.end());
     }
-    return new RenderedFragment(annotation + statement, List.copyOf(imports));
+    return annotation + statement;
 
   }
 
@@ -321,14 +322,13 @@ public final class IliSpecRenderer {
       require(attribute != null, "attribute entry is required.");
       String name = ident(attribute.getName(), "attribute.name");
       require(names.add(name), "Duplicate attribute name: " + name);
-      RenderedAttribute rendered = renderAttribute(attribute, iliVersion, currentModel);
-      imports.addAll(rendered.derivedImports());
-      result.append(indent(rendered.text(), attributeIndent)).append("\n");
+      String text = renderAttribute(attribute, iliVersion, currentModel, imports);
+      result.append(indent(text, attributeIndent)).append("\n");
     }
     for (IliConstraintSpec constraint : safe(constraints)) {
-      RenderedFragment rendered = renderConstraint(
+      String rendered = renderConstraint(
           constraint, iliVersion, currentModel, imports);
-      result.append(indent(rendered.text(), indent)).append("\n");
+      result.append(indent(rendered, indent)).append("\n");
     }
   }
 
@@ -336,20 +336,14 @@ public final class IliSpecRenderer {
       StringBuilder body,
       @Nullable List<IliModelSpec.UnitSpec> units,
       @Nullable List<IliModelSpec.DomainSpec> domains,
-      String iliVersion,
       String currentModel,
       Set<String> imports,
       String indent) {
     for (IliModelSpec.UnitSpec unit : safe(units)) {
-      appendSeparated(body, indent(renderUnit(unit).text(), indent));
-      deriveFromFqn(unit.baseUnitFqn, currentModel, imports);
+      appendSeparated(body, indent(renderUnit(unit, currentModel, imports), indent));
     }
     for (IliModelSpec.DomainSpec domain : safe(domains)) {
-      appendSeparated(body, indent(renderDomain(domain).text(), indent));
-      if (domain.unitFqn != null) deriveFromFqn(domain.unitFqn, currentModel, imports);
-      for (DomainTools.CoordinateAxis axis : safe(domain.axes)) {
-        if (axis != null) deriveFromFqn(axis.getUnitFqn(), currentModel, imports);
-      }
+      appendSeparated(body, indent(renderDomain(domain, currentModel, imports), indent));
     }
   }
 
@@ -592,32 +586,6 @@ public final class IliSpecRenderer {
     return AnnotationRenderer.renderAnnotations(spec.iliDoc, meta);
   }
 
-  private void collectTypeImports(
-      @Nullable TypeSpec type, String currentModel, Set<String> imports) {
-    if (type == null) return;
-    if (type.getDomainFqn() != null) deriveFromFqn(type.getDomainFqn(), currentModel, imports);
-    if (type.getStructureFqn() != null) deriveFromFqn(type.getStructureFqn(), currentModel, imports);
-    if (type.getReferenceType() != null) {
-      deriveFromFqn(type.getReferenceType().getTargetClassFqn(), currentModel, imports);
-    }
-    if (type.getBasketType() != null) {
-      deriveFromFqn(type.getBasketType().getTopicFqn(), currentModel, imports);
-    }
-    if (type.getObjectType() != null) {
-      deriveFromFqn(type.getObjectType().getTargetClassFqn(), currentModel, imports);
-    }
-    if (type.getMetaobjectType() != null) {
-      deriveFromFqn(type.getMetaobjectType().getTableFqn(), currentModel, imports);
-    }
-    if (type.getEnumTreeValueType() != null) {
-      deriveFromFqn(type.getEnumTreeValueType().getEnumTreeDomainFqn(), currentModel, imports);
-    }
-    if (type.getBaseType() != null) {
-      deriveFromFqn(type.getBaseType().getUnitFqn(), currentModel, imports);
-      deriveFromFqn(type.getBaseType().getRefSysFqn(), currentModel, imports);
-    }
-  }
-
   private void validateExtends(
       @Nullable String extendsFqn, String currentModel, Set<String> imports, String label) {
     if (extendsFqn == null || extendsFqn.isBlank()) return;
@@ -753,6 +721,4 @@ public final class IliSpecRenderer {
   }
 
   public record RenderedModel(String modelText, List<String> derivedImports) {}
-  public record RenderedFragment(String text, List<String> derivedImports) {}
-  public record RenderedAttribute(String text, List<String> derivedImports) {}
 }

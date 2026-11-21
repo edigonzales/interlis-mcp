@@ -2,8 +2,14 @@ package ch.so.agi.mcp.change;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.interlis.ili2c.metamodel.AttributeDef;
+import ch.interlis.ili2c.metamodel.CoordType;
+import ch.interlis.ili2c.metamodel.Domain;
 import ch.interlis.ili2c.metamodel.MandatoryConstraint;
 import ch.interlis.ili2c.metamodel.Model;
+import ch.interlis.ili2c.metamodel.NumericType;
+import ch.interlis.ili2c.metamodel.SurfaceType;
+import ch.interlis.ili2c.metamodel.Unit;
 import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.analysis.ModelChangeReviewService;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
@@ -11,6 +17,7 @@ import ch.so.agi.mcp.constraint.ConstraintFixtures;
 import ch.so.agi.mcp.constraint.ConstraintSourceEditService;
 import ch.so.agi.mcp.knowledge.KnowledgeRuleLoader;
 import ch.so.agi.mcp.knowledge.ModelingRuleTools;
+import ch.so.agi.mcp.model.AttributeLineRequest;
 import ch.so.agi.mcp.model.IliAuthoringResult;
 import ch.so.agi.mcp.model.IliConstraintSpec;
 import ch.so.agi.mcp.model.IliModelSpec;
@@ -338,6 +345,167 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     assertThat(result.updatedModelText)
         .contains("IMPORTS GeometryCHLV95_V2;")
         .contains("position : GeometryCHLV95_V2.Coord2;");
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+      "2.3,ADD_ATTRIBUTE,false", "2.4,UPDATE_ATTRIBUTE,false",
+      "2.4,ADD_CLASS,false", "2.3,ADD_TOPIC,false",
+      "2.3,ADD_ATTRIBUTE,true", "2.4,ADD_ATTRIBUTE,true"
+  })
+  void explicitSurfaceDerivesOrReusesImportInBatch(
+      String version, IliModelChangeOperation kind, boolean existingImport, @TempDir Path repository)
+      throws IOException {
+    Files.writeString(repository.resolve("CoordLib.ili"), """
+        INTERLIS %s;
+        MODEL CoordLib AT "https://example.org" VERSION "1" =
+          DOMAIN Coord2 = COORD 0.000 .. 100.000 [INTERLIS.m], 0.000 .. 100.000 [INTERLIS.m];
+        END CoordLib.
+        """.formatted(version));
+    String source = """
+        INTERLIS %s;
+        MODEL Demo AT "https://example.org" VERSION "1" = %sTOPIC Data =
+          CLASS Thing = %sEND Thing; END Data; !! preserve
+        END Demo.
+        """.formatted(version, existingImport ? "IMPORTS CoordLib; " : "",
+            kind == IliModelChangeOperation.UPDATE_ATTRIBUTE ? "\n    footprint : TEXT;\n  " : "");
+
+    GeometryTypeSpec geometry = new GeometryTypeSpec();
+    geometry.setProvider(GeometryTypeSpec.Provider.INTERLIS);
+    geometry.setInterlisKind(GeometryTypeSpec.InterlisKind.SURFACE);
+    geometry.setCoordDomainFqn("CoordLib.Coord2");
+    geometry.setArcs(false);
+    geometry.setOverlapMm(BigDecimal.ONE);
+    TypeSpec type = new TypeSpec();
+    type.setGeometryType(geometry);
+    AttributeLineRequest footprint = new AttributeLineRequest();
+    footprint.setName("footprint");
+    footprint.setTypeSpec(type);
+
+    String classFqn = switch (kind) {
+      case ADD_CLASS -> "Demo.Data.Parcel";
+      case ADD_TOPIC -> "Demo.Extra.Parcel";
+      default -> "Demo.Data.Thing";
+    };
+    IliModelChangeRequest change = switch (kind) {
+      case ADD_ATTRIBUTE -> {
+        var add = addAttribute("footprint", 20);
+        add.getAddAttribute().setAttribute(footprint);
+        yield add;
+      }
+      case UPDATE_ATTRIBUTE -> operation(kind, request -> {
+        var update = new UpdateAttributeChange();
+        update.attributeFqn = classFqn + ".footprint";
+        update.patch = new UpdateAttributeChange.AttributePatch();
+        update.patch.typeSpec = type;
+        request.setUpdateAttribute(update);
+      });
+      case ADD_CLASS -> {
+        var add = addClass("Parcel");
+        add.getAddClass().clazz.attributes = List.of(footprint);
+        yield add;
+      }
+      case ADD_TOPIC -> {
+        var add = addTopic("Extra");
+        var parcel = new IliModelSpec.ClassSpec();
+        parcel.name = "Parcel";
+        parcel.attributes = List.of(footprint);
+        add.getAddTopic().topic.classes = List.of(parcel);
+        yield add;
+      }
+      default -> throw new IllegalArgumentException(kind.name());
+    };
+    var compiler = new CountingCompiler(repository.toString());
+    var result = new IliModelChangeTools(service(compiler)).applyIliModelChanges(
+        source, batch(change, true), null, null, null);
+
+    assertThat(result.status).as("%s %s", result.reason, compiler.lastCompilation.messages())
+        .isEqualTo(IliAuthoringResult.Status.APPLIED);
+    assertThat(compiler.calls).isEqualTo(2);
+    assertThat(result.derivedImports).containsExactly("CoordLib");
+    assertThat(result.updatedModelText).containsOnlyOnce("IMPORTS CoordLib;").contains("!! preserve");
+    var attribute = (AttributeDef) compiler.lastCompilation.transferDescription()
+        .getElement(classFqn + ".footprint");
+    assertThat(attribute.getDomain()).isInstanceOfSatisfying(SurfaceType.class, surface ->
+        assertThat(surface.getControlPointDomain().getScopedName()).isEqualTo("CoordLib.Coord2"));
+    assertThat(result.sourceEdits).hasSize(existingImport ? 1 : 2);
+    if (!existingImport) {
+      assertInsertion(result.sourceEdits.getFirst(), source.indexOf("TOPIC Data"), 2,
+          "\n  IMPORTS CoordLib;\n");
+    }
+    if (kind == IliModelChangeOperation.ADD_ATTRIBUTE) {
+      var edit = result.sourceEdits.getLast();
+      assertThat(edit.startOffset).isEqualTo(source.indexOf("END Thing;"));
+      assertThat(edit.endOffset).isEqualTo(edit.startOffset);
+      assertThat(edit.after).contains("footprint : SURFACE WITH (STRAIGHTS)");
+    }
+    assertReplay(source, result);
+  }
+
+  @Test
+  void fullModelAndBatchDeriveOnlyRenderedUnitAndDomainImportsInOrder(
+      @TempDir Path repository) throws IOException {
+    for (String library : List.of("LengthLib", "HeightLib", "AxisLib")) {
+      Files.writeString(repository.resolve(library + ".ili"), """
+          INTERLIS 2.4;
+          MODEL %s AT "https://example.org" VERSION "1" =
+            UNIT BaseLength = 2 [INTERLIS.m];
+          END %s.
+          """.formatted(library, library));
+    }
+    var mapper = new ObjectMapper();
+    var spec = mapper.readValue("""
+        {"name":"Demo","uri":"https://example.org","version":"1","iliVersion":"2.4",
+         "units":[{"name":"Length","factor":3,"baseUnitFqn":"LengthLib.BaseLength"}],
+         "domains":[
+           {"name":"Height","kind":"NUMERIC","min":"0","max":"10","unitFqn":"HeightLib.BaseLength"},
+           {"name":"Position","kind":"COORD","axes":[
+             {"min":0,"max":100,"unitFqn":"AxisLib.BaseLength"},
+             {"min":0,"max":100,"unitFqn":"AxisLib.BaseLength"},
+             {"min":0,"max":100,"unitFqn":"INTERLIS.m"}]}]}
+        """, IliModelSpec.class);
+
+    var addUnit = operation(IliModelChangeOperation.ADD_UNIT, change -> {
+      var payload = new IliModelChangeRequest.AddUnitChange();
+      payload.containerFqn = "Demo";
+      payload.unit = spec.units.getFirst();
+      change.setAddUnit(payload);
+    });
+    var changes = new ArrayList<>(List.of(addUnit));
+    for (var domain : spec.domains) {
+      changes.add(operation(IliModelChangeOperation.ADD_DOMAIN, change -> {
+        var payload = new IliModelChangeRequest.AddDomainChange();
+        payload.containerFqn = "Demo";
+        payload.domain = domain;
+        change.setAddDomain(payload);
+      }));
+    }
+
+    var renderer = new IliSpecRenderer(new AttributeTools(), new DomainTools());
+    var rendered = renderer.renderModel(spec);
+    var compiler = new CountingCompiler(repository.toString());
+    var full = compiler.compile(rendered.modelText(), null);
+    var batch = service(compiler).apply("""
+        INTERLIS 2.4;
+        MODEL Demo AT "https://example.org" VERSION "1" = END Demo.
+        """, batch(changes, true), null, null, null);
+
+    assertThat(full.valid()).as("%s", full.messages()).isTrue();
+    assertThat(batch.status).as("%s %s", batch.reason, compiler.lastCompilation.messages())
+        .isEqualTo(IliAuthoringResult.Status.APPLIED);
+    assertThat(compiler.calls).isEqualTo(3);
+    assertThat(rendered.derivedImports()).containsExactly("LengthLib", "HeightLib", "AxisLib");
+    assertThat(batch.derivedImports).isEqualTo(rendered.derivedImports());
+    for (var compilation : List.of(full, compiler.lastCompilation)) {
+      var td = compilation.transferDescription();
+      var unit = (Unit) td.getElement("Demo.Length");
+      var height = (NumericType) ((Domain) td.getElement("Demo.Height")).getType();
+      var position = (CoordType) ((Domain) td.getElement("Demo.Position")).getType();
+      assertThat(unit.getExtending().getScopedName()).isEqualTo("LengthLib.BaseLength");
+      assertThat(height.getUnit().getScopedName()).isEqualTo("HeightLib.BaseLength");
+      assertThat(position.getDimensions()).extracting(axis -> axis.getUnit().getScopedName())
+          .containsExactly("AxisLib.BaseLength", "AxisLib.BaseLength", "INTERLIS.m");
+    }
   }
 
   @Test
