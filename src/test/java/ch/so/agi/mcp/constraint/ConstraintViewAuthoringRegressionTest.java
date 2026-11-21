@@ -50,24 +50,25 @@ class ConstraintViewAuthoringRegressionTest {
   void constraintCompilesInItsOriginalView(ViewCase fixture) throws IOException {
     String source = ConstraintFixtures.withoutRule(fixture.caseId());
     CountingCompiler compiler = new CountingCompiler();
-    ConstraintAuthoringWorkflow workflow = new ConstraintAuthoringWorkflow(compiler);
-    var before = workflow.compileBefore(source, "view_regression_before_");
+    var before = compiler.compile(source, null, "view_regression_before_");
     assertThat(before.valid()).as(before.messages().toString()).isTrue();
     LinkedHashSet<String> imports = new LinkedHashSet<>();
     var fragment = renderer().renderConstraint(fixture.spec(), "2.3",
         fixture.contextFqn().substring(0, fixture.contextFqn().indexOf('.')), imports);
     String constraintFqn = fixture.contextFqn() + "." + fixture.spec().name;
     assertThat(before.transferDescription().getElement(constraintFqn)).isNull();
-    var prepared = workflow.insertAndResolve(source, before, fixture.contextFqn(),
-        fragment, constraintFqn, "view_regression_after_", imports);
-    var after = prepared.resolution().compilation();
+    var insertion = new ConstraintSourceEditService().insertConstraint(
+        source, before, fixture.contextFqn(), fragment, imports);
+    var resolution = new ConstraintContextService(compiler).compileAndResolve(
+        insertion.updatedModelText(), constraintFqn, null, "view_regression_after_");
+    var after = resolution.compilation();
     assertThat(compiler.calls).isEqualTo(2);
     assertThat(after.valid()).as(after.messages().toString()).isTrue();
     var constraint = after.transferDescription().getElement(constraintFqn);
     assertThat(constraint).isInstanceOf(Constraint.class);
     assertThat(constraint.getContainer().getScopedName()).isEqualTo(fixture.contextFqn());
     // This regression isolates compiler insertion; complete proofs are asserted separately.
-    ConstraintSourceEditServiceTest.assertOnlyInsertions(source, prepared.insertion());
+    ConstraintSourceEditServiceTest.assertOnlyInsertions(source, insertion);
   }
 
   @Test
@@ -77,8 +78,10 @@ class ConstraintViewAuthoringRegressionTest {
     ModelAnalysisTools analysis = new ModelAnalysisTools(compiler);
     ModelChangeReviewService review = new ModelChangeReviewService(analysis,
         new ModelingRuleTools(new KnowledgeRuleLoader(), analysis, compiler));
-    var engine = new ConstraintAuthoringEngine(new ConstraintAuthoringWorkflow(compiler),
-        renderer(), new ConstraintCaseGenerationTools(new ConstraintContextService(compiler),
+    var contexts = new ConstraintContextService(compiler);
+    var engine = new ConstraintAuthoringEngine(
+        compiler, contexts, new ConstraintSourceEditService(),
+        renderer(), new ConstraintCaseGenerationTools(contexts,
             new ConstraintTestTools(compiler)), review);
     IliAuthoringResult result = new ConstraintAuthoringTools(engine).authorIliConstraint(
         ConstraintFixtures.withoutRule(fixture.caseId()), fixture.contextFqn(), (IliConstraintSpec.Mandatory) fixture.spec(), null, null, null);
@@ -100,8 +103,11 @@ class ConstraintViewAuthoringRegressionTest {
   void completeViewProof(ViewCase fixture) throws IOException {
     CountingCompiler compiler = new CountingCompiler();
     ModelAnalysisTools analysis = new ModelAnalysisTools(compiler);
-    var engine = new ConstraintAuthoringEngine(new ConstraintAuthoringWorkflow(compiler), renderer(),
-        new ConstraintCaseGenerationTools(new ConstraintContextService(compiler), new ConstraintTestTools(compiler)),
+    var contexts = new ConstraintContextService(compiler);
+    var engine = new ConstraintAuthoringEngine(
+        compiler, contexts, new ConstraintSourceEditService(),
+        renderer(),
+        new ConstraintCaseGenerationTools(contexts, new ConstraintTestTools(compiler)),
         new ModelChangeReviewService(analysis, new ModelingRuleTools(new KnowledgeRuleLoader(), analysis, compiler)));
     var result = new ConstraintAuthoringTools(engine).authorIliConstraint(
         ConstraintFixtures.withoutRule(fixture.caseId()), fixture.contextFqn(), fixture.spec(), null, null, null);

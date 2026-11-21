@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import ch.so.agi.mcp.constraint.ConstraintAuthoringEngine;
-import ch.so.agi.mcp.constraint.ConstraintAuthoringWorkflow;
+import ch.so.agi.mcp.constraint.ConstraintContextService;
+import ch.so.agi.mcp.constraint.ConstraintSourceEditService;
 import ch.so.agi.mcp.model.IliConstraintSpec.*;
+import ch.so.agi.mcp.service.IliCompilerService;
 import ch.so.agi.mcp.tools.AttributeTools;
 import ch.so.agi.mcp.tools.DomainTools;
 import java.util.Arrays;
@@ -39,8 +41,9 @@ class ConstraintSpecContractTest {
     ExpressionSpec function = node(ExpressionKind.FUNCTION);
     function.name = "External.group"; function.functionOrigin = FunctionOrigin.MODEL;
     function.objects = new AllObjectsSpec(); function.children = List.of(number());
-    var workflow = mock(ConstraintAuthoringWorkflow.class);
-    var engine = new ConstraintAuthoringEngine(workflow,
+    var compiler = mock(IliCompilerService.class);
+    var engine = new ConstraintAuthoringEngine(compiler,
+        new ConstraintContextService(compiler), new ConstraintSourceEditService(),
         new IliSpecRenderer(new AttributeTools(), new DomainTools()), null, null);
     var result = engine.author("INTERLIS 2.4;", "Demo.Data.Item", mandatory(function), null, null);
     assertThat(result.status).isEqualTo(IliAuthoringResult.Status.INVALID_SPEC);
@@ -53,7 +56,7 @@ class ConstraintSpecContractTest {
     });
     assertThat(result.candidateModelText).isNull(); assertThat(result.updatedModelText).isNull();
     assertThat(function.objects).isInstanceOf(AllObjectsSpec.class);
-    verifyNoInteractions(workflow);
+    verifyNoInteractions(compiler);
   }
 
   @Test void countExpressionAndSetCountHaveDifferentContracts() {

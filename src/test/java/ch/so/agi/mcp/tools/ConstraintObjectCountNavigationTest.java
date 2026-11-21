@@ -13,7 +13,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 class ConstraintObjectCountNavigationTest {
   private final IliCompilerService compiler = new IliCompilerService();
   private final ConstraintTestTools verifier = new ConstraintTestTools(compiler);
-  private final ConstraintCaseGenerationTools generation = new ConstraintCaseGenerationTools(new ConstraintContextService(compiler), verifier);
+  private final ConstraintContextService contexts = new ConstraintContextService(compiler);
+  private final ConstraintCaseGenerationTools generation = new ConstraintCaseGenerationTools(contexts, verifier);
 
   static String model(String version,String constraint) {
     if(version.equals("2.3"))constraint=constraint.replace("CONSTRAINT target:","CONSTRAINT ");
@@ -289,7 +290,9 @@ class ConstraintObjectCountNavigationTest {
   @ParameterizedTest @ValueSource(strings={"2.3","2.4"})
   void publicMandatoryAuthorsNestedCountsAndKeepsARejectedCandidate(String version) throws Exception {
     var analysis=new ch.so.agi.mcp.analysis.ModelAnalysisTools(compiler);
-    var engine=new ConstraintAuthoringEngine(new ConstraintAuthoringWorkflow(compiler),new IliSpecRenderer(new AttributeTools(),new DomainTools()),generation,
+    var engine=new ConstraintAuthoringEngine(
+        compiler, contexts, new ConstraintSourceEditService(),
+        new IliSpecRenderer(new AttributeTools(),new DomainTools()),generation,
         new ch.so.agi.mcp.analysis.ModelChangeReviewService(analysis,new ch.so.agi.mcp.knowledge.ModelingRuleTools(new ch.so.agi.mcp.knowledge.KnowledgeRuleLoader(),analysis,compiler)));
     var spec=new tools.jackson.databind.ObjectMapper().readValue("""
         {"kind":"MANDATORY","name":"nested","condition":{"kind":"IMPLIES","children":[

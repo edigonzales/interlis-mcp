@@ -6,8 +6,8 @@ import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.analysis.ModelPurpose;
 import ch.so.agi.mcp.analysis.ModelChangeReviewService;
 import ch.so.agi.mcp.constraint.ConstraintAuthoringEngine;
-import ch.so.agi.mcp.constraint.ConstraintAuthoringWorkflow;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
+import ch.so.agi.mcp.constraint.ConstraintSourceEditService;
 import ch.so.agi.mcp.knowledge.KnowledgeRuleLoader;
 import ch.so.agi.mcp.knowledge.ModelingRuleProfile;
 import ch.so.agi.mcp.knowledge.ModelingRuleTools;
@@ -374,7 +374,9 @@ class ConstraintWorkflowGoldenScenariosTest {
       ConstraintCaseGenerationTools cases,
       ModelChangeReviewService review) {
     return new ConstraintAuthoringEngine(
-        new ConstraintAuthoringWorkflow(compiler),
+        compiler,
+        new ConstraintContextService(compiler),
+        new ConstraintSourceEditService(),
         new IliSpecRenderer(new AttributeTools(), new DomainTools()),
         cases,
         review);

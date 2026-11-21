@@ -92,7 +92,8 @@ class AuthoringWorkflowResultTest {
     var literal = new IliConstraintSpec.ExpressionSpec(); literal.kind = IliConstraintSpec.ExpressionKind.NUMERIC; literal.value = 18;
     condition.children = List.of(attribute, literal);
     var spec = new IliConstraintSpec.Mandatory(); spec.name = "Adult"; spec.condition = condition;
-    var engine = new ConstraintAuthoringEngine(new ConstraintAuthoringWorkflow(compiler), renderer, generation, changes);
+    var engine = new ConstraintAuthoringEngine(
+        compiler, contexts, new ConstraintSourceEditService(), renderer, generation, changes);
     int callsBefore = compiler.calls;
     var result = engine.author(before, "Evidence.Data.Person", spec, ModelPurpose.CAPTURE, ModelingRuleProfile.CORE);
     assertThat(compiler.calls - callsBefore).isEqualTo(2);

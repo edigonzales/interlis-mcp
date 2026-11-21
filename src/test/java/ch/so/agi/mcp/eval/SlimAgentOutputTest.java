@@ -132,8 +132,10 @@ class SlimAgentOutputTest {
   static ConstraintAuthoringTools author(IliCompilerService compiler) {
     var analysis = new ModelAnalysisTools(compiler);
     var rules = new ModelingRuleTools(new KnowledgeRuleLoader(),analysis,compiler);
-    var generation = new ConstraintCaseGenerationTools(new ConstraintContextService(compiler),new ConstraintTestTools(compiler));
-    return new ConstraintAuthoringTools(new ConstraintAuthoringEngine(new ConstraintAuthoringWorkflow(compiler),
+    var contexts = new ConstraintContextService(compiler);
+    var generation = new ConstraintCaseGenerationTools(contexts,new ConstraintTestTools(compiler));
+    return new ConstraintAuthoringTools(new ConstraintAuthoringEngine(
+        compiler, contexts, new ConstraintSourceEditService(),
         new IliSpecRenderer(new AttributeTools(),new DomainTools()),generation,new ModelChangeReviewService(analysis,rules)));
   }
   static IliAuthoringResult.ProofCaseVerification testCase(boolean passed, boolean fixture, boolean exercised, Integer warnings) {

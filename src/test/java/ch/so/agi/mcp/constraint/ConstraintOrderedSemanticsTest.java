@@ -163,9 +163,11 @@ class ConstraintOrderedSemanticsTest {
 
   private static ConstraintAuthoringEngine engine(IliCompilerService compiler) {
     var analysis = new ModelAnalysisTools(compiler);
-    return new ConstraintAuthoringEngine(new ConstraintAuthoringWorkflow(compiler),
+    var contexts = new ConstraintContextService(compiler);
+    return new ConstraintAuthoringEngine(
+        compiler, contexts, new ConstraintSourceEditService(),
         new IliSpecRenderer(new AttributeTools(), new DomainTools()),
-        new ConstraintCaseGenerationTools(new ConstraintContextService(compiler), new ConstraintTestTools(compiler)),
+        new ConstraintCaseGenerationTools(contexts, new ConstraintTestTools(compiler)),
         new ModelChangeReviewService(analysis, new ModelingRuleTools(new KnowledgeRuleLoader(), analysis, compiler)));
   }
 }
