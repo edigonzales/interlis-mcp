@@ -4,10 +4,6 @@ import static ch.so.agi.mcp.constraint.ConstraintExpression.ComparisonOperator.E
 import static ch.so.agi.mcp.constraint.ConstraintExpression.ComparisonOperator.GE;
 import static ch.so.agi.mcp.constraint.ConstraintExpression.ScalarKind.NUMERIC;
 import static ch.so.agi.mcp.constraint.ConstraintExpression.ScalarKind.TEXT;
-import static ch.so.agi.mcp.constraint.ConstraintExpressionEngine.GoalKind.DEFINED;
-import static ch.so.agi.mcp.constraint.ConstraintExpressionEngine.GoalKind.FALSE;
-import static ch.so.agi.mcp.constraint.ConstraintExpressionEngine.GoalKind.TRUE;
-import static ch.so.agi.mcp.constraint.ConstraintExpressionEngine.GoalKind.UNDEFINED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -103,26 +99,6 @@ class ConstraintExpressionEngineTest {
     var context = ConstraintExpressionEngine.EvaluationContext.of(Map.of("Code", "So123"));
     assertFalse((Boolean) ConstraintExpressionEngine.evaluate(startsWith, context));
     assertEquals("SO123", ConstraintExpressionEngine.evaluate(upper, context));
-  }
-
-  @Test
-  void derivesTruthAndPresenceGoalsFromExpressionTree() {
-    ConstraintExpression.Path values = new ConstraintExpression.Path(
-        "items->value", ConstraintExpression.Type.collection(NUMERIC));
-    ConstraintExpression.FunctionCall sum = call("COLLECTION_SUM", values);
-    ConstraintExpression.Defined defined = new ConstraintExpression.Defined(sum);
-    ConstraintExpression.Comparison comparison = new ConstraintExpression.Comparison(
-        GE, sum, new ConstraintExpression.NumericLiteral(10));
-    ConstraintExpression expression = new ConstraintExpression.And(List.of(defined, comparison));
-
-    List<ConstraintExpressionEngine.TestGoal> goals = ConstraintExpressionEngine.testGoals(expression);
-
-    assertTrue(goals.contains(new ConstraintExpressionEngine.TestGoal(TRUE, expression, "constraint witness")));
-    assertTrue(goals.contains(new ConstraintExpressionEngine.TestGoal(FALSE, expression, "constraint counterexample")));
-    assertTrue(goals.contains(new ConstraintExpressionEngine.TestGoal(DEFINED, sum, "DEFINED branch")));
-    assertTrue(goals.contains(new ConstraintExpressionEngine.TestGoal(UNDEFINED, sum, "NOT DEFINED branch")));
-    assertTrue(goals.stream().anyMatch(goal -> goal.kind() == TRUE && goal.expression().equals(comparison)));
-    assertTrue(goals.stream().anyMatch(goal -> goal.kind() == FALSE && goal.expression().equals(comparison)));
   }
 
   @Test

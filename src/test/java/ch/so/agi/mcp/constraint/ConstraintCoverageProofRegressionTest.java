@@ -188,7 +188,7 @@ class ConstraintCoverageProofRegressionTest {
         var compilation = compiler.compile(mandatory, null);
         assertThat(compilation.valid()).as(compilation.messages().toString()).isTrue();
         var resolved = new ConstraintContextService(compiler).compileAndResolve(mandatory, "TextPresence.Data.Item.Presence", null, "mandatory_text_");
-        var expression = ConstraintAstTranslator.translate(resolved.context().constraint()).expression();
+        var expression = ((SemanticConstraint.Mandatory) resolved.context().semantics()).condition();
         var binding = ConstraintModelSynthesizer.bind(compilation.transferDescription(), "TextPresence.Data.Item", expression);
         var code = expression.references().stream().filter(ref -> ref.name().equals("code")).findFirst().orElseThrow();
         var goal = new ConstraintExpressionEngine.TestGoal(ConstraintExpressionEngine.GoalKind.UNDEFINED,

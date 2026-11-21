@@ -54,20 +54,23 @@ class ConstraintSemanticTranslatorTest {
   private final IliCompilerService compiler = new IliCompilerService();
 
   @Test
-  void mandatoryWrapsExistingExpressionIrWithoutChangingSemantics() {
+  void translatesMandatoryComparisonIntoTypedCondition() {
     Constraint compiled = constraint("NamedMandatory");
 
     SemanticConstraint.Mandatory semantic = assertKind(
         ConstraintSemanticTranslator.translate(compiled),
         SemanticConstraint.Mandatory.class);
-    ConstraintAstTranslator.Translation previous = ConstraintAstTranslator.translate(compiled);
 
     assertThat(semantic.kind()).isEqualTo(SemanticConstraint.Kind.MANDATORY);
     assertThat(semantic.constraintName()).isEqualTo("NamedMandatory");
     assertThat(semantic.contextFqn()).isEqualTo("ModelA.TopicA.ClassA");
     assertThat(semantic.version()).isEqualTo(ConstraintExpression.IliVersion.ILI_24);
-    assertThat(semantic.condition().toInterlis(semantic.version()))
-        .isEqualTo(previous.expression().toInterlis(previous.version()));
+    ConstraintExpression.Comparison condition = assertKind(
+        semantic.condition(), ConstraintExpression.Comparison.class);
+    assertThat(condition.operator()).isEqualTo(ConstraintExpression.ComparisonOperator.GT);
+    assertThat(assertKind(condition.left(), ConstraintExpression.Attribute.class).name()).isEqualTo("attr1");
+    assertThat(assertKind(condition.right(), ConstraintExpression.NumericLiteral.class).value())
+        .isEqualByComparingTo(BigDecimal.ONE);
   }
 
   @Test

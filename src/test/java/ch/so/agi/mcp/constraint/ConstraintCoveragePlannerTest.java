@@ -7,6 +7,8 @@ import static ch.so.agi.mcp.constraint.ConstraintExpression.ReferenceKind.ATTRIB
 import static ch.so.agi.mcp.constraint.ConstraintExpression.ReferenceKind.PATH;
 import static ch.so.agi.mcp.constraint.ConstraintExpression.ScalarKind.BOOLEAN;
 import static ch.so.agi.mcp.constraint.ConstraintExpression.ScalarKind.NUMERIC;
+import static ch.so.agi.mcp.constraint.ConstraintExpressionEngine.GoalKind.DEFINED;
+import static ch.so.agi.mcp.constraint.ConstraintExpressionEngine.GoalKind.UNDEFINED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -108,6 +110,13 @@ class ConstraintCoveragePlannerTest {
     ConstraintCoveragePlanner.CoveragePlan plan = ConstraintCoveragePlanner.solve(
         new ConstraintExpression.Defined(sum),
         binding(Map.of("items->value", pathBinding)));
+
+    Set<ConstraintExpressionEngine.GoalKind> presenceGoals = plan.cases().stream()
+        .flatMap(item -> item.coveredGoals().stream())
+        .filter(goal -> goal.expression().equals(sum))
+        .map(ConstraintExpressionEngine.TestGoal::kind)
+        .collect(Collectors.toSet());
+    assertTrue(presenceGoals.containsAll(Set.of(DEFINED, UNDEFINED)), String.valueOf(presenceGoals));
 
     Set<Integer> sizes = plan.cases().stream()
         .map(item -> ((List<?>) item.solution().assignment().get("items->value")).size())

@@ -103,22 +103,16 @@ class StandardFunctionSemanticsTest {
     assertTrue(compilation.valid(), String.valueOf(compilation.messages()));
     TransferDescription td = compilation.transferDescription();
 
-    ConstraintAstTranslator.Translation translation = ConstraintAstTranslator.translate(
-        constraint(td, "SqrtThree"));
-    ConstraintExpression expression = translation.expression();
+    SemanticConstraint.Mandatory translation =
+        (SemanticConstraint.Mandatory) ConstraintSemanticTranslator.translate(constraint(td, "SqrtThree"));
+    ConstraintExpression expression = translation.condition();
     ConstraintModelSynthesizer.ModelBinding binding = ConstraintModelSynthesizer.bind(
         td, translation.contextFqn(), expression);
 
-    ConstraintExpressionEngine.TestGoal witnessGoal = ConstraintExpressionEngine.testGoals(expression).stream()
-        .filter(goal -> goal.kind() == ConstraintExpressionEngine.GoalKind.TRUE)
-        .filter(goal -> goal.expression().equals(expression))
-        .findFirst()
-        .orElseThrow();
-    ConstraintExpressionEngine.TestGoal counterexampleGoal = ConstraintExpressionEngine.testGoals(expression).stream()
-        .filter(goal -> goal.kind() == ConstraintExpressionEngine.GoalKind.FALSE)
-        .filter(goal -> goal.expression().equals(expression))
-        .findFirst()
-        .orElseThrow();
+    ConstraintExpressionEngine.TestGoal witnessGoal = new ConstraintExpressionEngine.TestGoal(
+        ConstraintExpressionEngine.GoalKind.TRUE, expression, "constraint witness");
+    ConstraintExpressionEngine.TestGoal counterexampleGoal = new ConstraintExpressionEngine.TestGoal(
+        ConstraintExpressionEngine.GoalKind.FALSE, expression, "constraint counterexample");
 
     ConstraintGoalSolver.Solution witness = ConstraintGoalSolver.solve(witnessGoal, binding);
     ConstraintGoalSolver.Solution counterexample = ConstraintGoalSolver.solve(counterexampleGoal, binding);
