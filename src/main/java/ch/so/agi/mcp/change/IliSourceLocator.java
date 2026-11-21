@@ -2,12 +2,15 @@ package ch.so.agi.mcp.change;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public final class IliSourceLocator {
 
@@ -27,7 +30,8 @@ public final class IliSourceLocator {
       IliSourceSpan declarationSpan,
       IliSourceSpan headerSpan,
       IliSourceSpan bodySpan,
-      IliSourceSpan endMarkerSpan) {}
+      IliSourceSpan endMarkerSpan,
+      int endPreludeOffset) {}
 
   /** Exact attribute declaration plus the IliDoc/meta-attribute prelude owned by it. */
   public record AttributeLocation(
@@ -42,7 +46,7 @@ public final class IliSourceLocator {
     SYMBOL
   }
 
-  private record Token(TokenKind kind, String text, int startOffset, int endOffset, int line) {
+  private record Token(TokenKind kind, String text, int startOffset, int endOffset, int annotationStart) {
     boolean isIdentifier(String expected) {
       return kind == TokenKind.IDENTIFIER && text.equals(expected);
     }
@@ -171,6 +175,34 @@ public final class IliSourceLocator {
         "Attribute '" + attributeName + "'");
   }
 
+  public IliTextPatch insertImports(
+      IliSourceDocument document, BlockLocation model, Collection<String> imports, String description) {
+    // INTERLIS 2.4 permits CHARSET and XMLNS between the header's '=' and IMPORTS.
+    IliSourceSpan prefix = leadingBodySpan(document, model, Set.of("CHARSET", "XMLNS"), "");
+    String fragment = imports.stream().map(name -> "IMPORTS " + name + ";").collect(Collectors.joining("\n"));
+    return document.insertAfter(prefix, fragment, document.bodyIndent(model), description);
+  }
+
+  public IliSourceSpan attributeSectionStart(IliSourceDocument document, BlockLocation block) {
+    return leadingBodySpan(document, block, Set.of("OID", "NO"), "ATTRIBUTE");
+  }
+
+  private IliSourceSpan leadingBodySpan(IliSourceDocument document, BlockLocation block,
+      Set<String> clauses, String sectionKeyword) {
+    List<Token> tokens = tokenize(document);
+    int index = 0;
+    int end = block.headerSpan().endOffset();
+    while (tokens.get(index).startOffset() < end) index++;
+    while (clauses.contains(tokens.get(index).text())) {
+      int semicolon = findSemicolon(tokens, index + 1, block.bodySpan().endOffset());
+      if (semicolon < 0) break;
+      end = tokens.get(semicolon).endOffset();
+      index = semicolon + 1;
+    }
+    if (tokens.get(index).isKeyword(sectionKeyword)) end = tokens.get(index).endOffset();
+    return document.span(block.headerSpan().startOffset(), end);
+  }
+
   public AttributeLocation locateAttributeDeclaration(
       IliSourceDocument document,
       BlockLocation container,
@@ -268,7 +300,8 @@ public final class IliSourceLocator {
           document.span(openingToken.startOffset(), terminator.endOffset()),
           document.span(openingToken.startOffset(), equalsToken.endOffset()),
           document.span(equalsToken.endOffset(), token.startOffset()),
-          document.span(token.startOffset(), terminator.endOffset())));
+          document.span(token.startOffset(), terminator.endOffset()),
+          token.annotationStart() < 0 ? token.startOffset() : token.annotationStart()));
     }
 
     result.sort(Comparator.comparingInt(block -> block.declarationSpan().startOffset()));
@@ -345,6 +378,7 @@ public final class IliSourceLocator {
     String source = document.text();
     List<Token> tokens = new ArrayList<>();
     int i = 0;
+    int annotationStart = -1;
     while (i < source.length()) {
       char c = source.charAt(i);
 
@@ -353,16 +387,24 @@ public final class IliSourceLocator {
         continue;
       }
       if (c == '!' && i + 1 < source.length() && source.charAt(i + 1) == '!') {
+        if (annotationStart < 0 && source.startsWith("!!@", i)) annotationStart = i;
         i = skipLineComment(source, i + 2);
         continue;
       }
       if (c == '/' && i + 1 < source.length() && source.charAt(i + 1) == '*') {
+        if (annotationStart < 0 && source.startsWith("/**", i)) annotationStart = i;
         i = skipBlockComment(source, i + 2);
+        continue;
+      }
+      if (source.startsWith("//", i)) {
+        int end = source.indexOf("//", i + 2);
+        i = end < 0 ? source.length() : end + 2;
         continue;
       }
       if (c == '"') {
         int end = scanString(source, i);
-        tokens.add(new Token(TokenKind.STRING, source.substring(i, end), i, end, document.lineOfOffset(i)));
+        tokens.add(new Token(TokenKind.STRING, source.substring(i, end), i, end, annotationStart));
+        annotationStart = -1;
         i = end;
         continue;
       }
@@ -371,12 +413,14 @@ public final class IliSourceLocator {
         while (end < source.length() && isIdentifierPart(source.charAt(end))) {
           end++;
         }
-        tokens.add(new Token(TokenKind.IDENTIFIER, source.substring(i, end), i, end, document.lineOfOffset(i)));
+        tokens.add(new Token(TokenKind.IDENTIFIER, source.substring(i, end), i, end, annotationStart));
+        annotationStart = -1;
         i = end;
         continue;
       }
 
-      tokens.add(new Token(TokenKind.SYMBOL, String.valueOf(c), i, i + 1, document.lineOfOffset(i)));
+      tokens.add(new Token(TokenKind.SYMBOL, String.valueOf(c), i, i + 1, annotationStart));
+      annotationStart = -1;
       i++;
     }
     return tokens;
@@ -391,12 +435,15 @@ public final class IliSourceLocator {
   }
 
   private int skipBlockComment(String source, int start) {
-    int i = start;
-    while (i + 1 < source.length()) {
-      if (source.charAt(i) == '*' && source.charAt(i + 1) == '/') {
-        return i + 2;
+    int depth = 1;
+    for (int i = start; i + 1 < source.length(); i++) {
+      if (source.startsWith("*/", i)) {
+        if (--depth == 0) return i + 2;
+        i++;
+      } else if (source.startsWith("/*", i)) {
+        depth++;
+        i++;
       }
-      i++;
     }
     return source.length();
   }

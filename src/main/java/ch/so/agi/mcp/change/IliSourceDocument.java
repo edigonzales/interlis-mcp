@@ -1,8 +1,10 @@
 package ch.so.agi.mcp.change;
 
+import ch.so.agi.mcp.change.IliSourceLocator.BlockLocation;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public final class IliSourceDocument {
 
@@ -94,6 +96,54 @@ public final class IliSourceDocument {
       throw new IllegalArgumentException("Span exceeds document length.");
     }
     return text.substring(span.startOffset(), span.endOffset());
+  }
+
+  public String leadingIndent(int line) {
+    int start = lineStartOffset(line);
+    return text.substring(start, skipHorizontalSpace(start));
+  }
+
+  public String bodyIndent(BlockLocation block) {
+    return leadingIndent(block.headerSpan().startLine()) + "  ";
+  }
+
+  public IliTextPatch insertAfter(
+      IliSourceSpan span, String fragment, String indent, String description) {
+    int offset = skipHorizontalSpace(span.endOffset());
+    int line = span.endLine();
+    boolean trailingComment = text.startsWith("!!", offset) && !text.startsWith("!!@", offset);
+    if (line < lineCount() && (offset == lineEndOffset(line) || trailingComment)) {
+      offset = lineStartOffset(line + 1);
+    }
+    return insertLines(offset, fragment, indent, "", description);
+  }
+
+  public IliTextPatch insertBeforeEnd(
+      BlockLocation block, String fragment, boolean blankLine, String description) {
+    // Trailing annotations must not attach to the inserted declaration.
+    int offset = block.endPreludeOffset();
+    int lineStart = lineStartOffset(lineOfOffset(offset));
+    if (skipHorizontalSpace(lineStart) == offset) {
+      return insertLines(lineStart, fragment, bodyIndent(block), blankLine ? lineSeparator : "", description);
+    }
+    return insertLines(offset, fragment, bodyIndent(block),
+        leadingIndent(block.headerSpan().startLine()), description);
+  }
+
+  private IliTextPatch insertLines(
+      int offset, String fragment, String indent, String suffix, String description) {
+    String prefix = offset == lineStartOffset(lineOfOffset(offset)) ? "" : lineSeparator;
+    return IliTextPatch.insert(this, offset,
+        prefix + indentLines(fragment, indent, lineSeparator) + lineSeparator + suffix, description);
+  }
+
+  public static String indentLines(String fragment, String indent, String lineSeparator) {
+    return fragment.lines().map(line -> indent + line).collect(Collectors.joining(lineSeparator));
+  }
+
+  private int skipHorizontalSpace(int offset) {
+    while (offset < text.length() && (text.charAt(offset) == ' ' || text.charAt(offset) == '\t')) offset++;
+    return offset;
   }
 
   private void requireLine(int line) {

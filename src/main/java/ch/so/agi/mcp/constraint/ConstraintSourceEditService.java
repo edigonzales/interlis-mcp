@@ -75,23 +75,7 @@ public class ConstraintSourceEditService {
               document, IliSourceLocator.BlockKind.MODEL, owner.getName(), owner.getSourceLine())
           : sourceLocator.locateNamedBlock(
               document, IliSourceLocator.BlockKind.MODEL, owner.getName());
-      int headerEnd = modelBlock.headerSpan().endOffset();
-      boolean headerOnOwnLine = document.text().substring(headerEnd,
-          document.lineEndOffset(modelBlock.headerSpan().endLine())).isBlank();
-      int importAt = headerOnOwnLine && modelBlock.headerSpan().endLine() < document.lineCount()
-          ? document.lineStartOffset(modelBlock.headerSpan().endLine() + 1)
-          : headerEnd;
-      String modelIndent = leadingIndent(document, modelBlock.headerSpan().startLine());
-      String eol = document.lineSeparator();
-      StringBuilder importText = new StringBuilder(importAt == headerEnd ? eol : "");
-      for (String imported : missingImports) {
-        importText.append(modelIndent).append("  IMPORTS ").append(imported)
-            .append(';').append(eol);
-      }
-      patches.add(IliTextPatch.insert(
-          document,
-          importAt,
-          importText.toString(),
+      patches.add(sourceLocator.insertImports(document, modelBlock, missingImports,
           "Add derived imports for constraint " + contextFqn.trim()));
     }
 
@@ -131,31 +115,10 @@ public class ConstraintSourceEditService {
         ? sourceLocator.locateNamedBlock(document, IliSourceLocator.BlockKind.VIEW,
             context.getName(), context.getSourceLine(), topicBlock)
         : topicBlock;
-    String blockIndent = leadingIndent(document, insertionBlock.headerSpan().startLine());
-    String eol = document.lineSeparator();
     String fragment = inline ? constraintText
         : "CONSTRAINTS OF " + contextFqn + " =\n"
-            + indentBlock(constraintText, "  ", "\n") + "\nEND;";
-    String indentedBlock = indentBlock(fragment, blockIndent + "  ", eol);
-    int endLineStart = document.lineStartOffset(insertionBlock.endMarkerSpan().startLine());
-    int endStart = insertionBlock.endMarkerSpan().startOffset();
-    boolean endOnOwnLine = document.text().substring(endLineStart, endStart).isBlank();
-    int insertAt = endOnOwnLine ? endLineStart : endStart;
-    String insertion = (endOnOwnLine ? "" : eol) + indentedBlock + eol
-        + (inline ? "" : eol) + (endOnOwnLine ? "" : blockIndent);
-
-    return IliTextPatch.insert(
-        document,
-        insertAt,
-        insertion,
-        "Insert constraint for " + contextFqn);
-  }
-
-  private String leadingIndent(IliSourceDocument document, int line) {
-    String text = document.lineText(line);
-    int end = 0;
-    while (end < text.length() && (text.charAt(end) == ' ' || text.charAt(end) == '\t')) end++;
-    return text.substring(0, end);
+            + IliSourceDocument.indentLines(constraintText, "  ", "\n") + "\nEND;";
+    return document.insertBeforeEnd(insertionBlock, fragment, !inline, "Insert constraint for " + contextFqn);
   }
 
   private LinkedHashSet<String> missingImports(
@@ -180,19 +143,6 @@ public class ConstraintSourceEditService {
       if (dependency != null && imported.equals(dependency.getName())) return true;
     }
     return false;
-  }
-
-  private String indentBlock(String block, String indent, String eol) {
-    String normalized = block.replace("\r\n", "\n").replace('\r', '\n');
-    String[] lines = normalized.split("\n", -1);
-    StringBuilder result = new StringBuilder();
-    for (int i = 0; i < lines.length; i++) {
-      if (i > 0) {
-        result.append(eol);
-      }
-      result.append(indent).append(lines[i]);
-    }
-    return result.toString();
   }
 
   private boolean belongsToLastFile(TransferDescription td, Model owner) {
