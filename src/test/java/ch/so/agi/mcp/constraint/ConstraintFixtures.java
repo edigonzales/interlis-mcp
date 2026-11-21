@@ -27,9 +27,11 @@ public final class ConstraintFixtures {
   public static ConstraintAuthoringTools authoring(IliCompilerService compiler) {
     var analysis = new ModelAnalysisTools(compiler);
     var rules = new ModelingRuleTools(new KnowledgeRuleLoader(), analysis, compiler);
+    var contexts = new ConstraintContextService(compiler);
     return new ConstraintAuthoringTools(new ConstraintAuthoringEngine(
-        new ConstraintAuthoringWorkflow(compiler), new IliSpecRenderer(new AttributeTools(), new DomainTools()),
-        new ConstraintCaseGenerationTools(new ConstraintContextService(compiler), new ConstraintTestTools(compiler)),
+        compiler, contexts, new ConstraintSourceEditService(),
+        new IliSpecRenderer(new AttributeTools(), new DomainTools()),
+        new ConstraintCaseGenerationTools(contexts, new ConstraintTestTools(compiler)),
         new ModelChangeReviewService(analysis, rules)));
   }
 

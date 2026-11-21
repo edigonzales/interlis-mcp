@@ -206,9 +206,11 @@ class ConstraintPathSearchTest {
   void discoveredExpressionsPassExistingAuthoringAndRealValidator(String version) throws Exception {
     String model = MODEL.replace("INTERLIS 2.4", "INTERLIS " + version);
     var analysis = new ModelAnalysisTools(compiler);
-    var engine = new ConstraintAuthoringEngine(new ConstraintAuthoringWorkflow(compiler),
+    var contexts = new ConstraintContextService(compiler);
+    var engine = new ConstraintAuthoringEngine(
+        compiler, contexts, new ConstraintSourceEditService(),
         new IliSpecRenderer(new AttributeTools(), new DomainTools()),
-        new ConstraintCaseGenerationTools(new ConstraintContextService(compiler), new ConstraintTestTools(compiler)),
+        new ConstraintCaseGenerationTools(contexts, new ConstraintTestTools(compiler)),
         new ModelChangeReviewService(analysis, new ModelingRuleTools(new KnowledgeRuleLoader(), analysis, compiler)));
     var mapper = new ObjectMapper();
     for (var test : List.of(

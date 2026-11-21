@@ -81,6 +81,60 @@ class ConstraintAuthoringContractRegressionTest {
     assertThat(compiler.calls).isEqualTo(1); // Only the unchanged input model is compiled by the batch workflow.
   }
 
+  @Test void invalidBeforeModelStopsAfterOneCompilation() throws Exception {
+    var compiler = new CountingCompiler();
+    var result = engine(compiler).author(MODEL.replace("0..10", "UnknownDomain"),
+        "ContractDemo.Data.Item", constraintOn("value"), null, null);
+
+    assertThat(compiler.calls).isEqualTo(1);
+    assertThat(result.status).isEqualTo(IliAuthoringResult.Status.BEFORE_MODEL_INVALID);
+    assertThat(result.beforeCompilation.valid()).isFalse();
+    assertThat(result.beforeCompilation.diagnostics()).isNotEmpty();
+    assertThat(result.afterCompilation).isNull();
+    assertThat(result.candidateModelText).isNull();
+    assertThat(result.updatedModelText).isNull();
+    assertThat(result.constraintProofs).isNullOrEmpty();
+  }
+
+  @Test void unknownConstraintContextKeepsSuccessfulBeforeCompilation() throws Exception {
+    var compiler = new CountingCompiler();
+    var result = engine(compiler).author(MODEL, "ContractDemo.Data.Missing",
+        constraintOn("value"), null, null);
+
+    assertThat(compiler.calls).isEqualTo(1);
+    assertThat(result.status).isEqualTo(IliAuthoringResult.Status.INVALID_SPEC);
+    assertThat(result.reason).contains("ContractDemo.Data.Missing");
+    assertThat(result.beforeCompilation.valid()).isTrue();
+    assertThat(result.afterCompilation).isNull();
+    assertThat(result.candidateModelText).isNull();
+    assertThat(result.updatedModelText).isNull();
+  }
+
+  @Test void invalidCandidateKeepsCompilerDiagnosticsAndSourceEdits() throws Exception {
+    var compiler = new CountingCompiler();
+    var result = engine(compiler).author(MODEL, "ContractDemo.Data.Item",
+        constraintOn("missingAttribute"), null, null);
+
+    assertThat(compiler.calls).isEqualTo(2);
+    assertThat(result.status).isEqualTo(IliAuthoringResult.Status.CANDIDATE_MODEL_INVALID);
+    assertThat(result.beforeCompilation.valid()).isTrue();
+    assertThat(result.afterCompilation.valid()).isFalse();
+    assertThat(result.afterCompilation.diagnostics()).anySatisfy(d ->
+        assertThat(d.message).contains("missingAttribute"));
+    assertThat(result.candidateModelText).contains("DEFINED(missingAttribute)");
+    assertThat(result.sourceEdits).hasSize(1);
+    assertThat(result.derivedImports).isEmpty();
+    assertThat(result.updatedModelText).isNull();
+    assertThat(result.constraintProofs).isNullOrEmpty();
+  }
+
+  private IliConstraintSpec.Mandatory constraintOn(String attribute) throws Exception {
+    return mapper.readValue("""
+        {"kind":"MANDATORY","name":"Rule","condition":{"kind":"DEFINED",
+         "children":[{"kind":"ATTRIBUTE","name":"%s"}]}}
+        """.formatted(attribute), IliConstraintSpec.Mandatory.class);
+  }
+
   @Test void orderedComparisonNormalizesOnlyEnumPrefixes() throws Exception {
     var spec=mapper.readValue("""
         {"kind":"AND","children":[{"kind":"DEFINED","children":[{"kind":"ATTRIBUTE","name":"x"}]},
@@ -99,9 +153,11 @@ class ConstraintAuthoringContractRegressionTest {
 
   private static ConstraintAuthoringEngine engine(IliCompilerService compiler) {
     var analysis=new ModelAnalysisTools(compiler);
-    return new ConstraintAuthoringEngine(new ConstraintAuthoringWorkflow(compiler),
+    var contexts = new ConstraintContextService(compiler);
+    return new ConstraintAuthoringEngine(
+        compiler, contexts, new ConstraintSourceEditService(),
         new IliSpecRenderer(new AttributeTools(),new DomainTools()),
-        new ConstraintCaseGenerationTools(new ConstraintContextService(compiler),new ConstraintTestTools(compiler)),
+        new ConstraintCaseGenerationTools(contexts,new ConstraintTestTools(compiler)),
         new ModelChangeReviewService(analysis,new ModelingRuleTools(new KnowledgeRuleLoader(),analysis,compiler)));
   }
   private static class CountingCompiler extends IliCompilerService {

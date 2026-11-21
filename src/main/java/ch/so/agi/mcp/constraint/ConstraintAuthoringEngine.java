@@ -27,17 +27,23 @@ public final class ConstraintAuthoringEngine {
   private static final Pattern ILI_VERSION =
       Pattern.compile("(?m)^\\s*INTERLIS\\s+(2\\.3|2\\.4)\\s*;");
 
-  private final ConstraintAuthoringWorkflow workflow;
+  private final IliCompilerService compilerService;
+  private final ConstraintContextService contextService;
+  private final ConstraintSourceEditService sourceEditService;
   private final IliSpecRenderer renderer;
   private final ConstraintCaseGenerationTools caseGenerationTools;
   private final ModelChangeReviewService reviewService;
 
   public ConstraintAuthoringEngine(
-      ConstraintAuthoringWorkflow workflow,
+      IliCompilerService compilerService,
+      ConstraintContextService contextService,
+      ConstraintSourceEditService sourceEditService,
       IliSpecRenderer renderer,
       ConstraintCaseGenerationTools caseGenerationTools,
       ModelChangeReviewService reviewService) {
-    this.workflow = workflow;
+    this.compilerService = compilerService;
+    this.contextService = contextService;
+    this.sourceEditService = sourceEditService;
     this.renderer = renderer;
     this.caseGenerationTools = caseGenerationTools;
     this.reviewService = reviewService;
@@ -66,8 +72,8 @@ public final class ConstraintAuthoringEngine {
           new IliAuthoringResult().reject(Status.INVALID_SPEC, ex.getMessage(), null), ex);
     }
 
-    IliCompilerService.CompilationResult before = workflow.compileBefore(
-        modelText, "ili2c_constraint_authoring_before_");
+    IliCompilerService.CompilationResult before = compilerService.compile(
+        modelText, null, "ili2c_constraint_authoring_before_");
     if (!before.valid() || before.transferDescription() == null) {
       var result = new IliAuthoringResult().reject(
           Status.BEFORE_MODEL_INVALID, "The supplied before model must compile.", null);
@@ -75,24 +81,21 @@ public final class ConstraintAuthoringEngine {
       return result;
     }
 
-    ConstraintAuthoringWorkflow.PreparedConstraint prepared;
+    String constraintFqn = context + "." + constraintName;
+    ConstraintSourceEditService.PreparedInsertion insertion;
+    ConstraintContextService.Resolution resolution;
     try {
-      prepared = workflow.insertAndResolve(
-          modelText,
-          before,
-          context,
-          constraintText,
-          context + "." + constraintName,
-          "ili2c_constraint_authoring_after_",
-          imports);
+      insertion = sourceEditService.insertConstraint(modelText, before, context, constraintText, imports);
+      resolution = contextService.compileAndResolve(
+          insertion.updatedModelText(), constraintFqn, null, "ili2c_constraint_authoring_after_");
     } catch (IllegalArgumentException ex) {
       var result = new IliAuthoringResult().reject(Status.INVALID_SPEC, ex.getMessage(), null);
       result.beforeCompilation = IliAuthoringResult.Compilation.from(before);
       return SpecValidationException.attach(result, ex);
     }
 
-    String candidate = prepared.insertion().updatedModelText();
-    IliCompilerService.CompilationResult after = prepared.resolution().compilation();
+    String candidate = insertion.updatedModelText();
+    IliCompilerService.CompilationResult after = resolution.compilation();
     Map<String, Object> review = reviewService.reviewCompiledChange(
         before,
         after,
@@ -101,7 +104,7 @@ public final class ConstraintAuthoringEngine {
         ModelPurpose.normalize(modelPurpose),
         ModelingRuleProfile.normalize(ruleProfile));
     IliAuthoringResult result = IliAuthoringResult.fromChangeReview(review, before, after);
-    result.sourceEdits = prepared.insertion().sourceEdits().stream()
+    result.sourceEdits = insertion.sourceEdits().stream()
         .map(this::sourceEdit)
         .toList();
     result.derivedImports = List.copyOf(imports);
@@ -109,8 +112,6 @@ public final class ConstraintAuthoringEngine {
     if (!result.afterCompilation.valid()) {
       return result.reject(Status.CANDIDATE_MODEL_INVALID, "The rendered constraint candidate does not compile.", candidate);
     }
-    String constraintFqn = context + "." + constraintName;
-    var resolution = prepared.resolution();
     if (!ConstraintAstComparison.verify(Map.of(constraintFqn, spec), ignored -> resolution, result, candidate)) {
       return result;
     }
