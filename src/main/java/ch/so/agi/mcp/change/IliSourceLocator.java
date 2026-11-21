@@ -179,8 +179,7 @@ public final class IliSourceLocator {
     // INTERLIS 2.4 permits CHARSET and XMLNS between the header's '=' and IMPORTS.
     IliSourceSpan prefix = leadingBodySpan(document, model, Set.of("CHARSET", "XMLNS"), "");
     String fragment = imports.stream().map(name -> "IMPORTS " + name + ";").collect(Collectors.joining("\n"));
-    return document.insertAfter(prefix, fragment,
-        document.leadingIndent(model.headerSpan().startLine()) + "  ", description);
+    return document.insertAfter(prefix, fragment, document.bodyIndent(model), description);
   }
 
   public IliSourceSpan attributeSectionStart(IliSourceDocument document, BlockLocation block) {

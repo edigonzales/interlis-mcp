@@ -736,7 +736,7 @@ public final class IliModelChangesService {
       Object item = elements.next();
       if (item instanceof AttributeDef attribute && attribute.getContainer() == table) last = attribute;
     }
-    String indent = document.leadingIndent(block.headerSpan().startLine()) + "  ";
+    String indent = document.bodyIndent(block);
     if (last != null) {
       IliSourceSpan span = sourceLocator.locateAttribute(
           document, block, last.getName(), Math.max(1, last.getSourceLine()));

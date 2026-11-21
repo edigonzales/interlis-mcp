@@ -100,16 +100,19 @@ public final class IliSourceDocument {
 
   public String leadingIndent(int line) {
     int start = lineStartOffset(line);
-    int end = start;
-    while (end < text.length() && (text.charAt(end) == ' ' || text.charAt(end) == '\t')) end++;
-    return text.substring(start, end);
+    return text.substring(start, skipHorizontalSpace(start));
+  }
+
+  public String bodyIndent(BlockLocation block) {
+    return leadingIndent(block.headerSpan().startLine()) + "  ";
   }
 
   public IliTextPatch insertAfter(
       IliSourceSpan span, String fragment, String indent, String description) {
-    int offset = span.endOffset();
+    int offset = skipHorizontalSpace(span.endOffset());
     int line = span.endLine();
-    if (line < lineCount() && text.substring(offset, lineEndOffset(line)).isBlank()) {
+    boolean trailingComment = text.startsWith("!!", offset) && !text.startsWith("!!@", offset);
+    if (line < lineCount() && (offset == lineEndOffset(line) || trailingComment)) {
       offset = lineStartOffset(line + 1);
     }
     return insertLines(offset, fragment, indent, "", description);
@@ -119,10 +122,11 @@ public final class IliSourceDocument {
       BlockLocation block, String fragment, boolean blankLine, String description) {
     IliSourceSpan end = block.endMarkerSpan();
     int lineStart = lineStartOffset(end.startLine());
-    boolean ownLine = lineStart + leadingIndent(end.startLine()).length() == end.startOffset();
-    String indent = leadingIndent(block.headerSpan().startLine());
-    return insertLines(ownLine ? lineStart : end.startOffset(), fragment, indent + "  ",
-        ownLine ? (blankLine ? lineSeparator : "") : indent, description);
+    if (skipHorizontalSpace(lineStart) == end.startOffset()) {
+      return insertLines(lineStart, fragment, bodyIndent(block), blankLine ? lineSeparator : "", description);
+    }
+    return insertLines(end.startOffset(), fragment, bodyIndent(block),
+        leadingIndent(block.headerSpan().startLine()), description);
   }
 
   private IliTextPatch insertLines(
@@ -134,6 +138,11 @@ public final class IliSourceDocument {
 
   public static String indentLines(String fragment, String indent, String lineSeparator) {
     return fragment.lines().map(line -> indent + line).collect(Collectors.joining(lineSeparator));
+  }
+
+  private int skipHorizontalSpace(int offset) {
+    while (offset < text.length() && (text.charAt(offset) == ' ' || text.charAt(offset) == '\t')) offset++;
+    return offset;
   }
 
   private void requireLine(int line) {

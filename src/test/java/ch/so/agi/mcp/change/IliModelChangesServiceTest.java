@@ -384,7 +384,7 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
         .isEqualTo(IliAuthoringResult.Status.APPLIED);
     assertThat(compiler.calls).isEqualTo(2);
     assertThat(compiler.lastCompilation.transferDescription().getElement("Demo.Data.Thing.extra")).isNotNull();
-    assertInsertion(result.sourceEdits.getFirst(), source.indexOf(previous) + previous.length(), 4,
+    assertInsertion(result.sourceEdits.getFirst(), source.indexOf("/** Existing rule. */"), 4,
         "\n      extra : TEXT*10;\n");
     assertReplay(source, result);
   }
@@ -432,6 +432,12 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     assertThat(wrongContext.status).isEqualTo(IliAuthoringResult.Status.INVALID_SPEC);
     assertThat(wrongContext.reason).contains("wrong element kind");
     assertThat(wrongContext.updatedModelText).isNull();
+
+    var missingContext = service.apply(
+        model(), batch(addConstraint("Demo.Data.Missing", constraint), true), null, null, null);
+    assertThat(missingContext.status).isEqualTo(IliAuthoringResult.Status.INVALID_SPEC);
+    assertThat(missingContext.reason).contains("Target not found");
+    assertThat(missingContext.updatedModelText).isNull();
   }
 
   @ParameterizedTest
@@ -645,6 +651,7 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     String indent = eol.equals("\r\n") ? "\t" : "  ";
     String header = (contracted ? "CONTRACTED " : "")
         + "MODEL Demo (de) AT \"https://example.org/demo\" VERSION \"1\" =";
+    if (!compact && !contracted) header += " !! Keep with the model header.";
     String topic = compact ? " /** Topic documentation. */ TOPIC Data ="
         : eol + (existing ? indent + "IMPORTS " + math + ";" + eol : "")
             + indent + "/** Topic documentation. */" + eol
@@ -652,7 +659,7 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     String source = String.join(eol, "INTERLIS " + version + ";", header + topic,
         indent.repeat(2) + "CLASS Thing = measure : MANDATORY -100 .. 100; END Thing;",
         indent + "END Data;", "END Demo.", "");
-    int importAt = source.indexOf(header) + header.length() + (compact ? 0 : eol.length());
+    int importAt = source.indexOf(header) + header.length() + (compact ? 1 : eol.length());
     String importText = (compact ? eol : "") + "  IMPORTS " + math + ";" + eol;
     String context = "Demo.Data.Thing";
     var spec = absoluteMinimum("Minimum");
@@ -707,21 +714,10 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     }
     var operations = new ArrayList<IliModelChangeRequest>();
     operations.add(addConstraint("Demo.Data.Thing", absoluteMinimum("First")));
-    operations.add(operation(IliModelChangeOperation.ADD_CLASS, change -> {
-      var add = new IliModelChangeRequest.AddClassChange();
-      add.topicFqn = "Demo.Data";
-      add.clazz = new IliModelSpec.ClassSpec();
-      add.clazz.name = "Extra";
-      change.setAddClass(add);
-    }));
+    operations.add(addClass("Extra"));
     operations.add(addConstraint("Demo.Data.Other", absoluteMinimum("Second")));
     if (importMode.equals("explicit")) {
-      operations.add(operation(IliModelChangeOperation.ADD_IMPORT, change -> {
-        var add = new IliModelChangeRequest.AddImportChange();
-        add.modelFqn = "Demo";
-        add.importModel = "Math";
-        change.setAddImport(add);
-      }));
+      operations.add(addImport("Math"));
     }
 
     var compiler = new CountingCompiler();
@@ -795,7 +791,7 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
         .containsExactlyInAnyOrder("FirstDependency", "SecondDependency");
     assertThat(td.getElement("Demo.Data.Extra").getContainer()).isSameAs(td.getElement("Demo.Data"));
     assertThat(result.sourceEdits).hasSize(2);
-    assertInsertion(result.sourceEdits.getFirst(), source.indexOf(" TOPIC Data"), 2,
+    assertInsertion(result.sourceEdits.getFirst(), source.indexOf("TOPIC Data"), 2,
         "\r\n  IMPORTS SecondDependency;\r\n  IMPORTS FirstDependency;\r\n");
     assertReplay(source, result);
   }
@@ -808,16 +804,9 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
         CONTRACTED MODEL Demo (de) AT "https://example.org/demo" VERSION "1" =
         \tTOPIC Data = CLASS Thing = END Thing; END Data; END Demo.
         """.formatted(version);
-    var topic = operation(IliModelChangeOperation.ADD_TOPIC, change -> {
-      var add = new IliModelChangeRequest.AddTopicChange();
-      add.modelFqn = "Demo";
-      add.topic = new IliModelSpec.TopicSpec();
-      add.topic.name = "ExtraData";
-      change.setAddTopic(add);
-    });
     var compiler = new CountingCompiler();
     var result = service(compiler).apply(source, batch(List.of(
-        addClass("Earlier"), topic, addClass("Later")), true), null, null, null);
+        addClass("Earlier"), addTopic("ExtraData"), addClass("Later")), true), null, null, null);
     assertThat(result.status).as(result.reason).isEqualTo(IliAuthoringResult.Status.APPLIED);
     assertThat(compiler.calls).isEqualTo(2);
     var td = compiler.lastCompilation.transferDescription();
@@ -833,9 +822,9 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
   }
 
   @ParameterizedTest
-  @ValueSource(booleans = {false, true})
+  @CsvSource({"false, ''", "false, '  '", "true, ' '"})
   void importsFollowModelSettingsAndPrecedeDeclarationsAtAnEmptyModelEnd(
-      boolean settings, @TempDir Path repository) throws IOException {
+      boolean settings, String gap, @TempDir Path repository) throws IOException {
     Files.writeString(repository.resolve("Dependency.ili"), """
         INTERLIS 2.4;
         MODEL Dependency (en) AT "https://example.org/import" VERSION "1" = END Dependency.
@@ -844,17 +833,10 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     String source = """
         INTERLIS 2.4;
         MODEL Demo (de) AT "https://example.org/demo" VERSION "1" // stable = yes //
-          /* outer /* inner */ = ignored */ =%sEND Demo.
-        """.formatted(prefix);
-    var topic = operation(IliModelChangeOperation.ADD_TOPIC, change -> {
-      var add = new IliModelChangeRequest.AddTopicChange();
-      add.modelFqn = "Demo";
-      add.topic = new IliModelSpec.TopicSpec();
-      add.topic.name = "Data";
-      change.setAddTopic(add);
-    });
+          /* outer /* inner */ = ignored */ =%s%sEND Demo.
+        """.formatted(prefix, gap);
     var compiler = new CountingCompiler(repository.toString());
-    var result = service(compiler).apply(source, batch(List.of(topic, addImport("Dependency")), true),
+    var result = service(compiler).apply(source, batch(List.of(addTopic("Data"), addImport("Dependency")), true),
         null, null, null);
     assertThat(result.status).as("%s %s", result.reason, compiler.lastCompilation.messages())
         .isEqualTo(IliAuthoringResult.Status.APPLIED);
@@ -991,14 +973,7 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
         """);
     assertAddOperation(repository, model(), addImport("Dependency"), "IMPORTS Dependency;", "Demo");
 
-    assertAddOperation(repository, model(), operation(IliModelChangeOperation.ADD_TOPIC, change -> {
-      IliModelSpec.TopicSpec topic = new IliModelSpec.TopicSpec();
-      topic.name = "MoreData";
-      IliModelChangeRequest.AddTopicChange add = new IliModelChangeRequest.AddTopicChange();
-      add.modelFqn = "Demo";
-      add.topic = topic;
-      change.setAddTopic(add);
-    }), "TOPIC MoreData", "Demo.MoreData");
+    assertAddOperation(repository, model(), addTopic("MoreData"), "TOPIC MoreData", "Demo.MoreData");
 
     var domainOperation = operation(IliModelChangeOperation.ADD_DOMAIN, change -> {
       IliModelSpec.DomainSpec domain = new IliModelSpec.DomainSpec();
@@ -1063,6 +1038,16 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     assertThat(result.updatedModelText).contains(expectedText);
     assertThat(compiler.lastCompilation.transferDescription().getElement(expectedFqn)).isNotNull();
     assertReplay(source, result);
+  }
+
+  private IliModelChangeRequest addTopic(String name) {
+    return operation(IliModelChangeOperation.ADD_TOPIC, change -> {
+      var add = new IliModelChangeRequest.AddTopicChange();
+      add.modelFqn = "Demo";
+      add.topic = new IliModelSpec.TopicSpec();
+      add.topic.name = name;
+      change.setAddTopic(add);
+    });
   }
 
   private IliModelChangeRequest addClass(String name) {
