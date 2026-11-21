@@ -13,7 +13,6 @@ import ch.interlis.ili2c.metamodel.Expression;
 import ch.interlis.ili2c.metamodel.FormalArgument;
 import ch.interlis.ili2c.metamodel.Function;
 import ch.interlis.ili2c.metamodel.FunctionCall;
-import ch.interlis.ili2c.metamodel.MandatoryConstraint;
 import ch.interlis.ili2c.metamodel.Model;
 import ch.interlis.ili2c.metamodel.NumericType;
 import ch.interlis.ili2c.metamodel.ObjectPath;
@@ -33,27 +32,13 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Translates compiled ili2c mandatory-constraint AST nodes into the shared semantic constraint IR.
+ * Translates compiled ili2c expression AST nodes into the shared semantic constraint IR.
  *
  * <p>The translator reads ili2c metamodel objects directly. It deliberately does not depend on the
  * map-shaped AST returned by {@code reviewIliConstraint}; that map remains an API representation,
  * while this class is the typed semantic adapter used by evaluator, solver and fixture synthesis.
  */
 public final class ConstraintAstTranslator {
-
-  public record Translation(
-      String constraintName,
-      String contextFqn,
-      ConstraintExpression.IliVersion version,
-      ConstraintExpression expression) {
-
-    public Translation {
-      requireText(constraintName, "constraintName");
-      requireText(contextFqn, "contextFqn");
-      Objects.requireNonNull(version, "version");
-      Objects.requireNonNull(expression, "expression");
-    }
-  }
 
   public static final class TranslationException extends IllegalArgumentException {
     private final String reasonCode;
@@ -73,42 +58,6 @@ public final class ConstraintAstTranslator {
 
   private ConstraintAstTranslator(ConstraintExpression.IliVersion version) {
     this.version = Objects.requireNonNull(version, "version");
-  }
-
-  public static Translation translate(Constraint constraint) {
-    Objects.requireNonNull(constraint, "constraint");
-    if (!(constraint instanceof MandatoryConstraint)) {
-      throw new TranslationException(
-          "UNSUPPORTED_CONSTRAINT_KIND",
-          "Semantic AST translation currently supports MANDATORY CONSTRAINT only; got "
-              + constraint.getClass().getSimpleName() + ".");
-    }
-    if (constraint.getCondition() == null) {
-      throw new TranslationException(
-          "MISSING_CONSTRAINT_CONDITION",
-          "Mandatory constraint has no condition: " + constraint.getScopedName());
-    }
-
-    ConstraintExpression.IliVersion version = iliVersion(constraint);
-    ConstraintExpression expression = new ConstraintAstTranslator(version)
-        .translateEvaluable(constraint.getCondition());
-    if (!expression.type().isScalar(ConstraintExpression.ScalarKind.BOOLEAN)) {
-      throw new TranslationException(
-          "NON_BOOLEAN_CONSTRAINT_CONDITION",
-          "Mandatory constraint condition did not translate to BOOLEAN: " + constraint.getScopedName());
-    }
-
-    Element container = constraint.getContainer();
-    if (container == null || container.getScopedName() == null || container.getScopedName().isBlank()) {
-      throw new TranslationException(
-          "MISSING_CONSTRAINT_CONTEXT",
-          "Mandatory constraint has no viewable context: " + constraint.getScopedName());
-    }
-    return new Translation(
-        constraint.getName(),
-        container.getScopedName(),
-        version,
-        expression);
   }
 
   public static ConstraintExpression translate(
@@ -488,11 +437,5 @@ public final class ConstraintAstTranslator {
     throw new TranslationException(
         "UNKNOWN_INTERLIS_VERSION",
         "Unable to determine INTERLIS 2.3/2.4 version for constraint " + constraint.getScopedName() + ".");
-  }
-
-  private static void requireText(String value, String label) {
-    if (value == null || value.isBlank()) {
-      throw new IllegalArgumentException(label + " must not be blank.");
-    }
   }
 }

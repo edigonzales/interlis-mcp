@@ -18,15 +18,13 @@ import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * Version-neutral evaluator and structural test-goal planner for {@link ConstraintExpression}.
+ * Version-neutral evaluator for {@link ConstraintExpression}.
  *
  * <p>The engine operates on semantic IDs, never on INTERLIS surface syntax. It therefore evaluates
  * {@code Math.add(a,b)} and the INTERLIS 2.4 {@code a + b} representation identically once both have
@@ -158,76 +156,6 @@ public final class ConstraintExpressionEngine {
       }
       case Comparison comparison -> compare(comparison, context);
     };
-  }
-
-  /**
-   * Derives semantic coverage obligations independently of domains and XTF fixture construction.
-   * Later synthesis stages can solve these goals against model domains and cardinalities.
-   */
-  public static List<TestGoal> testGoals(ConstraintExpression expression) {
-    Objects.requireNonNull(expression, "expression");
-    LinkedHashSet<TestGoal> goals = new LinkedHashSet<>();
-    goals.add(new TestGoal(GoalKind.TRUE, expression, "constraint witness"));
-    goals.add(new TestGoal(GoalKind.FALSE, expression, "constraint counterexample"));
-    collectGoals(expression, goals);
-    return List.copyOf(goals);
-  }
-
-  private static void collectGoals(ConstraintExpression expression, Set<TestGoal> goals) {
-    switch (expression) {
-      case Defined defined -> {
-        goals.add(new TestGoal(GoalKind.DEFINED, defined.operand(), "DEFINED branch"));
-        goals.add(new TestGoal(GoalKind.UNDEFINED, defined.operand(), "NOT DEFINED branch"));
-        collectGoals(defined.operand(), goals);
-      }
-      case Comparison comparison -> {
-        goals.add(new TestGoal(GoalKind.TRUE, comparison, "comparison satisfied"));
-        goals.add(new TestGoal(GoalKind.FALSE, comparison, "comparison violated"));
-        collectGoals(comparison.left(), goals);
-        collectGoals(comparison.right(), goals);
-      }
-      case Not not -> {
-        goals.add(new TestGoal(GoalKind.TRUE, not.operand(), "NOT operand true branch"));
-        goals.add(new TestGoal(GoalKind.FALSE, not.operand(), "NOT operand false branch"));
-        collectGoals(not.operand(), goals);
-      }
-      case And and -> {
-        for (ConstraintExpression operand : and.operands()) {
-          goals.add(new TestGoal(GoalKind.TRUE, operand, "AND operand satisfied"));
-          goals.add(new TestGoal(GoalKind.FALSE, operand, "AND operand violated"));
-          collectGoals(operand, goals);
-        }
-      }
-      case Or or -> {
-        for (ConstraintExpression operand : or.operands()) {
-          goals.add(new TestGoal(GoalKind.TRUE, operand, "OR branch selected"));
-          goals.add(new TestGoal(GoalKind.FALSE, operand, "OR branch rejected"));
-          collectGoals(operand, goals);
-        }
-      }
-      case Implies implies -> {
-        goals.add(new TestGoal(GoalKind.TRUE, implies.antecedent(), "IMPLIES antecedent true"));
-        goals.add(new TestGoal(GoalKind.FALSE, implies.antecedent(), "IMPLIES antecedent false"));
-        goals.add(new TestGoal(GoalKind.TRUE, implies.consequent(), "IMPLIES consequent true"));
-        goals.add(new TestGoal(GoalKind.FALSE, implies.consequent(), "IMPLIES consequent false"));
-        collectGoals(implies.antecedent(), goals);
-        collectGoals(implies.consequent(), goals);
-      }
-      case FunctionCall call -> call.arguments().forEach(argument -> collectGoals(argument, goals));
-      case NumericLiteral ignored -> {
-      }
-      case BooleanLiteral ignored -> {
-      }
-      case EnumLiteral ignored -> {
-      }
-      case TextLiteral ignored -> {
-      }
-      case Attribute ignored -> {
-      }
-      case ConstraintExpression.ObjectCount ignored -> { }
-      case Path ignored -> {
-      }
-    }
   }
 
   private static Object evaluateFunction(FunctionCall call, EvaluationContext context) {

@@ -268,7 +268,9 @@ class ConstraintValidatorDifferentialTest {
         String model = template.formatted(syntax).replace("INTERLIS 2.4", "INTERLIS " + version);
         var compilation = compilerService.compile(model, null);
         assertTrue(compilation.valid(), compilation.messages().toString());
-        var expression = ConstraintAstTranslator.translate(constraint(compilation.transferDescription(), "TruthTable")).expression();
+        var mandatory = (SemanticConstraint.Mandatory) ConstraintSemanticTranslator.translate(
+            constraint(compilation.transferDescription(), "TruthTable"));
+        var expression = mandatory.condition();
         List<DifferentialAssignment> cases = new ArrayList<>();
         for (int a = 0; a < 3; a++) {
           for (int b = 0; b < ((operator == 3 || operator == 7) ? 1 : 3); b++) {
@@ -331,7 +333,8 @@ class ConstraintValidatorDifferentialTest {
           var compiled = compilerService.compile(model, null);
           assertTrue(compiled.valid(), compiled.messages().toString());
           var rule = constraint(compiled.transferDescription(), "Presence");
-          var expression = ConstraintAstTranslator.translate(rule).expression();
+          var mandatory = (SemanticConstraint.Mandatory) ConstraintSemanticTranslator.translate(rule);
+          var expression = mandatory.condition();
           var assignments = new ArrayList<DifferentialAssignment>();
           for (Object state : List.of("active", "inactive", u)) {
             for (Object code : List.of("Abc", u)) {
@@ -381,9 +384,9 @@ class ConstraintValidatorDifferentialTest {
     TransferDescription td = compilation.transferDescription();
     assertNotNull(td);
 
-    ConstraintAstTranslator.Translation translation = ConstraintAstTranslator.translate(
-        constraint(td, constraintName));
-    ConstraintExpression expression = translation.expression();
+    SemanticConstraint.Mandatory translation =
+        (SemanticConstraint.Mandatory) ConstraintSemanticTranslator.translate(constraint(td, constraintName));
+    ConstraintExpression expression = translation.condition();
     ConstraintModelSynthesizer.ModelBinding binding = ConstraintModelSynthesizer.bind(
         td, translation.contextFqn(), expression);
 

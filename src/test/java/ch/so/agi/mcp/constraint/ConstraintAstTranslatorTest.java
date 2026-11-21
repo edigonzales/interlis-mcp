@@ -93,13 +93,14 @@ class ConstraintAstTranslatorTest {
     TransferDescription td = compile(MODEL_23, "ili2c_constraint_ast23_");
     Constraint constraint = constraint(td, "WeightSum100");
 
-    ConstraintAstTranslator.Translation translation = ConstraintAstTranslator.translate(constraint);
+    SemanticConstraint.Mandatory translation =
+        (SemanticConstraint.Mandatory) ConstraintSemanticTranslator.translate(constraint);
 
     assertEquals(ILI_23, translation.version());
     assertEquals("AstModel23.Data.Main", translation.contextFqn());
     assertEquals("WeightSum100", translation.constraintName());
 
-    ConstraintExpression expression = translation.expression();
+    ConstraintExpression expression = translation.condition();
     String ili = expression.toInterlis(ILI_23);
     assertTrue(ili.contains("DEFINED(Math.sum(\"Nebenauspraegung->Gewichtung\"))"), ili);
     assertTrue(ili.contains(
@@ -118,22 +119,16 @@ class ConstraintAstTranslatorTest {
   @Test
   void existingConstraintRunsThroughGenericSolverSynthesizerAndValidator() {
     TransferDescription td = compile(MODEL_23, "ili2c_constraint_ast_proof_");
-    ConstraintAstTranslator.Translation translation = ConstraintAstTranslator.translate(
-        constraint(td, "WeightSum100"));
-    ConstraintExpression expression = translation.expression();
+    SemanticConstraint.Mandatory translation =
+        (SemanticConstraint.Mandatory) ConstraintSemanticTranslator.translate(constraint(td, "WeightSum100"));
+    ConstraintExpression expression = translation.condition();
     ConstraintModelSynthesizer.ModelBinding binding = ConstraintModelSynthesizer.bind(
         td, translation.contextFqn(), expression);
 
-    ConstraintExpressionEngine.TestGoal witnessGoal = ConstraintExpressionEngine.testGoals(expression).stream()
-        .filter(goal -> goal.kind() == ConstraintExpressionEngine.GoalKind.TRUE)
-        .filter(goal -> goal.expression().equals(expression))
-        .findFirst()
-        .orElseThrow();
-    ConstraintExpressionEngine.TestGoal counterexampleGoal = ConstraintExpressionEngine.testGoals(expression).stream()
-        .filter(goal -> goal.kind() == ConstraintExpressionEngine.GoalKind.FALSE)
-        .filter(goal -> goal.expression().equals(expression))
-        .findFirst()
-        .orElseThrow();
+    ConstraintExpressionEngine.TestGoal witnessGoal = new ConstraintExpressionEngine.TestGoal(
+        ConstraintExpressionEngine.GoalKind.TRUE, expression, "constraint witness");
+    ConstraintExpressionEngine.TestGoal counterexampleGoal = new ConstraintExpressionEngine.TestGoal(
+        ConstraintExpressionEngine.GoalKind.FALSE, expression, "constraint counterexample");
 
     ConstraintGoalSolver.Solution witness = ConstraintGoalSolver.solve(witnessGoal, binding);
     ConstraintGoalSolver.Solution counterexample = ConstraintGoalSolver.solve(counterexampleGoal, binding);
@@ -162,14 +157,16 @@ class ConstraintAstTranslatorTest {
   @Test
   void translatesNativeInterlis24ArithmeticToSameNumericSemantics() {
     TransferDescription td = compile(MODEL_24, "ili2c_constraint_ast24_");
-    ConstraintAstTranslator.Translation translation = ConstraintAstTranslator.translate(
-        constraint(td, "NativeAdd"));
+    SemanticConstraint.Mandatory translation =
+        (SemanticConstraint.Mandatory) ConstraintSemanticTranslator.translate(constraint(td, "NativeAdd"));
 
     assertEquals(ILI_24, translation.version());
-    assertEquals("(A + B) == 100", translation.expression().toInterlis(ILI_24));
+    assertEquals("AstModel24.Data.Main", translation.contextFqn());
+    assertEquals("NativeAdd", translation.constraintName());
+    assertEquals("(A + B) == 100", translation.condition().toInterlis(ILI_24));
 
     ConstraintExpression.Comparison comparison =
-        (ConstraintExpression.Comparison) translation.expression();
+        (ConstraintExpression.Comparison) translation.condition();
     ConstraintExpression.FunctionCall add =
         (ConstraintExpression.FunctionCall) comparison.left();
     assertEquals("NUMERIC_ADD", add.semanticId());

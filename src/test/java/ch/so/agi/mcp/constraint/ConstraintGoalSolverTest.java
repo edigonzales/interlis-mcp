@@ -72,10 +72,12 @@ class ConstraintGoalSolverTest {
   void solvesAfuWitnessCounterexampleAndPresenceGoals() {
     ConstraintExpression expression = afuExpression();
     ConstraintModelSynthesizer.ModelBinding binding = binding(expression);
-    List<ConstraintExpressionEngine.TestGoal> goals = ConstraintExpressionEngine.testGoals(expression);
-
-    ConstraintGoalSolver.Solution witness = ConstraintGoalSolver.solve(goals.get(0), binding);
-    ConstraintGoalSolver.Solution counterexample = ConstraintGoalSolver.solve(goals.get(1), binding);
+    ConstraintGoalSolver.Solution witness = ConstraintGoalSolver.solve(
+        new ConstraintExpressionEngine.TestGoal(ConstraintExpressionEngine.GoalKind.TRUE, expression, "constraint witness"),
+        binding);
+    ConstraintGoalSolver.Solution counterexample = ConstraintGoalSolver.solve(
+        new ConstraintExpressionEngine.TestGoal(ConstraintExpressionEngine.GoalKind.FALSE, expression, "constraint counterexample"),
+        binding);
 
     assertTrue(witness.solved(), String.valueOf(witness));
     assertTrue(counterexample.solved(), String.valueOf(counterexample));
@@ -178,9 +180,12 @@ class ConstraintGoalSolverTest {
   void solverSynthesizerAssignmentsAreConfirmedByTheRealValidator() {
     ConstraintExpression expression = afuExpression();
     ConstraintModelSynthesizer.ModelBinding binding = binding(expression);
-    List<ConstraintExpressionEngine.TestGoal> goals = ConstraintExpressionEngine.testGoals(expression);
-    ConstraintGoalSolver.Solution witness = ConstraintGoalSolver.solve(goals.get(0), binding);
-    ConstraintGoalSolver.Solution counterexample = ConstraintGoalSolver.solve(goals.get(1), binding);
+    ConstraintGoalSolver.Solution witness = ConstraintGoalSolver.solve(
+        new ConstraintExpressionEngine.TestGoal(ConstraintExpressionEngine.GoalKind.TRUE, expression, "constraint witness"),
+        binding);
+    ConstraintGoalSolver.Solution counterexample = ConstraintGoalSolver.solve(
+        new ConstraintExpressionEngine.TestGoal(ConstraintExpressionEngine.GoalKind.FALSE, expression, "constraint counterexample"),
+        binding);
     assertTrue(witness.solved(), String.valueOf(witness));
     assertTrue(counterexample.solved(), String.valueOf(counterexample));
 
