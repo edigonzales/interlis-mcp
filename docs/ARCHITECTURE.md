@@ -236,7 +236,7 @@ Der interne Evaluator ist ein Hilfsmittel, nicht die finale Instanz. `generation
 
 ## Source-preserving Constraint-Authoring
 
-Die typisierten Authoring-Tools verwenden dieselbe `IliConstraintSpec`-Hierarchie und den gemeinsamen `ConstraintAuthoringEngine`. Die JSON-Schemas bilden MANDATORY, UNIQUE, EXISTENCE, PLAUSIBILITY und SET als echte, über `kind` diskriminierte `oneOf`-Unionen ab; das gemeinsame Resultat publiziert auch die zwölf zulässigen Statuswerte als geschlossenes Enum. `ConstraintSourceEditService` gruppiert Constraint und abgeleitete Imports in einem source-preserving Patchsatz.
+`ConstraintAuthoringEngine` orchestriert das Einzelconstraint-Tool `authorIliConstraint` und ruft Compiler, Quelltexteditor und Kontextauflösung direkt auf. Die Autorierung ganzer Modelle und die Batch-Änderungen verwenden dieselbe `IliConstraintSpec`-Hierarchie über ihre eigenen Abläufe. Die JSON-Schemas bilden MANDATORY, UNIQUE, EXISTENCE, PLAUSIBILITY und SET als über `kind` diskriminierte `oneOf`-Unionen ab. Das gemeinsame Resultat publiziert `IliAuthoringResult.Status` als geschlossenes Enum. `ConstraintSourceEditService` gruppiert Constraint und abgeleitete Imports in einem source-preserving Patchsatz.
 
 Der Renderer übergibt ein Constraint-Fragment einschliesslich Dokumentation und Metadaten. Anhand des kompilierten Kontexttyps fügt der Quelltexteditor dieses Fragment innerhalb einer View vor deren `END` ein; für Klassen, Strukturen und Assoziationen ergänzt er einen externen `CONSTRAINTS OF`-Block am Topic-Ende. Der Locator berücksichtigt mehrteilige View-Header mit Projektion und `WHERE`-Klauseln sowie den umschliessenden Topic. Einrückung wird nur aus führenden Leerzeichen und Tabs gewonnen, auch bei `VIEW TOPIC` und `CONTRACTED MODEL`.
 
@@ -245,13 +245,14 @@ Die Compilerregressionen `ConstraintViewAuthoringRegressionTest` verwenden die u
 Der erfolgreiche Ablauf ist:
 
 ```text
-Before-Compile
--> Constraint-Block rendern
+Spezifikation und Kontext-FQN prüfen, Constraint-Fragment rendern
+-> Before-Compile
 -> source-preserving einfügen
 -> After-Compile und Constraint auflösen
+-> semantischen Diff und afterReview aus Before/After ableiten
 -> semantischen Roundtrip prüfen
 -> Proof mit demselben kompilierten After-Kontext
--> semantischen Diff und afterReview aus Before/After ableiten
+-> geprüften Modelltext freigeben
 ```
 
 Damit besitzt das Authoring einen klaren Zwei-Compile-Vertrag.

@@ -97,23 +97,84 @@ Beispiel für `claude_desktop_config.json`:
 
 ### VS Code
 
-Beispiel für eine `mcp.json`-Konfiguration:
+Das folgende Tutorial zeigt eine Copilot-Konfiguration für VS Code.
+
+## Ein erstes Modell prüfen
+
+In diesem Tutorial prüfst du eine kleine INTERLIS-Datei und siehst, wie der Compiler einen Fehler meldet. Du brauchst Java 21, das lokale Projekt-Repository und VS Code mit GitHub Copilot.
+
+### 1. Client verbinden
+
+Öffne das Repository in VS Code. Prüfe im Terminal mit `java -version`, dass Java 21 aktiv ist, und baue das JAR.
+
+```bash
+./gradlew bootJar
+```
+
+Lege im Benutzerverzeichnis die Datei `~/.copilot/mcp-config.json` an. Wenn `COPILOT_HOME` gesetzt ist, liegt die Datei dort. Trage die absoluten Pfade zum Java-21-Programm und zur gebauten JAR-Datei ein. Falls die Datei bereits existiert, ergänze den Eintrag unter `mcpServers`.
 
 ```json
 {
-  "servers": {
+  "mcpServers": {
     "interlis-mcp": {
+      "type": "stdio",
       "command": "/opt/java-21/bin/java",
       "args": [
         "-jar",
         "/path/to/interlis-mcp/build/libs/interlis-mcp.jar"
-      ]
+      ],
+      "tools": ["reviewIliModel"]
     }
   }
 }
 ```
 
-Die konkreten Dateipfade hängen vom Client und vom lokalen Installationsort ab.
+Öffne eine lokale Chat-Sitzung mit **Copilot**. Der Client startet das JAR für den Tool-Aufruf. Über `Chat: Open Customizations` findest du den Server unter **MCP Servers**. [VS-Code-Dokumentation zur MCP-Konfiguration](https://code.visualstudio.com/docs/agents/reference/mcp-configuration)
+
+### 2. Gültiges Modell prüfen
+
+Speichere diesen Text im geöffneten Arbeitsbereich als `Demo.ili`.
+
+```ili
+INTERLIS 2.4;
+
+MODEL Demo (de) AT "https://example.org/demo" VERSION "2026-08-20" =
+END Demo.
+```
+
+Füge `Demo.ili` dem Chat als Kontext hinzu und sende diesen Auftrag.
+
+> Prüfe den unveränderten Inhalt von Demo.ili mit dem Tool `reviewIliModel`. Verwende `modelPurpose=PUBLICATION` und `ruleProfile=CORE`. Zeige mir die Tool-Ergebnisfelder `compilerValid`, `validForAutomatedRules` und `compilerDiagnostics`.
+
+Im Tool-Ergebnis sollten diese Werte stehen. Die Antwort kann zusätzliche Felder enthalten.
+
+```json
+{
+  "compilerValid": true,
+  "validForAutomatedRules": true,
+  "compilerDiagnostics": []
+}
+```
+
+Das Modell kompiliert, und die automatisierten Regeln melden keinen blockierenden Befund.
+
+### 3. Einen Compilerfehler auslösen
+
+Ersetze die letzte Zeile in `Demo.ili` durch `END Wrong.`, speichere die Datei und wiederhole den Auftrag mit der aktualisierten Datei. Der Name nach `END` muss zum Modellnamen `Demo` passen.
+
+```json
+{
+  "compilerValid": false,
+  "validForAutomatedRules": false,
+  "compilerDiagnostics": [
+    {
+      "message": "MODEL Demo should end with \"END Demo\", but \"END Wrong\" was found."
+    }
+  ]
+}
+```
+
+Setze die letzte Zeile wieder auf `END Demo.`, um den Fehler zu beheben.
 
 ## Lokale Modellbeispiele konfigurieren
 
@@ -163,29 +224,7 @@ Für ein Modell, das nach den Vorgaben des Kantons Solothurn geprüft werden sol
 
 ## Aufgabe: ein vollständiges Modell prüfen
 
-Für einen einzelnen vollständigen Modellstand ist `reviewIliModel` der Standard. Das Tool kombiniert Compilerstatus, Strukturanalyse, automatisierte Regeln, manuelle Checks und offene Fragen.
-
-Beispiel:
-
-```json
-{
-  "modelText": "INTERLIS 2.4;\n\nMODEL Demo (de) AT \"https://example.org/demo\" VERSION \"2026-08-20\" =\nEND Demo.\n",
-  "modelPurpose": "PUBLICATION",
-  "ruleProfile": "SO-GIS"
-}
-```
-
-Wichtige Ergebnisfelder sind unter anderem:
-
-- `compilerValid`
-- `compilerDiagnostics`
-- `validForAutomatedRules`
-- `structure`
-- `ruleFindings`
-- `manualChecks`
-- `openQuestions`
-
-`reviewIliModel` enthält Compilerdiagnostik, Modellstruktur und Regelbefunde.
+Für einen einzelnen vollständigen Modellstand ist `reviewIliModel` der Standard. Das Tool erwartet den vollständigen Modelltext in `modelText` und akzeptiert optional `modelPurpose` und `ruleProfile`. Neben Compilerstatus und -diagnosen liefert es Modellstruktur (`structure`), automatisierte Regelbefunde (`ruleFindings`), manuelle Prüfpunkte (`manualChecks`) und offene Fragen (`openQuestions`). [Ein erstes Modell prüfen](#ein-erstes-modell-prüfen)
 
 ## Aufgabe: ein bestehendes Modell atomar ändern
 
@@ -236,14 +275,14 @@ Passender Payload:
 }
 ```
 
-Bei Erfolg liefert das Tool `status=APPLIED` und `updatedModelText`. Es kompiliert Vorher und Nachher, prüft den semantischen Diff auf unerwartete Kollateraleffekte und enthält bereits das `afterReview` des neuen Stands.
+Dieses Beispiel liefert mit `allowPotentiallyBreaking=false` den Status `BREAKING_CHANGE_REQUIRES_CONFIRMATION` und den geprüften Text in `candidateModelText`. Durch das neue Pflichtattribut `egid` können bisher gültige Gebäudeobjekte ohne diesen Wert ungültig werden.
+
+Nach ausdrücklicher Bestätigung kannst du dieselbe Änderung mit `allowPotentiallyBreaking=true` erneut anfragen. Bei Erfolg liefert das Tool `status=APPLIED` und `updatedModelText`. Es kompiliert Vorher und Nachher, prüft den semantischen Diff auf unerwartete Kollateraleffekte und enthält bereits das `afterReview` des neuen Stands.
 
 `APPLIED` bestätigt die technische Freigabe der atomaren Änderung. Für die Regelkonformität des Gesamtmodells gilt
 `afterReview.validForAutomatedRules`. Berichte `afterReview.ruleFindings` auch bei `APPLIED`.
 
 `UPDATE_ATTRIBUTE` enthält einen Patch. Nicht angegebene fachliche Eigenschaften bedeuten `KEEP`; IliDoc und Metaattribute besitzen explizite KEEP-/SET-/REMOVE- beziehungsweise KEEP-/REPLACE-/REMOVE-Aktionen. `REMOVE_ATTRIBUTE` braucht nur das eindeutige lokale `attributeFqn` und entfernt zusätzlich eindeutig zugeordnete Annotationen. Referenzen auf ein gelöschtes Attribut werden durch den After-Compile abgewiesen.
-
-Bei potenziell brechender Semantik liefert das Tool ohne Bestätigung nur `candidateModelText` und `status=BREAKING_CHANGE_REQUIRES_CONFIRMATION`. Der unveränderte Batch muss danach explizit mit `allowPotentiallyBreaking=true` erneut aufgerufen werden.
 
 Für denselben unveränderten Nachher-Stand ist deshalb kein zusätzliches `reviewIliChange` oder `reviewIliModel` nötig.
 
@@ -251,7 +290,7 @@ Für denselben unveränderten Nachher-Stand ist deshalb kein zusätzliches `revi
 
 Nicht jede Änderung hat ein eigenes High-Level-Change-Tool. In diesem Fall bearbeitet der Coding-Agent den Modelltext gezielt und verwendet anschliessend `reviewIliChange`.
 
-Beispiel: Eine Klasse wird absichtlich von `OldBuilding` in `Building` umbenannt und der Client besitzt bereits den Vorher- und Nachher-Text.
+Der Client hat beispielsweise die Klasse `Building` in ein anderes Topic verschoben und besitzt den Modelltext vor und nach der Änderung.
 
 ```json
 {

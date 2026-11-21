@@ -20,6 +20,8 @@ Der Server unterstützt **STDIO** und **Streamable HTTP**. Lokale JAR-Aufrufe ve
 
 ## Schnellstart
 
+Der Einstieg mit VS Code führt von der Client-Konfiguration bis zum ersten Compilerergebnis. [Ein erstes Modell prüfen](docs/USER_GUIDE.md#ein-erstes-modell-prüfen)
+
 Voraussetzung ist Java 21.
 
 ```bash
