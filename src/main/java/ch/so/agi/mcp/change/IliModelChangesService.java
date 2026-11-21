@@ -42,6 +42,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
@@ -231,24 +232,16 @@ public final class IliModelChangesService {
       List<PendingInsertion> insertions,
       List<ExpectedChange> expected,
       Set<String> derivedImports) {
-    Set<String> scheduled = new LinkedHashSet<>();
-    for (ExpectedChange item : expected) {
-      if (item.direction() == Direction.ADD && "IMPORT".equals(item.kind())) {
-        scheduled.add(item.scopedName());
+    List<String> missing = derivedImports.stream().filter(imported -> !hasImport(localModel, imported)
+        && expected.stream().noneMatch(item -> item.direction() == Direction.ADD
+            && "IMPORT".equals(item.kind()) && imported.equals(item.scopedName()))).toList();
+    if (!missing.isEmpty()) {
+      var patch = sourceLocator.insertImports(document, locateBlock(document, localModel), missing,
+          "Add derived import " + String.join(", ", missing));
+      insertions.add(new PendingInsertion(patch, operationIndex, true));
+      for (String imported : missing) {
+        expected.add(new ExpectedChange(Direction.ADD, "IMPORT", imported, false));
       }
-    }
-    IliSourceLocator.BlockLocation block = locateBlock(document, localModel);
-    int anchor = afterHeaderAnchor(document, block);
-    String indent = blockIndent(document, block) + "  ";
-    int offset = 0;
-    for (String imported : derivedImports) {
-      if (hasImport(localModel, imported) || !scheduled.add(imported)) continue;
-      insertions.add(new PendingInsertion(
-          anchor,
-          indent + "IMPORTS " + imported + ";" + document.lineSeparator(),
-          operationIndex + offset++,
-          "Add derived import " + imported));
-      expected.add(new ExpectedChange(Direction.ADD, "IMPORT", imported, false));
     }
   }
 
@@ -272,7 +265,6 @@ public final class IliModelChangesService {
         expected.add(new ExpectedChange(Direction.CHANGE, "COMMENTS", localModel.getScopedName(), true));
       }
       case ADD_IMPORT -> {
-
         IliModelChangeRequest.AddImportChange payload = change.getAddImport();
         String target = fqn(payload.modelFqn, "addImport.modelFqn");
         require(target.equals(localModel.getScopedName()),
@@ -282,12 +274,9 @@ public final class IliModelChangesService {
         require(expected.stream().noneMatch(item -> item.direction() == Direction.ADD
                 && "IMPORT".equals(item.kind()) && imported.equals(item.scopedName())),
             "Import is requested more than once in the batch: " + imported);
-        IliSourceLocator.BlockLocation block = locateBlock(document, localModel);
-        int anchor = afterHeaderAnchor(document, block);
-        String indent = blockIndent(document, block) + "  ";
-        insertions.add(new PendingInsertion(
-            anchor, indent + "IMPORTS " + imported + ";" + document.lineSeparator(),
-            operationIndex, "Add import " + imported));
+        var patch = sourceLocator.insertImports(document, locateBlock(document, localModel),
+            List.of(imported), "Add import " + imported);
+        insertions.add(new PendingInsertion(patch, operationIndex, true));
         expected.add(new ExpectedChange(Direction.ADD, "IMPORT", imported, false));
       }
       case ADD_TOPIC -> {
@@ -391,9 +380,8 @@ public final class IliModelChangesService {
             payload.constraint, iliVersion, modelName, derivedImports).text();
         IliTextPatch patch = constraintSourceEditService.planConstraintInsertion(
             document, context, constraintText);
-        insertions.add(new PendingInsertion(patch.span().startOffset(), patch.replacement(),
-            operationIndex, "Add constraint " + payload.constraint.name,
-            patch.replacement().startsWith(document.lineSeparator())));
+        insertions.add(new PendingInsertion(IliTextPatch.replace(patch.span(), patch.replacement(),
+            "Add constraint " + payload.constraint.name), operationIndex, false));
         expected.add(new ExpectedChange(Direction.ADD, constraintKind(payload.constraint.kind()),
             constraintFqn, false));
       }
@@ -424,14 +412,9 @@ public final class IliModelChangesService {
         attribute, iliVersion, modelName);
     derivedImports.addAll(rendered.derivedImports());
     IliSourceLocator.BlockLocation block = locateBlock(document, table);
-    InsertionAnchor anchor = attributeInsertionAnchor(document, table, block);
-    String snippet = indent(rendered.text(), anchor.indent(), document.lineSeparator());
-    String insertion = (anchor.leadingLineSeparator() ? document.lineSeparator() : "")
-        + snippet
-        + (anchor.trailingLineSeparator() ? document.lineSeparator() : "")
-        + (anchor.indentFollowingText() ? blockIndent(document, block) : "");
-    insertions.add(new PendingInsertion(anchor.offset(), insertion, operationIndex,
-        "Add attribute " + containerFqn + "." + name));
+    IliTextPatch patch = insertAttribute(document, table, block, rendered.text(),
+        "Add attribute " + containerFqn + "." + name);
+    insertions.add(new PendingInsertion(patch, operationIndex, false));
     expected.add(new ExpectedChange(
         Direction.ADD, "ATTRIBUTE", containerFqn + "." + name, false));
   }
@@ -597,28 +580,29 @@ public final class IliModelChangesService {
 
   private List<IliTextPatch> groupInsertions(
       IliSourceDocument document, List<PendingInsertion> pending) {
-    Map<Integer, List<PendingInsertion>> byAnchor = new LinkedHashMap<>();
+    Map<Integer, List<IliTextPatch>> byAnchor = new LinkedHashMap<>();
+    // In an empty model, imports and declarations can share an offset. IMPORTS must come first.
     pending.stream()
-        .sorted(Comparator.comparingInt(PendingInsertion::operationIndex))
-        .forEach(insertion -> byAnchor.computeIfAbsent(
-            insertion.anchor(), ignored -> new ArrayList<>()).add(insertion));
+        .sorted(Comparator.comparing(PendingInsertion::importInsertion).reversed()
+            .thenComparingInt(PendingInsertion::operationIndex))
+        .map(PendingInsertion::patch)
+        .forEach(patch -> byAnchor.computeIfAbsent(patch.span().startOffset(), ignored -> new ArrayList<>()).add(patch));
     List<IliTextPatch> result = new ArrayList<>();
     String eol = document.lineSeparator();
-    for (Map.Entry<Integer, List<PendingInsertion>> entry : byAnchor.entrySet()) {
+    for (var entry : byAnchor.entrySet()) {
       StringBuilder text = new StringBuilder();
-      boolean previousSplitsEndLine = false;
-      for (PendingInsertion insertion : entry.getValue()) {
-        if (previousSplitsEndLine && insertion.splitsEndLine()) {
-          // Keep the previous line break and leave the END indentation to the last patch.
+      for (IliTextPatch patch : entry.getValue()) {
+        String fragment = patch.replacement();
+        if (!text.isEmpty() && fragment.startsWith(eol)) {
+          // Split a compact line once, with only the final patch's indentation before the original text.
           text.setLength(text.lastIndexOf(eol) + eol.length());
-          text.append(insertion.text(), eol.length(), insertion.text().length());
+          text.append(fragment, eol.length(), fragment.length());
         } else {
-          text.append(insertion.text());
+          text.append(fragment);
         }
-        previousSplitsEndLine = insertion.splitsEndLine();
       }
-      String description = entry.getValue().stream().map(PendingInsertion::description)
-          .reduce((left, right) -> left + "; " + right).orElse("Insert model elements");
+      String description = entry.getValue().stream().map(IliTextPatch::description)
+          .collect(Collectors.joining("; "));
       result.add(IliTextPatch.insert(document, entry.getKey(), text.toString(), description));
     }
     return result;
@@ -682,7 +666,7 @@ public final class IliModelChangesService {
     String beforeDefinition = (String) item.before.get("definitionText");
     int end = beforeDefinition.lastIndexOf('\n') + 1;
     String eol = System.lineSeparator();
-    String block = indent(additions.toString(), "  ", eol) + eol;
+    String block = IliSourceDocument.indentLines(additions.toString(), "  ", eol) + eol;
     return (beforeDefinition.substring(0, end) + block + beforeDefinition.substring(end))
         .equals(item.after.get("definitionText"));
   }
@@ -740,70 +724,34 @@ public final class IliModelChangesService {
       int operationIndex,
       String description,
       List<PendingInsertion> insertions) {
-    int anchor = document.lineStartOffset(block.endMarkerSpan().startLine());
-    String indent = blockIndent(document, block) + "  ";
-    String text = indent(fragment, indent, document.lineSeparator())
-        + document.lineSeparator() + document.lineSeparator();
-    insertions.add(new PendingInsertion(anchor, text, operationIndex, description));
+    insertions.add(new PendingInsertion(document.insertBeforeEnd(block, fragment, true, description),
+        operationIndex, false));
   }
 
-  private int afterHeaderAnchor(
-      IliSourceDocument document, IliSourceLocator.BlockLocation block) {
-    int line = block.headerSpan().endLine();
-    return line < document.lineCount()
-        ? document.lineStartOffset(line + 1)
-        : block.bodySpan().startOffset();
-  }
-
-  private InsertionAnchor attributeInsertionAnchor(
-      IliSourceDocument document,
-      Table table,
-      IliSourceLocator.BlockLocation block) {
-    AttributeDef last = lastDirectAttribute(table);
+  private IliTextPatch insertAttribute(
+      IliSourceDocument document, Table table, IliSourceLocator.BlockLocation block,
+      String fragment, String description) {
+    AttributeDef last = null;
+    for (Iterator<?> elements = table.iterator(); elements.hasNext(); ) {
+      Object item = elements.next();
+      if (item instanceof AttributeDef attribute && attribute.getContainer() == table) last = attribute;
+    }
+    String indent = document.leadingIndent(block.headerSpan().startLine()) + "  ";
     if (last != null) {
       IliSourceSpan span = sourceLocator.locateAttribute(
           document, block, last.getName(), Math.max(1, last.getSourceLine()));
-      String indent = document.text().substring(
-          document.lineStartOffset(span.startLine()), span.startOffset());
-      return new InsertionAnchor(
-          document.lineEndOffset(span.endLine()), indent, true, false, false);
+      String existingIndent = document.leadingIndent(span.startLine());
+      if (document.lineStartOffset(span.startLine()) + existingIndent.length() == span.startOffset()) {
+        indent = existingIndent;
+      }
+      return document.insertAfter(span, fragment, indent, description);
     }
-    Constraint first = firstDirectConstraint(table);
-    if (first != null && first.getSourceLine() > 0) {
-      int line = first.getSourceLine();
-      return new InsertionAnchor(
-          document.lineStartOffset(line), leadingWhitespace(document.lineText(line)), false, true, false);
-    }
-    if (block.headerSpan().startLine() == block.endMarkerSpan().startLine()) {
-      return new InsertionAnchor(
-          block.endMarkerSpan().startOffset(), blockIndent(document, block) + "  ", true, true, true);
-    }
-    return new InsertionAnchor(
-        document.lineStartOffset(block.endMarkerSpan().startLine()),
-        blockIndent(document, block) + "  ", false, true, false);
-  }
 
-  private AttributeDef lastDirectAttribute(Table table) {
-    AttributeDef result = null;
-    Iterator<?> iterator = table.iterator();
-    while (iterator.hasNext()) {
-      Object item = iterator.next();
-      if (item instanceof AttributeDef attribute && attribute.getContainer() == table
-          && (result == null || attribute.getSourceLine() > result.getSourceLine())) result = attribute;
+    IliSourceSpan prefix = sourceLocator.attributeSectionStart(document, block);
+    if (document.text().substring(prefix.endOffset(), block.endMarkerSpan().startOffset()).isBlank()) {
+      return document.insertBeforeEnd(block, fragment, false, description);
     }
-    return result;
-  }
-
-  private Constraint firstDirectConstraint(Table table) {
-    Constraint result = null;
-    Iterator<?> iterator = table.iterator();
-    while (iterator.hasNext()) {
-      Object item = iterator.next();
-      if (item instanceof Constraint constraint && constraint.getContainer() == table
-          && constraint.getSourceLine() > 0
-          && (result == null || constraint.getSourceLine() < result.getSourceLine())) result = constraint;
-    }
-    return result;
+    return document.insertAfter(prefix, fragment, indent, description);
   }
 
   private AttributeDef findAttributeInHierarchy(Table table, String name) {
@@ -900,24 +848,6 @@ public final class IliModelChangesService {
     };
   }
 
-  private String blockIndent(
-      IliSourceDocument document, IliSourceLocator.BlockLocation block) {
-    int lineStart = document.lineStartOffset(block.headerSpan().startLine());
-    return document.text().substring(lineStart, block.headerSpan().startOffset());
-  }
-
-  private String leadingWhitespace(String line) {
-    int index = 0;
-    while (index < line.length() && Character.isWhitespace(line.charAt(index))) index++;
-    return line.substring(0, index);
-  }
-
-  private String indent(String snippet, String indent, String eol) {
-    String normalized = snippet.replace("\r\n", "\n").replace('\r', '\n');
-    return normalized.lines().map(line -> indent + line)
-        .reduce((left, right) -> left + eol + right).orElse("");
-  }
-
   private String ident(String value, String label) {
     require(value != null && !value.isBlank(), label + " is required.");
     String normalized = value.trim();
@@ -962,19 +892,8 @@ public final class IliModelChangesService {
     }
   }
 
-  private record PendingInsertion(
-      int anchor, String text, int operationIndex, String description, boolean splitsEndLine) {
-    PendingInsertion(int anchor, String text, int operationIndex, String description) {
-      this(anchor, text, operationIndex, description, false);
-    }
-  }
+  private record PendingInsertion(IliTextPatch patch, int operationIndex, boolean importInsertion) {}
   private record Prepared(String candidate, List<SourceEdit> sourceEdits) {}
   private record ExistingAttribute(
       boolean mandatory, AttributeLineRequest.Collection collection, String typeText) {}
-  private record InsertionAnchor(
-      int offset,
-      String indent,
-      boolean leadingLineSeparator,
-      boolean trailingLineSeparator,
-      boolean indentFollowingText) {}
 }

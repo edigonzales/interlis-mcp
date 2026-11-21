@@ -1,8 +1,10 @@
 package ch.so.agi.mcp.change;
 
+import ch.so.agi.mcp.change.IliSourceLocator.BlockLocation;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public final class IliSourceDocument {
 
@@ -94,6 +96,44 @@ public final class IliSourceDocument {
       throw new IllegalArgumentException("Span exceeds document length.");
     }
     return text.substring(span.startOffset(), span.endOffset());
+  }
+
+  public String leadingIndent(int line) {
+    int start = lineStartOffset(line);
+    int end = start;
+    while (end < text.length() && (text.charAt(end) == ' ' || text.charAt(end) == '\t')) end++;
+    return text.substring(start, end);
+  }
+
+  public IliTextPatch insertAfter(
+      IliSourceSpan span, String fragment, String indent, String description) {
+    int offset = span.endOffset();
+    int line = span.endLine();
+    if (line < lineCount() && text.substring(offset, lineEndOffset(line)).isBlank()) {
+      offset = lineStartOffset(line + 1);
+    }
+    return insertLines(offset, fragment, indent, "", description);
+  }
+
+  public IliTextPatch insertBeforeEnd(
+      BlockLocation block, String fragment, boolean blankLine, String description) {
+    IliSourceSpan end = block.endMarkerSpan();
+    int lineStart = lineStartOffset(end.startLine());
+    boolean ownLine = lineStart + leadingIndent(end.startLine()).length() == end.startOffset();
+    String indent = leadingIndent(block.headerSpan().startLine());
+    return insertLines(ownLine ? lineStart : end.startOffset(), fragment, indent + "  ",
+        ownLine ? (blankLine ? lineSeparator : "") : indent, description);
+  }
+
+  private IliTextPatch insertLines(
+      int offset, String fragment, String indent, String suffix, String description) {
+    String prefix = offset == lineStartOffset(lineOfOffset(offset)) ? "" : lineSeparator;
+    return IliTextPatch.insert(this, offset,
+        prefix + indentLines(fragment, indent, lineSeparator) + lineSeparator + suffix, description);
+  }
+
+  public static String indentLines(String fragment, String indent, String lineSeparator) {
+    return fragment.lines().map(line -> indent + line).collect(Collectors.joining(lineSeparator));
   }
 
   private void requireLine(int line) {

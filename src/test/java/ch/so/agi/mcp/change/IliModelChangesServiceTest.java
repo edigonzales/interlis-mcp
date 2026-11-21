@@ -3,6 +3,7 @@ package ch.so.agi.mcp.change;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.interlis.ili2c.metamodel.MandatoryConstraint;
+import ch.interlis.ili2c.metamodel.Model;
 import ch.so.agi.mcp.analysis.ModelAnalysisTools;
 import ch.so.agi.mcp.analysis.ModelChangeReviewService;
 import ch.so.agi.mcp.constraint.ConstraintContextService;
@@ -27,6 +28,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.math.BigDecimal;
 import java.util.function.Consumer;
@@ -152,6 +154,21 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
         .doesNotContain("name :")
         .contains("other : TEXT*10;");
     assertThat(result.updatedModelText.replace("\r\n", "")).doesNotContain("\n");
+  }
+
+  @Test
+  void rejectsOverlappingBatchEditsBeforeCompilingTheCandidate() {
+    var compiler = new CountingCompiler();
+    var remove = new RemoveAttributeChange();
+    remove.attributeFqn = "Demo.Data.Thing.name";
+    var result = service(compiler).apply(model(), batch(List.of(
+        operation(IliModelChangeOperation.REMOVE_COMMENTS, change -> {}),
+        change(IliModelChangeOperation.REMOVE_ATTRIBUTE, null, remove, null)), true),
+        null, null, null);
+    assertThat(result.status).isEqualTo(IliAuthoringResult.Status.INVALID_SPEC);
+    assertThat(result.reason).contains("overlap");
+    assertThat(result.updatedModelText).isNull();
+    assertThat(compiler.calls).isOne();
   }
 
   @Test
@@ -346,6 +363,30 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     assertThat(result.updatedModelText)
         .contains("CLASS First = END First;")
         .contains("CLASS Second = \n      value : TEXT*20;\n    END Second;");
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void addsAttributeBetweenTheClassDeclarationsAndItsCompactConstraint(boolean hasAttributes) {
+    String previous = hasAttributes ? "first : TEXT; second : TEXT;" : "OID AS INTERLIS.UUIDOID; ATTRIBUTE";
+    String source = """
+        INTERLIS 2.4;
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "1" =
+          TOPIC Data =
+            CLASS Thing = %s /** Existing rule. */ MANDATORY CONSTRAINT 1 == 1; END Thing;
+          END Data;
+        END Demo.
+        """.formatted(previous);
+    var compiler = new CountingCompiler();
+    var result = service(compiler).apply(
+        source, batch(addAttribute("extra", 10), false), null, null, null);
+    assertThat(result.status).as("%s %s", result.reason, compiler.lastCompilation.messages())
+        .isEqualTo(IliAuthoringResult.Status.APPLIED);
+    assertThat(compiler.calls).isEqualTo(2);
+    assertThat(compiler.lastCompilation.transferDescription().getElement("Demo.Data.Thing.extra")).isNotNull();
+    assertInsertion(result.sourceEdits.getFirst(), source.indexOf(previous) + previous.length(), 4,
+        "\n      extra : TEXT*10;\n");
+    assertReplay(source, result);
   }
 
   @Test
@@ -584,6 +625,76 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
   }
 
   @ParameterizedTest
+  @CsvSource({
+      "2.3, false, false, false", "2.3, true, false, false",
+      "2.3, false, true, false", "2.3, true, true, false", "2.3, false, false, true",
+      "2.4, false, false, false", "2.4, true, false, false",
+      "2.4, false, true, false", "2.4, true, true, false", "2.4, false, false, true"
+  })
+  void batchAndSingleAuthoringInsertMathAtTheSameHeaderBoundary(
+      String version, boolean contracted, boolean compact, boolean existing, @TempDir Path repository)
+      throws IOException {
+    String math = version.equals("2.3") ? "Math" : "Math_V2";
+    Files.writeString(repository.resolve("Math_V2.ili"), """
+        INTERLIS 2.4;
+        CONTRACTED TYPE MODEL Math_V2 (en) AT "http://www.interlis.ch/models" VERSION "1" =
+          FUNCTION abs(a: NUMERIC): NUMERIC;
+        END Math_V2.
+        """);
+    String eol = contracted && compact ? "\r\n" : "\n";
+    String indent = eol.equals("\r\n") ? "\t" : "  ";
+    String header = (contracted ? "CONTRACTED " : "")
+        + "MODEL Demo (de) AT \"https://example.org/demo\" VERSION \"1\" =";
+    String topic = compact ? " /** Topic documentation. */ TOPIC Data ="
+        : eol + (existing ? indent + "IMPORTS " + math + ";" + eol : "")
+            + indent + "/** Topic documentation. */" + eol
+            + indent + "!!@ topicMeta=\"keep\"" + eol + indent + "TOPIC Data =";
+    String source = String.join(eol, "INTERLIS " + version + ";", header + topic,
+        indent.repeat(2) + "CLASS Thing = measure : MANDATORY -100 .. 100; END Thing;",
+        indent + "END Data;", "END Demo.", "");
+    int importAt = source.indexOf(header) + header.length() + (compact ? 0 : eol.length());
+    String importText = (compact ? eol : "") + "  IMPORTS " + math + ";" + eol;
+    String context = "Demo.Data.Thing";
+    var spec = absoluteMinimum("Minimum");
+    var compiler = new CountingCompiler(ConstraintFixtures.repositories() + ";" + repository);
+    var single = ConstraintFixtures.authoring(compiler).authorIliConstraint(source, context, spec, null, null, null);
+    assertThat(single.status).as("%s %s", single.reason, compiler.lastCompilation.messages())
+        .isEqualTo(IliAuthoringResult.Status.GENERATED);
+    assertThat(compiler.calls).isEqualTo(2);
+    var batch = new IliModelChangeTools(service(compiler)).applyIliModelChanges(
+        source, batch(addConstraint(context, spec), true), null, null);
+    assertThat(batch.status).as("%s %s", batch.reason, compiler.lastCompilation.messages())
+        .isEqualTo(IliAuthoringResult.Status.APPLIED);
+    assertThat(compiler.calls).isEqualTo(4);
+    assertThat(batch.updatedModelText).isEqualTo(single.updatedModelText);
+    Model model = (Model) compiler.lastCompilation.transferDescription().getElement("Demo");
+    assertThat(model.getImporting()).extracting(Model::getName).containsExactly(math);
+    var data = compiler.lastCompilation.transferDescription().getElement("Demo.Data");
+    assertThat(data.getDocumentation()).isEqualTo("Topic documentation.");
+    if (!compact) assertThat(data.getMetaValues().getValue("topicMeta")).isEqualTo("keep");
+    assertThat(compiler.lastCompilation.transferDescription().getElement(context + ".Minimum"))
+        .isInstanceOfSatisfying(MandatoryConstraint.class,
+            constraint -> assertThat(constraint.getContainer().getScopedName()).isEqualTo(context));
+    for (var result : List.of(single, batch)) {
+      assertReplay(source, result);
+      assertThat(result.sourceEdits).hasSize(existing ? 1 : 2);
+      if (!existing) {
+        assertThat(result.sourceEdits).anySatisfy(edit ->
+            assertInsertion(edit, importAt, compact ? 2 : 3, importText));
+      }
+      assertThat(result.constraintProofs).singleElement().satisfies(proof -> {
+        assertThat(proof.status).isEqualTo(IliAuthoringResult.ProofStatus.PASSED);
+        assertThat(proof.coverageComplete).isTrue();
+        assertThat(proof.verification.cases).allSatisfy(test -> {
+          assertThat(test.fixtureValid).isTrue();
+          assertThat(test.constraintExercised).isTrue();
+        }).anySatisfy(test -> assertThat(test.targetViolationCount).isZero())
+            .anySatisfy(test -> assertThat(test.targetViolationCount).isEqualTo(1));
+      });
+    }
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"derived", "explicit", "existing"})
   void mixedBatchGroupsExternalConstraintsAndAddsMathImportOnce(String importMode) {
     String source = modelWithAssociation().replace("INTERLIS 2.4", "INTERLIS 2.3")
@@ -656,6 +767,125 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     assertThat(result.updatedModelText).isEqualTo(source.substring(0, modelBody)
         + (addsImport ? importLine : "") + source.substring(modelBody, topicEnd)
         + additions + source.substring(topicEnd));
+    assertReplay(source, result);
+  }
+
+  @Test
+  void groupsTwoImportsWithoutMovingTheCompactFollowingTopic(@TempDir Path repository) throws IOException {
+    for (String name : List.of("FirstDependency", "SecondDependency")) {
+      Files.writeString(repository.resolve(name + ".ili"), """
+          INTERLIS 2.4;
+          MODEL %s (en) AT "https://example.org/import" VERSION "1" = END %s.
+          """.formatted(name, name));
+    }
+    String source = """
+        INTERLIS 2.4;
+        CONTRACTED MODEL Demo (de) AT "https://example.org/demo" VERSION "1" = TOPIC Data =
+          CLASS Thing = END Thing; END Data;
+        END Demo.
+        """.replace("\n", "\r\n");
+    var compiler = new CountingCompiler(repository.toString());
+    var result = service(compiler).apply(source, batch(List.of(
+        addImport("SecondDependency"), addClass("Extra"), addImport("FirstDependency")), true),
+        null, null, null);
+    assertThat(result.status).as(result.reason).isEqualTo(IliAuthoringResult.Status.APPLIED);
+    assertThat(compiler.calls).isEqualTo(2);
+    var td = compiler.lastCompilation.transferDescription();
+    assertThat(((Model) td.getElement("Demo")).getImporting()).extracting(Model::getName)
+        .containsExactlyInAnyOrder("FirstDependency", "SecondDependency");
+    assertThat(td.getElement("Demo.Data.Extra").getContainer()).isSameAs(td.getElement("Demo.Data"));
+    assertThat(result.sourceEdits).hasSize(2);
+    assertInsertion(result.sourceEdits.getFirst(), source.indexOf(" TOPIC Data"), 2,
+        "\r\n  IMPORTS SecondDependency;\r\n  IMPORTS FirstDependency;\r\n");
+    assertReplay(source, result);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2.3", "2.4"})
+  void insertsIntoNestedCompactBlocksInBatchOrder(String version) {
+    String source = """
+        INTERLIS %s;
+        CONTRACTED MODEL Demo (de) AT "https://example.org/demo" VERSION "1" =
+        \tTOPIC Data = CLASS Thing = END Thing; END Data; END Demo.
+        """.formatted(version);
+    var topic = operation(IliModelChangeOperation.ADD_TOPIC, change -> {
+      var add = new IliModelChangeRequest.AddTopicChange();
+      add.modelFqn = "Demo";
+      add.topic = new IliModelSpec.TopicSpec();
+      add.topic.name = "ExtraData";
+      change.setAddTopic(add);
+    });
+    var compiler = new CountingCompiler();
+    var result = service(compiler).apply(source, batch(List.of(
+        addClass("Earlier"), topic, addClass("Later")), true), null, null, null);
+    assertThat(result.status).as(result.reason).isEqualTo(IliAuthoringResult.Status.APPLIED);
+    assertThat(compiler.calls).isEqualTo(2);
+    var td = compiler.lastCompilation.transferDescription();
+    assertThat(td.getElement("Demo.Data.Earlier").getContainer()).isSameAs(td.getElement("Demo.Data"));
+    assertThat(td.getElement("Demo.Data.Later").getContainer()).isSameAs(td.getElement("Demo.Data"));
+    assertThat(td.getElement("Demo.ExtraData").getContainer()).isSameAs(td.getElement("Demo"));
+    assertThat(result.sourceEdits).hasSize(2);
+    assertInsertion(result.sourceEdits.getFirst(), source.indexOf("END Data;"), 3,
+        "\n\t  CLASS Earlier =\n\t  END Earlier;\n\t  CLASS Later =\n\t  END Later;\n\t");
+    assertInsertion(result.sourceEdits.getLast(), source.indexOf("END Demo."), 3,
+        "\n  TOPIC ExtraData =\n  END ExtraData;\n");
+    assertReplay(source, result);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void importsFollowModelSettingsAndPrecedeDeclarationsAtAnEmptyModelEnd(
+      boolean settings, @TempDir Path repository) throws IOException {
+    Files.writeString(repository.resolve("Dependency.ili"), """
+        INTERLIS 2.4;
+        MODEL Dependency (en) AT "https://example.org/import" VERSION "1" = END Dependency.
+        """);
+    String prefix = settings ? "CHARSET \"UTF-8\"; XMLNS \"https://example.org/ns\";" : "";
+    String source = """
+        INTERLIS 2.4;
+        MODEL Demo (de) AT "https://example.org/demo" VERSION "1" // stable = yes //
+          /* outer /* inner */ = ignored */ =%sEND Demo.
+        """.formatted(prefix);
+    var topic = operation(IliModelChangeOperation.ADD_TOPIC, change -> {
+      var add = new IliModelChangeRequest.AddTopicChange();
+      add.modelFqn = "Demo";
+      add.topic = new IliModelSpec.TopicSpec();
+      add.topic.name = "Data";
+      change.setAddTopic(add);
+    });
+    var compiler = new CountingCompiler(repository.toString());
+    var result = service(compiler).apply(source, batch(List.of(topic, addImport("Dependency")), true),
+        null, null, null);
+    assertThat(result.status).as("%s %s", result.reason, compiler.lastCompilation.messages())
+        .isEqualTo(IliAuthoringResult.Status.APPLIED);
+    assertThat(compiler.calls).isEqualTo(2);
+    var td = compiler.lastCompilation.transferDescription();
+    assertThat(((Model) td.getElement("Demo")).getImporting()).extracting(Model::getName)
+        .containsExactly("Dependency");
+    assertThat(td.getElement("Demo.Data").getContainer()).isSameAs(td.getElement("Demo"));
+    assertThat(result.sourceEdits).singleElement().satisfies(edit ->
+        assertInsertion(edit, source.indexOf("END Demo."), 3,
+            "\n  IMPORTS Dependency;\n  TOPIC Data =\n  END Data;\n"));
+    assertReplay(source, result);
+  }
+
+  private void assertInsertion(IliAuthoringResult.SourceEdit edit, int offset, int line, String text) {
+    assertThat(edit.startOffset).isEqualTo(offset);
+    assertThat(edit.endOffset).isEqualTo(offset);
+    assertThat(edit.startLine).isEqualTo(line);
+    assertThat(edit.endLine).isEqualTo(line);
+    assertThat(edit.before).isEmpty();
+    assertThat(edit.after).isEqualTo(text);
+  }
+
+  private void assertReplay(String original, IliAuthoringResult result) {
+    StringBuilder replay = new StringBuilder(original);
+    result.sourceEdits.stream().sorted(Comparator.comparingInt(
+        (IliAuthoringResult.SourceEdit edit) -> edit.startOffset).reversed()).forEach(edit -> {
+          assertThat(original.substring(edit.startOffset, edit.endOffset)).isEqualTo(edit.before);
+          replay.replace(edit.startOffset, edit.endOffset, edit.after);
+        });
+    assertThat(result.updatedModelText).isEqualTo(replay.toString());
   }
 
   @Test
@@ -759,35 +989,34 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
         INTERLIS 2.4;
         MODEL Dependency (en) AT "https://example.org/import" VERSION "1" = END Dependency.
         """);
-    assertAddOperation(repository, operation(IliModelChangeOperation.ADD_IMPORT, change -> {
-      IliModelChangeRequest.AddImportChange add = new IliModelChangeRequest.AddImportChange();
-      add.modelFqn = "Demo";
-      add.importModel = "Dependency";
-      change.setAddImport(add);
-    }), "IMPORTS Dependency;");
+    assertAddOperation(repository, model(), addImport("Dependency"), "IMPORTS Dependency;", "Demo");
 
-    assertAddOperation(repository, operation(IliModelChangeOperation.ADD_TOPIC, change -> {
+    assertAddOperation(repository, model(), operation(IliModelChangeOperation.ADD_TOPIC, change -> {
       IliModelSpec.TopicSpec topic = new IliModelSpec.TopicSpec();
       topic.name = "MoreData";
       IliModelChangeRequest.AddTopicChange add = new IliModelChangeRequest.AddTopicChange();
       add.modelFqn = "Demo";
       add.topic = topic;
       change.setAddTopic(add);
-    }), "TOPIC MoreData");
+    }), "TOPIC MoreData", "Demo.MoreData");
 
-    assertAddOperation(repository, operation(IliModelChangeOperation.ADD_DOMAIN, change -> {
+    var domainOperation = operation(IliModelChangeOperation.ADD_DOMAIN, change -> {
       IliModelSpec.DomainSpec domain = new IliModelSpec.DomainSpec();
       domain.name = "Height";
       domain.kind = IliModelSpec.DomainKind.NUMERIC;
       domain.min = "0";
       domain.max = "100";
       IliModelChangeRequest.AddDomainChange add = new IliModelChangeRequest.AddDomainChange();
-      add.containerFqn = "Demo.Data";
+      add.containerFqn = "Demo";
       add.domain = domain;
       change.setAddDomain(add);
-    }), "Height = 0 .. 100;");
+    });
+    assertAddOperation(repository, model(), domainOperation, "Height = 0 .. 100;", "Demo.Height");
+    assertAddOperation(repository, model().replace("MODEL Demo", "CONTRACTED MODEL Demo"),
+        domainOperation, "Height = 0 .. 100;", "Demo.Height");
 
-    assertAddOperation(repository, operation(IliModelChangeOperation.ADD_UNIT, change -> {
+    assertAddOperation(repository, model().replace("END Data;\nEND Demo.", "END Data; END Demo."),
+        operation(IliModelChangeOperation.ADD_UNIT, change -> {
       IliModelSpec.UnitSpec unit = new IliModelSpec.UnitSpec();
       unit.name = "Centimeter";
       unit.factor = new BigDecimal("0.01");
@@ -796,18 +1025,11 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
       add.containerFqn = "Demo";
       add.unit = unit;
       change.setAddUnit(add);
-    }), "Centimeter = 0.01 [INTERLIS.m];");
+    }), "Centimeter = 0.01 [INTERLIS.m];", "Demo.Centimeter");
 
-    assertAddOperation(repository, operation(IliModelChangeOperation.ADD_CLASS, change -> {
-      IliModelSpec.ClassSpec clazz = new IliModelSpec.ClassSpec();
-      clazz.name = "AddedClass";
-      IliModelChangeRequest.AddClassChange add = new IliModelChangeRequest.AddClassChange();
-      add.topicFqn = "Demo.Data";
-      add.clazz = clazz;
-      change.setAddClass(add);
-    }), "CLASS AddedClass");
+    assertAddOperation(repository, model(), addClass("AddedClass"), "CLASS AddedClass", "Demo.Data.AddedClass");
 
-    assertAddOperation(repository, operation(IliModelChangeOperation.ADD_STRUCTURE, change -> {
+    assertAddOperation(repository, model(), operation(IliModelChangeOperation.ADD_STRUCTURE, change -> {
       IliModelSpec.StructureSpec structure = new IliModelSpec.StructureSpec();
       structure.name = "AddedStructure";
       IliModelChangeRequest.AddStructureChange add =
@@ -815,9 +1037,9 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
       add.topicFqn = "Demo.Data";
       add.structure = structure;
       change.setAddStructure(add);
-    }), "STRUCTURE AddedStructure");
+    }), "STRUCTURE AddedStructure", "Demo.Data.AddedStructure");
 
-    assertAddOperation(repository, operation(IliModelChangeOperation.ADD_ASSOCIATION, change -> {
+    assertAddOperation(repository, model(), operation(IliModelChangeOperation.ADD_ASSOCIATION, change -> {
       IliModelSpec.AssociationSpec association = new IliModelSpec.AssociationSpec();
       association.name = "ThingRelation";
       association.roles = List.of(
@@ -827,17 +1049,39 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
       add.topicFqn = "Demo.Data";
       add.association = association;
       change.setAddAssociation(add);
-    }), "ASSOCIATION ThingRelation");
+    }), "ASSOCIATION ThingRelation", "Demo.Data.ThingRelation");
   }
 
-  private void assertAddOperation(Path repository, IliModelChangeRequest operation, String expectedText) {
+  private void assertAddOperation(Path repository, String source, IliModelChangeRequest operation,
+      String expectedText, String expectedFqn) {
     CountingCompiler compiler = new CountingCompiler(repository.toString());
     IliAuthoringResult result = service(compiler).apply(
-        model(), batch(List.of(operation), true), null, null, null);
+        source, batch(List.of(operation), true), null, null, null);
     assertThat(compiler.calls).as(operation.getOperation().name()).isEqualTo(2);
     assertThat(result.status).as("%s: %s (%s)", operation.getOperation(), result.reason, result.afterCompilation)
         .isEqualTo(IliAuthoringResult.Status.APPLIED);
     assertThat(result.updatedModelText).contains(expectedText);
+    assertThat(compiler.lastCompilation.transferDescription().getElement(expectedFqn)).isNotNull();
+    assertReplay(source, result);
+  }
+
+  private IliModelChangeRequest addClass(String name) {
+    return operation(IliModelChangeOperation.ADD_CLASS, change -> {
+      var add = new IliModelChangeRequest.AddClassChange();
+      add.topicFqn = "Demo.Data";
+      add.clazz = new IliModelSpec.ClassSpec();
+      add.clazz.name = name;
+      change.setAddClass(add);
+    });
+  }
+
+  private IliModelChangeRequest addImport(String name) {
+    return operation(IliModelChangeOperation.ADD_IMPORT, change -> {
+      var add = new IliModelChangeRequest.AddImportChange();
+      add.modelFqn = "Demo";
+      add.importModel = name;
+      change.setAddImport(add);
+    });
   }
 
   private IliModelChangeRequest operation(
