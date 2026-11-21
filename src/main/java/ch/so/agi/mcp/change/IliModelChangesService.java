@@ -591,13 +591,15 @@ public final class IliModelChangesService {
     String eol = document.lineSeparator();
     for (var entry : byAnchor.entrySet()) {
       StringBuilder text = new StringBuilder();
+      boolean beforeLineBreak = document.hasLineBreakAt(entry.getKey());
       for (IliTextPatch patch : entry.getValue()) {
         String fragment = patch.replacement();
-        if (!text.isEmpty() && fragment.startsWith(eol)) {
+        if (!text.isEmpty() && fragment.startsWith(eol) && !beforeLineBreak) {
           // Split a compact line once, with only the final patch's indentation before the original text.
           text.setLength(text.lastIndexOf(eol) + eol.length());
           text.append(fragment, eol.length(), fragment.length());
         } else {
+          if (!text.isEmpty() && beforeLineBreak && !fragment.startsWith(eol)) text.append(eol);
           text.append(fragment);
         }
       }

@@ -172,6 +172,24 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
   }
 
   @Test
+  void retainsIndependentAttributeInsertionsAndRemovalOfAColumnZeroComment() {
+    String source = model().replace(
+        "other : TEXT*10;\n", "other : TEXT*10;\n/* Keep the edits separate. */\n");
+    var compiler = new CountingCompiler();
+    var result = service(compiler).apply(source, batch(List.of(
+        operation(IliModelChangeOperation.REMOVE_COMMENTS, change -> {}),
+        addAttribute("extra", 10), addAttribute("later", 20)), true), null, null, null);
+    assertThat(result.status).as(result.reason).isEqualTo(IliAuthoringResult.Status.APPLIED);
+    assertThat(compiler.calls).isEqualTo(2);
+    var td = compiler.lastCompilation.transferDescription();
+    assertThat(td.getElement("Demo.Data.Thing.extra")).isNotNull();
+    assertThat(td.getElement("Demo.Data.Thing.later")).isNotNull();
+    assertThat(result.sourceEdits).anySatisfy(edit ->
+        assertInsertion(edit, source.indexOf("\n/* Keep"), 9, "\n      extra : TEXT*10;\n      later : TEXT*20;"));
+    assertReplay(source, result);
+  }
+
+  @Test
   void updateAttributeChangesOnlyExplicitTypeCollectionAndAnnotations() {
     CountingCompiler compiler = new CountingCompiler();
     IliModelChangesService service = service(compiler);
@@ -840,7 +858,7 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     assertThat(compiler.calls).isEqualTo(2);
     var extra = compiler.lastCompilation.transferDescription().getElement("Demo.Data.Extra");
     assertThat(extra.getDocumentation()).isNull();
-    assertThat(extra.getMetaValues()).isNull();
+    assertThat(extra.getMetaValue("note")).isNull();
     assertThat(result.sourceEdits).singleElement().satisfies(edit -> {
       int commentAt = source.indexOf("/** Trailing documentation. */");
       assertInsertion(edit, compact ? commentAt : commentAt - 4, compact ? 4 : 5,
