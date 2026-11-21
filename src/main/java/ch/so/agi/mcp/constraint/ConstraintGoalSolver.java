@@ -138,15 +138,6 @@ public final class ConstraintGoalSolver {
         ? new SearchReference(r.name(), List.of(fixed.get(r.name()))) : r).toList();
   }
 
-  public static List<Solution> solveAll(
-      ConstraintExpression expression,
-      ConstraintModelSynthesizer.ModelBinding binding) {
-    Objects.requireNonNull(expression, "expression");
-    return ConstraintExpressionEngine.testGoals(expression).stream()
-        .map(goal -> solve(goal, binding))
-        .toList();
-  }
-
   private static void search(
       ConstraintExpressionEngine.TestGoal goal,
       ConstraintModelSynthesizer.ModelBinding binding,
