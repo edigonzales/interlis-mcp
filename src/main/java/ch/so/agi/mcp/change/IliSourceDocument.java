@@ -132,21 +132,9 @@ public final class IliSourceDocument {
 
   private IliTextPatch insertLines(
       int offset, String fragment, String indent, String suffix, String description) {
-    int line = lineOfOffset(offset);
-    boolean atLineStart = offset == lineStartOffset(line);
-    if (atLineStart && line > 1 && (text.startsWith("/*", offset) || text.startsWith("!!", offset))) {
-      // Use the other side of the existing line break so a comment removal can remain a separate edit.
-      offset = lineEndOffset(line - 1);
-      atLineStart = false;
-    }
-    String prefix = atLineStart ? "" : lineSeparator;
-    String separator = hasLineBreakAt(offset) ? "" : lineSeparator;
+    String prefix = offset == lineStartOffset(lineOfOffset(offset)) ? "" : lineSeparator;
     return IliTextPatch.insert(this, offset,
-        prefix + indentLines(fragment, indent, lineSeparator) + separator + suffix, description);
-  }
-
-  boolean hasLineBreakAt(int offset) {
-    return offset < text.length() && (text.charAt(offset) == '\n' || text.charAt(offset) == '\r');
+        prefix + indentLines(fragment, indent, lineSeparator) + lineSeparator + suffix, description);
   }
 
   public static String indentLines(String fragment, String indent, String lineSeparator) {

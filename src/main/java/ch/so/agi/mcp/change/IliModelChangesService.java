@@ -165,9 +165,7 @@ public final class IliModelChangesService {
     addMissingDerivedImports(
         document, localModel, changes.size(), insertions, expected, derivedImports);
 
-    List<IliTextPatch> patches = new ArrayList<>(replacements);
-    patches.addAll(groupInsertions(document, insertions));
-    Prepared prepared = prepare(document, patches);
+    Prepared prepared = prepare(document, groupInsertions(document, insertions, replacements));
     if (prepared.candidate().equals(modelText)) {
       IliAuthoringResult result = new IliAuthoringResult().reject(
           Status.INVALID_SPEC, "The requested batch changes no source text.", null);
@@ -579,7 +577,7 @@ public final class IliModelChangesService {
   }
 
   private List<IliTextPatch> groupInsertions(
-      IliSourceDocument document, List<PendingInsertion> pending) {
+      IliSourceDocument document, List<PendingInsertion> pending, List<IliTextPatch> replacements) {
     Map<Integer, List<IliTextPatch>> byAnchor = new LinkedHashMap<>();
     // In an empty model, imports and declarations can share an offset. IMPORTS must come first.
     pending.stream()
@@ -587,25 +585,35 @@ public final class IliModelChangesService {
             .thenComparingInt(PendingInsertion::operationIndex))
         .map(PendingInsertion::patch)
         .forEach(patch -> byAnchor.computeIfAbsent(patch.span().startOffset(), ignored -> new ArrayList<>()).add(patch));
-    List<IliTextPatch> result = new ArrayList<>();
+    List<IliTextPatch> result = new ArrayList<>(replacements);
     String eol = document.lineSeparator();
     for (var entry : byAnchor.entrySet()) {
       StringBuilder text = new StringBuilder();
-      boolean beforeLineBreak = document.hasLineBreakAt(entry.getKey());
       for (IliTextPatch patch : entry.getValue()) {
         String fragment = patch.replacement();
-        if (!text.isEmpty() && fragment.startsWith(eol) && !beforeLineBreak) {
+        if (!text.isEmpty() && fragment.startsWith(eol)) {
           // Split a compact line once, with only the final patch's indentation before the original text.
           text.setLength(text.lastIndexOf(eol) + eol.length());
           text.append(fragment, eol.length(), fragment.length());
         } else {
-          if (!text.isEmpty() && beforeLineBreak && !fragment.startsWith(eol)) text.append(eol);
           text.append(fragment);
         }
       }
       String description = entry.getValue().stream().map(IliTextPatch::description)
           .collect(Collectors.joining("; "));
-      result.add(IliTextPatch.insert(document, entry.getKey(), text.toString(), description));
+      int offset = entry.getKey();
+      // An insertion immediately before a replaced range consumes none of that range.
+      var following = replacements.stream()
+          .filter(patch -> !patch.span().isEmpty() && patch.span().startOffset() == offset)
+          .findFirst();
+      if (following.isPresent()) {
+        IliTextPatch patch = following.get();
+        result.remove(patch);
+        result.add(IliTextPatch.replace(patch.span(), text.append(patch.replacement()).toString(),
+            description + "; " + patch.description()));
+      } else {
+        result.add(IliTextPatch.insert(document, offset, text.toString(), description));
+      }
     }
     return result;
   }

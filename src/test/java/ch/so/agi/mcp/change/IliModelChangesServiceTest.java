@@ -171,10 +171,12 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     assertThat(compiler.calls).isOne();
   }
 
-  @Test
-  void retainsIndependentAttributeInsertionsAndRemovalOfAColumnZeroComment() {
-    String source = model().replace(
-        "other : TEXT*10;\n", "other : TEXT*10;\n/* Keep the edits separate. */\n");
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void groupsAttributeInsertionsAtTheStartOfARemovedComment(boolean compact) {
+    String comment = "/** Keep the edits separate. */";
+    String source = model().replace("other : TEXT*10;\n",
+        "other : TEXT*10;" + (compact ? " " : "\n") + comment + "\n");
     var compiler = new CountingCompiler();
     var result = service(compiler).apply(source, batch(List.of(
         operation(IliModelChangeOperation.REMOVE_COMMENTS, change -> {}),
@@ -184,8 +186,16 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
     var td = compiler.lastCompilation.transferDescription();
     assertThat(td.getElement("Demo.Data.Thing.extra")).isNotNull();
     assertThat(td.getElement("Demo.Data.Thing.later")).isNotNull();
-    assertThat(result.sourceEdits).anySatisfy(edit ->
-        assertInsertion(edit, source.indexOf("\n/* Keep"), 9, "\n      extra : TEXT*10;\n      later : TEXT*20;"));
+    int offset = source.indexOf(comment);
+    assertThat(result.sourceEdits).anySatisfy(edit -> {
+      assertThat(edit.startOffset).isEqualTo(offset);
+      assertThat(edit.endOffset).isEqualTo(offset + comment.length());
+      assertThat(edit.startLine).isEqualTo(compact ? 9 : 10);
+      assertThat(edit.endLine).isEqualTo(edit.startLine);
+      assertThat(edit.before).isEqualTo(comment);
+      assertThat(edit.after).isEqualTo((compact ? "\n" : "")
+          + "      extra : TEXT*10;\n      later : TEXT*20;\n" + " ".repeat(comment.length()));
+    });
     assertReplay(source, result);
   }
 
