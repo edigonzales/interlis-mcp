@@ -348,9 +348,14 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
   }
 
   @ParameterizedTest
-  @CsvSource({"2.3,ADD_ATTRIBUTE", "2.4,UPDATE_ATTRIBUTE", "2.4,ADD_CLASS", "2.3,ADD_TOPIC"})
-  void explicitSurfaceDerivesImportInBatch(
-      String version, IliModelChangeOperation kind, @TempDir Path repository) throws IOException {
+  @CsvSource({
+      "2.3,ADD_ATTRIBUTE,false", "2.4,UPDATE_ATTRIBUTE,false",
+      "2.4,ADD_CLASS,false", "2.3,ADD_TOPIC,false",
+      "2.3,ADD_ATTRIBUTE,true", "2.4,ADD_ATTRIBUTE,true"
+  })
+  void explicitSurfaceDerivesOrReusesImportInBatch(
+      String version, IliModelChangeOperation kind, boolean existingImport, @TempDir Path repository)
+      throws IOException {
     Files.writeString(repository.resolve("CoordLib.ili"), """
         INTERLIS %s;
         MODEL CoordLib AT "https://example.org" VERSION "1" =
@@ -359,10 +364,11 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
         """.formatted(version));
     String source = """
         INTERLIS %s;
-        MODEL Demo AT "https://example.org" VERSION "1" = TOPIC Data =
+        MODEL Demo AT "https://example.org" VERSION "1" = %sTOPIC Data =
           CLASS Thing = %sEND Thing; END Data; !! preserve
         END Demo.
-        """.formatted(version, kind == IliModelChangeOperation.UPDATE_ATTRIBUTE ? "\n    footprint : TEXT;\n  " : "");
+        """.formatted(version, existingImport ? "IMPORTS CoordLib; " : "",
+            kind == IliModelChangeOperation.UPDATE_ATTRIBUTE ? "\n    footprint : TEXT;\n  " : "");
 
     GeometryTypeSpec geometry = new GeometryTypeSpec();
     geometry.setProvider(GeometryTypeSpec.Provider.INTERLIS);
@@ -422,9 +428,11 @@ void removeCommentsPreservesModelSemanticsAndReportsEdits() {
         .getElement(classFqn + ".footprint");
     assertThat(attribute.getDomain()).isInstanceOfSatisfying(SurfaceType.class, surface ->
         assertThat(surface.getControlPointDomain().getScopedName()).isEqualTo("CoordLib.Coord2"));
-    assertThat(result.sourceEdits).hasSize(2);
-    assertInsertion(result.sourceEdits.getFirst(), source.indexOf("TOPIC Data"), 2,
-        "\n  IMPORTS CoordLib;\n");
+    assertThat(result.sourceEdits).hasSize(existingImport ? 1 : 2);
+    if (!existingImport) {
+      assertInsertion(result.sourceEdits.getFirst(), source.indexOf("TOPIC Data"), 2,
+          "\n  IMPORTS CoordLib;\n");
+    }
     if (kind == IliModelChangeOperation.ADD_ATTRIBUTE) {
       var edit = result.sourceEdits.getLast();
       assertThat(edit.startOffset).isEqualTo(source.indexOf("END Thing;"));
